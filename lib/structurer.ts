@@ -1,0 +1,384 @@
+import OpenAI from "openai";
+
+const openrouterKey = process.env.OPENROUTER_API_KEY ?? "";
+
+let openaiClient: OpenAI | null = null;
+
+function getOpenAI(): OpenAI {
+  if (!openaiClient) {
+    if (!openrouterKey) throw new Error("OPENROUTER_API_KEY ist nicht gesetzt.");
+    openaiClient = new OpenAI({ apiKey: openrouterKey, baseURL: "https://openrouter.ai/api/v1" });
+  }
+  return openaiClient;
+}
+
+const DATE_PATTERN = /\b(\d{1,2}\.\d{1,2}\.\d{2,4})\b/;
+const BUDGET_PATTERN =
+  /(?:budget|auftragswert|gesamtwert|wert|auftragsvolumen|netto)\s*[:\-]?\s*([0-9][0-9\.,\s]{2,20}(?:euro|eur|€))/i;
+const CPV_PATTERN = /\b(\d{8}(?:-\d)?)\b/g;
+const DURATION_PATTERN = /(?:laufzeit|vertragslaufzeit|dauer|zeitraum)\s*[:\-]?\s*(\d+)\s*(?:monat|jahr|tag)/i;
+
+const compactSpaces = (value: string): string => value.split(/\s+/).join(" ").trim();
+
+const firstMatchingLine = (lines: string[], keywords: string[]): string | null => {
+  for (const line of lines) {
+    const lower = line.toLowerCase();
+    if (keywords.some((keyword) => lower.includes(keyword))) {
+      return line.slice(0, 400);
+    }
+  }
+  return null;
+};
+
+const matchingLines = (lines: string[], keywords: string[], limit = 8): string[] => {
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const line of lines) {
+    const lower = line.toLowerCase();
+    if (!keywords.some((keyword) => lower.includes(keyword))) {
+      continue;
+    }
+
+    const compact = compactSpaces(line);
+    if (seen.has(compact)) {
+      continue;
+    }
+
+    seen.add(compact);
+    result.push(compact.slice(0, 500));
+    if (result.length >= limit) {
+      break;
+    }
+  }
+
+  return result;
+};
+
+const extractDeadline = (lines: string[]): string | null => {
+  for (const line of lines) {
+    const lower = line.toLowerCase();
+    if (!["frist", "deadline", "abgabefrist", "angebotsfrist", "teilnahmefrist", "einreichungsfrist"].some((keyword) => lower.includes(keyword))) {
+      continue;
+    }
+
+    const match = line.match(DATE_PATTERN);
+    if (match) {
+      return match[1] ?? null;
+    }
+  }
+  return null;
+};
+
+const extractBudget = (text: string): string | null => {
+  const match = text.match(BUDGET_PATTERN);
+  if (!match?.[1]) {
+    return null;
+  }
+  return compactSpaces(match[1]);
+};
+
+const detectContractType = (text: string): string | null => {
+  const lower = text.toLowerCase();
+  if (lower.includes("bauleistung") || lower.includes("vob")) {
+    return "bau";
+  }
+  if (lower.includes("liefer")) {
+    return "lieferung";
+  }
+  if (lower.includes("dienstleistung") || lower.includes("vol")) {
+    return "dienstleistung";
+  }
+  return null;
+};
+
+const extractCpvCodes = (text: string): string[] => {
+  const matches = text.match(CPV_PATTERN);
+  if (!matches) return [];
+  return [...new Set(matches)];
+};
+
+const extractDuration = (text: string): { months: number | null; renewal: boolean } => {
+  const match = text.match(DURATION_PATTERN);
+  let months: number | null = null;
+  
+  if (match) {
+    const value = parseInt(match[1], 10);
+    if (text.toLowerCase().includes("jahr")) {
+      months = value * 12;
+    } else if (text.toLowerCase().includes("tag")) {
+      months = Math.ceil(value / 30);
+    } else {
+      months = value;
+    }
+  }
+  
+  const renewal = /verlängerung|verlängerbar|option|optionszeitraum/i.test(text);
+  
+  return { months, renewal };
+};
+
+const detectProcedureType = (text: string): string => {
+  const lower = text.toLowerCase();
+  if (lower.includes("offenes verfahren") || lower.includes("öffentlich")) return "offen";
+  if (lower.includes("beschränktes verfahren") || lower.includes("beschränkt")) return "beschränkt";
+  if (lower.includes("verhandlungsverfahren") || lower.includes("verhandelt")) return "verhandelt";
+  if (lower.includes("wettbewerblicher dialog")) return "dialog";
+  if (lower.includes("innovationspartnerschaft")) return "innovation";
+  return "offen";
+};
+
+const extractContractValue = (text: string): { min: number | null; max: number | null; currency: string } => {
+  const valuePatterns = [
+    /(?:geschätzter|geschätzte|netto|brutto)\s*(?:auftragswert|auftragsvolumen|gesamtwert|wert)\s*[:\-]?\s*(?:ca\.?\s*)?(\d[\d\.,\s]*)\s*(?:euro|eur|€)/i,
+    /(?:auftragswert|auftragsvolumen|gesamtwert|wert)\s*[:\-]?\s*(?:ca\.?\s*)?(\d[\d\.,\s]*)\s*(?:euro|eur|€)/i,
+    /(\d[\d\.,\s]*)\s*(?:euro|eur|€)\s*(?:netto|brutto|gesamt)/i,
+  ];
+  
+  for (const pattern of valuePatterns) {
+    const match = text.match(pattern);
+    if (match?.[1]) {
+      const cleaned = match[1].replace(/\s/g, "").replace(/\./g, "").replace(",", ".");
+      const value = parseFloat(cleaned);
+      if (!isNaN(value) && value > 0) {
+        return { min: null, max: value, currency: "EUR" };
+      }
+    }
+  }
+  
+  // Range pattern: "zwischen X und Y EUR"
+  const rangeMatch = text.match(/zwischen\s+(\d[\d\.,\s]*)\s*(?:euro|eur|€)\s*und\s+(\d[\d\.,\s]*)\s*(?:euro|eur|€)/i);
+  if (rangeMatch?.[1] && rangeMatch?.[2]) {
+    const min = parseFloat(rangeMatch[1].replace(/\s/g, "").replace(/\./g, "").replace(",", "."));
+    const max = parseFloat(rangeMatch[2].replace(/\s/g, "").replace(/\./g, "").replace(",", "."));
+    if (!isNaN(min) && !isNaN(max)) {
+      return { min, max, currency: "EUR" };
+    }
+  }
+  
+  return { min: null, max: null, currency: "EUR" };
+};
+
+export interface AwardCriterion {
+  criterion: string;
+  weight: number | null;
+}
+
+export interface StructuredData {
+  title: string;
+  hard_facts: {
+    deadline: string | null;
+    budget: string | null;
+    location: string | null;
+    buyer: string | null;
+    contract_type: string | null;
+  };
+  decision_relevant: {
+    requirements: string[];
+    scope: string[];
+    award_criteria: string[];
+    mandatory_documents: string[];
+  };
+  procurement: {
+    contract_value: { min: number | null; max: number | null; currency: string };
+    contract_duration: { months: number | null; renewal: boolean };
+    award_criteria_detailed: AwardCriterion[];
+    participation_requirements: string[];
+    cpv_codes: string[];
+    procedure_type: string;
+  };
+  summary: string;
+  confidence: number;
+}
+
+export function normalizeStructured(raw: unknown, fallbackTitle: string): StructuredData {
+  const obj = raw as Record<string, unknown>;
+  if (obj && typeof obj === "object" && obj.decision_relevant) {
+    return raw as unknown as StructuredData;
+  }
+  const flat = obj as Record<string, unknown>;
+  const scopeStr = typeof flat.scope === "string" ? flat.scope : "";
+  const descStr = typeof flat.description === "string" ? flat.description : "";
+  const reqArr = Array.isArray(flat.requirements) ? (flat.requirements as string[]) : [];
+  const awardArr = Array.isArray(flat.awardCriteria) ? (flat.awardCriteria as string[]) : [];
+  const titleStr = typeof flat.title === "string" ? flat.title : fallbackTitle;
+
+  return {
+    title: titleStr,
+    summary: descStr || scopeStr || titleStr,
+    confidence: 0.5,
+    hard_facts: {
+      location: typeof flat.location === "string" ? flat.location : null,
+      deadline: (flat.deadline as string | null) ?? null,
+      budget: (flat.estimatedValue as string | null) ?? null,
+      buyer: typeof flat.client === "string" ? flat.client : null,
+      contract_type: typeof flat.procedure === "string" ? flat.procedure : null,
+    },
+    decision_relevant: {
+      scope: [...scopeStr.split(/\s+/).filter((w) => w.length > 3), ...titleStr.split(/\s+/).filter((w) => w.length > 3)],
+      requirements: reqArr,
+      mandatory_documents: [],
+      award_criteria: awardArr,
+    },
+    procurement: {
+      contract_value: { min: null, max: null, currency: "EUR" },
+      contract_duration: { months: null, renewal: false },
+      award_criteria_detailed: [],
+      participation_requirements: [],
+      cpv_codes: [],
+      procedure_type: typeof flat.procedure === "string" ? flat.procedure : "offen",
+    },
+  };
+}
+
+interface LLMExtractionResult {
+  contract_value: { min: number | null; max: number | null; currency: string };
+  contract_duration_months: number | null;
+  contract_duration_renewal: boolean;
+  award_criteria: AwardCriterion[];
+  participation_requirements: string[];
+  cpv_codes: string[];
+  procedure_type: string;
+}
+
+const LLM_STRUCTURE_PROMPT = `Du bist ein Experte für öffentliche Ausschreibungen in Deutschland.
+Analysiere den folgenden Text einer Ausschreibung und extrahiere die Vergabedaten.
+
+Antworte NUR mit einem JSON-Objekt (kein Markdown, kein Text davor/danach):
+
+{
+  "contract_value": { "min": null, "max": null, "currency": "EUR" },
+  "contract_duration_months": null,
+  "contract_duration_renewal": false,
+  "award_criteria": [],
+  "participation_requirements": [],
+  "cpv_codes": [],
+  "procedure_type": "offen"
+}
+
+Regeln:
+- contract_value: Geschätzter Auftragswert in EUR. min/max wenn Range, sonst max = geschätzter Wert, min = null
+- contract_duration_months: Vertragslaufzeit in Monaten (null wenn nicht angegeben)
+- contract_duration_renewal: true wenn Verlängerungsoption existiert
+- award_criteria: Array von { "criterion": "Name", "weight": 40 } (Gewichtung in %, null wenn nicht angegeben)
+- participation_requirements: Teilnahmevoraussetzungen (Eignungsnachweise, Referenzen, etc.)
+- cpv_codes: CPV-Codes (8-stellig, z.B. "90910000")
+- procedure_type: "offen", "beschränkt", "verhandelt", "dialog", "innovation"
+
+Wenn etwas nicht im Text steht, verwende null bzw. leeres Array.`;
+
+async function extractWithLLM(title: string, rawText: string): Promise<LLMExtractionResult | null> {
+  try {
+    const openai = getOpenAI();
+    const textForLLM = rawText.slice(0, 8000); // Limit for context
+    
+    const response = await openai.chat.completions.create({
+      model: "deepseek/deepseek-v4-pro",
+      messages: [
+        { role: "system", content: LLM_STRUCTURE_PROMPT },
+        { role: "user", content: `Titel: ${title}\n\nText:\n${textForLLM}` },
+      ],
+      temperature: 0.1,
+      max_tokens: 1000,
+      response_format: { type: "json_object" },
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) return null;
+
+    const parsed = JSON.parse(content);
+    
+    // Validate and sanitize
+    return {
+      contract_value: {
+        min: typeof parsed.contract_value?.min === "number" ? parsed.contract_value.min : null,
+        max: typeof parsed.contract_value?.max === "number" ? parsed.contract_value.max : null,
+        currency: parsed.contract_value?.currency || "EUR",
+      },
+      contract_duration_months: typeof parsed.contract_duration_months === "number" ? parsed.contract_duration_months : null,
+      contract_duration_renewal: Boolean(parsed.contract_duration_renewal),
+      award_criteria: Array.isArray(parsed.award_criteria) 
+        ? parsed.award_criteria.map((c: { criterion?: string; weight?: number }) => ({
+            criterion: String(c.criterion || ""),
+            weight: typeof c.weight === "number" ? c.weight : null,
+          })).filter((c: AwardCriterion) => c.criterion.length > 0)
+        : [],
+      participation_requirements: Array.isArray(parsed.participation_requirements)
+        ? parsed.participation_requirements.map(String).filter(Boolean)
+        : [],
+      cpv_codes: Array.isArray(parsed.cpv_codes)
+        ? parsed.cpv_codes.map(String).filter(Boolean)
+        : [],
+      procedure_type: ["offen", "beschränkt", "verhandelt", "dialog", "innovation"].includes(parsed.procedure_type)
+        ? parsed.procedure_type
+        : "offen",
+    };
+  } catch (error) {
+    console.error("[structurer] LLM-Extraktion fehlgeschlagen:", error);
+    return null;
+  }
+}
+
+export const extractStructuredData = async (title: string, rawText: string): Promise<StructuredData> => {
+  const lines = rawText
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  const deadline = extractDeadline(lines);
+  const budget = extractBudget(rawText);
+  const location = firstMatchingLine(lines, ["ort", "ausfuehrungsort", "ausfuhrungsort"]);
+  const buyer = firstMatchingLine(lines, ["auftraggeber", "vergabestelle", "beschaffer"]);
+  const contractType = detectContractType(rawText);
+
+  const requirements = matchingLines(lines, ["eignung", "mindestanforderung", "fachkunde", "leistungsfaehigkeit"]);
+  const scope = matchingLines(lines, ["leistungsbeschreibung", "leistungsumfang", "gegenstand der ausschreibung"]);
+  const awardCriteria = matchingLines(lines, ["zuschlagskriter", "bewertung", "gewichtung"]);
+  const mandatoryDocuments = matchingLines(lines, ["nachweis", "zertifikat", "referenz", "pflichtunterlage", "muss"]);
+
+  // Regex-based procurement data
+  const contractValueRegex = extractContractValue(rawText);
+  const contractDurationRegex = extractDuration(rawText);
+  const cpvCodesRegex = extractCpvCodes(rawText);
+  const procedureTypeRegex = detectProcedureType(rawText);
+
+  // LLM-based extraction for enhanced data
+  const llmResult = await extractWithLLM(title, rawText);
+
+  // Merge regex and LLM results (LLM takes precedence if available)
+  const procurement = {
+    contract_value: llmResult?.contract_value ?? contractValueRegex,
+    contract_duration: {
+      months: llmResult?.contract_duration_months ?? contractDurationRegex.months,
+      renewal: llmResult?.contract_duration_renewal ?? contractDurationRegex.renewal,
+    },
+    award_criteria_detailed: llmResult?.award_criteria ?? [],
+    participation_requirements: llmResult?.participation_requirements ?? [],
+    cpv_codes: llmResult?.cpv_codes?.length ? llmResult.cpv_codes : cpvCodesRegex,
+    procedure_type: llmResult?.procedure_type ?? procedureTypeRegex,
+  };
+
+  const coveragePoints = [deadline, budget, location, buyer, contractType, requirements, awardCriteria];
+  const present = coveragePoints.reduce((sum, item) => (item ? sum + 1 : sum), 0);
+  const confidence = Math.min(1, Number((present / 7).toFixed(2)));
+
+  return {
+    title,
+    hard_facts: {
+      deadline,
+      budget,
+      location,
+      buyer,
+      contract_type: contractType,
+    },
+    decision_relevant: {
+      requirements,
+      scope,
+      award_criteria: awardCriteria,
+      mandatory_documents: mandatoryDocuments,
+    },
+    procurement,
+    summary: rawText.slice(0, 3_000),
+    confidence,
+  };
+};

@@ -1,0 +1,15 @@
+const UMLAUT_MAP: Record<string, string> = {
+  ä: "ae", ö: "oe", ü: "ue", Ä: "Ae", Ö: "Oe", Ü: "Ue", ß: "ss",
+};
+
+export function generateSlug(name: string): string {
+  let slug = name;
+  for (const [from, to] of Object.entries(UMLAUT_MAP)) {
+    slug = slug.replaceAll(from, to);
+  }
+  return slug
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+}

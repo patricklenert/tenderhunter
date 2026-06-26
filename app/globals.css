@@ -1,0 +1,27 @@
+@import "tailwindcss";
+
+@theme {
+  --color-canvas: oklch(96.7% 0.01 238);
+  --color-canvas-soft: oklch(98.1% 0.006 238);
+  --color-surface: oklch(99.2% 0.004 238);
+  --color-surface-strong: oklch(95.6% 0.014 238);
+  --color-text-primary: oklch(27.5% 0.028 240);
+  --color-text-muted: oklch(45.3% 0.022 240);
+  --color-border: oklch(84% 0.012 236);
+  --color-accent: oklch(58% 0.13 35);
+  --color-accent-soft: oklch(92.8% 0.034 35);
+  --color-success: oklch(58% 0.12 152);
+  --color-risk: oklch(56.2% 0.18 25);
+  --font-sans: "Manrope", sans-serif;
+}
+
+@layer base {
+  html, body {
+    margin: 0;
+    background-color: #ffffff;
+    color: var(--color-text-primary);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}

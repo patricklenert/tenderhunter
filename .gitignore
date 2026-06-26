@@ -1,0 +1,15 @@
+.next/
+node_modules/
+/app/node_modules/
+dist/
+
+data/
+*.db
+
+.env
+.env.local
+
+__pycache__/
+*.pyc
+.pytest_cache/
+.gitnexus

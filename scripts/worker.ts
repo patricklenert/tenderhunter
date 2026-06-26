@@ -1,0 +1,99 @@
+import { settings } from "@/lib/config";
+import { processNextJob } from "@/lib/pipeline";
+import { enqueueJob } from "@/lib/queue";
+import { serializeSourceItems } from "@/lib/tender-sources";
+import { JOB_CRAWL, JOB_SCRAPE_PUBLIC } from "@/lib/types";
+import { db } from "@/lib/db";
+import { jobs } from "@/lib/schema";
+import { eq, desc, and, or } from "drizzle-orm";
+
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000;
+
+const args = new Set(process.argv.slice(2));
+const runOnce = args.has("--once");
+const withPollingCrawl = args.has("--with-crawl");
+const workerId = `worker-${process.pid}`;
+
+const shouldEnqueuePublicScrape = async (): Promise<boolean> => {
+  const activeJobs = await db
+    .select({ id: jobs.id, status: jobs.status })
+    .from(jobs)
+    .where(
+      and(
+        eq(jobs.type, JOB_SCRAPE_PUBLIC),
+        or(eq(jobs.status, "pending"), eq(jobs.status, "running")),
+      )
+    )
+    .limit(1);
+
+  if (activeJobs.length > 0) {
+    console.log(`[scheduler] Oeffentliche Ausschreibungen: aktiver Job existiert (${activeJobs[0].status}), ueberspringe.`);
+    return false;
+  }
+
+  const lastJob = await db
+    .select({ createdAt: jobs.createdAt })
+    .from(jobs)
+    .where(eq(jobs.type, JOB_SCRAPE_PUBLIC))
+    .orderBy(desc(jobs.createdAt))
+    .limit(1);
+
+  if (lastJob.length === 0) {
+    console.log("[scheduler] Oeffentliche Ausschreibungen: noch kein Job vorhanden, starte ersten Scrape.");
+    return true;
+  }
+
+  const elapsed = Date.now() - lastJob[0].createdAt.getTime();
+  if (elapsed > TWO_DAYS_MS) {
+    console.log(`[scheduler] Oeffentliche Ausschreibungen: letzter Scrape vor ${Math.round(elapsed / 3600000)}h, starte neuen.`);
+    return true;
+  }
+
+  console.log(`[scheduler] Oeffentliche Ausschreibungen: letzter Scrape vor ${Math.round(elapsed / 3600000)}h, noch nicht noetig.`);
+  return false;
+};
+
+const run = async (): Promise<void> => {
+  if (withPollingCrawl && settings.defaultSources.length > 0) {
+    await enqueueJob(JOB_CRAWL, {
+      sources: serializeSourceItems(settings.defaultSources),
+    });
+  }
+
+  try {
+    if (await shouldEnqueuePublicScrape()) {
+      await enqueueJob(JOB_SCRAPE_PUBLIC, {});
+      console.log("[scheduler] scrape_public_tenders Job eingereiht.");
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "unbekannt";
+    console.error(`[scheduler] Fehler beim Public-Scrape Check: ${message}`);
+  }
+
+  if (runOnce) {
+    const result = await processNextJob(workerId);
+    if (!result) {
+      console.log("Keine Jobs verfuegbar.");
+      return;
+    }
+    console.log(JSON.stringify(result));
+    return;
+  }
+
+  console.log(`Worker ${workerId} gestartet. Polling alle ${settings.workerPollSeconds}s.`);
+  while (true) {
+    const result = await processNextJob(workerId);
+    if (result) {
+      console.log(JSON.stringify(result));
+    }
+    await sleep(settings.workerPollSeconds * 1_000);
+  }
+};
+
+run().catch((error: unknown) => {
+  const message = error instanceof Error ? error.message : "Unbekannter Fehler";
+  console.error(`Worker-Fehler: ${message}`);
+  process.exit(1);
+});

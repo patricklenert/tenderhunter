@@ -1,0 +1,25 @@
+use_default_settings: true
+
+search:
+  formats: [html, csv, json, rss]
+
+server:
+  bind_address: "0.0.0.0"
+  port: 8080
+  limiter: false
+  public_instance: false
+  secret_key: "tenderhunter-searxng-secret-2026-x9k2m"
+
+engines:
+  - name: google
+    engine: google
+    shortcut: g
+    disabled: false
+  - name: bing
+    engine: bing
+    shortcut: b
+    disabled: false
+  - name: duckduckgo
+    engine: duckduckgo
+    shortcut: ddg
+    disabled: false

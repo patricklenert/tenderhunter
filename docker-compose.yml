@@ -1,0 +1,101 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: tenderhunter-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: tenderhunter
+      POSTGRES_PASSWORD: tenderhunter
+      POSTGRES_DB: tenderhunter
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5439:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tenderhunter"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  searxng:
+    image: searxng/searxng:latest
+    container_name: tenderhunter-searxng
+    restart: always
+    environment:
+      SEARXNG_BASE_URL: "http://searxng:8080/"
+    volumes:
+      - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
+    ports:
+      - "8888:8080"
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.13
+    container_name: tenderhunter-meili
+    restart: always
+    ports:
+      - "7700:7700"
+    environment:
+      MEILI_ENV: production
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-meili-default-dev-key-change-me}
+    volumes:
+      - meili_data:/meili_data
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:7700/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    container_name: tenderhunter
+    restart: always
+    command: ["app"]
+    ports:
+      - "3025:3000"
+    environment:
+      DATABASE_URL: postgresql://tenderhunter:tenderhunter@postgres:5432/tenderhunter
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3025}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      SEARXNG_URL: http://searxng:8080
+      TENDERHUNTER_API_KEY: ${TENDERHUNTER_API_KEY:-}
+      NEXT_PUBLIC_SITE_URL: https://palemaz.com
+      MEILI_HOST: http://meilisearch:7700
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-meili-default-dev-key-change-me}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      searxng:
+        condition: service_started
+      meilisearch:
+        condition: service_healthy
+    volumes:
+      - app_data:/app/data
+
+  worker:
+    build: .
+    container_name: tenderhunter-worker
+    restart: always
+    command: ["worker"]
+    environment:
+      DATABASE_URL: postgresql://tenderhunter:tenderhunter@postgres:5432/tenderhunter
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      SEARXNG_URL: http://searxng:8080
+      MEILI_HOST: http://meilisearch:7700
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-meili-default-dev-key-change-me}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      searxng:
+        condition: service_started
+      meilisearch:
+        condition: service_healthy
+    volumes:
+      - app_data:/app/data
+
+volumes:
+  postgres_data:
+  app_data:
+  meili_data:
