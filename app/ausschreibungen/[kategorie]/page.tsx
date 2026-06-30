@@ -28,10 +28,10 @@ import {
 } from "@/lib/categories";
 import { CATEGORY_CONTENT } from "@/lib/category-content";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 3600;
 export const runtime = "nodejs";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://palemaz.com";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
 
 interface PageProps {
   params: Promise<{ kategorie: string }>;
@@ -46,7 +46,7 @@ export async function generateMetadata({
 }: PageProps): Promise<Metadata> {
   const { kategorie } = await params;
   const categoryKey = SLUG_TO_CATEGORY[kategorie];
-  if (!categoryKey) return { title: "Kategorie nicht gefunden" };
+  if (!categoryKey) return { title: "Kategorie nicht gefunden", robots: { index: false, follow: true } };
 
   const label = CATEGORY_LABELS[categoryKey] ?? categoryKey;
 
@@ -70,7 +70,8 @@ export async function generateMetadata({
     return {
       title,
       description,
-      alternates: { canonical: `/ausschreibungen/${kategorie}` },
+      alternates: { canonical: `/ausschreibungen/${kategorie}`, languages: { "de-DE": `/ausschreibungen/${kategorie}` } },
+      robots: count === 0 ? { index: false, follow: true } : undefined,
       openGraph: {
         title,
         description,
@@ -82,6 +83,8 @@ export async function generateMetadata({
     return {
       title: `${label} – Aktuelle öffentliche Ausschreibungen`,
       description: `Öffentliche ${label}-Ausschreibungen in Deutschland.`,
+      alternates: { canonical: `/ausschreibungen/${kategorie}`, languages: { "de-DE": `/ausschreibungen/${kategorie}` } },
+      robots: { index: false, follow: true },
     };
   }
 }
@@ -180,8 +183,6 @@ export default async function CategoryPage({ params }: PageProps) {
     // DB unavailable
   }
 
-  if (categoryTenders.length === 0) notFound();
-
   const itemListJsonLd = {
     "@context": "https://schema.org",
     "@type": "ItemList",
@@ -204,7 +205,7 @@ export default async function CategoryPage({ params }: PageProps) {
         "@type": "ListItem",
         position: 2,
         name: "Ausschreibungen",
-        item: `${siteUrl}/#aktuelle-ausschreibungen`,
+        item: `${siteUrl}/ausschreibungen`,
       },
       {
         "@type": "ListItem",
@@ -247,7 +248,7 @@ export default async function CategoryPage({ params }: PageProps) {
               Start
             </Link>
             <Link
-              href="/#aktuelle-ausschreibungen"
+              href="/ausschreibungen"
               style={{ color: "#667288", textDecoration: "none" }}
             >
               Ausschreibungen
@@ -287,76 +288,101 @@ export default async function CategoryPage({ params }: PageProps) {
           </Box>
 
           {/* Tender List */}
-          <Stack spacing={2} sx={{ mb: 5 }}>
-            {categoryTenders.map((tender) => (
-              <Link
-                key={tender.id}
-                href={`/ausschreibung/${tender.id}`}
-                style={{ textDecoration: "none", color: "inherit" }}
-              >
-                <Paper
-                  elevation={0}
-                  sx={{
-                    p: { xs: 2, md: 2.5 },
-                    border: 1,
-                    borderColor: "divider",
-                    borderLeft: 4,
-                    borderLeftColor: "primary.main",
-                    transition: "border-color 0.15s",
-                    "&:hover": { borderColor: "primary.main" },
-                  }}
+          {categoryTenders.length > 0 ? (
+            <Stack spacing={2} sx={{ mb: 5 }}>
+              {categoryTenders.map((tender) => (
+                <Link
+                  key={tender.id}
+                  href={`/ausschreibung/${tender.id}`}
+                  style={{ textDecoration: "none", color: "inherit" }}
                 >
-                  <Typography
-                    variant="subtitle1"
-                    fontWeight={600}
+                  <Paper
+                    elevation={0}
                     sx={{
-                      mb: 1,
-                      fontSize: { xs: "0.95rem", md: "1.05rem" },
-                      "&:hover": { color: "primary.main" },
+                      p: { xs: 2, md: 2.5 },
+                      border: 1,
+                      borderColor: "divider",
+                      borderLeft: 4,
+                      borderLeftColor: "primary.main",
+                      transition: "border-color 0.15s",
+                      "&:hover": { borderColor: "primary.main" },
                     }}
                   >
-                    {tender.title}
-                  </Typography>
-                  <Stack
-                    direction="row"
-                    spacing={2}
-                    flexWrap="wrap"
-                    useFlexGap
-                  >
-                    {tender.client && (
-                      <Stack direction="row" spacing={0.5} alignItems="center">
-                        <Building2 size={14} color="#667288" />
-                        <Typography variant="caption" color="text.secondary">
-                          {tender.client}
-                        </Typography>
-                      </Stack>
-                    )}
-                    {tender.location && (
-                      <Stack direction="row" spacing={0.5} alignItems="center">
-                        <MapPin size={14} color="#667288" />
-                        <Typography variant="caption" color="text.secondary">
-                          {tender.location}
-                        </Typography>
-                      </Stack>
-                    )}
-                    {tender.deadline && (
-                      <Stack direction="row" spacing={0.5} alignItems="center">
-                        <Calendar size={14} color="#667288" />
-                        <Typography variant="caption" color="text.secondary">
-                          Frist: {tender.deadline}
-                        </Typography>
-                      </Stack>
-                    )}
-                    <Chip
-                      label={tender.source}
-                      size="small"
-                      sx={{ opacity: 0.7, height: 20 }}
-                    />
-                  </Stack>
-                </Paper>
-              </Link>
-            ))}
-          </Stack>
+                    <Typography
+                      variant="subtitle1"
+                      component="p"
+                      fontWeight={600}
+                      sx={{
+                        mb: 1,
+                        fontSize: { xs: "0.95rem", md: "1.05rem" },
+                        "&:hover": { color: "primary.main" },
+                      }}
+                    >
+                      {tender.title}
+                    </Typography>
+                    <Stack
+                      direction="row"
+                      spacing={2}
+                      flexWrap="wrap"
+                      useFlexGap
+                    >
+                      {tender.client && (
+                        <Stack direction="row" spacing={0.5} alignItems="center">
+                          <Building2 size={14} color="#667288" />
+                          <Typography variant="caption" color="text.secondary">
+                            {tender.client}
+                          </Typography>
+                        </Stack>
+                      )}
+                      {tender.location && (
+                        <Stack direction="row" spacing={0.5} alignItems="center">
+                          <MapPin size={14} color="#667288" />
+                          <Typography variant="caption" color="text.secondary">
+                            {tender.location}
+                          </Typography>
+                        </Stack>
+                      )}
+                      {tender.deadline && (
+                        <Stack direction="row" spacing={0.5} alignItems="center">
+                          <Calendar size={14} color="#667288" />
+                          <Typography variant="caption" color="text.secondary" component="span">
+                            Frist: <time>{tender.deadline}</time>
+                          </Typography>
+                        </Stack>
+                      )}
+                      <Chip
+                        label={tender.source}
+                        size="small"
+                        sx={{ opacity: 0.7, height: 20 }}
+                      />
+                    </Stack>
+                  </Paper>
+                </Link>
+              ))}
+            </Stack>
+          ) : (
+            <Paper
+              elevation={0}
+              sx={{
+                p: { xs: 3, md: 4 },
+                mb: 5,
+                border: 1,
+                borderColor: "divider",
+                textAlign: "center",
+              }}
+            >
+              <Typography variant="body1" color="text.secondary" sx={{ mb: 1 }}>
+                Aktuell gibt es keine offenen {label}-Ausschreibungen.
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Abonnieren Sie unseren{" "}
+                <Link href="/feeds/tender.xml" style={{ color: "inherit", fontWeight: 600 }}>
+                  RSS-Feed
+                </Link>
+                , um benachrichtigt zu werden, wenn neue {label}-Vergaben veröffentlicht werden.
+              </Typography>
+            </Paper>
+          )}
 
           {/* Editorial Content */}
           {catContent && (

@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { tenders, structuredData } from "@/lib/schema";
+import { tenders, structuredData, scores, companyProfiles } from "@/lib/schema";
 import { eq, and, ne, or, gt, isNull, inArray, desc } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
@@ -32,7 +32,7 @@ import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 export const revalidate = 3600;
 export const runtime = "nodejs";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://palemaz.com";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -53,7 +53,7 @@ export async function generateStaticParams() {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;
   const numericId = parseInt(id, 10);
-  if (!Number.isFinite(numericId)) return { title: "Ausschreibung nicht gefunden" };
+  if (!Number.isFinite(numericId)) return { title: "Ausschreibung nicht gefunden", robots: { index: false, follow: true } };
 
   const rows = await db
     .select({
@@ -61,13 +61,15 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       category: tenders.category,
       source: tenders.source,
       deadlineAt: tenders.deadlineAt,
+      createdAt: tenders.createdAt,
+      updatedAt: tenders.updatedAt,
       metadataJson: tenders.metadataJson,
     })
     .from(tenders)
     .where(and(eq(tenders.id, numericId), inArray(tenders.qualityStatus, ["qualified", "candidate"])))
     .limit(1);
 
-  if (rows.length === 0) return { title: "Ausschreibung nicht gefunden" };
+  if (rows.length === 0) return { title: "Ausschreibung nicht gefunden", robots: { index: false, follow: true } };
 
   const row = rows[0];
   const meta = (typeof row.metadataJson === "object" && row.metadataJson !== null
@@ -80,19 +82,29 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     ? new Date(row.deadlineAt).toLocaleDateString("de-DE", { day: "numeric", month: "long", year: "numeric" })
     : "";
 
-  const title = row.title ?? `Ausschreibung #${id}`;
+  const categoryLabel = CATEGORY_LABELS[row.category ?? "Sonstiges"] ?? row.category ?? "";
+  const rawTitle = row.title ?? `Ausschreibung #${id}`;
+  const enrichedTitle = [rawTitle, categoryLabel, location].filter(Boolean).join(" – ");
+  const title = enrichedTitle.length <= 80 ? enrichedTitle : rawTitle;
+
   const descParts = [client, location, deadline].filter(Boolean).join(", ");
-  const description = `${title}. ${descParts ? descParts + ". " : ""}Öffentliche Ausschreibung aus ${row.source}. Alle Details, Anforderungen und Fristen.`;
+  const description = `${rawTitle}. ${descParts ? descParts + ". " : ""}Öffentliche Ausschreibung aus ${row.source}. Alle Details, Anforderungen und Fristen.`;
+
+  const isExpired = row.deadlineAt && new Date(row.deadlineAt) < new Date();
 
   return {
-    title: title,
+    title,
     description,
-    alternates: { canonical: `/ausschreibung/${id}` },
+    alternates: { canonical: `/ausschreibung/${id}`, languages: { "de-DE": `/ausschreibung/${id}` } },
+    robots: isExpired ? { index: false, follow: true } : undefined,
     openGraph: {
-      title: title,
-      description: description,
+      title,
+      description,
       type: "article",
       locale: "de_DE",
+      publishedTime: row.createdAt ? new Date(row.createdAt).toISOString() : undefined,
+      modifiedTime: row.updatedAt ? new Date(row.updatedAt).toISOString() : undefined,
+      tags: row.category ? [row.category] : undefined,
     },
   };
 }
@@ -201,17 +213,50 @@ export default async function TenderDetailPage({ params }: PageProps) {
     };
   });
 
+  const scoredCompanyRows = await db
+    .select({
+      slug: companyProfiles.slug,
+      name: companyProfiles.name,
+      industry: companyProfiles.industry,
+      fit: scores.fit,
+    })
+    .from(scores)
+    .leftJoin(companyProfiles, eq(scores.companyId, companyProfiles.id))
+    .where(eq(scores.tenderId, tender.id))
+    .orderBy(desc(scores.fit))
+    .limit(5);
+
+  const scoredCompanies = scoredCompanyRows
+    .filter((c) => c.slug)
+    .map((c) => ({
+      slug: c.slug!,
+      name: c.name,
+      industry: c.industry,
+      fit: Math.round(c.fit ?? 0),
+    }));
+
   const jsonLd = {
     "@context": "https://schema.org",
-    "@type": "GovernmentService",
+    "@type": "Service",
+    "@id": `${siteUrl}/ausschreibung/${tender.id}#service`,
     name: title,
     description: description.slice(0, 300),
     url: `${siteUrl}/ausschreibung/${tender.id}`,
-    serviceOperator: client ? { "@type": "Organization", name: client } : undefined,
-    areaServed: location ? { "@type": "Place", name: location } : undefined,
-    provider: { "@type": "GovernmentOrganization", name: "Bundesrepublik Deutschland" },
-    offers: contractValue
-      ? { "@type": "Offer", priceSpecification: { "@type": "PriceSpecification", price: contractValue } }
+    image: `${siteUrl}/ausschreibung/${tender.id}/opengraph-image`,
+    serviceType: categoryLabel,
+    ...(referenceNumber ? { identifier: referenceNumber } : {}),
+    category: categoryLabel,
+    areaServed: { "@type": "Country", name: "Deutschland" },
+    provider: client ? { "@type": "Organization", name: client } : undefined,
+    datePublished: tender.createdAt ? new Date(tender.createdAt).toISOString() : undefined,
+    dateModified: tender.updatedAt ? new Date(tender.updatedAt).toISOString() : undefined,
+    offers: tender.contractValueMax && tender.contractValueMax > 0
+      ? {
+          "@type": "Offer",
+          price: tender.contractValueMax,
+          priceCurrency: "EUR",
+          ...(deadlineISO ? { validThrough: deadlineISO } : undefined),
+        }
       : undefined,
   };
 
@@ -220,9 +265,9 @@ export default async function TenderDetailPage({ params }: PageProps) {
     "@type": "BreadcrumbList",
     itemListElement: [
       { "@type": "ListItem", position: 1, name: "Home", item: siteUrl },
-      { "@type": "ListItem", position: 2, name: "Ausschreibungen", item: `${siteUrl}/#aktuelle-ausschreibungen` },
+      { "@type": "ListItem", position: 2, name: "Ausschreibungen", item: `${siteUrl}/ausschreibungen` },
       { "@type": "ListItem", position: 3, name: categoryLabel, item: `${siteUrl}/ausschreibungen/${categorySlug}` },
-      { "@type": "ListItem", position: 4, name: title },
+      { "@type": "ListItem", position: 4, name: title, item: `${siteUrl}/ausschreibung/${tender.id}` },
     ],
   };
 
@@ -242,7 +287,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
               <HomeIcon size={14} />
               Start
             </Link>
-            <Link href="/#aktuelle-ausschreibungen" style={{ color: "#667288", textDecoration: "none" }}>
+            <Link href="/ausschreibungen" style={{ color: "#667288", textDecoration: "none" }}>
               Ausschreibungen
             </Link>
             <Link href={`/ausschreibungen/${categorySlug}`} style={{ color: "#667288", textDecoration: "none" }}>
@@ -302,7 +347,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
                       Frist
                     </Typography>
                   </Stack>
-                  <Typography variant="body2" fontWeight={600}>
+                  <Typography variant="body2" fontWeight={600} component="time" dateTime={deadlineISO ?? undefined}>
                     {deadline}
                   </Typography>
                 </Box>
@@ -509,7 +554,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
                 component="a"
                 href={tender.url}
                 target="_blank"
-                rel="noopener noreferrer"
+                rel="nofollow noopener noreferrer"
                 sx={{
                   display: "inline-flex",
                   alignItems: "center",
@@ -609,6 +654,31 @@ export default async function TenderDetailPage({ params }: PageProps) {
                         )}
                       </Stack>
                     </Paper>
+                  </Link>
+                ))}
+              </Stack>
+            </Box>
+          )}
+
+          {/* Scored Companies */}
+          {scoredCompanies.length > 0 && (
+            <Box sx={{ mt: 4 }}>
+              <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
+                Passende Auftraggeber
+              </Typography>
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                {scoredCompanies.map((c) => (
+                  <Link
+                    key={c.slug}
+                    href={`/p/${c.slug}`}
+                    style={{ textDecoration: "none" }}
+                  >
+                    <Chip
+                      clickable
+                      label={`${c.name}${c.industry ? ` – ${c.industry}` : ""}`}
+                      variant="outlined"
+                      sx={{ fontWeight: 500 }}
+                    />
                   </Link>
                 ))}
               </Stack>
