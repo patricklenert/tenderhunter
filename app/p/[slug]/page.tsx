@@ -3,28 +3,63 @@ import { companyProfiles, scores, tenders, structuredData } from "@/lib/schema";
 import { eq, and, or, desc } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { Box, Chip, Container, Divider, Paper, Stack, Typography } from "@mui/material";
-import { ArrowUpRight, Building2, MapPin, ShieldCheck, Wrench } from "lucide-react";
+import Link from "next/link";
+import Image from "next/image";
+import { Box, Chip, Container, Divider, Paper, Stack, Typography, Breadcrumbs } from "@mui/material";
+import { Building2, MapPin, ShieldCheck, Wrench, Home as HomeIcon } from "lucide-react";
+import { formatDeadlineDE, deadlineLabel, deadlineColor, sanitizeTenderUrl } from "@/lib/date-utils";
 
+export const revalidate = 3600;
 export const runtime = "nodejs";
+
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
 }
 
+async function hasMatchingTenders(companyId: number): Promise<boolean> {
+  const rows = await db
+    .select({ tenderId: scores.tenderId })
+    .from(scores)
+    .leftJoin(tenders, eq(scores.tenderId, tenders.id))
+    .where(
+      and(
+        eq(scores.companyId, companyId),
+        or(eq(tenders.qualityStatus, "qualified"), eq(tenders.qualityStatus, "candidate")),
+      ),
+    )
+    .limit(1);
+  return rows.length > 0;
+}
+
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
   const rows = await db
-    .select({ name: companyProfiles.name, description: companyProfiles.description })
+    .select({ id: companyProfiles.id, name: companyProfiles.name, description: companyProfiles.description })
     .from(companyProfiles)
     .where(eq(companyProfiles.slug, slug))
     .limit(1);
 
-  if (rows.length === 0) return { title: "Firma nicht gefunden – Tenderhunter" };
+  if (rows.length === 0) return { title: "Firma nicht gefunden", robots: { index: false, follow: true } };
+
+  const title = `${rows[0].name} – Passende Ausschreibungen`;
+  const description = rows[0].description ?? `Aktuelle passende Ausschreibungen für ${rows[0].name}`;
+  const hasTenders = await hasMatchingTenders(rows[0].id);
+  const noDescription = !rows[0].description || rows[0].description.trim().length === 0;
+  const shouldNoindex = !hasTenders || noDescription;
 
   return {
-    title: `${rows[0].name} – Passende Ausschreibungen | Tenderhunter`,
-    description: rows[0].description ?? `Aktuelle passende Ausschreibungen für ${rows[0].name}`,
+    title,
+    description,
+    ...(shouldNoindex ? { robots: { index: false, follow: true } } : {}),
+    alternates: { canonical: `/p/${slug}`, languages: { "de-DE": `/p/${slug}` } },
+    openGraph: {
+      title,
+      description,
+      type: "profile",
+      locale: "de_DE",
+    },
   };
 }
 
@@ -88,6 +123,11 @@ export default async function PublicProfilePage({ params }: PageProps) {
         ? blob.summary.slice(0, 300)
         : (row.rawText ?? "").slice(0, 300);
 
+    // Use public portal URL from structured_data if tenders.url is evergabe.de paywall
+    const rawUrl = row.url ?? null;
+    const sourceUrl = typeof blob.sourceUrl === "string" ? blob.sourceUrl : null;
+    const tenderUrl = sanitizeTenderUrl(rawUrl, sourceUrl);
+
     return {
       id: row.tenderId,
       title: row.title ?? `Ausschreibung #${row.tenderId}`,
@@ -102,27 +142,66 @@ export default async function PublicProfilePage({ params }: PageProps) {
       fit: Math.round(row.fit ?? 0),
       winProbability: Math.round(row.winProbability ?? 0),
       killSwitch: row.killSwitch,
-      url: row.url ?? null,
+      url: tenderUrl,
     };
   });
 
   const fitColor = (fit: number) => fit >= 75 ? "success" : fit >= 50 ? "warning" : "error";
 
+  const organizationJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: company.name,
+    url: `${siteUrl}/p/${slug}`,
+    ...(company.logoUrl && { logo: company.logoUrl }),
+    ...(company.description && { description: company.description.slice(0, 300) }),
+    ...(company.address && { address: { "@type": "PostalAddress", streetAddress: company.address } }),
+  };
+
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: siteUrl },
+      { "@type": "ListItem", position: 2, name: "Ausschreibungen", item: `${siteUrl}/ausschreibungen` },
+      { "@type": "ListItem", position: 3, name: company.name, item: `${siteUrl}/p/${slug}` },
+    ],
+  };
+
   return (
-    <Box sx={{ minHeight: "100vh", bgcolor: "grey.50", py: { xs: 4, md: 6 } }}>
-      <Container maxWidth="md">
-        <Paper elevation={0} sx={{ p: { xs: 3, md: 4 }, mb: 4, border: 1, borderColor: "divider" }}>
-          <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
-            {company.logoUrl && (
-              <Box
-                component="img"
-                src={company.logoUrl}
-                alt={`${company.name} Logo`}
-                sx={{ width: 56, height: 56, borderRadius: 1, objectFit: "contain", bgcolor: "grey.100" }}
-              />
-            )}
-            <Box>
-              <Typography variant="h5" fontWeight={700}>{company.name}</Typography>
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
+
+      <Box sx={{ minHeight: "100vh", bgcolor: "grey.50", py: { xs: 4, md: 6 } }}>
+        <Container maxWidth="md">
+          {/* Breadcrumbs */}
+          <Breadcrumbs sx={{ mb: 3, fontSize: "0.85rem" }} separator={<span style={{ color: "#999" }}>/</span>}>
+            <Link href="/" style={{ color: "#667288", textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}>
+              <HomeIcon size={14} />
+              Start
+            </Link>
+            <Link href="/ausschreibungen" style={{ color: "#667288", textDecoration: "none" }}>
+              Ausschreibungen
+            </Link>
+            <Typography color="text.primary" fontSize="0.85rem">{company.name}</Typography>
+          </Breadcrumbs>
+
+          <Paper elevation={0} sx={{ p: { xs: 3, md: 4 }, mb: 4, border: 1, borderColor: "divider" }}>
+            <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
+              {company.logoUrl && (
+                <Image
+                  src={company.logoUrl}
+                  alt={`${company.name} Logo`}
+                  width={56}
+                  height={56}
+                  loading="lazy"
+                  style={{ borderRadius: 4, objectFit: "contain", backgroundColor: "#f5f5f5" }}
+                  unoptimized
+                />
+              )}
+              <Box>
+                <Typography variant="h5" component="h1" fontWeight={700}>{company.name}</Typography>
               {company.industry && (
                 <Typography variant="body2" color="text.secondary">{company.industry}</Typography>
               )}
@@ -171,7 +250,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
           </Stack>
         </Paper>
 
-        <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>
+        <Typography variant="h2" component="h2" fontWeight={600} sx={{ mb: 2, fontSize: { xs: "1.25rem", md: "1.5rem" } }}>
           Passende Ausschreibungen
         </Typography>
 
@@ -194,18 +273,12 @@ export default async function PublicProfilePage({ params }: PageProps) {
                 <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
                   <Box sx={{ flex: 1, minWidth: 0 }}>
                     <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 0.5 }}>
-                      {tender.url ? (
-                        <Box
-                          component="a"
-                          href={tender.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          sx={{ color: "inherit", textDecoration: "none", "&:hover": { textDecoration: "underline" } }}
-                        >
-                          {tender.title}
-                          <ArrowUpRight size={14} style={{ marginLeft: 4, verticalAlign: "middle" }} />
-                        </Box>
-                      ) : tender.title}
+                      <Link
+                        href={`/ausschreibung/${tender.id}`}
+                        style={{ color: "inherit", textDecoration: "none" }}
+                      >
+                        {tender.title}
+                      </Link>
                     </Typography>
 
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, lineHeight: 1.5 }}>
@@ -220,7 +293,9 @@ export default async function PublicProfilePage({ params }: PageProps) {
                         <Typography variant="caption" color="text.secondary">💰 {tender.volume}</Typography>
                       )}
                       {tender.deadline && (
-                        <Typography variant="caption" color="text.secondary">📅 {tender.deadline}</Typography>
+                        <Typography variant="caption" color={deadlineColor(tender.deadline)}>
+                          📅 {formatDeadlineDE(tender.deadline)} ({deadlineLabel(tender.deadline)})
+                        </Typography>
                       )}
                     </Stack>
                   </Box>
@@ -239,16 +314,17 @@ export default async function PublicProfilePage({ params }: PageProps) {
 
         <Divider sx={{ my: 4 }} />
 
-        <Box sx={{ textAlign: "center" }}>
-          <Typography variant="caption" color="text.secondary">
-            Powered by{" "}
-            <Box component="a" href="https://palemaz.com" target="_blank" rel="noopener noreferrer" sx={{ color: "primary.main", textDecoration: "none", fontWeight: 600 }}>
-              Tenderhunter
-            </Box>
-            {" "}– KI-gestützte Ausschreibungssuche
-          </Typography>
-        </Box>
-      </Container>
-    </Box>
+          <Box sx={{ textAlign: "center" }}>
+            <Typography variant="caption" color="text.secondary">
+              Powered by{" "}
+              <Box component="a" href="https://palemaz.com" target="_blank" rel="nofollow noopener noreferrer" sx={{ color: "primary.main", textDecoration: "none", fontWeight: 600 }}>
+                Tenderhunter
+              </Box>
+              {" "}– KI-gestützte Ausschreibungssuche
+            </Typography>
+          </Box>
+        </Container>
+      </Box>
+    </>
   );
 }
