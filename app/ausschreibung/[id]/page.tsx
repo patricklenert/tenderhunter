@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { cleanDescription } from "@/lib/public-tender-scraper";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
+import { deriveBundesland, BUNDESLAND_SLUGS } from "@/lib/bundesland";
 
 export const revalidate = 3600;
 export const runtime = "nodejs";
@@ -235,6 +236,10 @@ export default async function TenderDetailPage({ params }: PageProps) {
       fit: Math.round(c.fit ?? 0),
     }));
 
+  // SEO: Derive Bundesland for contextual internal linking to region page
+  const tenderBundesland = deriveBundesland(location);
+  const bundeslandSlug = tenderBundesland ? BUNDESLAND_SLUGS[tenderBundesland] : null;
+
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Service",
@@ -246,7 +251,10 @@ export default async function TenderDetailPage({ params }: PageProps) {
     serviceType: categoryLabel,
     ...(referenceNumber ? { identifier: referenceNumber } : {}),
     category: categoryLabel,
-    areaServed: { "@type": "Country", name: "Deutschland" },
+    // SEO: Use AdministrativeArea when Bundesland is derivable, fallback to Country
+    areaServed: tenderBundesland
+      ? { "@type": "AdministrativeArea", name: tenderBundesland }
+      : { "@type": "Country", name: "Deutschland" },
     provider: client ? { "@type": "Organization", name: client } : undefined,
     datePublished: tender.createdAt ? new Date(tender.createdAt).toISOString() : undefined,
     dateModified: tender.updatedAt ? new Date(tender.updatedAt).toISOString() : undefined,
@@ -260,15 +268,28 @@ export default async function TenderDetailPage({ params }: PageProps) {
       : undefined,
   };
 
+  // SEO: BreadcrumbList with region level when Bundesland is derivable
+  const breadcrumbItems = [
+    { "@type": "ListItem", position: 1, name: "Home", item: siteUrl },
+    { "@type": "ListItem", position: 2, name: "Ausschreibungen", item: `${siteUrl}/ausschreibungen` },
+  ];
+  let breadcrumbPos = 3;
+  if (tenderBundesland && bundeslandSlug) {
+    breadcrumbItems.push({
+      "@type": "ListItem",
+      position: breadcrumbPos++,
+      name: tenderBundesland,
+      item: `${siteUrl}/ausschreibungen/region/${bundeslandSlug}`,
+    });
+  }
+  breadcrumbItems.push(
+    { "@type": "ListItem", position: breadcrumbPos++, name: categoryLabel, item: `${siteUrl}/ausschreibungen/${categorySlug}` },
+    { "@type": "ListItem", position: breadcrumbPos, name: title, item: `${siteUrl}/ausschreibung/${tender.id}` },
+  );
   const breadcrumbJsonLd = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
-    itemListElement: [
-      { "@type": "ListItem", position: 1, name: "Home", item: siteUrl },
-      { "@type": "ListItem", position: 2, name: "Ausschreibungen", item: `${siteUrl}/ausschreibungen` },
-      { "@type": "ListItem", position: 3, name: categoryLabel, item: `${siteUrl}/ausschreibungen/${categorySlug}` },
-      { "@type": "ListItem", position: 4, name: title, item: `${siteUrl}/ausschreibung/${tender.id}` },
-    ],
+    itemListElement: breadcrumbItems,
   };
 
   return (
@@ -290,6 +311,11 @@ export default async function TenderDetailPage({ params }: PageProps) {
             <Link href="/ausschreibungen" style={{ color: "#667288", textDecoration: "none" }}>
               Ausschreibungen
             </Link>
+            {bundeslandSlug && tenderBundesland && (
+              <Link href={`/ausschreibungen/region/${bundeslandSlug}`} style={{ color: "#667288", textDecoration: "none" }}>
+                {tenderBundesland}
+              </Link>
+            )}
             <Link href={`/ausschreibungen/${categorySlug}`} style={{ color: "#667288", textDecoration: "none" }}>
               {categoryLabel}
             </Link>
@@ -582,7 +608,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
               borderRadius: 2,
             }}
           >
-            <Typography variant="h6" fontWeight={700} sx={{ mb: 1 }}>
+            <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 1 }}>
               Passende Ausschreibungen für Ihr Unternehmen?
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
@@ -633,7 +659,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
                         transition: "border-color 0.15s",
                       }}
                     >
-                      <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 0.5, "&:hover": { color: "primary.main" } }}>
+                      <Typography variant="subtitle2" component="h3" fontWeight={600} sx={{ mb: 0.5, "&:hover": { color: "primary.main" } }}>
                         {t.title}
                       </Typography>
                       <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap>
@@ -659,6 +685,62 @@ export default async function TenderDetailPage({ params }: PageProps) {
               </Stack>
             </Box>
           )}
+
+          {/* SEO: Contextual internal links to category and region pages */}
+          <Box sx={{ mt: 4 }}>
+            <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
+              Weitere Ausschreibungen
+            </Typography>
+            <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
+              <Link
+                href={`/ausschreibungen/${categorySlug}`}
+                style={{ textDecoration: "none" }}
+              >
+                <Chip
+                  clickable
+                  label={`Alle ${categoryLabel} Ausschreibungen`}
+                  color="primary"
+                  variant="outlined"
+                  sx={{ fontWeight: 600 }}
+                />
+              </Link>
+              {bundeslandSlug && tenderBundesland && (
+                <Link
+                  href={`/ausschreibungen/region/${bundeslandSlug}`}
+                  style={{ textDecoration: "none" }}
+                >
+                  <Chip
+                    clickable
+                    label={`Ausschreibungen in ${tenderBundesland}`}
+                    variant="outlined"
+                    sx={{ fontWeight: 600 }}
+                  />
+                </Link>
+              )}
+              {/* SEO: Cross-link to Region×Category long-tail page */}
+              {bundeslandSlug && tenderBundesland && (
+                <Link
+                  href={`/ausschreibungen/region/${bundeslandSlug}/${categorySlug}`}
+                  style={{ textDecoration: "none" }}
+                >
+                  <Chip
+                    clickable
+                    label={`${categoryLabel} in ${tenderBundesland}`}
+                    variant="outlined"
+                    sx={{ fontWeight: 600 }}
+                  />
+                </Link>
+              )}
+              <Link href="/ausschreibungen" style={{ textDecoration: "none" }}>
+                <Chip
+                  clickable
+                  label="Alle Kategorien"
+                  variant="outlined"
+                  sx={{ fontWeight: 500 }}
+                />
+              </Link>
+            </Stack>
+          </Box>
 
           {/* Scored Companies */}
           {scoredCompanies.length > 0 && (

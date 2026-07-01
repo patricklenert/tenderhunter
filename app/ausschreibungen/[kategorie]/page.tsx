@@ -27,6 +27,10 @@ import {
   ALL_CATEGORY_SLUGS,
 } from "@/lib/categories";
 import { CATEGORY_CONTENT } from "@/lib/category-content";
+import { BUNDESLAND_SLUGS } from "@/lib/bundesland";
+
+// SEO: Pagination for category pages — 20 tenders per page
+const PAGE_SIZE = 20;
 
 export const revalidate = 3600;
 export const runtime = "nodejs";
@@ -35,6 +39,7 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palema
 
 interface PageProps {
   params: Promise<{ kategorie: string }>;
+  searchParams: Promise<{ page?: string }>;
 }
 
 export async function generateStaticParams() {
@@ -43,8 +48,11 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({
   params,
+  searchParams,
 }: PageProps): Promise<Metadata> {
   const { kategorie } = await params;
+  const { page: pageParam } = await searchParams;
+  const currentPage = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
   const categoryKey = SLUG_TO_CATEGORY[kategorie];
   if (!categoryKey) return { title: "Kategorie nicht gefunden", robots: { index: false, follow: true } };
 
@@ -64,13 +72,18 @@ export async function generateMetadata({
       );
 
     const count = countRow[0]?.count ?? 0;
-    const title = `${label} – Aktuelle öffentliche Ausschreibungen`;
+    // SEO: Self-referencing canonical includes ?page=N for page > 1 so Google indexes each page independently
+    const pageSuffix = currentPage > 1 ? ` – Seite ${currentPage}` : "";
+    const title = `${label} – Aktuelle öffentliche Ausschreibungen${pageSuffix}`;
     const description = `${count} aktuelle ${label}-Ausschreibungen in Deutschland. Öffentliche Vergabeverfahren für ${label.toLowerCase()} mit Fristen, Auftraggebern und Anforderungen.`;
+    const canonicalPath = currentPage > 1
+      ? `/ausschreibungen/${kategorie}?page=${currentPage}`
+      : `/ausschreibungen/${kategorie}`;
 
     return {
       title,
       description,
-      alternates: { canonical: `/ausschreibungen/${kategorie}`, languages: { "de-DE": `/ausschreibungen/${kategorie}` } },
+      alternates: { canonical: canonicalPath, languages: { "de-DE": canonicalPath } },
       robots: count === 0 ? { index: false, follow: true } : undefined,
       openGraph: {
         title,
@@ -89,8 +102,10 @@ export async function generateMetadata({
   }
 }
 
-export default async function CategoryPage({ params }: PageProps) {
+export default async function CategoryPage({ params, searchParams }: PageProps) {
   const { kategorie } = await params;
+  const { page: pageParam } = await searchParams;
+  const currentPage = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
   const categoryKey = SLUG_TO_CATEGORY[kategorie];
   if (!categoryKey) notFound();
 
@@ -109,8 +124,29 @@ export default async function CategoryPage({ params }: PageProps) {
 
   let otherCategories: Array<{ slug: string; label: string; count: number }> =
     [];
+  let totalCount = 0;
+  let totalPages = 1;
 
   try {
+    // Get total count for pagination
+    const countRow = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(tenders)
+      .where(
+        and(
+          eq(tenders.category, categoryKey),
+          inArray(tenders.qualityStatus, ["qualified", "candidate"]),
+          or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
+        ),
+      );
+    totalCount = countRow[0]?.count ?? 0;
+    totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+
+    // Return 404 for page numbers beyond total pages (avoids empty indexable pages)
+    if (currentPage > totalPages && totalCount > 0) notFound();
+
+    const offset = (currentPage - 1) * PAGE_SIZE;
+
     const rows = await db
       .select({
         id: tenders.id,
@@ -127,7 +163,9 @@ export default async function CategoryPage({ params }: PageProps) {
           or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
         ),
       )
-      .orderBy(desc(tenders.createdAt));
+      .orderBy(desc(tenders.createdAt))
+      .limit(PAGE_SIZE)
+      .offset(offset);
 
     categoryTenders = rows.map((row) => {
       const meta =
@@ -270,7 +308,7 @@ export default async function CategoryPage({ params }: PageProps) {
                 letterSpacing: "-0.01em",
               }}
             >
-              {label} – Ausschreibungen
+              {label} – Ausschreibungen{currentPage > 1 ? `, Seite ${currentPage}` : ""}
             </Typography>
             <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
               {categoryTenders.length} offene {label}-Ausschreibungen aus
@@ -310,7 +348,7 @@ export default async function CategoryPage({ params }: PageProps) {
                   >
                     <Typography
                       variant="subtitle1"
-                      component="p"
+                      component="h3"
                       fontWeight={600}
                       sx={{
                         mb: 1,
@@ -384,6 +422,57 @@ export default async function CategoryPage({ params }: PageProps) {
             </Paper>
           )}
 
+          {/* SEO: Crawlable pagination — anchors so Google discovers page 2+ */}
+          {totalPages > 1 && (
+            <Stack
+              direction="row"
+              spacing={1}
+              justifyContent="center"
+              alignItems="center"
+              sx={{ mb: 5 }}
+              component="nav"
+              aria-label="Seitenavigation"
+            >
+              {currentPage > 1 && (
+                <Link
+                  href={`/ausschreibungen/${kategorie}?page=${currentPage - 1}`}
+                  style={{ textDecoration: "none", color: "#e9644d", fontWeight: 600, padding: "8px 12px" }}
+                >
+                  ← Zurück
+                </Link>
+              )}
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 2)
+                .map((p, idx, arr) => {
+                  const prev = arr[idx - 1];
+                  const showEllipsis = prev !== undefined && p - prev > 1;
+                  return (
+                    <span key={p}>
+                      {showEllipsis && <span style={{ padding: "0 4px", color: "#999" }}>…</span>}
+                      {p === currentPage ? (
+                        <span style={{ fontWeight: 700, color: "#e9644d", padding: "8px 12px" }}>{p}</span>
+                      ) : (
+                        <Link
+                          href={`/ausschreibungen/${kategorie}?page=${p}`}
+                          style={{ textDecoration: "none", color: "#667288", fontWeight: 500, padding: "8px 12px" }}
+                        >
+                          {p}
+                        </Link>
+                      )}
+                    </span>
+                  );
+                })}
+              {currentPage < totalPages && (
+                <Link
+                  href={`/ausschreibungen/${kategorie}?page=${currentPage + 1}`}
+                  style={{ textDecoration: "none", color: "#e9644d", fontWeight: 600, padding: "8px 12px" }}
+                >
+                  Weiter →
+                </Link>
+              )}
+            </Stack>
+          )}
+
           {/* Editorial Content */}
           {catContent && (
             <Box sx={{ mb: 5, maxWidth: "75ch" }}>
@@ -443,6 +532,29 @@ export default async function CategoryPage({ params }: PageProps) {
             </Box>
           )}
 
+          {/* SEO: Cross-links to Region×Category pages for long-tail internal linking */}
+          <Box sx={{ mb: 5 }}>
+            <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
+              {label} nach Bundesland
+            </Typography>
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              {Object.entries(BUNDESLAND_SLUGS).map(([bundesland, blSlug]) => (
+                <Link
+                  key={blSlug}
+                  href={`/ausschreibungen/region/${blSlug}/${kategorie}`}
+                  style={{ textDecoration: "none" }}
+                >
+                  <Chip
+                    clickable
+                    label={`${label} ${bundesland}`}
+                    variant="outlined"
+                    sx={{ fontWeight: 500 }}
+                  />
+                </Link>
+              ))}
+            </Stack>
+          </Box>
+
           {/* CTA */}
           <Box
             sx={{
@@ -452,7 +564,7 @@ export default async function CategoryPage({ params }: PageProps) {
               borderRadius: 2,
             }}
           >
-            <Typography variant="h6" fontWeight={700} sx={{ mb: 1 }}>
+            <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 1 }}>
               Passende {label}-Ausschreibungen für Ihr Unternehmen?
             </Typography>
             <Typography
