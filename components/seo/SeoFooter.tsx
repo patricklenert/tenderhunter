@@ -2,15 +2,9 @@ import Link from "next/link";
 import { Box, Container, Typography, Stack, Divider } from "@mui/material";
 import { ArrowRight } from "lucide-react";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
+import { BUNDESLAND_SLUGS } from "@/lib/bundesland";
 
-const categoryLinks = [
-  "Bauarbeiten",
-  "Tiefbau",
-  "Gebaeudereinigung",
-  "Winterdienst",
-  "Facility Management",
-  "Planungsleistungen",
-];
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
 
 const faqs = [
   {
@@ -38,11 +32,23 @@ export function SeoFooter() {
     })),
   };
 
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: siteUrl },
+    ],
+  };
+
   return (
     <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
       <Box
         component="section"
@@ -54,10 +60,10 @@ export function SeoFooter() {
         }}
       >
         <Container maxWidth="lg">
-          {/* H1 for SEO */}
+          {/* H2 for SEO (H1 is in page hero) */}
           <Typography
             variant="h2"
-            component="h1"
+            component="h2"
             fontWeight={800}
             sx={{
               fontSize: { xs: "1.5rem", md: "2rem" },
@@ -91,10 +97,8 @@ export function SeoFooter() {
             Ausschreibungen nach Branche
           </Typography>
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 4 }}>
-            {categoryLinks.map((cat) => {
-              const slug = CATEGORY_SLUGS[cat];
+            {Object.entries(CATEGORY_SLUGS).map(([cat, slug]) => {
               const label = CATEGORY_LABELS[cat] ?? cat;
-              if (!slug) return null;
               return (
                 <Link
                   key={cat}
@@ -125,15 +129,68 @@ export function SeoFooter() {
             })}
           </Stack>
 
+          {/* Region Links — SEO internal linking for Bundesland landing pages */}
+          <Typography
+            variant="h6"
+            component="h2"
+            fontWeight={700}
+            sx={{ mb: 2 }}
+          >
+            Ausschreibungen nach Region
+          </Typography>
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 4 }}>
+            {Object.entries(BUNDESLAND_SLUGS).map(([bundesland, slug]) => (
+              <Link
+                key={bundesland}
+                href={`/ausschreibungen/region/${slug}`}
+                style={{ textDecoration: "none" }}
+              >
+                <Box
+                  component="span"
+                  sx={{
+                    display: "inline-block",
+                    px: 2,
+                    py: 0.75,
+                    borderRadius: 1.5,
+                    border: 1,
+                    borderColor: "divider",
+                    bgcolor: "background.paper",
+                    fontSize: "0.875rem",
+                    fontWeight: 500,
+                    color: "text.primary",
+                    cursor: "pointer",
+                    "&:hover": { borderColor: "primary.main" },
+                  }}
+                >
+                  {bundesland}
+                </Box>
+              </Link>
+            ))}
+          </Stack>
+
           {/* Functions Link */}
           <Box
             sx={{
               display: "flex",
               alignItems: "center",
-              gap: 1,
+              gap: 3,
               mb: 4,
             }}
           >
+            <Link
+              href="/ausschreibungen"
+              style={{
+                textDecoration: "none",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                color: "primary.main",
+                fontWeight: 600,
+              }}
+            >
+              Alle Kategorien ansehen
+              <ArrowRight size={16} />
+            </Link>
             <Link
               href="/funktionen"
               style={{

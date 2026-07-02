@@ -28,7 +28,9 @@ import {
 } from "lucide-react";
 import { cleanDescription } from "@/lib/public-tender-scraper";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
-import { deriveBundesland, BUNDESLAND_SLUGS } from "@/lib/bundesland";
+import { deriveBundesland, deriveCity, BUNDESLAND_SLUGS } from "@/lib/bundesland";
+import { CITY_SLUG_MAP } from "@/lib/cities";
+import { normalizeAgencySlug } from "@/lib/agencies";
 
 export const revalidate = 3600;
 export const runtime = "nodejs";
@@ -41,10 +43,16 @@ interface PageProps {
 
 export async function generateStaticParams() {
   try {
+    const now = new Date();
     const rows = await db
       .select({ id: tenders.id })
       .from(tenders)
-      .where(inArray(tenders.qualityStatus, ["qualified", "candidate"]));
+      .where(
+        and(
+          inArray(tenders.qualityStatus, ["qualified", "candidate"]),
+          or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
+        ),
+      );
     return rows.map((row) => ({ id: String(row.id) }));
   } catch {
     return [];
@@ -236,36 +244,45 @@ export default async function TenderDetailPage({ params }: PageProps) {
       fit: Math.round(c.fit ?? 0),
     }));
 
-  // SEO: Derive Bundesland for contextual internal linking to region page
+  // SEO: Derive Bundesland and city for contextual internal linking
   const tenderBundesland = deriveBundesland(location);
   const bundeslandSlug = tenderBundesland ? BUNDESLAND_SLUGS[tenderBundesland] : null;
+  const tenderCity = deriveCity(location);
+  // Look up city slug from the CITY_SLUG_MAP by matching label
+  const citySlug = tenderCity
+    ? Object.values(CITY_SLUG_MAP).find((c) => c.label.toLowerCase() === tenderCity.toLowerCase())?.slug ?? null
+    : null;
+  const agencySlug = client ? normalizeAgencySlug(client) : null;
 
   const jsonLd = {
     "@context": "https://schema.org",
-    "@type": "Service",
-    "@id": `${siteUrl}/ausschreibung/${tender.id}#service`,
-    name: title,
+    "@type": "Article",
+    "@id": `${siteUrl}/ausschreibung/${tender.id}#article`,
+    headline: title,
     description: description.slice(0, 300),
     url: `${siteUrl}/ausschreibung/${tender.id}`,
     image: `${siteUrl}/ausschreibung/${tender.id}/opengraph-image`,
-    serviceType: categoryLabel,
+    articleSection: categoryLabel,
     ...(referenceNumber ? { identifier: referenceNumber } : {}),
-    category: categoryLabel,
+    keywords: categoryLabel,
     // SEO: Use AdministrativeArea when Bundesland is derivable, fallback to Country
-    areaServed: tenderBundesland
+    spatialCoverage: tenderBundesland
       ? { "@type": "AdministrativeArea", name: tenderBundesland }
       : { "@type": "Country", name: "Deutschland" },
-    provider: client ? { "@type": "Organization", name: client } : undefined,
+    author: client ? { "@type": "Organization", name: client } : undefined,
+    publisher: { "@id": `${siteUrl}#organization` },
     datePublished: tender.createdAt ? new Date(tender.createdAt).toISOString() : undefined,
     dateModified: tender.updatedAt ? new Date(tender.updatedAt).toISOString() : undefined,
-    offers: tender.contractValueMax && tender.contractValueMax > 0
+    ...(tender.contractValueMax && tender.contractValueMax > 0
       ? {
-          "@type": "Offer",
-          price: tender.contractValueMax,
-          priceCurrency: "EUR",
-          ...(deadlineISO ? { validThrough: deadlineISO } : undefined),
+          offers: {
+            "@type": "Offer",
+            price: tender.contractValueMax,
+            priceCurrency: "EUR",
+            ...(deadlineISO ? { validThrough: deadlineISO } : undefined),
+          },
         }
-      : undefined,
+      : undefined),
   };
 
   // SEO: BreadcrumbList with region level when Bundesland is derivable
@@ -280,6 +297,14 @@ export default async function TenderDetailPage({ params }: PageProps) {
       position: breadcrumbPos++,
       name: tenderBundesland,
       item: `${siteUrl}/ausschreibungen/region/${bundeslandSlug}`,
+    });
+  }
+  if (tenderCity && citySlug) {
+    breadcrumbItems.push({
+      "@type": "ListItem",
+      position: breadcrumbPos++,
+      name: tenderCity,
+      item: `${siteUrl}/ausschreibungen/stadt/${citySlug}`,
     });
   }
   breadcrumbItems.push(
@@ -314,6 +339,11 @@ export default async function TenderDetailPage({ params }: PageProps) {
             {bundeslandSlug && tenderBundesland && (
               <Link href={`/ausschreibungen/region/${bundeslandSlug}`} style={{ color: "#667288", textDecoration: "none" }}>
                 {tenderBundesland}
+              </Link>
+            )}
+            {citySlug && tenderCity && (
+              <Link href={`/ausschreibungen/stadt/${citySlug}`} style={{ color: "#667288", textDecoration: "none" }}>
+                {tenderCity}
               </Link>
             )}
             <Link href={`/ausschreibungen/${categorySlug}`} style={{ color: "#667288", textDecoration: "none" }}>
@@ -542,7 +572,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
                     component="a"
                     href={pdfUrl}
                     target="_blank"
-                    rel="noopener noreferrer"
+                    rel="nofollow noopener noreferrer"
                     sx={{
                       display: "flex",
                       alignItems: "center",
@@ -726,6 +756,34 @@ export default async function TenderDetailPage({ params }: PageProps) {
                   <Chip
                     clickable
                     label={`${categoryLabel} in ${tenderBundesland}`}
+                    variant="outlined"
+                    sx={{ fontWeight: 600 }}
+                  />
+                </Link>
+              )}
+              {/* SEO: Cross-link to city landing page */}
+              {citySlug && tenderCity && (
+                <Link
+                  href={`/ausschreibungen/stadt/${citySlug}`}
+                  style={{ textDecoration: "none" }}
+                >
+                  <Chip
+                    clickable
+                    label={`Ausschreibungen in ${tenderCity}`}
+                    variant="outlined"
+                    sx={{ fontWeight: 600 }}
+                  />
+                </Link>
+              )}
+              {/* SEO: Cross-link to agency/ Auftraggeber page */}
+              {agencySlug && client && (
+                <Link
+                  href={`/auftraggeber/${agencySlug}`}
+                  style={{ textDecoration: "none" }}
+                >
+                  <Chip
+                    clickable
+                    label={`Alle Ausschreibungen von ${client.slice(0, 40)}`}
                     variant="outlined"
                     sx={{ fontWeight: 600 }}
                   />

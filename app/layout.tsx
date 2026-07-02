@@ -42,6 +42,7 @@ export const metadata: Metadata = {
     canonical: "/",
     languages: {
       "de-DE": "/",
+      "x-default": "/",
     },
     types: {
       "application/rss+xml": `${siteUrl}/feeds/tender.xml`,
@@ -107,11 +108,12 @@ const websiteJsonLd = {
   "@type": "WebSite",
   name: "Tenderhunter",
   url: siteUrl,
+  // SEO: Enables Google sitelinks search box in SERP
   potentialAction: {
     "@type": "SearchAction",
     target: {
       "@type": "EntryPoint",
-      urlTemplate: `${siteUrl}/ausschreibungen?q={search_term_string}`,
+      urlTemplate: `${siteUrl}/?q={search_term_string}`,
     },
     "query-input": "required name=search_term_string",
   },

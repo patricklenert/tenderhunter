@@ -20,6 +20,7 @@ import {
 import { BUNDESLAND_SLUGS, SLUG_TO_BUNDESLAND, ALL_BUNDESLAND_SLUGS } from "@/lib/bundesland";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 import { searchTenders } from "@/lib/meilisearch";
+import { CITIES } from "@/lib/cities";
 
 // SEO: Bundesland landing pages for regional long-tail keywords like "Ausschreibungen Bayern"
 export const revalidate = 3600;
@@ -348,6 +349,29 @@ export default async function RegionPage({ params, searchParams }: PageProps) {
                   <Chip
                     clickable
                     label={CATEGORY_LABELS[key] ?? key}
+                    variant="outlined"
+                    sx={{ fontWeight: 500 }}
+                  />
+                </Link>
+              ))}
+            </Stack>
+          </Box>
+
+          {/* SEO: Cross-links to city landing pages within this Bundesland */}
+          <Box sx={{ mb: 5 }}>
+            <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
+              Ausschreibungen nach Stadt in {bundesland}
+            </Typography>
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              {CITIES.filter((c) => c.bundesland === bundesland).map((city) => (
+                <Link
+                  key={city.slug}
+                  href={`/ausschreibungen/stadt/${city.slug}`}
+                  style={{ textDecoration: "none" }}
+                >
+                  <Chip
+                    clickable
+                    label={city.label}
                     variant="outlined"
                     sx={{ fontWeight: 500 }}
                   />
