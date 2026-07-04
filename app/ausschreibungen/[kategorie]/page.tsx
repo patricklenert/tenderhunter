@@ -229,29 +229,19 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
     })),
   };
 
-  // SEO: FAQPage JSON-LD from category tips + requirements — targets long-tail FAQ queries
-  const faqJsonLd = catContent
+  // SEO: FAQPage JSON-LD from category faq array — real question-answer pairs for Google rich snippets
+  const faqJsonLd = catContent?.faq
     ? {
         "@context": "https://schema.org",
         "@type": "FAQPage",
-        mainEntity: [
-          {
-            "@type": "Question",
-            name: `Tipps für Bieter bei ${label}-Vergaben`,
-            acceptedAnswer: {
-              "@type": "Answer",
-              text: catContent.tips.join(" "),
-            },
+        mainEntity: catContent.faq.map((item) => ({
+          "@type": "Question",
+          name: item.question,
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: item.answer,
           },
-          {
-            "@type": "Question",
-            name: `Welche Eignungsanforderungen gelten für ${label}-Ausschreibungen?`,
-            acceptedAnswer: {
-              "@type": "Answer",
-              text: catContent.requirements.join(" "),
-            },
-          },
-        ],
+        })),
       }
     : null;
 
@@ -530,35 +520,21 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
           )}
 
           {/* SEO: Visible FAQ section — mirrors the FAQPage JSON-LD for user accessibility */}
-          {catContent && (
+          {catContent?.faq && catContent.faq.length > 0 && (
             <Box sx={{ mb: 5, maxWidth: "75ch" }}>
               <Typography variant="h5" component="h2" fontWeight={700} sx={{ mb: 3 }}>
                 Häufige Fragen zu {label}-Ausschreibungen
               </Typography>
-              <Box component="details" sx={{ mb: 2, p: 2, border: 1, borderColor: "divider", borderRadius: 1 }}>
-                <Box component="summary" sx={{ fontWeight: 600, cursor: "pointer", fontSize: "1rem", mb: 1 }}>
-                  Tipps für Bieter bei {label}-Vergaben
+              {catContent.faq.map((item, i) => (
+                <Box key={i} component="details" sx={{ mb: 2, p: 2, border: 1, borderColor: "divider", borderRadius: 1 }}>
+                  <Box component="summary" sx={{ fontWeight: 600, cursor: "pointer", fontSize: "1rem", mb: 1 }}>
+                    {item.question}
+                  </Box>
+                  <Typography variant="body2" sx={{ mt: 1, lineHeight: 1.7, color: "text.secondary" }}>
+                    {item.answer}
+                  </Typography>
                 </Box>
-                <Box component="ul" sx={{ m: 0, pl: 2.5, mt: 1 }}>
-                  {catContent.tips.map((tip, i) => (
-                    <Box component="li" key={i} sx={{ mb: 1, lineHeight: 1.7, color: "text.secondary" }}>
-                      {tip}
-                    </Box>
-                  ))}
-                </Box>
-              </Box>
-              <Box component="details" sx={{ mb: 2, p: 2, border: 1, borderColor: "divider", borderRadius: 1 }}>
-                <Box component="summary" sx={{ fontWeight: 600, cursor: "pointer", fontSize: "1rem", mb: 1 }}>
-                  Welche Eignungsanforderungen gelten für {label}-Ausschreibungen?
-                </Box>
-                <Box component="ul" sx={{ m: 0, pl: 2.5, mt: 1 }}>
-                  {catContent.requirements.map((req, i) => (
-                    <Box component="li" key={i} sx={{ mb: 1, lineHeight: 1.7, color: "text.secondary" }}>
-                      {req}
-                    </Box>
-                  ))}
-                </Box>
-              </Box>
+              ))}
             </Box>
           )}
 

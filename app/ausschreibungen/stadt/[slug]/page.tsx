@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 import { searchTenders } from "@/lib/meilisearch";
-import { CITY_SLUG_MAP, ALL_CITY_SLUGS, CITY_LABEL_MAP } from "@/lib/cities";
+import { CITY_SLUG_MAP, ALL_CITY_SLUGS, CITY_LABEL_MAP, generateCityFaq } from "@/lib/cities";
 import { BUNDESLAND_SLUGS } from "@/lib/bundesland";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 
@@ -141,10 +141,23 @@ export default async function CityPage({ params, searchParams }: PageProps) {
     ],
   };
 
+  // SEO: FAQPage JSON-LD for city landing pages — targets "Ausschreibungen {Stadt}" long-tail queries with FAQ rich snippets
+  const cityFaq = generateCityFaq(city);
+  const faqJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: cityFaq.map((item) => ({
+      "@type": "Question",
+      name: item.question,
+      acceptedAnswer: { "@type": "Answer", text: item.answer },
+    })),
+  };
+
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
 
       <Box sx={{ minHeight: "100vh", bgcolor: "background.default", py: { xs: 3, md: 5 } }}>
         <Container maxWidth="lg">
@@ -336,6 +349,23 @@ export default async function CityPage({ params, searchParams }: PageProps) {
                 </Link>
               ))}
             </Stack>
+          </Box>
+
+          {/* SEO: Visible FAQ section — mirrors FAQPage JSON-LD for user accessibility and snippet eligibility */}
+          <Box sx={{ mb: 5, maxWidth: "75ch" }}>
+            <Typography variant="h5" component="h2" fontWeight={700} sx={{ mb: 3 }}>
+              Häufige Fragen zu Ausschreibungen in {city.label}
+            </Typography>
+            {cityFaq.map((item, i) => (
+              <Box key={i} component="details" sx={{ mb: 2, p: 2, border: 1, borderColor: "divider", borderRadius: 1 }}>
+                <Box component="summary" sx={{ fontWeight: 600, cursor: "pointer", fontSize: "1rem", mb: 1 }}>
+                  {item.question}
+                </Box>
+                <Typography variant="body2" sx={{ mt: 1, lineHeight: 1.7, color: "text.secondary" }}>
+                  {item.answer}
+                </Typography>
+              </Box>
+            ))}
           </Box>
 
           {/* CTA */}

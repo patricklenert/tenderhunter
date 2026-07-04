@@ -8,6 +8,8 @@ export interface Article {
   dateModified: string;
   content: string;
   relatedCategories: string[];
+  // SEO: HowTo step data for HowTo JSON-LD rich snippets — only for step-by-step articles
+  howToSteps?: Array<{ name: string; text: string }>;
 }
 
 export const ARTICLES: Record<string, Article> = {
@@ -253,6 +255,16 @@ Nicht jedes Angebot führt zum Zuschlag. Nutzen Sie Ablehnungen als Lernchance:
     datePublished: "2025-02-01",
     dateModified: "2025-02-01",
     relatedCategories: ["Bauarbeiten", "IT-Dienstleistungen", "Facility Management"],
+    // SEO: HowTo steps extracted from H2 headings — enables HowTo rich snippet in Google SERP
+    howToSteps: [
+      { name: "Bedarfsfeststellung und Leistungsbeschreibung", text: "Der öffentliche Auftraggeber definiert seinen Bedarf und erstellt eine detaillierte Leistungsbeschreibung mit Umfang, Fristen und Formalien." },
+      { name: "Veröffentlichung der Ausschreibung", text: "Die Ausschreibung wird auf DTVP, TED, evergabe oder regionalen Portalen veröffentlicht — inklusive Leistungsbeschreibung, Angebotsfrist und Zuschlagskriterien." },
+      { name: "Bieter stellen Fragen", text: "In der Angebotsfrist können Bieter Fragen zur Ausschreibung stellen. Die Vergabestelle beantwortet diese und stellt die Antworten allen Bietern zur Verfügung." },
+      { name: "Angebot erstellen und einreichen", text: "Bieter kalkulieren ihren Preis, prüfen Formalien und Eignungsanforderungen und reichen das Angebot elektronisch vor Fristende ein." },
+      { name: "Angebotsöffnung und Prüfung", text: "Die Vergabestelle öffnet die Angebote, prüft Formalien und Eignung. Angebote mit formalen Mängeln werden ausgeschlossen." },
+      { name: "Zuschlag erteilen", text: "Das wirtschaftlichste Angebot erhält den Zuschlag — entweder nach niedrigstem Preis oder nach dem wirtschaftlichsten Angebot (Preis + Qualität)." },
+      { name: "Vertrag schließen und Leistung erbringen", text: "Nach der Wartepflicht (15 Kalendertage bei EU-Vergaben) wird der Vertrag geschlossen und die Leistungserbringung beginnt." },
+    ],
     content: `
 ## Was ist eine öffentliche Ausschreibung?
 
@@ -343,6 +355,13 @@ Eine öffentliche Ausschreibung folgt klaren Regeln und Schritten. Wer die einze
     datePublished: "2025-02-01",
     dateModified: "2025-02-01",
     relatedCategories: ["Bauarbeiten", "Tiefbau", "Planungsleistungen"],
+    // SEO: HowTo steps for ARGE founding — enables HowTo rich snippet in Google SERP
+    howToSteps: [
+      { name: "Passende Partner finden", text: "Suchen Sie Unternehmen mit komplementären Leistungen, vergleichbaren Qualitätsstandards und stabiler Finanzkraft. Nutzen Sie IHK-Netzwerke und Fachverbände." },
+      { name: "ARGE-Vertrag aufsetzen", text: "Regeln Sie Aufgabenverteilung, Haftung, Gewinnverteilung, Projektleitung und Streitbeilegung schriftlich. Lassen Sie den Vertrag von einem spezialisierten Anwalt prüfen." },
+      { name: "Gemeinschaftsangebot erstellen", text: "Benennen Sie alle ARGE-Mitglieder, weisen Sie Leistungsanteile aus und fügen Sie die Eignungsnachweise jedes Mitglieds bei." },
+      { name: "Ausführung nach Zuschlag", text: "Die ARGE tritt als Vertragspartner auf. Die Projektleitung koordiniert die Arbeit und die Abrechnung erfolgt über ein gemeinsames Konto." },
+    ],
     content: `
 ## Was ist eine Bietergemeinschaft?
 

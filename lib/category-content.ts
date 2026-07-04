@@ -2,6 +2,8 @@ export interface CategoryContent {
   intro: string;
   tips: string[];
   requirements: string[];
+  // SEO: Real question-answer pairs for FAQPage JSON-LD — must follow Google's FAQ schema guidelines
+  faq: Array<{ question: string; answer: string }>;
 }
 
 export const CATEGORY_CONTENT: Record<string, CategoryContent> = {
@@ -19,6 +21,20 @@ export const CATEGORY_CONTENT: Record<string, CategoryContent> = {
       "Referenzen vergleichbarer Größenordnung aus den letzten 3–5 Jahren",
       "PQ-VOLK-Zertifikat (Vergabeordnung für Leistungen) bei vielen Vergabestellen",
     ],
+    faq: [
+      {
+        question: "Wo finde ich Bauarbeiten-Ausschreibungen?",
+        answer: "Bauarbeiten-Ausschreibungen finden Sie auf den Portalen DTVP, TED, evergabe sowie Bauportal Deutschland. Tenderhunter aggregiert alle Quellen automatisch und zeigt Ihnen passende Ergebnisse für Ihr Unternehmen.",
+      },
+      {
+        question: "Welche Anforderungen gelten bei Bauarbeiten-Vergaben?",
+        answer: "Typische Anforderungen sind Eintragung im Berufsregister, Berufshaftpflichtversicherung, Referenzen vergleichbarer Projekte aus den letzten 3–5 Jahren sowie häufig ein PQ-VOLK-Zertifikat.",
+      },
+      {
+        question: "Welche Auftraggeber schreiben Bauarbeiten am häufigsten aus?",
+        answer: "Die aktivsten Auftraggeber für Bauarbeiten sind Kommunen, Landesbetriebe, Bund und öffentliche Unternehmen wie Stadtwerke. Auch Universitäten und Kliniken vergeben regelmäßig Bauaufträge.",
+      },
+    ],
   },
   Tiefbau: {
     intro:
@@ -33,6 +49,20 @@ export const CATEGORY_CONTENT: Record<string, CategoryContent> = {
       "Fachbetriebnachweis für Kanalsanierung (z.B. nach DIN 4033 oder DWA-Richtlinien)",
       "Erfahrung mit vergleichbaren Tiefbauvorhaben (Wertangabe und Referenz)",
       "Sicherheits- und Gesundheitsschutzkoordinator (SiGeKo) Benennung",
+    ],
+    faq: [
+      {
+        question: "Wo finde ich Tiefbau-Ausschreibungen?",
+        answer: "Tiefbau-Ausschreibungen werden auf DTVP, TED, evergabe und Bauportal Deutschland veröffentlicht. Tenderhunter durchsucht automatisch alle Portale und filtert relevante Infrastrukturprojekte für Sie.",
+      },
+      {
+        question: "Welche Anforderungen gelten bei Tiefbau-Vergaben?",
+        answer: "Typische Anforderungen sind Präqualifikation nach VOB/A, Fachbetriebnachweise für Kanalsanierung, Erfahrung mit vergleichbaren Tiefbauvorhaben sowie die Benennung eines SiGeKo.",
+      },
+      {
+        question: "Welche Auftraggeber schreiben Tiefbau am häufigsten aus?",
+        answer: "Die wichtigsten Auftraggeber im Tiefbau sind Kommunen, Wasser- und Abwasserzweckverbände, Landesbetriebe und Straßenbauämter. Auch Autobahnmeistereien vergeben regelmäßig Tiefbauaufträge.",
+      },
     ],
   },
   TGA: {
@@ -49,6 +79,20 @@ export const CATEGORY_CONTENT: Record<string, CategoryContent> = {
       "Berufshaftpflichtversicherung mit Deckungssumme mind. 3 Mio. Euro",
       "Referenzprojekte mit vergleichbarer technischer Komplexität",
     ],
+    faq: [
+      {
+        question: "Wo finde ich TGA-Ausschreibungen?",
+        answer: "Technische Gebäudeausrüstung (TGA) wird auf DTVP, TED, evergabe und Bauportal Deutschland ausgeschrieben. Tenderhunter aggregiert alle TGA-Vergaben automatisch nach Heizung, Lüftung, Sanitär und Elektrotechnik.",
+      },
+      {
+        question: "Welche Anforderungen gelten bei TGA-Vergaben?",
+        answer: "Typische Anforderungen sind Eintragung in die Handwerksrolle (SHK oder Elektrotechnik), Meisterbrief oder Techniker-Nachweis, Berufshaftpflicht ab 3 Mio. Euro und Referenzprojekte vergleichbarer Komplexität.",
+      },
+      {
+        question: "Welche Auftraggeber schreiben TGA am häufigsten aus?",
+        answer: "Die aktivsten TGA-Auftraggeber sind Kommunen, Landesbetriebe, Kliniken und Universitäten. Besonders bei energetischen Sanierungen und Neubauten werden TGA-Leistungen regelmäßig ausgeschrieben.",
+      },
+    ],
   },
   Gebaeudereinigung: {
     intro:
@@ -63,6 +107,20 @@ export const CATEGORY_CONTENT: Record<string, CategoryContent> = {
       "Berufshaftpflichtversicherung (mindestens 1 Mio. Euro deckung)",
       "Ausbildungsnachweis des Personals (Gebäudereiniger-Gehilfenbrief oder vergleichbar)",
       "Nachhaltigkeitszertifikat oder AMSIII-Zertifikat (Reinigungsmittelsicherheit)",
+    ],
+    faq: [
+      {
+        question: "Wo finde ich Gebäudereinigung-Ausschreibungen?",
+        answer: "Gebäudereinigung-Ausschreibungen finden Sie auf DTVP, TED, evergabe sowie regionalen Vergabeportalen. Tenderhunter zeigt Ihnen täglich aktualisiert alle passenden Reinigungsaufträge aus der öffentlichen Hand.",
+      },
+      {
+        question: "Welche Anforderungen gelten bei Gebäudereinigung-Vergaben?",
+        answer: "Typische Anforderungen sind Gewerbeanmeldung für Gebäudereinigung, Berufshaftpflicht ab 1 Mio. Euro, Ausbildungsnachweis des Personals sowie zunehmend Nachhaltigkeitszertifikate.",
+      },
+      {
+        question: "Welche Auftraggeber schreiben Gebäudereinigung am häufigsten aus?",
+        answer: "Die häufigsten Auftraggeber sind Schulen, Verwaltungsgebäude, Kliniken und Pflegeheime. Vergaben erfolgen meist als Rahmenvereinbarungen über 2–4 Jahre.",
+      },
     ],
   },
   Winterdienst: {
@@ -79,6 +137,20 @@ export const CATEGORY_CONTENT: Record<string, CategoryContent> = {
       "Erreichbarkeit/Leitstand 24/7 während der Wintersaison",
       "Berufshaftpflicht und ggf. Umwelthaftpflicht (Gewässerschaden)",
     ],
+    faq: [
+      {
+        question: "Wo finde ich Winterdienst-Ausschreibungen?",
+        answer: "Winterdienst-Ausschreibungen werden von Kommunen, Straßenbauämtern und Autobahnmeistereien auf DTVP und regionalen Portalen veröffentlicht. Tenderhunter aggregiert alle Saisonverträge automatisch.",
+      },
+      {
+        question: "Welche Anforderungen gelten bei Winterdienst-Vergaben?",
+        answer: "Typische Anforderungen sind Räum- und Streutechnik, Lagerkapazität für Streugut, 24/7-Erreichbarkeit während der Wintersaison sowie Berufshaftpflicht und Umwelthaftpflicht.",
+      },
+      {
+        question: "Wann werden Winterdienst-Ausschreibungen veröffentlicht?",
+        answer: "Winterdienst-Vergaben werden meist zwischen Juli und Oktober für die kommende Saison ausgeschrieben. Die Vertragslaufzeit beträgt in der Regel eine Saison von November bis April.",
+      },
+    ],
   },
   Immobilienverwaltung: {
     intro:
@@ -93,6 +165,20 @@ export const CATEGORY_CONTENT: Record<string, CategoryContent> = {
       "Erfahrung mit comparable Objektgrößen (Anzahl WE / m²)",
       "EDV-Systeme für die Liegenschaftsverwaltung (SAP RE-FX, APUS oder ähnlich)",
       "Berufshaftpflicht (Vermögensschadenhaftpflicht mindestens 1 Mio. Euro)",
+    ],
+    faq: [
+      {
+        question: "Wo finde ich Immobilienverwaltung-Ausschreibungen?",
+        answer: "Immobilienverwaltung-Ausschreibungen finden Sie auf DTVP, TED und evergabe. Tenderhunter zeigt Ihnen alle aktuellen Vergaben von kommunalen Wohnungsbauunternehmen und Landesbetrieben.",
+      },
+      {
+        question: "Welche Anforderungen gelten bei Immobilienverwaltung-Vergaben?",
+        answer: "Typische Anforderungen sind IHK-Zulassung als Immobilienverwalter, Erfahrung mit vergleichbaren Objektgrößen, EDV-Systeme für Liegenschaftsverwaltung und Vermögensschadenhaftpflicht ab 1 Mio. Euro.",
+      },
+      {
+        question: "Welche Auftraggeber schreiben Immobilienverwaltung am häufigsten aus?",
+        answer: "Die wichtigsten Auftraggeber sind kommunale Wohnungsbauunternehmen, Landesbetriebe und Bundesimmobilien. Vergaben erfolgen oft als mehrjährige Dienstleistungsverträge.",
+      },
     ],
   },
   "Facility Management": {
@@ -109,6 +195,20 @@ export const CATEGORY_CONTENT: Record<string, CategoryContent> = {
       "CAFM-System und 24/7-Service-Hotline",
       "Berufshaftpflicht mit ausreichender Deckungssumme (mind. 5 Mio. Euro)",
     ],
+    faq: [
+      {
+        question: "Wo finde ich Facility-Management-Ausschreibungen?",
+        answer: "Facility-Management-Ausschreibungen werden auf DTVP, TED, evergabe und Bauportal Deutschland veröffentlicht. Tenderhunter aggregiert alle FM-Vergaben – von Hard FM bis Soft FM – automatisch für Sie.",
+      },
+      {
+        question: "Welche Anforderungen gelten bei Facility-Management-Vergaben?",
+        answer: "Typische Anforderungen sind DIN EN ISO 41001-Zertifizierung, mehrjährige Referenzen im integrierten FM, CAFM-System und 24/7-Service-Hotline sowie Berufshaftpflicht ab 5 Mio. Euro.",
+      },
+      {
+        question: "Welche Auftraggeber schreiben Facility Management am häufigsten aus?",
+        answer: "Die aktivsten FM-Auftraggeber sind Bund, Länder, Kommunen und öffentliche Unternehmen. Besonders Universitäten, Kliniken und Verwaltungsgebäude werden regelmäßig als FM-Leistungen ausgeschrieben.",
+      },
+    ],
   },
   Gruenflaechenpflege: {
     intro:
@@ -123,6 +223,20 @@ export const CATEGORY_CONTENT: Record<string, CategoryContent> = {
       "Fachpersonal mit Garten- und Landschaftsbau-Ausbildung",
       "Geräte und Maschinen (Mähtraktoren, Häcksler, Freischneider)",
       "Referenzen in der Grünflaechenpflege für vergleichbare Flächen",
+    ],
+    faq: [
+      {
+        question: "Wo finde ich Grünflächenpflege-Ausschreibungen?",
+        answer: "Grünflächenpflege-Ausschreibungen finden Sie auf DTVP, evergabe und regionalen Vergabeportalen. Tenderhunter zeigt Ihnen alle aktuellen Vergaben für Parks, Grünanlagen und Friedhöfe.",
+      },
+      {
+        question: "Welche Anforderungen gelten bei Grünflächenpflege-Vergaben?",
+        answer: "Typische Anforderungen sind Berufshaftpflicht ab 2 Mio. Euro, Fachpersonal mit Garten- und Landschaftsbau-Ausbildung, Geräte und Maschinen sowie Referenzen vergleichbarer Flächen.",
+      },
+      {
+        question: "Welche Auftraggeber schreiben Grünflächenpflege am häufigsten aus?",
+        answer: "Die wichtigsten Auftraggeber sind Kommunen, Stadtwerke und Landesbetriebe. Vergaben betreffen Rasenpflege, Gehölzschnitt, Pflanzarbeiten und Saisonpflege.",
+      },
     ],
   },
   Gartenarbeiten: {
@@ -139,6 +253,20 @@ export const CATEGORY_CONTENT: Record<string, CategoryContent> = {
       "Ausbildungsnachweis (Gärtnermeister oder GaLaBau-Meister)",
       "Referenzprojekte vergleichbarer Art und Größenordnung",
     ],
+    faq: [
+      {
+        question: "Wo finde ich Garten- und Landschaftsbau-Ausschreibungen?",
+        answer: "Garten- und Landschaftsbau-Ausschreibungen werden auf DTVP, evergabe und Bauportal Deutschland veröffentlicht. Tenderhunter zeigt Ihnen alle GaLaBau-Vergaben – von Pflasterarbeiten bis Dachbegrünung.",
+      },
+      {
+        question: "Welche Anforderungen gelten bei GaLaBau-Vergaben?",
+        answer: "Typische Anforderungen sind Eintragung in die Handwerksrolle als Garten- und Landschaftsbauer, Berufshaftpflicht ab 2 Mio. Euro, Gärtnermeister- oder GaLaBau-Meister-Nachweis und Referenzprojekte.",
+      },
+      {
+        question: "Welche Auftraggeber schreiben Garten- und Landschaftsbau am häufigsten aus?",
+        answer: "Die aktivsten Auftraggeber sind Kommunen, Schulen, Kindergärten und Stadtwerke. Vergaben betreffen Neuanlagen von Grünflächen, Pflasterarbeiten, Spielplätze und Ortskerngestaltung.",
+      },
+    ],
   },
   Planungsleistungen: {
     intro:
@@ -153,6 +281,20 @@ export const CATEGORY_CONTENT: Record<string, CategoryContent> = {
       "Berufshaftpflicht-/Vermögensschadenhaftpflicht (mind. 1,5 Mio. Euro)",
       "Referenzprojekte der letzten 5 Jahre mit vergleichbarer Nutzung und Größe",
       "BIM-Kompetenz (z.B. Zertifizierung buildingSMART) bei vielen Vergaben",
+    ],
+    faq: [
+      {
+        question: "Wo finde ich Planungsleistungen-Ausschreibungen?",
+        answer: "Planungsleistungen werden auf DTVP, TED und evergabe ausgeschrieben. Tenderhunter aggregiert alle Architektur-, Ingenieurbau- und TGA-Planungsvergaben automatisch für Ihr Unternehmen.",
+      },
+      {
+        question: "Welche Anforderungen gelten bei Planungsleistungen-Vergaben?",
+        answer: "Typische Anforderungen sind Eintragung in ein Berufsregister (Architekten- oder Ingenieurkammer), Berufshaftpflicht ab 1,5 Mio. Euro, Referenzprojekte der letzten 5 Jahre und zunehmend BIM-Kompetenz.",
+      },
+      {
+        question: "Welche Auftraggeber schreiben Planungsleistungen am häufigsten aus?",
+        answer: "Die wichtigsten Auftraggeber sind Bund, Länder, Kommunen und öffentliche Unternehmen. Vergaben erfolgen nach VgV oder UVgO, oft als Verhandlungsverfahren mit Teilnahmewettbewerb.",
+      },
     ],
   },
   "IT-Dienstleistungen": {
@@ -169,6 +311,20 @@ export const CATEGORY_CONTENT: Record<string, CategoryContent> = {
       "Sicherheitsüberprüfung des Personals (Ü3 oder Φ nach SÜG bei Bundesbehörden)",
       "SLA-basierte Service-Level-Agreements mit Verfügbarkeitsgarantien",
     ],
+    faq: [
+      {
+        question: "Wo finde ich IT-Ausschreibungen der öffentlichen Hand?",
+        answer: "IT-Ausschreibungen werden auf DTVP, TED und evergabe veröffentlicht. Tenderhunter zeigt Ihnen alle aktuellen IT-Vergaben – von Softwareentwicklung über Cloud-Services bis Cybersecurity.",
+      },
+      {
+        question: "Welche Anforderungen gelten bei IT-Vergaben?",
+        answer: "Typische Anforderungen sind ISO 27001-Zertifizierung, Erfahrung mit öffentlichen Auftraggebern, Sicherheitsüberprüfung des Personals bei Bundesbehörden und SLA-basierte Verfügbarkeitsgarantien.",
+      },
+      {
+        question: "Welche Auftraggeber schreiben IT-Dienstleistungen am häufigsten aus?",
+        answer: "Die aktivsten IT-Auftraggeber sind Bundes- und Landesbehörden, Kommunen und öffentliche Unternehmen. Der Trend geht zu Rahmenvereinbarungen und agilen Vergaben im Bereich Digitalisierung.",
+      },
+    ],
   },
   Lieferung: {
     intro:
@@ -184,6 +340,20 @@ export const CATEGORY_CONTENT: Record<string, CategoryContent> = {
       "Produkthaftpflicht (insbesondere bei medizinischen oder technischen Produkten)",
       "Zertifikate der Hersteller (Händlerbindung) bei Markenprodukten",
     ],
+    faq: [
+      {
+        question: "Wo finde ich Lieferaufträge der öffentlichen Hand?",
+        answer: "Lieferaufträge werden auf DTVP, TED und evergabe ausgeschrieben. Tenderhunter aggregiert alle Material- und Produktvergaben – von Büromöbeln über medizinisches Material bis IT-Hardware.",
+      },
+      {
+        question: "Welche Anforderungen gelten bei Liefervergaben?",
+        answer: "Typische Anforderungen sind Gewerbeanmeldung für die betreffenden Warengruppen, Logistik- und Lagerkapazität, Produkthaftpflicht und Herstellerzertifikate bei Markenprodukten.",
+      },
+      {
+        question: "Welche Auftraggeber schreiben Lieferungen am häufigsten aus?",
+        answer: "Die wichtigsten Auftraggeber sind Bund, Länder, Kommunen, Kliniken und Universitäten. Häufig werden Rahmenvereinbarungen über mehrere Jahre geschlossen.",
+      },
+    ],
   },
   Sonstiges: {
     intro:
@@ -198,6 +368,20 @@ export const CATEGORY_CONTENT: Record<string, CategoryContent> = {
       "Gewerbeanmeldung oder Zulassung im entsprechenden Bereich",
       "Berufshaftpflicht (Höhe je nach Risiko)",
       "Referenzen aus vergleichbaren Aufträgen",
+    ],
+    faq: [
+      {
+        question: "Wo finde ich diverse Ausschreibungen?",
+        answer: "Diverse Ausschreibungen, die nicht eindeutig einer Kategorie zuzuordnen sind, finden Sie auf DTVP, TED und evergabe. Tenderhunter kategorisiert diese automatisch und zeigt Ihnen relevante Ergebnisse.",
+      },
+      {
+        question: "Welche Anforderungen gelten bei sonstigen Vergaben?",
+        answer: "Die Anforderungen variieren stark je nach Auftragsart. Typisch sind spezifische Nachweise (z.B. Entsorgungsfachbetrieb), Gewerbeanmeldung, Berufshaftpflicht und Referenzen aus vergleichbaren Aufträgen.",
+      },
+      {
+        question: "Welche Auftraggeber vergeben sonstige Leistungen?",
+        answer: "Alle öffentlichen Auftraggeber können diverse Leistungen vergeben – von Entsorgung über Beratung bis zu spezialisierten Dienstleistungen. Die Vergabeanforderungen variieren je nach Auftragsart.",
+      },
     ],
   },
 };

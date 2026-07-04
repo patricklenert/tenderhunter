@@ -7,6 +7,9 @@ export interface CityEntry {
   label: string;
   bundesland: string;
   intro: string;
+  // SEO: Enriched content for city landing pages — procurement authorities and local context
+  procurementAuthorities?: string[];
+  localInfo?: string;
 }
 
 export const CITIES: CityEntry[] = [
@@ -15,30 +18,40 @@ export const CITIES: CityEntry[] = [
     label: "München",
     bundesland: "Bayern",
     intro: "München als Landeshauptstadt und größte Stadt Bayerns ist einer der aktivsten öffentlichen Auftraggeber in Süddeutschheit. Die Landeshauptstadt München, städtische Betriebe und die Ludwig-Maximilians-Universität schreiben regelmäßig Bauarbeiten, IT-Dienstleistungen, Facility Management und Lieferaufträge aus.",
+    procurementAuthorities: ["Landeshauptstadt München", "Stadtwerke München", "Ludwig-Maximilians-Universität München"],
+    localInfo: "München hat als Millionenstadt ein besonders hohes Auftragsvolumen in den Bereichen Facility Management und IT-Dienstleistungen. Die starke Wirtschaftskraft der Region sorgt für ein überdurchschnittliches Vergabevolumen.",
   },
   {
     slug: "berlin",
     label: "Berlin",
     bundesland: "Berlin",
     intro: "Berlin als Bundeshauptstadt und Stadtstaat ist einer der größten öffentlichen Auftraggeber in Deutschland. Die Senatsverwaltungen, Bezirke und Landesbetriebe vergeben Aufträge in allen Leistungsbereichen – von Großbauprojekten über IT-Services bis hin zu Gebäudereinigung.",
+    procurementAuthorities: ["Senatsverwaltung Berlin", "Berliner Wasserbetriebe", "Berlin Partner für Wirtschaft und Technologie"],
+    localInfo: "Berlin vergibt als Stadtstaat mit 12 Bezirken besonders viele kommunale Aufträge. Die Digitalisierungsstrategie treibt IT-Ausschreibungen stark voran.",
   },
   {
     slug: "hamburg",
     label: "Hamburg",
     bundesland: "Hamburg",
     intro: "Hamburg als größter deutscher Hafenstadtstaat ist ein bedeutender Vergabemarkt. Die Stadt, ihre Bezirke und städtischen Unternehmen schreiben regelmäßig Bauarbeiten, IT-Services, Facility Management und maritime Dienstleistungen aus.",
+    procurementAuthorities: ["Freie und Hansestadt Hamburg", "Hamburger Verkehrsverbund", "Hamburg Port Authority"],
+    localInfo: "Hamburg profitiert als Hafenstadt von einem überdurchschnittlichen Volumen an Logistik- und Infrastrukturaufträgen. Die Hafenerweiterung und Stadtentwicklung sorgen für kontinuierliche Bauvergaben.",
   },
   {
     slug: "koeln",
     label: "Köln",
     bundesland: "Nordrhein-Westfalen",
     intro: "Köln ist eine der größten Städte Nordrhein-Westfalens mit hoher Vergabeaktivität. Die Stadtverwaltung, städtische Betriebe und die Universität zu Köln vergeben regelmäßig Aufträge für Bauarbeiten, IT, Reinigung und Grünflächenpflege.",
+    procurementAuthorities: ["Stadt Köln", "Kölner Verkehrsbetriebe", "Universität zu Köln"],
+    localInfo: "Köln ist als Medienmetropole ein Hotspot für IT- und Digitalisierungsaufträge. Die Rheinische Friedrich-Wilhelms-Universität und zahlreiche Bundesbehörden sorgen für ein breites Vergabespektrum.",
   },
   {
     slug: "frankfurt",
     label: "Frankfurt am Main",
     bundesland: "Hessen",
     intro: "Frankfurt am Main als Finanzmetropole und eine der größten Städte Hessens hat eine aktive Vergabelandschaft. Die Stadtverwaltung, städtische Gesellschaften und das Land Hessen vergeben Aufträge insbesondere im IT-Bereich, bei Bauleistungen und in der energetischen Gebäudesanierung.",
+    procurementAuthorities: ["Stadt Frankfurt am Main", "Stadtwerke Frankfurt", "Fraunhofer-Institut"],
+    localInfo: "Frankfurt als Finanzzentrum hat einen hohen Bedarf an IT-Sicherheits- und Digitalisierungsdienstleistungen. Der Flughafen und die Messegesellschaft sind zusätzliche große Auftraggeber.",
   },
   {
     slug: "stuttgart",
@@ -347,6 +360,29 @@ export const CITIES: CityEntry[] = [
     intro: "Wolfsburg als Industriestandort vergeben öffentliche Aufträge insbesondere in den Bereichen Stadtentwicklung, Mobilität und kommunale Infrastruktur.",
   },
 ];
+
+// SEO: Generate FAQPage JSON-LD data for city landing pages from existing city metadata.
+// Avoids manually maintaining 150 FAQ entries — derives unique Q&A per city from CityEntry fields.
+export function generateCityFaq(city: CityEntry): Array<{ question: string; answer: string }> {
+  const authorities = city.procurementAuthorities && city.procurementAuthorities.length > 0
+    ? city.procurementAuthorities.join(", ")
+    : `die Stadtverwaltung ${city.label}, kommunale Betriebe und das ${city.bundesland}`;
+
+  return [
+    {
+      question: `Wo finde ich Ausschreibungen in ${city.label}?`,
+      answer: `Ausschreibungen in ${city.label} werden über die Vergabeportale DTVP, TED und evergabe veröffentlicht. Tenderhunter aggregiert alle Quellen automatisch und zeigt Ihnen passende Ergebnisse für ${city.label} und Umgebung.`,
+    },
+    {
+      question: `Welche Vergabestellen gibt es in ${city.label}?`,
+      answer: `Die wichtigsten Vergabestellen in ${city.label} sind ${authorities}. Diese Institutionen schreiben regelmäßig öffentliche Aufträge in verschiedenen Leistungsbereichen aus.`,
+    },
+    {
+      question: `Wie oft werden neue Ausschreibungen in ${city.label} veröffentlicht?`,
+      answer: `In ${city.label} werden täglich neue Ausschreibungen veröffentlicht. Tenderhunter aktualisiert die Datenbank kontinuierlich und benachrichtigt Sie über passende neue Vergaben per E-Mail.`,
+    },
+  ];
+}
 
 // Lookup maps for efficient access
 export const CITY_SLUG_MAP: Record<string, CityEntry> = Object.fromEntries(
