@@ -21,6 +21,7 @@ import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 import { searchTenders } from "@/lib/meilisearch";
 import { CITY_SLUG_MAP, ALL_CITY_SLUGS, CITY_LABEL_MAP } from "@/lib/cities";
 import { BUNDESLAND_SLUGS } from "@/lib/bundesland";
+import { SiteFooter } from "@/components/seo/SiteFooter";
 
 // SEO: City landing pages for long-tail keywords like "Ausschreibungen München"
 export const revalidate = 3600;
@@ -28,7 +29,7 @@ export const runtime = "nodejs";
 
 const PAGE_SIZE = 20;
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://palemaz.com";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -52,9 +53,8 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
     const pageSuffix = currentPage > 1 ? ` – Seite ${currentPage}` : "";
     const title = `Ausschreibungen ${city.label} – Aktuelle öffentliche Vergaben${pageSuffix}`;
     const description = `${count} aktuelle öffentliche Ausschreibungen in ${city.label}. Vergabeverfahren für Bauarbeiten, IT, Facility Management und mehr. Täglich aktualisiert.`;
-    const canonicalPath = currentPage > 1
-      ? `/ausschreibungen/stadt/${slug}?page=${currentPage}`
-      : `/ausschreibungen/stadt/${slug}`;
+    // SEO: Paginated pages (2+) canonicalize to page 1 to consolidate ranking signals
+    const canonicalPath = `/ausschreibungen/stadt/${slug}`;
 
     return {
       title,
@@ -64,9 +64,7 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
       openGraph: { title, description, type: "website", locale: "de_DE" },
     };
   } catch {
-    const canonicalPath = currentPage > 1
-      ? `/ausschreibungen/stadt/${slug}?page=${currentPage}`
-      : `/ausschreibungen/stadt/${slug}`;
+    const canonicalPath = `/ausschreibungen/stadt/${slug}`;
     return {
       title: `Ausschreibungen ${city.label}`,
       description: `Öffentliche Ausschreibungen in ${city.label}.`,
@@ -371,6 +369,7 @@ export default async function CityPage({ params, searchParams }: PageProps) {
           </Box>
         </Container>
       </Box>
+      <SiteFooter />
     </>
   );
 }

@@ -22,13 +22,14 @@ import { CATEGORY_CONTENT } from "@/lib/category-content";
 import { searchTenders } from "@/lib/meilisearch";
 import { CITY_SLUG_MAP, ALL_CITY_SLUGS, CITY_LABEL_MAP } from "@/lib/cities";
 import { BUNDESLAND_SLUGS } from "@/lib/bundesland";
+import { SiteFooter } from "@/components/seo/SiteFooter";
 
 // SEO: City×Category cross pages for long-tail keywords like "bauausschreibungen münchen"
 export const revalidate = 3600;
 export const runtime = "nodejs";
 
 const PAGE_SIZE = 20;
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://palemaz.com";
 
 interface PageProps {
   params: Promise<{ slug: string; kategorie: string }>;
@@ -61,9 +62,8 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
     const pageSuffix = currentPage > 1 ? ` – Seite ${currentPage}` : "";
     const title = `${label} Ausschreibungen ${city.label} – Aktuelle Vergaben${pageSuffix}`;
     const description = `${count} aktuelle ${label}-Ausschreibungen in ${city.label}. Öffentliche Vergabeverfahren mit Fristen, Auftraggebern und Anforderungen. Täglich aktualisiert.`;
-    const canonicalPath = currentPage > 1
-      ? `/ausschreibungen/stadt/${slug}/${kategorie}?page=${currentPage}`
-      : `/ausschreibungen/stadt/${slug}/${kategorie}`;
+    // SEO: Paginated pages (2+) canonicalize to page 1 to consolidate ranking signals
+    const canonicalPath = `/ausschreibungen/stadt/${slug}/${kategorie}`;
 
     return {
       title,
@@ -73,9 +73,7 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
       openGraph: { title, description, type: "website", locale: "de_DE" },
     };
   } catch {
-    const canonicalPath = currentPage > 1
-      ? `/ausschreibungen/stadt/${slug}/${kategorie}?page=${currentPage}`
-      : `/ausschreibungen/stadt/${slug}/${kategorie}`;
+    const canonicalPath = `/ausschreibungen/stadt/${slug}/${kategorie}`;
     return {
       title: `${label} Ausschreibungen ${city.label}`,
       description: `Öffentliche ${label}-Ausschreibungen in ${city.label}.`,
@@ -390,6 +388,7 @@ export default async function CityCategoryPage({ params, searchParams }: PagePro
           </Box>
         </Container>
       </Box>
+      <SiteFooter />
     </>
   );
 }

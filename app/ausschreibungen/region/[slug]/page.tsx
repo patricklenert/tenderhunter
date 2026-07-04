@@ -74,10 +74,8 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
     const pageSuffix = currentPage > 1 ? ` – Seite ${currentPage}` : "";
     const title = `Ausschreibungen ${bundesland} – Aktuelle öffentliche Vergaben${pageSuffix}`;
     const description = `${count} aktuelle öffentliche Ausschreibungen in ${bundesland}. Vergabeverfahren für Bauarbeiten, IT, Facility Management und mehr. Täglich aktualisiert.`;
-    // SEO: Self-referencing canonical includes ?page=N for page > 1
-    const canonicalPath = currentPage > 1
-      ? `/ausschreibungen/region/${slug}?page=${currentPage}`
-      : `/ausschreibungen/region/${slug}`;
+    // SEO: Paginated pages (2+) canonicalize to page 1 to consolidate ranking signals
+    const canonicalPath = `/ausschreibungen/region/${slug}`;
 
     return {
       title,
@@ -87,9 +85,7 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
       openGraph: { title, description, type: "website", locale: "de_DE" },
     };
   } catch {
-    const canonicalPath = currentPage > 1
-      ? `/ausschreibungen/region/${slug}?page=${currentPage}`
-      : `/ausschreibungen/region/${slug}`;
+    const canonicalPath = `/ausschreibungen/region/${slug}`;
     return {
       title: `Ausschreibungen ${bundesland}`,
       description: `Öffentliche Ausschreibungen in ${bundesland}.`,

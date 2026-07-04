@@ -20,14 +20,11 @@ import {
   ArrowRight,
   Home as HomeIcon,
 } from "lucide-react";
-import {
-  CATEGORY_LABELS,
-  CATEGORY_SLUGS,
-  SLUG_TO_CATEGORY,
-  ALL_CATEGORY_SLUGS,
-} from "@/lib/categories";
+import { CATEGORY_LABELS, CATEGORY_SLUGS, SLUG_TO_CATEGORY, ALL_CATEGORY_SLUGS } from "@/lib/categories";
 import { CATEGORY_CONTENT } from "@/lib/category-content";
 import { BUNDESLAND_SLUGS } from "@/lib/bundesland";
+import { ARTICLES } from "@/lib/articles";
+import { SiteFooter } from "@/components/seo/SiteFooter";
 
 // SEO: Pagination for category pages — 20 tenders per page
 const PAGE_SIZE = 20;
@@ -35,7 +32,7 @@ const PAGE_SIZE = 20;
 export const revalidate = 3600;
 export const runtime = "nodejs";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://palemaz.com";
 
 interface PageProps {
   params: Promise<{ kategorie: string }>;
@@ -72,13 +69,11 @@ export async function generateMetadata({
       );
 
     const count = countRow[0]?.count ?? 0;
-    // SEO: Self-referencing canonical includes ?page=N for page > 1 so Google indexes each page independently
     const pageSuffix = currentPage > 1 ? ` – Seite ${currentPage}` : "";
     const title = `${label} – Aktuelle öffentliche Ausschreibungen${pageSuffix}`;
     const description = `${count} aktuelle ${label}-Ausschreibungen in Deutschland. Öffentliche Vergabeverfahren für ${label.toLowerCase()} mit Fristen, Auftraggebern und Anforderungen.`;
-    const canonicalPath = currentPage > 1
-      ? `/ausschreibungen/${kategorie}?page=${currentPage}`
-      : `/ausschreibungen/${kategorie}`;
+    // SEO: Paginated pages (2+) canonicalize to page 1 to consolidate ranking signals
+    const canonicalPath = `/ausschreibungen/${kategorie}`;
 
     return {
       title,
@@ -234,6 +229,32 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
     })),
   };
 
+  // SEO: FAQPage JSON-LD from category tips + requirements — targets long-tail FAQ queries
+  const faqJsonLd = catContent
+    ? {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        mainEntity: [
+          {
+            "@type": "Question",
+            name: `Tipps für Bieter bei ${label}-Vergaben`,
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: catContent.tips.join(" "),
+            },
+          },
+          {
+            "@type": "Question",
+            name: `Welche Eignungsanforderungen gelten für ${label}-Ausschreibungen?`,
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: catContent.requirements.join(" "),
+            },
+          },
+        ],
+      }
+    : null;
+
   const breadcrumbJsonLd = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
@@ -264,6 +285,12 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
+      {faqJsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+        />
+      )}
 
       <Box sx={{ minHeight: "100vh", bgcolor: "background.default", py: { xs: 3, md: 5 } }}>
         <Container maxWidth="lg">
@@ -502,6 +529,67 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
             </Box>
           )}
 
+          {/* SEO: Visible FAQ section — mirrors the FAQPage JSON-LD for user accessibility */}
+          {catContent && (
+            <Box sx={{ mb: 5, maxWidth: "75ch" }}>
+              <Typography variant="h5" component="h2" fontWeight={700} sx={{ mb: 3 }}>
+                Häufige Fragen zu {label}-Ausschreibungen
+              </Typography>
+              <Box component="details" sx={{ mb: 2, p: 2, border: 1, borderColor: "divider", borderRadius: 1 }}>
+                <Box component="summary" sx={{ fontWeight: 600, cursor: "pointer", fontSize: "1rem", mb: 1 }}>
+                  Tipps für Bieter bei {label}-Vergaben
+                </Box>
+                <Box component="ul" sx={{ m: 0, pl: 2.5, mt: 1 }}>
+                  {catContent.tips.map((tip, i) => (
+                    <Box component="li" key={i} sx={{ mb: 1, lineHeight: 1.7, color: "text.secondary" }}>
+                      {tip}
+                    </Box>
+                  ))}
+                </Box>
+              </Box>
+              <Box component="details" sx={{ mb: 2, p: 2, border: 1, borderColor: "divider", borderRadius: 1 }}>
+                <Box component="summary" sx={{ fontWeight: 600, cursor: "pointer", fontSize: "1rem", mb: 1 }}>
+                  Welche Eignungsanforderungen gelten für {label}-Ausschreibungen?
+                </Box>
+                <Box component="ul" sx={{ m: 0, pl: 2.5, mt: 1 }}>
+                  {catContent.requirements.map((req, i) => (
+                    <Box component="li" key={i} sx={{ mb: 1, lineHeight: 1.7, color: "text.secondary" }}>
+                      {req}
+                    </Box>
+                  ))}
+                </Box>
+              </Box>
+            </Box>
+          )}
+
+          {/* SEO: Cross-links to relevant Wissen articles */}
+          {(() => {
+            const relatedArticles = Object.values(ARTICLES).filter((a) =>
+              a.relatedCategories.includes(categoryKey),
+            );
+            if (relatedArticles.length === 0) return null;
+            return (
+              <Box sx={{ mb: 5 }}>
+                <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
+                  Mehr erfahren
+                </Typography>
+                <Stack spacing={1}>
+                  {relatedArticles.map((article) => (
+                    <Link
+                      key={article.slug}
+                      href={`/wissen/${article.slug}`}
+                      style={{ textDecoration: "none", color: "inherit" }}
+                    >
+                      <Typography variant="body2" color="primary" fontWeight={600}>
+                        {article.title} →
+                      </Typography>
+                    </Link>
+                  ))}
+                </Stack>
+              </Box>
+            );
+          })()}
+
           {/* Other Categories */}
           {otherCategories.length > 0 && (
             <Box sx={{ mb: 5 }}>
@@ -598,6 +686,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
           </Box>
         </Container>
       </Box>
+      <SiteFooter />
     </>
   );
 }

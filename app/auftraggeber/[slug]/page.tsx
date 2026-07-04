@@ -21,13 +21,14 @@ import { tenders } from "@/lib/schema";
 import { and, inArray, or, isNull, gt, sql, desc } from "drizzle-orm";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 import { normalizeAgencySlug } from "@/lib/agencies";
+import { SiteFooter } from "@/components/seo/SiteFooter";
 
 // SEO: Agency/Auftraggeber landing pages for long-tail keywords like "Ausschreibungen Stadt München"
 export const revalidate = 3600;
 export const runtime = "nodejs";
 
 const PAGE_SIZE = 20;
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://palemaz.com";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -76,13 +77,13 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
     const pageSuffix = currentPage > 1 ? ` – Seite ${currentPage}` : "";
     const title = `Ausschreibungen ${matchingClient} – Aktuelle Vergaben${pageSuffix}`;
     const description = `${count} aktuelle öffentliche Ausschreibungen von ${matchingClient}. Vergabeverfahren mit Fristen, Anforderungen und Details. Täglich aktualisiert.`;
-    const canonicalPath = currentPage > 1
-      ? `/auftraggeber/${slug}?page=${currentPage}`
-      : `/auftraggeber/${slug}`;
+    // SEO: Paginated pages (2+) canonicalize to page 1 to consolidate ranking signals
+    const canonicalPath = `/auftraggeber/${slug}`;
 
     return {
       title,
       description,
+      keywords: [`${matchingClient} Ausschreibungen`, `${matchingClient} Vergabe`, `öffentliche Aufträge ${matchingClient}`],
       alternates: { canonical: canonicalPath, languages: { "de-DE": canonicalPath } },
       robots: count === 0 ? { index: false, follow: true } : undefined,
       openGraph: { title, description, type: "website", locale: "de_DE" },
@@ -125,7 +126,7 @@ export default async function AuftraggeberPage({ params, searchParams }: PagePro
   // Fetch tenders for this client with pagination
   const offset = (currentPage - 1) * PAGE_SIZE;
 
-  const [tenderRows, countResult] = await Promise.all([
+  const [tenderRows, countResult, sourceUrlRow] = await Promise.all([
     db
       .select({
         id: tenders.id,
@@ -155,6 +156,17 @@ export default async function AuftraggeberPage({ params, searchParams }: PagePro
           sql`(${tenders.metadataJson}::jsonb->>'client') = ${matchingClient}`,
         ),
       ),
+    // SEO: Fetch one source URL for Organization sameAs structured data
+    db
+      .select({ url: tenders.url })
+      .from(tenders)
+      .where(
+        and(
+          inArray(tenders.qualityStatus, ["qualified", "candidate"]),
+          sql`(${tenders.metadataJson}::jsonb->>'client') = ${matchingClient}`,
+        ),
+      )
+      .limit(1),
   ]);
 
   const totalCount = countResult[0]?.count ?? 0;
@@ -200,12 +212,18 @@ export default async function AuftraggeberPage({ params, searchParams }: PagePro
     ],
   };
 
-  const agencyJsonLd = {
+  // SEO: Enhanced Organization schema for agency rich results and sitelinks
+  const sourceUrl = sourceUrlRow[0]?.url;
+  const agencyJsonLd: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "Organization",
     name: matchingClient,
     url: `${siteUrl}/auftraggeber/${slug}`,
+    description: `Öffentliche Ausschreibungen und Vergabebekanntmachungen von ${matchingClient}. ${totalCount} aktuelle Aufträge auf Tenderhunter.`,
   };
+  if (sourceUrl) {
+    agencyJsonLd.sameAs = sourceUrl;
+  }
 
   return (
     <>
@@ -388,6 +406,7 @@ export default async function AuftraggeberPage({ params, searchParams }: PagePro
           </Box>
         </Container>
       </Box>
+      <SiteFooter />
     </>
   );
 }

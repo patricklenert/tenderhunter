@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { tenders, structuredData, scores, companyProfiles } from "@/lib/schema";
 import { eq, and, ne, or, gt, isNull, inArray, desc } from "drizzle-orm";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
@@ -136,6 +136,13 @@ export default async function TenderDetailPage({ params }: PageProps) {
   const row = rows[0];
   const tender = row.tenders;
   const sd = row.structured_data;
+
+  // SEO: Redirect expired tenders to category page to free crawl budget
+  const isExpired = tender.deadlineAt && new Date(tender.deadlineAt) < new Date();
+  if (isExpired) {
+    const catSlug = CATEGORY_SLUGS[tender.category ?? "Sonstiges"] ?? "diverse";
+    redirect(`/ausschreibungen/${catSlug}`);
+  }
 
   const meta = (typeof tender.metadataJson === "object" && tender.metadataJson !== null
     ? tender.metadataJson
