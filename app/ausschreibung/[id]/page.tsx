@@ -31,11 +31,12 @@ import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 import { deriveBundesland, deriveCity, BUNDESLAND_SLUGS } from "@/lib/bundesland";
 import { CITY_SLUG_MAP } from "@/lib/cities";
 import { normalizeAgencySlug } from "@/lib/agencies";
+import { SiteFooter } from "@/components/seo/SiteFooter";
 
 export const revalidate = 3600;
 export const runtime = "nodejs";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://palemaz.com";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -775,6 +776,20 @@ export default async function TenderDetailPage({ params }: PageProps) {
                   />
                 </Link>
               )}
+              {/* SEO: Cross-link to City×Category long-tail page */}
+              {citySlug && tenderCity && (
+                <Link
+                  href={`/ausschreibungen/stadt/${citySlug}/${categorySlug}`}
+                  style={{ textDecoration: "none" }}
+                >
+                  <Chip
+                    clickable
+                    label={`${categoryLabel} in ${tenderCity}`}
+                    variant="outlined"
+                    sx={{ fontWeight: 600 }}
+                  />
+                </Link>
+              )}
               {/* SEO: Cross-link to agency/ Auftraggeber page */}
               {agencySlug && client && (
                 <Link
@@ -826,6 +841,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
           )}
         </Container>
       </Box>
+      <SiteFooter />
     </>
   );
 }

@@ -18,9 +18,11 @@ import {
   Home as HomeIcon,
 } from "lucide-react";
 import { BUNDESLAND_SLUGS, SLUG_TO_BUNDESLAND, ALL_BUNDESLAND_SLUGS } from "@/lib/bundesland";
+import { BUNDESLAND_CONTENT } from "@/lib/bundesland-content";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 import { searchTenders } from "@/lib/meilisearch";
 import { CITIES } from "@/lib/cities";
+import { SiteFooter } from "@/components/seo/SiteFooter";
 
 // SEO: Bundesland landing pages for regional long-tail keywords like "Ausschreibungen Bayern"
 export const revalidate = 3600;
@@ -28,7 +30,7 @@ export const runtime = "nodejs";
 
 const PAGE_SIZE = 20;
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://palemaz.com";
 
 // Editorial intros for each Bundesland — SEO keyword-rich content
 const REGION_INTRO: Record<string, string> = {
@@ -162,11 +164,31 @@ export default async function RegionPage({ params, searchParams }: PageProps) {
   };
 
   const regionIntro = REGION_INTRO[bundesland];
+  const blContent = BUNDESLAND_CONTENT[bundesland];
+
+  // SEO: FAQPage JSON-LD from Bundesland tips, requirements and FAQ — targets regional FAQ queries
+  const faqJsonLd = blContent
+    ? {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        mainEntity: blContent.faq.map((item) => ({
+          "@type": "Question",
+          name: item.question,
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: item.answer,
+          },
+        })),
+      }
+    : null;
 
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
+      {faqJsonLd && (
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
+      )}
 
       <Box sx={{ minHeight: "100vh", bgcolor: "background.default", py: { xs: 3, md: 5 } }}>
         <Container maxWidth="lg">
@@ -320,6 +342,56 @@ export default async function RegionPage({ params, searchParams }: PageProps) {
             </Stack>
           )}
 
+          {/* SEO: Expanded content — Tips, Requirements, FAQ for Bundesland */}
+          {blContent && (
+            <Box sx={{ mb: 5 }}>
+              {/* Bieter-Tipps */}
+              <Box sx={{ mb: 4 }}>
+                <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
+                  Tipps für Bieter in {bundesland}
+                </Typography>
+                <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
+                  {blContent.tips.map((tip, i) => (
+                    <Box component="li" key={i} sx={{ mb: 1.5, lineHeight: 1.7, color: "text.secondary" }}>
+                      {tip}
+                    </Box>
+                  ))}
+                </Box>
+              </Box>
+
+              {/* Eignungsanforderungen */}
+              <Box sx={{ mb: 4 }}>
+                <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
+                  Typische Eignungsanforderungen in {bundesland}
+                </Typography>
+                <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
+                  {blContent.requirements.map((req, i) => (
+                    <Box component="li" key={i} sx={{ mb: 1.5, lineHeight: 1.7, color: "text.secondary" }}>
+                      {req}
+                    </Box>
+                  ))}
+                </Box>
+              </Box>
+
+              {/* FAQ — visible accordion + JSON-LD already rendered above */}
+              <Box>
+                <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
+                  Häufige Fragen zu Ausschreibungen in {bundesland}
+                </Typography>
+                {blContent.faq.map((item, i) => (
+                  <Box key={i} component="details" sx={{ mb: 2, p: 2, border: 1, borderColor: "divider", borderRadius: 1 }}>
+                    <Box component="summary" sx={{ fontWeight: 600, cursor: "pointer", fontSize: "1rem", mb: 1 }}>
+                      {item.question}
+                    </Box>
+                    <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.7 }}>
+                      {item.answer}
+                    </Typography>
+                  </Box>
+                ))}
+              </Box>
+            </Box>
+          )}
+
           {/* Other Regions */}
           <Box sx={{ mb: 5 }}>
             <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
@@ -411,6 +483,7 @@ export default async function RegionPage({ params, searchParams }: PageProps) {
           </Box>
         </Container>
       </Box>
+      <SiteFooter />
     </>
   );
 }

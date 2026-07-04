@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Manrope } from "next/font/google";
 import { ThemeRegistry } from "@/components/ThemeRegistry";
+import { SiteHeader } from "@/components/seo/SiteHeader";
 import { SwetrixAnalytics } from "@/components/SwetrixAnalytics";
 import "./globals.css";
 
@@ -10,7 +11,7 @@ const manrope = Manrope({
   display: "swap",
 });
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://palemaz.com";
 
 export const viewport: Viewport = {
   themeColor: "#e9644d",
@@ -152,7 +153,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className={manrope.className}>
-        <ThemeRegistry>{children}</ThemeRegistry>
+        <ThemeRegistry>
+          <SiteHeader />
+          {children}
+        </ThemeRegistry>
         <SwetrixAnalytics />
       </body>
     </html>

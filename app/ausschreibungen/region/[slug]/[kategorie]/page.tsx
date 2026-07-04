@@ -20,14 +20,17 @@ import {
 import { SLUG_TO_BUNDESLAND, ALL_BUNDESLAND_SLUGS } from "@/lib/bundesland";
 import { CATEGORY_LABELS, CATEGORY_SLUGS, SLUG_TO_CATEGORY, ALL_CATEGORY_SLUGS } from "@/lib/categories";
 import { CATEGORY_CONTENT } from "@/lib/category-content";
+import { ARTICLES } from "@/lib/articles";
+import { CITIES } from "@/lib/cities";
 import { searchTenders } from "@/lib/meilisearch";
+import { SiteFooter } from "@/components/seo/SiteFooter";
 
 // SEO: Region×Category cross pages for long-tail keywords like "gebäudereinigung ausschreibung nrw"
 export const revalidate = 3600;
 export const runtime = "nodejs";
 
 const PAGE_SIZE = 20;
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://palemaz.com";
 
 interface PageProps {
   params: Promise<{ slug: string; kategorie: string }>;
@@ -346,6 +349,64 @@ export default async function RegionCategoryPage({ params, searchParams }: PageP
             </Stack>
           </Box>
 
+          {/* SEO: Cross-links to city landing pages within this Bundesland */}
+          {(() => {
+            const regionCities = CITIES.filter((c) => c.bundesland === bundesland);
+            if (regionCities.length === 0) return null;
+            return (
+              <Box sx={{ mb: 5 }}>
+                <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
+                  {label} nach Stadt in {bundesland}
+                </Typography>
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  {regionCities.map((city) => (
+                    <Link
+                      key={city.slug}
+                      href={`/ausschreibungen/stadt/${city.slug}/${kategorie}`}
+                      style={{ textDecoration: "none" }}
+                    >
+                      <Chip
+                        clickable
+                        label={`${label} ${city.label}`}
+                        variant="outlined"
+                        sx={{ fontWeight: 500 }}
+                      />
+                    </Link>
+                  ))}
+                </Stack>
+              </Box>
+            );
+          })()}
+
+          {/* SEO: Cross-links to related Wissen articles */}
+          {(() => {
+            const categoryKey = SLUG_TO_CATEGORY[kategorie];
+            const relatedArticles = Object.values(ARTICLES).filter((a) =>
+              a.relatedCategories.includes(categoryKey ?? ""),
+            );
+            if (relatedArticles.length === 0) return null;
+            return (
+              <Box sx={{ mb: 5 }}>
+                <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
+                  Mehr erfahren
+                </Typography>
+                <Stack spacing={1}>
+                  {relatedArticles.map((article) => (
+                    <Link
+                      key={article.slug}
+                      href={`/wissen/${article.slug}`}
+                      style={{ textDecoration: "none", color: "inherit" }}
+                    >
+                      <Typography variant="body2" color="primary" fontWeight={600}>
+                        {article.title} →
+                      </Typography>
+                    </Link>
+                  ))}
+                </Stack>
+              </Box>
+            );
+          })()}
+
           {/* CTA */}
           <Box sx={{ p: { xs: 3, md: 4 }, textAlign: "center", bgcolor: "primary.light", borderRadius: 2 }}>
             <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 1 }}>
@@ -377,6 +438,7 @@ export default async function RegionCategoryPage({ params, searchParams }: PageP
           </Box>
         </Container>
       </Box>
+      <SiteFooter />
     </>
   );
 }
