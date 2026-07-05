@@ -2,13 +2,14 @@ import type { MetadataRoute } from "next";
 import { db } from "@/lib/db";
 import { tenders, companyProfiles, scores } from "@/lib/schema";
 import { eq, and, inArray, or, gt, isNull, isNotNull, sql } from "drizzle-orm";
-import { CATEGORY_SLUGS, SLUG_TO_CATEGORY } from "@/lib/categories";
-import { BUNDESLAND_SLUGS, SLUG_TO_BUNDESLAND, deriveBundesland, deriveCity } from "@/lib/bundesland";
-import { CITY_SLUG_MAP, ALL_CITY_SLUGS, CITY_LABEL_MAP } from "@/lib/cities";
+import { CATEGORY_SLUGS } from "@/lib/categories";
+import { BUNDESLAND_SLUGS, deriveBundesland, deriveCity } from "@/lib/bundesland";
+import { CITY_SLUG_MAP, ALL_CITY_SLUGS } from "@/lib/cities";
 import { normalizeAgencySlug } from "@/lib/agencies";
-import { getMeiliClient } from "@/lib/meilisearch";
+import { ALL_PORTAL_SLUGS } from "@/lib/portal-content";
+import { ALL_ARTICLE_SLUGS, ARTICLES } from "@/lib/articles";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://palemaz.com";
 
 export const revalidate = 3600;
 
@@ -24,6 +25,114 @@ export const revalidate = 3600;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
+
+  // SEO: Always emit static URLs first — these never depend on DB/Meilisearch availability
+  const entries: MetadataRoute.Sitemap = [
+    {
+      url: siteUrl,
+      lastModified: now,
+      changeFrequency: "hourly",
+      priority: 1,
+    },
+    {
+      url: `${siteUrl}/funktionen`,
+      lastModified: now,
+      changeFrequency: "monthly",
+      priority: 0.9,
+    },
+    {
+      url: `${siteUrl}/ausschreibungen`,
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.9,
+    },
+  ];
+
+  // SEO: Always include all category pages — they have editorial content and generateStaticParams
+  for (const [category, catSlug] of Object.entries(CATEGORY_SLUGS)) {
+    if (!catSlug) continue;
+    entries.push({
+      url: `${siteUrl}/ausschreibungen/${catSlug}`,
+      lastModified: now,
+      changeFrequency: "daily",
+      priority: 0.8,
+    });
+  }
+
+  // SEO: Always include portal landing pages (DTVP, TED, evergabe, Bauportal)
+  for (const portalSlug of ALL_PORTAL_SLUGS) {
+    entries.push({
+      url: `${siteUrl}/ausschreibungen/${portalSlug}`,
+      lastModified: now,
+      changeFrequency: "daily",
+      priority: 0.8,
+    });
+  }
+
+  // SEO: Always include Wissen hub + article pages
+  entries.push({
+    url: `${siteUrl}/wissen`,
+    lastModified: now,
+    changeFrequency: "monthly",
+    priority: 0.7,
+  });
+  for (const articleSlug of ALL_ARTICLE_SLUGS) {
+    const article = ARTICLES[articleSlug];
+    entries.push({
+      url: `${siteUrl}/wissen/${articleSlug}`,
+      lastModified: new Date(article.dateModified),
+      changeFrequency: "monthly",
+      priority: 0.6,
+    });
+  }
+
+  // SEO: Always include all Bundesland region pages — they have editorial content and generateStaticParams
+  for (const [, blSlug] of Object.entries(BUNDESLAND_SLUGS)) {
+    entries.push({
+      url: `${siteUrl}/ausschreibungen/region/${blSlug}`,
+      lastModified: now,
+      changeFrequency: "daily",
+      priority: 0.7,
+    });
+  }
+
+  // SEO: Always include all Region×Category cross pages — they have generateStaticParams
+  for (const [, blSlug] of Object.entries(BUNDESLAND_SLUGS)) {
+    for (const [, catSlug] of Object.entries(CATEGORY_SLUGS)) {
+      if (!catSlug) continue;
+      entries.push({
+        url: `${siteUrl}/ausschreibungen/region/${blSlug}/${catSlug}`,
+        lastModified: now,
+        changeFrequency: "weekly",
+        priority: 0.6,
+      });
+    }
+  }
+
+  // SEO: Always include all city landing pages — they have editorial content and generateStaticParams
+  for (const citySlug of ALL_CITY_SLUGS) {
+    entries.push({
+      url: `${siteUrl}/ausschreibungen/stadt/${citySlug}`,
+      lastModified: now,
+      changeFrequency: "daily",
+      priority: 0.7,
+    });
+  }
+
+  // SEO: Always include all City×Category cross pages — they have generateStaticParams
+  for (const citySlug of ALL_CITY_SLUGS) {
+    for (const [, catSlug] of Object.entries(CATEGORY_SLUGS)) {
+      if (!catSlug) continue;
+      entries.push({
+        url: `${siteUrl}/ausschreibungen/stadt/${citySlug}/${catSlug}`,
+        lastModified: now,
+        changeFrequency: "weekly",
+        priority: 0.6,
+      });
+    }
+  }
+
+  // --- Dynamic URLs below: gracefully degrade on DB/Meilisearch errors ---
 
   let tenderRows: { id: number; updatedAt: Date | null; metadataJson: unknown }[] = [];
   let categoryRows: { category: string | null; updatedAt: Date | null }[] = [];
@@ -61,20 +170,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         .groupBy(companyProfiles.id, companyProfiles.slug, companyProfiles.updatedAt, companyProfiles.logoUrl),
     ]);
   } catch {
-    return [
-      {
-        url: siteUrl,
-        lastModified: new Date(),
-        changeFrequency: "hourly",
-        priority: 1,
-      },
-    ];
+    // SEO: DB unavailable — static URLs above are still returned. Dynamic tender/company/agency URLs are skipped.
+    console.error("[sitemap] DB query failed, returning static URLs only");
+    return entries;
   }
 
   const maxTenderUpdated = tenderRows.reduce<Date>((max, row) => {
     const d = row.updatedAt ?? new Date();
     return d > max ? d : max;
   }, new Date(0));
+
+  // SEO: Enrich homepage and hub page with real lastModified from tenders
+  entries[0].lastModified = maxTenderUpdated;
+  entries[2].lastModified = maxTenderUpdated;
 
   // SEO: Compute real lastModified per Bundesland for region sitemap entries
   const bundeslandMaxUpdated = new Map<string, Date>();
@@ -90,27 +198,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
   }
 
-  const entries: MetadataRoute.Sitemap = [
-    {
-      url: siteUrl,
-      lastModified: maxTenderUpdated,
-      changeFrequency: "hourly",
-      priority: 1,
-    },
-    {
-      url: `${siteUrl}/funktionen`,
-      lastModified: new Date(),
-      changeFrequency: "monthly",
-      priority: 0.9,
-    },
-    {
-      url: `${siteUrl}/ausschreibungen`,
-      lastModified: maxTenderUpdated,
-      changeFrequency: "weekly",
-      priority: 0.9,
-    },
-  ];
-
+  // SEO: Add tender detail pages
   for (const row of tenderRows) {
     entries.push({
       url: `${siteUrl}/ausschreibung/${row.id}`,
@@ -121,28 +209,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     });
   }
 
-  const categoryCounts = new Map<string, number>();
-  const categoryMaxUpdated = new Map<string, Date>();
-  for (const row of categoryRows) {
-    const cat = row.category ?? "Sonstiges";
-    categoryCounts.set(cat, (categoryCounts.get(cat) ?? 0) + 1);
-    const d = row.updatedAt ?? new Date();
-    const prev = categoryMaxUpdated.get(cat) ?? new Date(0);
-    if (d > prev) categoryMaxUpdated.set(cat, d);
-  }
-
-  for (const [category, count] of categoryCounts) {
-    if (count >= 1) {
-      const slug = CATEGORY_SLUGS[category] ?? category.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-      entries.push({
-        url: `${siteUrl}/ausschreibungen/${slug}`,
-        lastModified: categoryMaxUpdated.get(category) ?? new Date(),
-        changeFrequency: "daily",
-        priority: 0.8,
-      });
-    }
-  }
-
+  // SEO: Add company profile pages
   for (const row of companyRows) {
     if (row.slug) {
       entries.push({
@@ -155,64 +222,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
   }
 
-  // SEO: Include Bundesland region pages in sitemap (only those with tenders)
-  try {
-    const meili = getMeiliClient();
-    const index = meili.index("tenders");
-    for (const [bundesland, blSlug] of Object.entries(BUNDESLAND_SLUGS)) {
-      try {
-        const result = await index.search("", {
-          filter: `bundesland = "${bundesland}"`,
-          limit: 1,
-        });
-        if ((result.estimatedTotalHits ?? 0) > 0) {
-          entries.push({
-            url: `${siteUrl}/ausschreibungen/region/${blSlug}`,
-            lastModified: bundeslandMaxUpdated.get(bundesland) ?? maxTenderUpdated,
-            changeFrequency: "daily",
-            priority: 0.7,
-          });
-        }
-      } catch {
-        // skip this Bundesland if Meilisearch query fails
-      }
+  // SEO: Enrich region pages with real lastModified from tenders
+  for (const [bundesland, blSlug] of Object.entries(BUNDESLAND_SLUGS)) {
+    const blUpdated = bundeslandMaxUpdated.get(bundesland);
+    if (blUpdated) {
+      const existing = entries.find((e) => e.url === `${siteUrl}/ausschreibungen/region/${blSlug}`);
+      if (existing) existing.lastModified = blUpdated;
     }
-  } catch {
-    // Meilisearch unavailable — skip region entries
   }
 
-  // SEO: Include Region×Category cross pages in sitemap (only those with tenders)
-  try {
-    const meili = getMeiliClient();
-    const index = meili.index("tenders");
-    const categoryKeys = Object.keys(CATEGORY_SLUGS);
-    for (const [bundesland, blSlug] of Object.entries(BUNDESLAND_SLUGS)) {
-      for (const categoryKey of categoryKeys) {
-        const catSlug = CATEGORY_SLUGS[categoryKey];
-        if (!catSlug) continue;
-        try {
-          const result = await index.search("", {
-            filter: `bundesland = "${bundesland}" AND category = "${categoryKey}"`,
-            limit: 1,
-          });
-          if ((result.estimatedTotalHits ?? 0) > 0) {
-            entries.push({
-              url: `${siteUrl}/ausschreibungen/region/${blSlug}/${catSlug}`,
-              lastModified: bundeslandMaxUpdated.get(bundesland) ?? maxTenderUpdated,
-              changeFrequency: "weekly",
-              priority: 0.6,
-            });
-          }
-        } catch {
-          // skip this combination if Meilisearch query fails
-        }
-      }
-    }
-  } catch {
-    // Meilisearch unavailable — skip region×category entries
-  }
-
-  // SEO: Compute real lastModified per city for city sitemap entries
+  // SEO: Enrich city pages with real lastModified from tenders
   const cityMaxUpdated = new Map<string, Date>();
   for (const row of tenderRows) {
     const meta = (typeof row.metadataJson === "object" && row.metadataJson !== null
@@ -226,68 +245,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
   }
 
-  // SEO: Include city landing pages in sitemap (only those with tenders)
-  try {
-    const meili = getMeiliClient();
-    const index = meili.index("tenders");
-    for (const citySlug of ALL_CITY_SLUGS) {
-      const cityEntry = CITY_SLUG_MAP[citySlug];
-      if (!cityEntry) continue;
-      try {
-        const result = await index.search("", {
-          filter: `city = "${cityEntry.label}"`,
-          limit: 1,
-        });
-        if ((result.estimatedTotalHits ?? 0) > 0) {
-          entries.push({
-            url: `${siteUrl}/ausschreibungen/stadt/${citySlug}`,
-            lastModified: cityMaxUpdated.get(cityEntry.label) ?? maxTenderUpdated,
-            changeFrequency: "daily",
-            priority: 0.7,
-          });
-        }
-      } catch {
-        // skip this city if Meilisearch query fails
-      }
+  for (const citySlug of ALL_CITY_SLUGS) {
+    const cityEntry = CITY_SLUG_MAP[citySlug];
+    if (!cityEntry) continue;
+    const cityUpdated = cityMaxUpdated.get(cityEntry.label);
+    if (cityUpdated) {
+      const existing = entries.find((e) => e.url === `${siteUrl}/ausschreibungen/stadt/${citySlug}`);
+      if (existing) existing.lastModified = cityUpdated;
     }
-  } catch {
-    // Meilisearch unavailable — skip city entries
   }
 
-  // SEO: Include City×Category cross pages in sitemap (only those with tenders)
-  try {
-    const meili = getMeiliClient();
-    const index = meili.index("tenders");
-    const categoryKeys = Object.keys(CATEGORY_SLUGS);
-    for (const citySlug of ALL_CITY_SLUGS) {
-      const cityEntry = CITY_SLUG_MAP[citySlug];
-      if (!cityEntry) continue;
-      for (const categoryKey of categoryKeys) {
-        const catSlug = CATEGORY_SLUGS[categoryKey];
-        if (!catSlug) continue;
-        try {
-          const result = await index.search("", {
-            filter: `city = "${cityEntry.label}" AND category = "${categoryKey}"`,
-            limit: 1,
-          });
-          if ((result.estimatedTotalHits ?? 0) > 0) {
-            entries.push({
-              url: `${siteUrl}/ausschreibungen/stadt/${citySlug}/${catSlug}`,
-              lastModified: cityMaxUpdated.get(cityEntry.label) ?? maxTenderUpdated,
-              changeFrequency: "weekly",
-              priority: 0.6,
-            });
-          }
-        } catch {
-          // skip this combination if Meilisearch query fails
-        }
-      }
-    }
-  } catch {
-    // Meilisearch unavailable — skip city×category entries
-  }
-
-  // SEO: Include Auftraggeber/agency pages in sitemap (only those with ≥3 tenders)
+  // SEO: Include Auftraggeber/agency pages (only those with ≥3 tenders)
   try {
     const clientRows = await db
       .select({
@@ -319,7 +287,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       });
     }
   } catch {
-    // DB error — skip agency entries
+    // SEO: Agency query failed — skip agency entries, static URLs still returned
+    console.error("[sitemap] Agency query failed, skipping agency entries");
   }
 
   return entries;

@@ -20,6 +20,7 @@ import {
 import { SLUG_TO_BUNDESLAND, ALL_BUNDESLAND_SLUGS } from "@/lib/bundesland";
 import { CATEGORY_LABELS, CATEGORY_SLUGS, SLUG_TO_CATEGORY, ALL_CATEGORY_SLUGS } from "@/lib/categories";
 import { CATEGORY_CONTENT } from "@/lib/category-content";
+import { BUNDESLAND_CONTENT } from "@/lib/bundesland-content";
 import { ARTICLES } from "@/lib/articles";
 import { CITIES } from "@/lib/cities";
 import { searchTenders } from "@/lib/meilisearch";
@@ -31,6 +32,24 @@ export const runtime = "nodejs";
 
 const PAGE_SIZE = 20;
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://palemaz.com";
+
+// SEO: Auto-generated FAQ for region×category pages — targets long-tail queries like "IT Ausschreibungen NRW"
+function generateRegionCategoryFaq(bundesland: string, categoryLabel: string): Array<{ question: string; answer: string }> {
+  return [
+    {
+      question: `Wo finde ich ${categoryLabel}-Ausschreibungen in ${bundesland}?`,
+      answer: `${categoryLabel}-Ausschreibungen in ${bundesland} finden Sie auf DTVP, TED und evergabe. Tenderhunter aggregiert alle Quellen automatisch und zeigt Ihnen aktuelle Vergaben aus ${bundesland} und Umgebung.`,
+    },
+    {
+      question: `Welche Auftraggeber schreiben ${categoryLabel} in ${bundesland} aus?`,
+      answer: `Die wichtigsten Auftraggeber für ${categoryLabel} in ${bundesland} sind Landesverwaltungen, Kommunen, öffentliche Unternehmen und Universitäten. Die Vergaben werden auf regionalen und nationalen Vergabeportalen veröffentlicht.`,
+    },
+    {
+      question: `Wie oft werden ${categoryLabel}-Ausschreibungen in ${bundesland} aktualisiert?`,
+      answer: `Tenderhunter aktualisiert die ${categoryLabel}-Ausschreibungen für ${bundesland} täglich. Neue Vergaben werden in Echtzeit aus DTVP, TED und evergabe aggregiert.`,
+    },
+  ];
+}
 
 interface PageProps {
   params: Promise<{ slug: string; kategorie: string }>;
@@ -150,10 +169,25 @@ export default async function RegionCategoryPage({ params, searchParams }: PageP
     ],
   };
 
+  // SEO: FAQPage JSON-LD for region×category — enables FAQ rich snippets for long-tail queries
+  const regionCategoryFaq = generateRegionCategoryFaq(bundesland, label);
+  const faqJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: regionCategoryFaq.map((item) => ({
+      "@type": "Question",
+      name: item.question,
+      acceptedAnswer: { "@type": "Answer", text: item.answer },
+    })),
+  };
+
+  const blContent = BUNDESLAND_CONTENT[bundesland];
+
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
 
       <Box sx={{ minHeight: "100vh", bgcolor: "background.default", py: { xs: 3, md: 5 } }}>
         <Container maxWidth="lg">
@@ -308,6 +342,39 @@ export default async function RegionCategoryPage({ params, searchParams }: PageP
             </Stack>
           )}
 
+          {/* SEO: Expanded content — Tips, Requirements from Bundesland for regional content depth */}
+          {blContent && (
+            <Box sx={{ mb: 5 }}>
+              {/* Bieter-Tipps */}
+              <Box sx={{ mb: 4 }}>
+                <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
+                  Tipps für Bieter in {bundesland}
+                </Typography>
+                <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
+                  {blContent.tips.map((tip, i) => (
+                    <Box component="li" key={i} sx={{ mb: 1.5, lineHeight: 1.7, color: "text.secondary" }}>
+                      {tip}
+                    </Box>
+                  ))}
+                </Box>
+              </Box>
+
+              {/* Eignungsanforderungen */}
+              <Box sx={{ mb: 4 }}>
+                <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
+                  Typische Eignungsanforderungen in {bundesland}
+                </Typography>
+                <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
+                  {blContent.requirements.map((req, i) => (
+                    <Box component="li" key={i} sx={{ mb: 1.5, lineHeight: 1.7, color: "text.secondary" }}>
+                      {req}
+                    </Box>
+                  ))}
+                </Box>
+              </Box>
+            </Box>
+          )}
+
           {/* Other Categories in this Region */}
           <Box sx={{ mb: 5 }}>
             <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
@@ -403,6 +470,25 @@ export default async function RegionCategoryPage({ params, searchParams }: PageP
               </Box>
             );
           })()}
+
+          {/* SEO: FAQ section — visible content mirrors FAQPage JSON-LD for rich snippets */}
+          <Box sx={{ mb: 5 }}>
+            <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
+              Häufige Fragen zu {label} in {bundesland}
+            </Typography>
+            <Stack spacing={2}>
+              {regionCategoryFaq.map((item, idx) => (
+                <Box key={idx} component="details" sx={{ p: 2, border: 1, borderColor: "divider", borderRadius: 1 }}>
+                  <Box component="summary" sx={{ fontWeight: 600, cursor: "pointer", fontSize: "1rem", mb: 1 }}>
+                    {item.question}
+                  </Box>
+                  <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.7 }}>
+                    {item.answer}
+                  </Typography>
+                </Box>
+              ))}
+            </Stack>
+          </Box>
 
           {/* CTA */}
           <Box sx={{ p: { xs: 3, md: 4 }, textAlign: "center", bgcolor: "primary.light", borderRadius: 2 }}>

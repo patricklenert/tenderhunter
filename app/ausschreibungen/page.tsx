@@ -1,14 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Box, Container, Typography, Stack, Chip, Breadcrumbs } from "@mui/material";
-import { Home as HomeIcon } from "lucide-react";
+import { Home as HomeIcon, MapPin, Calendar } from "lucide-react";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 import { CATEGORY_CONTENT } from "@/lib/category-content";
 import { BUNDESLAND_SLUGS, SLUG_TO_BUNDESLAND } from "@/lib/bundesland";
 import { CITY_SLUG_MAP, ALL_CITY_SLUGS, CITY_LABEL_MAP } from "@/lib/cities";
+import { getLatestTenders } from "@/components/seo/HomeTenderList";
+import { PORTALS, ALL_PORTAL_SLUGS } from "@/lib/portal-content";
+import { SiteFooter } from "@/components/seo/SiteFooter";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://palemaz.com";
 
+// SEO: ISR instead of force-dynamic — hub page content (categories, regions, cities) changes rarely.
+// Tender list is fetched client-side via InteractiveApp, so ISR cache is safe here.
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
@@ -25,7 +30,47 @@ export const metadata: Metadata = {
   },
 };
 
-export default function AusschreibungenPage() {
+// SEO: FAQ data for the Ausschreibungen hub page — enables FAQPage rich snippets in Google SERP
+const HUB_FAQS = [
+  {
+    q: "Was sind öffentliche Ausschreibungen?",
+    a: "Öffentliche Ausschreibungen sind geregelte Vergabeverfahren, bei denen Bund, Länder, Kommunen und öffentliche Unternehmen Aufträge an private Unternehmen vergeben. Ziel ist ein fairer Wettbewerb und das wirtschaftlichste Angebot.",
+  },
+  {
+    q: "Wo finde ich Ausschreibungen in Deutschland?",
+    a: "Die wichtigsten Vergabeportale sind DTVP (Deutsches Technologievermittlungsportal), TED (Tenders Electronic Daily für EU-Vergaben), evergabe (elektronische Vergabe) und Bauportal Deutschland. Tenderhunter durchsucht alle diese Quellen automatisch.",
+  },
+  {
+    q: "Welche Arten von Ausschreibungen gibt es?",
+    a: "Ausschreibungen gibt es in 13 Leistungsbereichen: Bauarbeiten, Tiefbau, Technische Gebäudeausrüstung, Gebäudereinigung, Winterdienst, Immobilienverwaltung, Facility Management, Grünflächenpflege, Garten- und Landschaftsbau, Planungsleistungen, IT-Dienstleistungen, Lieferung und diverse Leistungen.",
+  },
+  {
+    q: "Wie oft werden neue Ausschreibungen veröffentlicht?",
+    a: "Neue Ausschreibungen werden täglich veröffentlicht. Tenderhunter aktualisiert die Datenbank kontinuierlich — Sie können sich auch per RSS-Feed oder E-Mail-Benachrichtigung über neue Vergaben informieren lassen.",
+  },
+  {
+    q: "Sind die Ausschreibungen bei Tenderhunter kostenlos?",
+    a: "Ja, Tenderhunter bietet eine kostenlose Testung an. Sie können die Plattform unverbindlich ausprobieren und passende Ausschreibungen für Ihr Unternehmen finden.",
+  },
+  {
+    q: "Für welche Regionen gibt es Ausschreibungen?",
+    a: "Tenderhunter deckt alle 16 Bundesländer und über 45 Städte in Deutschland ab. Sie können nach Bundesland, Stadt oder Kategorie filtern — von München über Berlin bis Hamburg.",
+  },
+];
+
+const hubFaqJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: HUB_FAQS.map((f) => ({
+    "@type": "Question",
+    name: f.q,
+    acceptedAnswer: { "@type": "Answer", text: f.a },
+  })),
+};
+
+export default async function AusschreibungenPage() {
+  const latestTenders = await getLatestTenders();
+
   const breadcrumbJsonLd = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
@@ -45,6 +90,10 @@ export default function AusschreibungenPage() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(hubFaqJsonLd) }}
       />
 
       <Box
@@ -143,6 +192,70 @@ export default function AusschreibungenPage() {
             })}
           </Stack>
 
+          {/* Latest Tenders */}
+          {latestTenders.length > 0 && (
+            <Box sx={{ mt: 5, mb: 5 }}>
+              <Typography
+                variant="h5"
+                component="h2"
+                fontWeight={700}
+                sx={{ mb: 3 }}
+              >
+                Aktuelle Ausschreibungen
+              </Typography>
+              <Stack spacing={1.5}>
+                {latestTenders.map((t) => (
+                  <Link
+                    key={t.id}
+                    href={`/ausschreibung/${t.id}`}
+                    style={{ textDecoration: "none", color: "inherit" }}
+                  >
+                    <Box
+                      sx={{
+                        p: { xs: 1.5, md: 2 },
+                        border: 1,
+                        borderColor: "divider",
+                        borderLeft: 4,
+                        borderLeftColor: "primary.main",
+                        borderRadius: 1,
+                        transition: "border-color 0.15s",
+                        "&:hover": { borderColor: "primary.main" },
+                      }}
+                    >
+                      <Typography
+                        variant="subtitle1"
+                        component="h3"
+                        fontWeight={600}
+                        sx={{ mb: 0.5, fontSize: { xs: "0.9rem", md: "1rem" }, "&:hover": { color: "primary.main" } }}
+                      >
+                        {t.title}
+                      </Typography>
+                      <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap>
+                        <Link href={`/ausschreibungen/${t.categorySlug}`} style={{ textDecoration: "none" }}>
+                          <Typography variant="caption" color="primary" fontWeight={600}>
+                            {t.categoryLabel}
+                          </Typography>
+                        </Link>
+                        {t.location && (
+                          <Stack direction="row" spacing={0.3} alignItems="center">
+                            <MapPin size={12} color="#667288" />
+                            <Typography variant="caption" color="text.secondary">{t.location}</Typography>
+                          </Stack>
+                        )}
+                        {t.deadline && (
+                          <Stack direction="row" spacing={0.3} alignItems="center">
+                            <Calendar size={12} color="#667288" />
+                            <Typography variant="caption" color="text.secondary">Frist: {t.deadline}</Typography>
+                          </Stack>
+                        )}
+                      </Stack>
+                    </Box>
+                  </Link>
+                ))}
+              </Stack>
+            </Box>
+          )}
+
           {/* SEO: Region links for internal link equity to region landing pages */}
           <Box sx={{ mt: 5, mb: 5 }}>
             <Typography variant="h5" component="h2" fontWeight={700} sx={{ mb: 2 }}>
@@ -171,6 +284,39 @@ export default function AusschreibungenPage() {
             </Stack>
           </Box>
 
+          {/* SEO: Portal source links for internal link equity to portal landing pages */}
+          <Box sx={{ mb: 5 }}>
+            <Typography variant="h5" component="h2" fontWeight={700} sx={{ mb: 2 }}>
+              Ausschreibungen nach Quelle
+            </Typography>
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              {ALL_PORTAL_SLUGS.map((slug) => (
+                <Link key={slug} href={`/ausschreibungen/${slug}`} style={{ textDecoration: "none" }}>
+                  <Chip clickable label={PORTALS[slug].label} variant="outlined" sx={{ fontWeight: 500 }} />
+                </Link>
+              ))}
+            </Stack>
+          </Box>
+
+          {/* SEO: FAQ section — visible content mirrors FAQPage JSON-LD for rich snippets */}
+          <Box sx={{ mt: 5, mb: 5 }}>
+            <Typography variant="h5" component="h2" fontWeight={700} sx={{ mb: 2 }}>
+              Häufige Fragen zu öffentlichen Ausschreibungen
+            </Typography>
+            <Stack spacing={1}>
+              {HUB_FAQS.map((faq) => (
+                <Box key={faq.q} component="details" sx={{ border: 1, borderColor: "divider", borderRadius: 1, p: { xs: 1.5, md: 2 } }}>
+                  <Box component="summary" sx={{ cursor: "pointer", fontWeight: 600, fontSize: "0.95rem", listStyle: "none", "&::-webkit-details-marker": { display: "none" } }}>
+                    {faq.q}
+                  </Box>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1, lineHeight: 1.7 }}>
+                    {faq.a}
+                  </Typography>
+                </Box>
+              ))}
+            </Stack>
+          </Box>
+
           <Box sx={{ mt: 5, textAlign: "center" }}>
             <Typography variant="body2" color="text.secondary">
               Aktuelle Ausschreibungen auch per{" "}
@@ -189,6 +335,7 @@ export default function AusschreibungenPage() {
           </Box>
         </Container>
       </Box>
+      <SiteFooter />
     </>
   );
 }
