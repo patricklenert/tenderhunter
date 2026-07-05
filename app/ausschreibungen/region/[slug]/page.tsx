@@ -30,14 +30,14 @@ export const runtime = "nodejs";
 
 const PAGE_SIZE = 20;
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://palemaz.com";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
 
 // Editorial intros for each Bundesland — SEO keyword-rich content
 const REGION_INTRO: Record<string, string> = {
   "Baden-Württemberg": "Baden-Württemberg zählt zu den wirtschaftsstärksten Bundesländern mit hoher Vergabeaktivität. Kommunen, Landesbetriebe und Universitäten in Stuttgart, Karlsruhe, Mannheim und Freiburg schreiben regelmäßig Bauarbeiten, IT-Dienstleistungen und Facility Management aus.",
   Bayern: "Bayern ist das flächenmäßig größte Bundesland mit vielfältigen öffentlichen Aufträgen – von der Landeshauptstadt München über Nürnberg und Augsburg bis zu ländlichen Gemeinden. Besonders aktiv sind kommunale Bauvergaben, IT-Digitalisierung und energietechnische Sanierungen.",
   Berlin: "Berlin als Bundeshauptstadt und Stadtstaat ist einer der größten öffentlichen Auftraggeber in Deutschland. Die Senatsverwaltungen, Bezirke und Landesbetriebe vergeben Aufträge in allen Leistungsbereichen – von Großbauprojekten über IT-Services bis hin zu Gebäudereinigung.",
-  Brandenburg: "Brandenburg profitiert von der Nähe zu Berlin und der wachsenden Inffrastruktur. Kommunale Vergaben umfassen vor allem Tiefbau, Straßenbau, Grünflächenpflege und energieeffiziente Sanierung öffentlicher Gebäude.",
+  Brandenburg: "Brandenburg profitiert von der Nähe zu Berlin und der wachsenden Infrastruktur. Kommunale Vergaben umfassen vor allem Tiefbau, Straßenbau, Grünflächenpflege und energieeffiziente Sanierung öffentlicher Gebäude.",
   Bremen: "Bremen und Bremerhaven als Stadtstaaten vergeben öffentliche Aufträge insbesondere im Hafenbereich, in der Logistik und in der maritimen Wirtschaft. Auch klassische kommunale Vergaben wie Reinigung und Winterdienst sind regelmäßig ausgeschrieben.",
   Hamburg: "Hamburg als größter deutscher Hafenstadtstaat ist ein bedeutender Vergabemarkt. Die Stadt, ihre Bezirke und städtischen Unternehmen schreiben regelmäßig Bauarbeiten, IT-Services, Facility Management und maritime Dienstleistungen aus.",
   Hessen: "Hessen mit der Finanzmetropole Frankfurt am Main und der Landeshauptstadt Wiesbaden ist ein hochaktiver Vergabemarkt. Besonders viele Ausschreibungen gibt es im IT-Bereich, bei Bauleistungen und in der energetischen Gebäudesanierung.",

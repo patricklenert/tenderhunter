@@ -12,14 +12,15 @@ import {
   Zap,
   CheckCircle2,
 } from "lucide-react";
+import { SiteFooter } from "@/components/seo/SiteFooter";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://palemaz.com";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
 
 export const metadata: Metadata = {
   title: "Funktionen – KI-Ausschreibungssoftware für deutsche Unternehmen",
   description:
     "Automatische Suche in deutschen Vergabeportalen, KI-Analyse von Anforderungen, intelligentes Matching mit Fit-Score. So funktioniert Tenderhunter.",
-  alternates: { canonical: "/funktionen" },
+  alternates: { canonical: "/funktionen", languages: { "de-DE": "/funktionen" } },
   openGraph: {
     title: "Funktionen – Tenderhunter KI-Ausschreibungssoftware",
     description:
@@ -409,6 +410,7 @@ export default function FunktionenPage() {
           </Container>
         </Box>
       </Box>
+      <SiteFooter />
     </>
   );
 }

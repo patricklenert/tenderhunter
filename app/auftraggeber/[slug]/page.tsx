@@ -28,7 +28,7 @@ export const revalidate = 3600;
 export const runtime = "nodejs";
 
 const PAGE_SIZE = 20;
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://palemaz.com";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -123,10 +123,10 @@ export default async function AuftraggeberPage({ params, searchParams }: PagePro
   const matchingClient = clientRows.find((r) => r.client && normalizeAgencySlug(r.client) === slug)?.client;
   if (!matchingClient) notFound();
 
-  // Fetch tenders for this client with pagination
+  // Fetch tenders for this client with pagination, plus category counts for cross-links
   const offset = (currentPage - 1) * PAGE_SIZE;
 
-  const [tenderRows, countResult, sourceUrlRow] = await Promise.all([
+  const [tenderRows, countResult, sourceUrlRow, categoryCounts] = await Promise.all([
     db
       .select({
         id: tenders.id,
@@ -167,6 +167,18 @@ export default async function AuftraggeberPage({ params, searchParams }: PagePro
         ),
       )
       .limit(1),
+    // SEO: Category counts for cross-links section
+    db
+      .select({ category: tenders.category, count: sql<number>`count(*)::int` })
+      .from(tenders)
+      .where(
+        and(
+          inArray(tenders.qualityStatus, ["qualified", "candidate"]),
+          or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
+          sql`(${tenders.metadataJson}::jsonb->>'client') = ${matchingClient}`,
+        ),
+      )
+      .groupBy(tenders.category),
   ]);
 
   const totalCount = countResult[0]?.count ?? 0;
@@ -225,11 +237,49 @@ export default async function AuftraggeberPage({ params, searchParams }: PagePro
     agencyJsonLd.sameAs = sourceUrl;
   }
 
+  // SEO: Build category list for cross-links and FAQ
+  const categoryList = categoryCounts
+    .filter((c) => c.category && CATEGORY_SLUGS[c.category])
+    .sort((a, b) => b.count - a.count);
+
+  const categoryNames = categoryList
+    .map((c) => CATEGORY_LABELS[c.category!] ?? c.category)
+    .filter(Boolean)
+    .slice(0, 5)
+    .join(", ");
+
+  // SEO: FAQPage JSON-LD for Auftraggeber pages — targets "{Auftraggeber} Ausschreibungen" long-tail queries
+  const faqItems = [
+    {
+      q: `Welche Ausschreibungen gibt es aktuell von ${matchingClient}?`,
+      a: `Aktuell finden Sie ${totalCount} offene Ausschreibungen von ${matchingClient} auf Tenderhunter. Die Angebote werden täglich aktualisiert und umfassen verschiedene Leistungsbereiche${categoryNames ? ` wie ${categoryNames}` : ""}.`,
+    },
+    {
+      q: `Wie oft werden die Ausschreibungen von ${matchingClient} aktualisiert?`,
+      a: `Tenderhunter aktualisiert die Ausschreibungsdatenbank täglich. Neue Vergaben von ${matchingClient} werden innerhalb von 24 Stunden erfasst und Ihnen per Dashboard und optional per E-Mail benachrichtigt.`,
+    },
+    {
+      q: `Welche Leistungen schreibt ${matchingClient} aus?`,
+      a: `${matchingClient} schreibt regelmäßig verschiedene Leistungen aus${categoryNames ? `, darunter ${categoryNames}` : ""}. Alle aktuellen Ausschreibungen mit Fristen, Anforderungen und Details finden Sie auf dieser Seite.`,
+    },
+  ];
+
+  const faqJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqItems.map((item) => ({
+      "@type": "Question",
+      name: item.q,
+      acceptedAnswer: { "@type": "Answer", text: item.a },
+    })),
+  };
+
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(agencyJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
 
       <Box sx={{ minHeight: "100vh", bgcolor: "background.default", py: { xs: 3, md: 5 } }}>
         <Container maxWidth="lg">
@@ -373,6 +423,44 @@ export default async function AuftraggeberPage({ params, searchParams }: PagePro
                 </Link>
               )}
             </Stack>
+          )}
+
+          {/* SEO: Visible FAQ section — mirrors FAQPage JSON-LD for user accessibility and snippet eligibility */}
+          <Box sx={{ mb: 5, maxWidth: "75ch" }}>
+            <Typography variant="h5" component="h2" fontWeight={700} sx={{ mb: 3 }}>
+              Häufige Fragen zu Ausschreibungen von {matchingClient}
+            </Typography>
+            {faqItems.map((item, i) => (
+              <Box key={i} component="details" sx={{ mb: 2, p: 2, border: 1, borderColor: "divider", borderRadius: 1 }}>
+                <Box component="summary" sx={{ fontWeight: 600, cursor: "pointer", fontSize: "1rem", mb: 1 }}>
+                  {item.q}
+                </Box>
+                <Typography variant="body2" sx={{ mt: 1, lineHeight: 1.7, color: "text.secondary" }}>
+                  {item.a}
+                </Typography>
+              </Box>
+            ))}
+          </Box>
+
+          {/* SEO: Category cross-links for internal link equity */}
+          {categoryList.length > 0 && (
+            <Box sx={{ mb: 5 }}>
+              <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
+                Ausschreibungen von {matchingClient} nach Kategorie
+              </Typography>
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                {categoryList.map((c) => {
+                  const catSlug = CATEGORY_SLUGS[c.category!];
+                  const catLabel = CATEGORY_LABELS[c.category!] ?? c.category;
+                  if (!catSlug) return null;
+                  return (
+                    <Link key={catSlug} href={`/ausschreibungen/${catSlug}`} style={{ textDecoration: "none" }}>
+                      <Chip clickable label={`${catLabel} (${c.count})`} variant="outlined" sx={{ fontWeight: 500 }} />
+                    </Link>
+                  );
+                })}
+              </Stack>
+            </Box>
           )}
 
           {/* CTA */}

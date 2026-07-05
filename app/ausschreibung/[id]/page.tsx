@@ -36,7 +36,7 @@ import { SiteFooter } from "@/components/seo/SiteFooter";
 export const revalidate = 3600;
 export const runtime = "nodejs";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://palemaz.com";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -262,9 +262,15 @@ export default async function TenderDetailPage({ params }: PageProps) {
     : null;
   const agencySlug = client ? normalizeAgencySlug(client) : null;
 
+  // SEO: Dual-typed schema — Article for content indexing, GovernmentPermit for procurement semantics
+  const spatialCoverageParts = [];
+  if (tenderCity) spatialCoverageParts.push({ "@type": "City", name: tenderCity });
+  if (tenderBundesland) spatialCoverageParts.push({ "@type": "AdministrativeArea", name: tenderBundesland });
+  if (spatialCoverageParts.length === 0) spatialCoverageParts.push({ "@type": "Country", name: "Deutschland" });
+
   const jsonLd = {
     "@context": "https://schema.org",
-    "@type": "Article",
+    "@type": ["Article", "GovernmentPermit"],
     "@id": `${siteUrl}/ausschreibung/${tender.id}#article`,
     headline: title,
     description: description.slice(0, 300),
@@ -273,10 +279,18 @@ export default async function TenderDetailPage({ params }: PageProps) {
     articleSection: categoryLabel,
     ...(referenceNumber ? { identifier: referenceNumber } : {}),
     keywords: categoryLabel,
-    // SEO: Use AdministrativeArea when Bundesland is derivable, fallback to Country
-    spatialCoverage: tenderBundesland
-      ? { "@type": "AdministrativeArea", name: tenderBundesland }
-      : { "@type": "Country", name: "Deutschland" },
+    // SEO: Custom type for tender-specific structured data extraction
+    additionalType: "https://schema.org/Tender",
+    // SEO: Category as topical entity for richer SERP understanding
+    about: { "@type": "Thing", name: categoryLabel },
+    // SEO: Explicit provider (Auftraggeber) for procurement context
+    provider: client ? { "@type": "Organization", name: client } : undefined,
+    // SEO: Deadline as expiry signal for timely result prioritization
+    expires: deadlineISO ?? undefined,
+    // SEO: Multi-level spatial coverage (city + Bundesland) for local search signals
+    spatialCoverage: spatialCoverageParts.length === 1
+      ? spatialCoverageParts[0]
+      : spatialCoverageParts,
     author: client ? { "@type": "Organization", name: client } : undefined,
     publisher: { "@id": `${siteUrl}#organization` },
     datePublished: tender.createdAt ? new Date(tender.createdAt).toISOString() : undefined,

@@ -76,7 +76,7 @@ export default function FunktionenOgImage() {
         </div>
 
         <div style={{ fontSize: 22, color: "#667288" }}>
-          palemaz.com/funktionen
+          tenderhunter.palemadigital.com/funktionen
         </div>
       </div>
     ),

@@ -10,7 +10,7 @@ import { getLatestTenders } from "@/components/seo/HomeTenderList";
 import { PORTALS, ALL_PORTAL_SLUGS } from "@/lib/portal-content";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://palemaz.com";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
 
 // SEO: ISR instead of force-dynamic — hub page content (categories, regions, cities) changes rarely.
 // Tender list is fetched client-side via InteractiveApp, so ISR cache is safe here.

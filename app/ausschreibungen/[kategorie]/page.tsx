@@ -23,6 +23,7 @@ import {
 import { CATEGORY_LABELS, CATEGORY_SLUGS, SLUG_TO_CATEGORY, ALL_CATEGORY_SLUGS } from "@/lib/categories";
 import { CATEGORY_CONTENT } from "@/lib/category-content";
 import { BUNDESLAND_SLUGS } from "@/lib/bundesland";
+import { CITIES } from "@/lib/cities";
 import { ARTICLES } from "@/lib/articles";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 
@@ -32,7 +33,7 @@ const PAGE_SIZE = 20;
 export const revalidate = 3600;
 export const runtime = "nodejs";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://palemaz.com";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
 
 interface PageProps {
   params: Promise<{ kategorie: string }>;
@@ -71,7 +72,7 @@ export async function generateMetadata({
     const count = countRow[0]?.count ?? 0;
     const pageSuffix = currentPage > 1 ? ` – Seite ${currentPage}` : "";
     const title = `${label} – Aktuelle öffentliche Ausschreibungen${pageSuffix}`;
-    const description = `${count} aktuelle ${label}-Ausschreibungen in Deutschland. Öffentliche Vergabeverfahren für ${label.toLowerCase()} mit Fristen, Auftraggebern und Anforderungen.`;
+    const description = `${count} aktuelle ${label}-Ausschreibungen in Deutschland. Öffentliche Vergabeverfahren mit Fristen, Auftraggebern und Anforderungen — kostenlos durchsuchen auf Tenderhunter.`;
     // SEO: Paginated pages (2+) canonicalize to page 1 to consolidate ranking signals
     const canonicalPath = `/ausschreibungen/${kategorie}`;
 
@@ -611,6 +612,29 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
                   <Chip
                     clickable
                     label={`${label} ${bundesland}`}
+                    variant="outlined"
+                    sx={{ fontWeight: 500 }}
+                  />
+                </Link>
+              ))}
+            </Stack>
+          </Box>
+
+          {/* SEO: Cross-links to City×Category pages for long-tail "{Kategorie} {Stadt}" keywords */}
+          <Box sx={{ mb: 5 }}>
+            <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
+              {label} nach Stadt
+            </Typography>
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              {CITIES.slice(0, 15).map((city) => (
+                <Link
+                  key={city.slug}
+                  href={`/ausschreibungen/stadt/${city.slug}/${kategorie}`}
+                  style={{ textDecoration: "none" }}
+                >
+                  <Chip
+                    clickable
+                    label={`${label} ${city.label}`}
                     variant="outlined"
                     sx={{ fontWeight: 500 }}
                   />

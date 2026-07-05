@@ -3,10 +3,9 @@ import { tenders } from "@/lib/schema";
 import { eq, and, inArray, or, gt, isNull, desc } from "drizzle-orm";
 import { CATEGORY_LABELS } from "@/lib/categories";
 
-export const dynamic = "force-dynamic";
 export const revalidate = 3600;
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://palemaz.com";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
 
 function escapeXml(str: string): string {
   return str
@@ -49,7 +48,7 @@ export async function GET() {
         ),
       )
       .orderBy(desc(tenders.createdAt))
-      .limit(20);
+      .limit(50);
   } catch {
     return new Response(
       `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>Tenderhunter</title></channel></rss>`,

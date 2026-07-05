@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 import { searchTenders } from "@/lib/meilisearch";
-import { CITY_SLUG_MAP, ALL_CITY_SLUGS, CITY_LABEL_MAP, generateCityFaq } from "@/lib/cities";
+import { CITY_SLUG_MAP, ALL_CITY_SLUGS, CITY_LABEL_MAP, generateCityFaq, CITIES } from "@/lib/cities";
 import { BUNDESLAND_SLUGS } from "@/lib/bundesland";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 
@@ -29,7 +29,7 @@ export const runtime = "nodejs";
 
 const PAGE_SIZE = 20;
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://palemaz.com";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -350,6 +350,27 @@ export default async function CityPage({ params, searchParams }: PageProps) {
               ))}
             </Stack>
           </Box>
+
+          {/* SEO: Link to parent Bundesland page for city→region internal link equity */}
+          {bundeslandSlug && (
+            <Box sx={{ mb: 5 }}>
+              <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
+                Ausschreibungen in {city.bundesland}
+              </Typography>
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                <Link href={`/ausschreibungen/region/${bundeslandSlug}`} style={{ textDecoration: "none" }}>
+                  <Chip clickable label={`Alle Ausschreibungen in ${city.bundesland}`} variant="outlined" color="primary" sx={{ fontWeight: 500 }} />
+                </Link>
+                {CITIES.filter((c) => c.bundesland === city.bundesland && c.slug !== slug)
+                  .slice(0, 5)
+                  .map((c) => (
+                    <Link key={c.slug} href={`/ausschreibungen/stadt/${c.slug}`} style={{ textDecoration: "none" }}>
+                      <Chip clickable label={c.label} variant="outlined" sx={{ fontWeight: 500 }} />
+                    </Link>
+                  ))}
+              </Stack>
+            </Box>
+          )}
 
           {/* SEO: Visible FAQ section — mirrors FAQPage JSON-LD for user accessibility and snippet eligibility */}
           <Box sx={{ mb: 5, maxWidth: "75ch" }}>

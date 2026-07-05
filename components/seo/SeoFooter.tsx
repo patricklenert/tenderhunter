@@ -1,9 +1,9 @@
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://palemaz.com";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
 
 const faqs = [
   {
     q: "Was ist Tenderhunter?",
-    a: "Tenderhunter ist eine KI-gestützte Ausschreibungssoftware, die automatisch deutsche Vergabeportale durchsucht, Ausschreibungen strukturiert aufbereitet und mit Ihrem Unternehmensprofil abgleicht. So finden Sie schnell die für Sie relevanten öffentlichen Aufträge.",
+    a: "Tenderhunter ist eine KI-gestützte Ausschreibungssoftware, die automatisch die wichtigsten deutschen Vergabeportale — DTVP, TED, evergabe und Bauportal Deutschland — durchsucht. Die KI analysiert Vergabeunterlagen, extrahiert Anforderungen und gleicht diese mit Ihrem Unternehmensprofil ab. Sie erhalten täglich aktuelle, passende öffentliche Ausschreibungen mit Fit-Score, Fristen und Auftraggeber-Details — für 13 Leistungsbereiche, alle 16 Bundesländer und über 50 Städte.",
   },
   {
     q: "Welche Arten von Ausschreibungen werden gefunden?",

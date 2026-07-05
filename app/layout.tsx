@@ -11,7 +11,7 @@ const manrope = Manrope({
   display: "swap",
 });
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://palemaz.com";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
 
 export const viewport: Viewport = {
   themeColor: "#e9644d",
@@ -76,20 +76,23 @@ export const metadata: Metadata = {
   },
 };
 
+// SEO: Dual-typed as WebApplication + SoftwareApplication for rich SERP display (category, rating, price)
 const organizationJsonLd = {
   "@context": "https://schema.org",
-  "@type": "WebApplication",
+  "@type": ["WebApplication", "SoftwareApplication"],
   name: "Tenderhunter",
   description:
     "KI-gestützte Ausschreibungssoftware für deutsche Unternehmen. Automatische Suche, Analyse und Matching von öffentlichen Ausschreibungen.",
   applicationCategory: "BusinessApplication",
   operatingSystem: "Web",
   url: siteUrl,
+  screenshot: `${siteUrl}/opengraph-image`,
   offers: {
     "@type": "Offer",
     price: "0",
     priceCurrency: "EUR",
     description: "Kostenlose Testung verfügbar",
+    availability: "https://schema.org/OnlineOnly",
   },
   areaServed: {
     "@type": "Country",

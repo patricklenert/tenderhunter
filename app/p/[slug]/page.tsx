@@ -272,7 +272,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
               >
                 <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
                   <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 0.5 }}>
+                    <Typography variant="subtitle1" component="h3" fontWeight={600} sx={{ mb: 0.5 }}>
                       <Link
                         href={`/ausschreibung/${tender.id}`}
                         style={{ color: "inherit", textDecoration: "none" }}
@@ -317,7 +317,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
           <Box sx={{ textAlign: "center" }}>
             <Typography variant="caption" color="text.secondary">
               Powered by{" "}
-              <Box component="a" href="https://palemaz.com" target="_blank" rel="nofollow noopener noreferrer" sx={{ color: "primary.main", textDecoration: "none", fontWeight: 600 }}>
+              <Box component="a" href="https://tenderhunter.palemadigital.com" target="_blank" rel="nofollow noopener noreferrer" sx={{ color: "primary.main", textDecoration: "none", fontWeight: 600 }}>
                 Tenderhunter
               </Box>
               {" "}– KI-gestützte Ausschreibungssuche

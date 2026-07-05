@@ -4,7 +4,7 @@ import { requireApiKey } from "@/lib/api-auth";
 import { generateSlug } from "@/lib/slug";
 import { scrapeWebsite } from "@/lib/firecrawl";
 import { extractCompanyProfile } from "@/lib/perplexity";
-import { computeScores, type CompanyRow } from "@/lib/scoring";
+import { computeScores, llmBatchDomainMatch, type CompanyRow } from "@/lib/scoring";
 import { generateInsight } from "@/lib/insights";
 import { eq, and, or, desc } from "drizzle-orm";
 import { normalizeStructured, type StructuredData as StructuredTenderData } from "@/lib/structurer";
@@ -12,7 +12,7 @@ import { normalizeStructured, type StructuredData as StructuredTenderData } from
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
-const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? process.env.BETTER_AUTH_URL ?? "https://palemaz.com";
+const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? process.env.BETTER_AUTH_URL ?? "https://tenderhunter.palemadigital.com";
 
 interface AnalyzeBody {
   url: string;
@@ -110,6 +110,7 @@ async function runAnalysis(jobId: number, url: string) {
         certifications_json: JSON.stringify(profile.certifications),
         regions_json: JSON.stringify(profile.regions),
         team_size: profile.team_size,
+        industry: profile.industry,
       };
 
       await scoreAllTenders(companyId, companyRow);
@@ -138,6 +139,13 @@ async function scoreAllTenders(companyId: number, companyRow: CompanyRow) {
     .orderBy(desc(tenders.createdAt))
     .limit(200);
 
+  // Load structured data for all tenders
+  const tenderData: Array<{
+    id: number; title: string;
+    structured: StructuredTenderData;
+    hasStructured: boolean;
+  }> = [];
+
   for (const tender of allTenders) {
     const structuredRows = await db
       .select({ jsonBlob: structuredData.jsonBlob })
@@ -145,14 +153,10 @@ async function scoreAllTenders(companyId: number, companyRow: CompanyRow) {
       .where(eq(structuredData.tenderId, tender.id))
       .limit(1);
 
-    let scoreResult;
-    let structuredForInsight: StructuredTenderData;
-
     if (structuredRows.length > 0) {
       try {
         const parsed = normalizeStructured(structuredRows[0].jsonBlob, tender.title ?? "");
-        scoreResult = computeScores(tender.title ?? "", parsed, companyRow);
-        structuredForInsight = parsed;
+        tenderData.push({ id: tender.id, title: tender.title ?? "", structured: parsed, hasStructured: true });
       } catch { continue; }
     } else {
       const text = tender.title ?? "";
@@ -162,14 +166,34 @@ async function scoreAllTenders(companyId: number, companyRow: CompanyRow) {
         decision_relevant: { scope: text.split(" ").filter((w) => w.length > 3), requirements: [], mandatory_documents: [], award_criteria: [] },
         procurement: { contract_value: { min: null, max: null, currency: "EUR" }, contract_duration: { months: null, renewal: false }, award_criteria_detailed: [], participation_requirements: [], cpv_codes: [], procedure_type: "offen" },
       };
-      scoreResult = computeScores(tender.title ?? "", mockStructured, companyRow);
-      structuredForInsight = mockStructured;
+      tenderData.push({ id: tender.id, title: text, structured: mockStructured, hasStructured: false });
     }
+  }
 
-    const insight = generateInsight(scoreResult, structuredForInsight);
+  // LLM batch domain matching — understands semantics, compound words, synonyms
+  const capabilities = JSON.parse(companyRow.capabilities_json || "[]") as string[];
+  const regions = JSON.parse(companyRow.regions_json || "[]") as string[];
+  const llmScores = await llmBatchDomainMatch(
+    capabilities,
+    companyRow.industry ?? null,
+    regions,
+    tenderData.map((t) => ({
+      id: t.id,
+      title: t.title,
+      scope: t.structured.decision_relevant.scope.join(" "),
+      description: t.structured.summary ?? "",
+    })),
+  );
+  console.log(`[analyze] LLM domain scores for ${llmScores.size}/${tenderData.length} tenders`);
+
+  // Compute final scores
+  for (const { id, title, structured } of tenderData) {
+    const llmScore = llmScores.get(id);
+    const scoreResult = computeScores(title, structured, companyRow, llmScore);
+    const insight = generateInsight(scoreResult, structured);
 
     await db.insert(scores).values({
-      tenderId: tender.id, companyId, fit: scoreResult.fit, winProbability: scoreResult.win_probability,
+      tenderId: id, companyId, fit: scoreResult.fit, winProbability: scoreResult.win_probability,
       effort: scoreResult.effort, requirementCoverage: scoreResult.requirement_coverage,
       killSwitch: scoreResult.kill_switch, detailsJson: scoreResult.details,
     }).onConflictDoUpdate({
@@ -180,7 +204,7 @@ async function scoreAllTenders(companyId: number, companyRow: CompanyRow) {
     });
 
     await db.insert(insights).values({
-      tenderId: tender.id, companyId, explanation: insight.explanation,
+      tenderId: id, companyId, explanation: insight.explanation,
       actionsJson: insight.actions, missingItemsJson: insight.missing_items,
     }).onConflictDoUpdate({
       target: [insights.tenderId, insights.companyId],
@@ -289,7 +313,7 @@ export async function POST(request: Request): Promise<Response> {
       setTimeout(async () => {
         try {
           const profileRow = await db
-            .select({ capabilitiesJson: companyProfiles.capabilitiesJson, certificationsJson: companyProfiles.certificationsJson, regionsJson: companyProfiles.regionsJson, teamSize: companyProfiles.teamSize })
+            .select({ capabilitiesJson: companyProfiles.capabilitiesJson, certificationsJson: companyProfiles.certificationsJson, regionsJson: companyProfiles.regionsJson, teamSize: companyProfiles.teamSize, industry: companyProfiles.industry })
             .from(companyProfiles)
             .where(eq(companyProfiles.id, companyId))
             .limit(1);
@@ -300,6 +324,7 @@ export async function POST(request: Request): Promise<Response> {
               certifications_json: JSON.stringify(profileRow[0].certificationsJson),
               regions_json: JSON.stringify(profileRow[0].regionsJson),
               team_size: profileRow[0].teamSize,
+              industry: profileRow[0].industry,
             };
             await scoreAllTenders(companyId, companyRow);
           }

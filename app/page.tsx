@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { InteractiveApp } from "@/components/seo/InteractiveApp";
 import { HomeTenderList } from "@/components/seo/HomeTenderList";
+import { HomeSeoContent } from "@/components/seo/HomeSeoContent";
 import { SeoFooter } from "@/components/seo/SeoFooter";
 
 export const runtime = "nodejs";
@@ -15,7 +16,7 @@ export const metadata: Metadata = {
     canonical: "/",
     languages: { "de-DE": "/" },
     types: {
-      "application/rss+xml": `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://palemaz.com"}/feeds/tender.xml`,
+      "application/rss+xml": `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com"}/feeds/tender.xml`,
     },
   },
   openGraph: {
@@ -31,6 +32,7 @@ export default function HomePage() {
   return (
     <>
       <HomeTenderList />
+      <HomeSeoContent />
       <InteractiveApp />
       <SeoFooter />
     </>

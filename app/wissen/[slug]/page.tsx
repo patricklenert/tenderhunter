@@ -4,9 +4,10 @@ import Link from "next/link";
 import { Box, Container, Typography, Stack, Chip, Breadcrumbs } from "@mui/material";
 import { Home as HomeIcon, ArrowRight } from "lucide-react";
 import { ARTICLES, ALL_ARTICLE_SLUGS } from "@/lib/articles";
+import type { Article } from "@/lib/articles";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://palemaz.com";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
 
 export const revalidate = 3600;
 
@@ -204,6 +205,26 @@ export default async function ArticlePage({ params }: PageProps) {
               })}
             </Stack>
           </Box>
+
+          {/* Related articles — SEO: internal cross-links for improved crawl depth */}
+          {article.relatedArticles && article.relatedArticles.length > 0 && (
+            <Box sx={{ mb: 5 }}>
+              <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
+                Verwandte Artikel
+              </Typography>
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                {article.relatedArticles.map((relSlug) => {
+                  const rel = ARTICLES[relSlug];
+                  if (!rel) return null;
+                  return (
+                    <Link key={relSlug} href={`/wissen/${relSlug}`} style={{ textDecoration: "none" }}>
+                      <Chip clickable label={rel.title} variant="outlined" sx={{ fontWeight: 500 }} />
+                    </Link>
+                  );
+                })}
+              </Stack>
+            </Box>
+          )}
 
           {/* All categories */}
           <Box sx={{ mb: 5 }}>

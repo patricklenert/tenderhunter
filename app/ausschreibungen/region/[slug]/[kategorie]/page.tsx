@@ -31,7 +31,7 @@ export const revalidate = 3600;
 export const runtime = "nodejs";
 
 const PAGE_SIZE = 20;
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://palemaz.com";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
 
 // SEO: Auto-generated FAQ for region×category pages — targets long-tail queries like "IT Ausschreibungen NRW"
 function generateRegionCategoryFaq(bundesland: string, categoryLabel: string): Array<{ question: string; answer: string }> {

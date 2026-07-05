@@ -9,7 +9,7 @@ import { normalizeAgencySlug } from "@/lib/agencies";
 import { ALL_PORTAL_SLUGS } from "@/lib/portal-content";
 import { ALL_ARTICLE_SLUGS, ARTICLES } from "@/lib/articles";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://palemaz.com";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
 
 export const revalidate = 3600;
 

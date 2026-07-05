@@ -24,12 +24,30 @@ import { CITY_SLUG_MAP, ALL_CITY_SLUGS, CITY_LABEL_MAP } from "@/lib/cities";
 import { BUNDESLAND_SLUGS } from "@/lib/bundesland";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 
+// SEO: Auto-generated FAQ for city×category pages — targets long-tail queries like "Ausschreibungen München IT"
+function generateCityCategoryFaq(cityLabel: string, categoryLabel: string): Array<{ question: string; answer: string }> {
+  return [
+    {
+      question: `Wo finde ich ${categoryLabel}-Ausschreibungen in ${cityLabel}?`,
+      answer: `${categoryLabel}-Ausschreibungen in ${cityLabel} finden Sie auf DTVP, TED und evergabe. Tenderhunter aggregiert alle Quellen automatisch und zeigt Ihnen aktuelle Vergaben aus ${cityLabel} und Umgebung.`,
+    },
+    {
+      question: `Welche Auftraggeber schreiben ${categoryLabel} in ${cityLabel} aus?`,
+      answer: `Die wichtigsten Auftraggeber für ${categoryLabel} in ${cityLabel} sind die Stadtverwaltung, kommunale Betriebe und öffentliche Institutionen. Die Vergaben werden auf regionalen und nationalen Vergabeportalen veröffentlicht.`,
+    },
+    {
+      question: `Wie oft werden ${categoryLabel}-Ausschreibungen in ${cityLabel} aktualisiert?`,
+      answer: `Tenderhunter aktualisiert die ${categoryLabel}-Ausschreibungen für ${cityLabel} täglich. Neue Vergaben werden in Echtzeit aus DTVP, TED und evergabe aggregiert.`,
+    },
+  ];
+}
+
 // SEO: City×Category cross pages for long-tail keywords like "bauausschreibungen münchen"
 export const revalidate = 3600;
 export const runtime = "nodejs";
 
 const PAGE_SIZE = 20;
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://palemaz.com";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
 
 interface PageProps {
   params: Promise<{ slug: string; kategorie: string }>;
@@ -156,10 +174,23 @@ export default async function CityCategoryPage({ params, searchParams }: PagePro
     itemListElement: breadcrumbItems,
   };
 
+  // SEO: FAQPage JSON-LD for city×category — enables FAQ rich snippets for long-tail queries
+  const cityCategoryFaq = generateCityCategoryFaq(city.label, label);
+  const faqJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: cityCategoryFaq.map((item) => ({
+      "@type": "Question",
+      name: item.question,
+      acceptedAnswer: { "@type": "Answer", text: item.answer },
+    })),
+  };
+
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
 
       <Box sx={{ minHeight: "100vh", bgcolor: "background.default", py: { xs: 3, md: 5 } }}>
         <Container maxWidth="lg">
@@ -353,6 +384,25 @@ export default async function CityCategoryPage({ params, searchParams }: PagePro
                     sx={{ fontWeight: 500 }}
                   />
                 </Link>
+              ))}
+            </Stack>
+          </Box>
+
+          {/* FAQ — SEO: unique content for city×category pages */}
+          <Box sx={{ mb: 5 }}>
+            <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
+              Häufige Fragen zu {label} in {city.label}
+            </Typography>
+            <Stack spacing={2}>
+              {cityCategoryFaq.map((item, idx) => (
+                <Box key={idx}>
+                  <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 0.5 }}>
+                    {item.question}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.7 }}>
+                    {item.answer}
+                  </Typography>
+                </Box>
               ))}
             </Stack>
           </Box>
