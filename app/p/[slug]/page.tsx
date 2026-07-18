@@ -1,13 +1,17 @@
 import { db } from "@/lib/db";
 import { companyProfiles, scores, tenders, structuredData } from "@/lib/schema";
-import { eq, and, or, desc } from "drizzle-orm";
+import { eq, and, or, desc, gt } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
-import Image from "next/image";
-import { Box, Chip, Container, Divider, Paper, Stack, Typography, Breadcrumbs } from "@mui/material";
-import { Building2, MapPin, ShieldCheck, Wrench, Home as HomeIcon } from "lucide-react";
-import { formatDeadlineDE, deadlineLabel, deadlineColor, sanitizeTenderUrl } from "@/lib/date-utils";
+import { Box, Container, Stack, Typography } from "@mui/material";
+import { ChevronRight } from "lucide-react";
+import { sanitizeTenderUrl } from "@/lib/date-utils";
+import { generateTenderSlug } from "@/lib/tender-slug";
+import { CompanyProfileHeader } from "@/components/profile/CompanyProfileHeader";
+import { TenderSectionHeader } from "@/components/profile/TenderSectionHeader";
+import { TenderCard } from "@/components/profile/TenderCard";
+import { PageFooter } from "@/components/profile/PageFooter";
 
 export const revalidate = 3600;
 export const runtime = "nodejs";
@@ -26,6 +30,7 @@ async function hasMatchingTenders(companyId: number): Promise<boolean> {
     .where(
       and(
         eq(scores.companyId, companyId),
+        gt(scores.fit, 10),
         or(eq(tenders.qualityStatus, "qualified"), eq(tenders.qualityStatus, "candidate")),
       ),
     )
@@ -106,6 +111,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
     .leftJoin(structuredData, eq(structuredData.tenderId, tenders.id))
     .where(and(
       eq(scores.companyId, company.id),
+      gt(scores.fit, 10),
       or(eq(tenders.qualityStatus, "qualified"), eq(tenders.qualityStatus, "candidate")),
     ))
     .orderBy(desc(scores.winProbability), desc(scores.fit))
@@ -123,14 +129,13 @@ export default async function PublicProfilePage({ params }: PageProps) {
         ? blob.summary.slice(0, 300)
         : (row.rawText ?? "").slice(0, 300);
 
-    // Use public portal URL from structured_data if tenders.url is evergabe.de paywall
     const rawUrl = row.url ?? null;
     const sourceUrl = typeof blob.sourceUrl === "string" ? blob.sourceUrl : null;
     const tenderUrl = sanitizeTenderUrl(rawUrl, sourceUrl);
 
     return {
       id: row.tenderId,
-      title: row.title ?? `Ausschreibung #${row.tenderId}`,
+      title: (typeof blob.title === "string" && blob.title.length > 5 ? blob.title : row.title) ?? `Ausschreibung #${row.tenderId}`,
       description,
       location: typeof hardFacts.location === "string" ? hardFacts.location : null,
       volume: typeof hardFacts.budget === "string"
@@ -143,10 +148,11 @@ export default async function PublicProfilePage({ params }: PageProps) {
       winProbability: Math.round(row.winProbability ?? 0),
       killSwitch: row.killSwitch,
       url: tenderUrl,
+      slug: generateTenderSlug(row.title ?? "", typeof hardFacts.location === "string" ? hardFacts.location : ""),
     };
   });
 
-  const fitColor = (fit: number) => fit >= 75 ? "success" : fit >= 50 ? "warning" : "error";
+  const bestFit = tendersList.length > 0 ? Math.max(...tendersList.map((t) => t.fit)) : null;
 
   const organizationJsonLd = {
     "@context": "https://schema.org",
@@ -173,156 +179,102 @@ export default async function PublicProfilePage({ params }: PageProps) {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
 
-      <Box sx={{ minHeight: "100vh", bgcolor: "grey.50", py: { xs: 4, md: 6 } }}>
-        <Container maxWidth="md">
+      <Box sx={{ minHeight: "100vh", bgcolor: "#f8fafc" }}>
+        <Container maxWidth={false} sx={{ maxWidth: "1120px", mx: "auto", px: { xs: 2, sm: 3 }, py: { xs: 3, md: 4 } }}>
           {/* Breadcrumbs */}
-          <Breadcrumbs sx={{ mb: 3, fontSize: "0.85rem" }} separator={<span style={{ color: "#999" }}>/</span>}>
-            <Link href="/" style={{ color: "#667288", textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}>
-              <HomeIcon size={14} />
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 0.5,
+              mb: 2.5,
+              fontSize: "0.8125rem",
+            }}
+          >
+            <Link
+              href="/"
+              style={{
+                color: "#475569",
+                textDecoration: "none",
+              }}
+            >
               Start
             </Link>
-            <Link href="/ausschreibungen" style={{ color: "#667288", textDecoration: "none" }}>
+            <ChevronRight size={14} color="#94a3b8" />
+            <Link
+              href="/ausschreibungen"
+              style={{
+                color: "#475569",
+                textDecoration: "none",
+              }}
+            >
               Ausschreibungen
             </Link>
-            <Typography color="text.primary" fontSize="0.85rem">{company.name}</Typography>
-          </Breadcrumbs>
-
-          <Paper elevation={0} sx={{ p: { xs: 3, md: 4 }, mb: 4, border: 1, borderColor: "divider" }}>
-            <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
-              {company.logoUrl && (
-                <Image
-                  src={company.logoUrl}
-                  alt={`${company.name} Logo`}
-                  width={56}
-                  height={56}
-                  loading="lazy"
-                  style={{ borderRadius: 4, objectFit: "contain", backgroundColor: "#f5f5f5" }}
-                  unoptimized
-                />
-              )}
-              <Box>
-                <Typography variant="h5" component="h1" fontWeight={700}>{company.name}</Typography>
-              {company.industry && (
-                <Typography variant="body2" color="text.secondary">{company.industry}</Typography>
-              )}
-            </Box>
-          </Stack>
-
-          {company.description && (
-            <Typography variant="body1" sx={{ mb: 3, color: "text.secondary" }}>
-              {company.description}
+            <ChevronRight size={14} color="#94a3b8" />
+            <Typography
+              component="span"
+              sx={{
+                fontSize: "0.8125rem",
+                fontWeight: 700,
+                color: "#1e293b",
+              }}
+            >
+              {company.name}
             </Typography>
-          )}
+          </Box>
 
-          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 2 }}>
-            {capabilities.map((cap) => (
-              <Chip key={cap} icon={<Wrench size={14} />} label={cap} size="small" variant="outlined" />
-            ))}
-          </Stack>
+          {/* Profile Header */}
+          <CompanyProfileHeader
+            name={company.name}
+            industry={company.industry}
+            description={company.description}
+            logoUrl={company.logoUrl}
+            capabilities={capabilities}
+            certifications={certifications}
+            regions={regions}
+            teamSize={company.teamSize}
+            address={company.address}
+            tenderCount={tendersList.length}
+            bestFit={bestFit}
+          />
 
-          {certifications.length > 0 && (
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 2 }}>
-              {certifications.map((cert) => (
-                <Chip key={cert} icon={<ShieldCheck size={14} />} label={cert} size="small" color="info" variant="outlined" />
+          {/* Tender Section */}
+          <TenderSectionHeader count={tendersList.length} />
+
+          {tendersList.length === 0 ? (
+            <Box
+              sx={{
+                py: 6,
+                textAlign: "center",
+                bgcolor: "white",
+                borderRadius: "10px",
+                border: "1px solid",
+                borderColor: "divider",
+              }}
+            >
+              <Typography sx={{ color: "text.secondary", fontSize: "0.875rem" }}>
+                Noch keine passenden Ausschreibungen gefunden.
+              </Typography>
+            </Box>
+          ) : (
+            <Stack spacing={1.5}>
+              {tendersList.map((tender) => (
+                <TenderCard
+                  key={tender.id}
+                  id={tender.id}
+                  title={tender.title}
+                  description={tender.description}
+                  location={tender.location}
+                  volume={tender.volume}
+                  deadline={tender.deadline}
+                  fit={tender.fit}
+                  slug={tender.slug}
+                />
               ))}
             </Stack>
           )}
 
-          <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap>
-            {regions.length > 0 && (
-              <Stack direction="row" spacing={0.5} alignItems="center">
-                <MapPin size={14} />
-                <Typography variant="caption" color="text.secondary">{regions.join(", ")}</Typography>
-              </Stack>
-            )}
-            {company.teamSize && (
-              <Stack direction="row" spacing={0.5} alignItems="center">
-                <Building2 size={14} />
-                <Typography variant="caption" color="text.secondary">{company.teamSize} Mitarbeiter</Typography>
-              </Stack>
-            )}
-            {company.address && (
-              <Stack direction="row" spacing={0.5} alignItems="center">
-                <MapPin size={14} />
-                <Typography variant="caption" color="text.secondary">{company.address}</Typography>
-              </Stack>
-            )}
-          </Stack>
-        </Paper>
-
-        <Typography variant="h2" component="h2" fontWeight={600} sx={{ mb: 2, fontSize: { xs: "1.25rem", md: "1.5rem" } }}>
-          Passende Ausschreibungen
-        </Typography>
-
-        {tendersList.length === 0 ? (
-          <Paper elevation={0} sx={{ p: 4, textAlign: "center", border: 1, borderColor: "divider" }}>
-            <Typography color="text.secondary">Noch keine passenden Ausschreibungen gefunden.</Typography>
-          </Paper>
-        ) : (
-          <Stack spacing={2}>
-            {tendersList.map((tender) => (
-              <Paper
-                key={tender.id}
-                elevation={0}
-                sx={{
-                  p: { xs: 2.5, md: 3 },
-                  border: 1,
-                  borderColor: "divider",
-                }}
-              >
-                <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography variant="subtitle1" component="h3" fontWeight={600} sx={{ mb: 0.5 }}>
-                      <Link
-                        href={`/ausschreibung/${tender.id}`}
-                        style={{ color: "inherit", textDecoration: "none" }}
-                      >
-                        {tender.title}
-                      </Link>
-                    </Typography>
-
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, lineHeight: 1.5 }}>
-                      {tender.description.length > 250 ? `${tender.description.slice(0, 250)}...` : tender.description}
-                    </Typography>
-
-                    <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap>
-                      {tender.location && (
-                        <Typography variant="caption" color="text.secondary">📍 {tender.location}</Typography>
-                      )}
-                      {tender.volume && (
-                        <Typography variant="caption" color="text.secondary">💰 {tender.volume}</Typography>
-                      )}
-                      {tender.deadline && (
-                        <Typography variant="caption" color={deadlineColor(tender.deadline)}>
-                          📅 {formatDeadlineDE(tender.deadline)} ({deadlineLabel(tender.deadline)})
-                        </Typography>
-                      )}
-                    </Stack>
-                  </Box>
-
-                  <Chip
-                    label={`${tender.fit}%`}
-                    color={fitColor(tender.fit)}
-                    size="small"
-                    sx={{ fontWeight: 700, minWidth: 52 }}
-                  />
-                </Stack>
-              </Paper>
-            ))}
-          </Stack>
-        )}
-
-        <Divider sx={{ my: 4 }} />
-
-          <Box sx={{ textAlign: "center" }}>
-            <Typography variant="caption" color="text.secondary">
-              Powered by{" "}
-              <Box component="a" href="https://tenderhunter.palemadigital.com" target="_blank" rel="nofollow noopener noreferrer" sx={{ color: "primary.main", textDecoration: "none", fontWeight: 600 }}>
-                Tenderhunter
-              </Box>
-              {" "}– KI-gestützte Ausschreibungssuche
-            </Typography>
-          </Box>
+          <PageFooter />
         </Container>
       </Box>
     </>

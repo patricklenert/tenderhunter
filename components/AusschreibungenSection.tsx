@@ -49,10 +49,14 @@ import {
   RefreshCw,
   Eye,
   AlertCircle,
-  Navigation,
+  // Crosshair,  // Ursprüngliches Standort-Icon (Lucide) — auskommentiert für Rollback
 } from "lucide-react";
+import { SearchLocationIcon } from "@/components/icons/SidebarIcons";
 import type { ViewKey } from "@/components/Shell";
 import { getAllLocationOptions } from "@/lib/bundesland";
+import { formatDeadlineDE, deadlineLabel, deadlineColor, cleanPdfFilename } from "@/lib/date-utils";
+import { PdfDocumentLink } from "@/components/PdfDocumentLink";
+import { generateTenderSlug } from "@/lib/tender-slug";
 
 interface ApiTender {
   id: number;
@@ -301,7 +305,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
           }}
         >
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="h6" fontWeight={700} sx={{ color: "#fff", fontSize: { xs: "1rem", sm: "1.25rem" } }}>
+            <Typography variant="h6" component="p" fontWeight={700} sx={{ color: "#fff", fontSize: { xs: "1rem", sm: "1.25rem" } }}>
               Mehr Umsatz durch Ausschreibungen für Ihre Firma
             </Typography>
           </Box>
@@ -337,10 +341,10 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
 
       {/* Search and Filter Section */}
       <Box sx={{ mb: 3 }}>
-        <Typography variant="h5" fontWeight={600} sx={{ mb: 1 }}>
+        <Typography variant="h5" component="h2" fontWeight={600} sx={{ mb: 1, color: "#1e293b", fontSize: { xs: "1.25rem", md: "1.375rem" } }}>
           Ausschreibungen durchsuchen
         </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+        <Typography variant="body2" sx={{ mb: 3, color: "#475569", fontSize: "0.9375rem" }}>
           Semantische Suche über alle deutschen Ausschreibungsportale
         </Typography>
 
@@ -380,7 +384,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                       {geoLoading ? (
                         <CircularProgress size={18} />
                       ) : (
-                        <Navigation size={20} />
+                        <SearchLocationIcon size={20} />
                       )}
                     </IconButton>
                   </InputAdornment>
@@ -426,7 +430,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
           </Box>
         </Stack>
 
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" sx={{ color: "#475569", fontSize: "0.8125rem" }}>
           {loading
             ? "Lade Ausschreibungen..."
             : userLocation
@@ -467,16 +471,16 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
               ))}
             </Stack>
           ) : (
-            <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 3 }}>
+            <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: "6px" }}>
               <Table size="medium">
                 <TableHead>
                   <TableRow>
-                    <TableCell sx={{ fontWeight: 600 }}>Ausschreibung</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Auftraggeber</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Kategorie</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Standort</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Frist</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Quelle</TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: "#1e293b", fontSize: "0.8125rem" }}>Ausschreibung</TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: "#1e293b", fontSize: "0.8125rem" }}>Auftraggeber</TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: "#1e293b", fontSize: "0.8125rem" }}>Kategorie</TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: "#1e293b", fontSize: "0.8125rem" }}>Standort</TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: "#1e293b", fontSize: "0.8125rem" }}>Frist</TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: "#1e293b", fontSize: "0.8125rem" }}>Quelle</TableCell>
                     <TableCell align="right" sx={{ fontWeight: 600 }}></TableCell>
                   </TableRow>
                 </TableHead>
@@ -516,7 +520,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
           }}
         >
           <AlertCircle size={48} style={{ marginBottom: 16, opacity: 0.5 }} />
-          <Typography variant="h6" fontWeight={600} sx={{ mb: 1 }}>
+          <Typography variant="h6" component="p" fontWeight={600} sx={{ mb: 1 }}>
             Fehler beim Laden
           </Typography>
           <Typography variant="body2" sx={{ mb: 3, opacity: 0.9 }}>
@@ -545,7 +549,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
           sx={{ borderRadius: 3, p: 6, textAlign: "center" }}
         >
           <FileText size={48} color="currentColor" style={{ opacity: 0.3, marginBottom: 16 }} />
-          <Typography variant="h6" fontWeight={600} sx={{ mb: 1 }}>
+          <Typography variant="h6" component="p" fontWeight={600} sx={{ mb: 1 }}>
             {searchQuery || selectedLocation ? "Keine Ausschreibungen gefunden" : "Noch keine Ausschreibungen vorhanden"}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3, maxWidth: 500, mx: "auto" }}>
@@ -588,17 +592,17 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
 
       {/* Table view */}
       {!loading && displayedTenders.length > 0 && viewMode === "table" && (
-        <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 3 }}>
+        <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: "6px" }}>
           <Table size="medium">
             <TableHead>
               <TableRow>
-                <TableCell sx={{ fontWeight: 600 }}>Ausschreibung</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Auftraggeber</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Kategorie</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Standort</TableCell>
-                {userLocation && <TableCell sx={{ fontWeight: 600 }}>Entfernung</TableCell>}
-                <TableCell sx={{ fontWeight: 600 }}>Frist</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Quelle</TableCell>
+                <TableCell sx={{ fontWeight: 600, color: "#1e293b", fontSize: "0.8125rem" }}>Ausschreibung</TableCell>
+                <TableCell sx={{ fontWeight: 600, color: "#1e293b", fontSize: "0.8125rem" }}>Auftraggeber</TableCell>
+                <TableCell sx={{ fontWeight: 600, color: "#1e293b", fontSize: "0.8125rem" }}>Kategorie</TableCell>
+                <TableCell sx={{ fontWeight: 600, color: "#1e293b", fontSize: "0.8125rem" }}>Standort</TableCell>
+                {userLocation && <TableCell sx={{ fontWeight: 600, color: "#1e293b", fontSize: "0.8125rem" }}>Entfernung</TableCell>}
+                <TableCell sx={{ fontWeight: 600, color: "#1e293b", fontSize: "0.8125rem" }}>Frist</TableCell>
+                <TableCell sx={{ fontWeight: 600, color: "#1e293b", fontSize: "0.8125rem" }}>Quelle</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 600 }}></TableCell>
               </TableRow>
             </TableHead>
@@ -606,32 +610,38 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
               {displayedTenders.map((tender) => (
                 <TableRow key={tender.id} hover>
                   <TableCell>
-                    <Typography variant="body2" fontWeight={600}>
+                    <Typography variant="body2" fontWeight={600} sx={{ color: "#1e293b", fontSize: "0.9375rem" }}>
                       {tender.title}
                     </Typography>
                     {tender.description && (
-                      <Typography variant="caption" color="text.secondary" sx={{ display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                      <Typography variant="caption" sx={{ color: "#475569", fontSize: "0.75rem", display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
                         {tender.description}
                       </Typography>
                     )}
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2">{tender.client}</Typography>
+                    <Typography variant="body2" sx={{ color: "#475569", fontSize: "0.8125rem" }}>{tender.client}</Typography>
                   </TableCell>
                   <TableCell>
-                    <Chip label={tender.category} size="medium" variant="outlined" />
+                    <Chip label={tender.category} size="small" variant="outlined" sx={{ height: 22, borderRadius: "4px", fontSize: "0.6875rem" }} />
                   </TableCell>
-                  <TableCell>{tender.location}</TableCell>
+                  <TableCell>
+                    <Typography variant="body2" sx={{ color: "#475569", fontSize: "0.8125rem" }}>{tender.location}</Typography>
+                  </TableCell>
                   {userLocation && (
                     <TableCell>
-                      {tenderDistances[tender.id] !== undefined
-                        ? `${Math.round(tenderDistances[tender.id])}km`
-                        : "–"}
+                      <Typography variant="body2" sx={{ color: "#475569", fontSize: "0.8125rem" }}>
+                        {tenderDistances[tender.id] !== undefined
+                          ? `${Math.round(tenderDistances[tender.id])}km`
+                          : "–"}
+                      </Typography>
                     </TableCell>
                   )}
-                  <TableCell>{tender.deadline ?? "–"}</TableCell>
                   <TableCell>
-                    <Typography variant="caption">{tender.source}</Typography>
+                    <Typography variant="body2" sx={{ color: "#475569", fontSize: "0.8125rem" }}>{tender.deadline ?? "–"}</Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="caption" sx={{ color: "#475569", fontSize: "0.75rem" }}>{tender.source}</Typography>
                   </TableCell>
                   <TableCell align="right">
                     <Button
@@ -657,7 +667,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
           sx={{ borderRadius: 3, py: 6, textAlign: "center" }}
         >
           <Search size={48} color="currentColor" style={{ opacity: 0.3, marginBottom: 16 }} />
-          <Typography variant="h6" fontWeight={600} sx={{ mb: 1 }}>
+          <Typography variant="h6" component="p" fontWeight={600} sx={{ mb: 1 }}>
             Keine Ausschreibungen im Umkreis gefunden
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
@@ -665,7 +675,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
           </Typography>
           <Button
             variant="outlined"
-            startIcon={<Navigation size={20} />}
+            startIcon={<SearchLocationIcon size={20} />}
             onClick={clearGeolocation}
           >
             Standortfilter entfernen
@@ -682,7 +692,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
         scroll="paper"
       >
         <DialogTitle sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", pb: 1 }}>
-          <Typography variant="h6" fontWeight={700}>
+          <Typography variant="h6" component="p" fontWeight={600} sx={{ color: "#1e293b", fontSize: "1.25rem" }}>
             Ausschreibung
           </Typography>
           <IconButton onClick={() => setDetailOpen(false)} size="medium">
@@ -700,8 +710,10 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
             </Stack>
           )}
           {detailError && (
-            <Alert severity="error">
-              {detailError}
+            <Alert severity={detailError === "Ausschreibung nicht gefunden" ? "warning" : "error"}>
+              {detailError === "Ausschreibung nicht gefunden"
+                ? "Diese Ausschreibung ist nicht mehr verfügbar. Sie wurde entfernt oder ist abgelaufen."
+                : detailError}
             </Alert>
           )}
           {detailData && selectedTender && (() => {
@@ -710,6 +722,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
             const client = typeof d.client === "string" && d.client.length > 0 ? d.client : t.client;
             const location = typeof d.location === "string" && d.location.length > 0 ? d.location : t.location;
             const deadline = typeof d.deadline === "string" && d.deadline.length > 0 ? d.deadline : t.deadline;
+            const deadlineISO = typeof d.deadlineISO === "string" && d.deadlineISO.length > 0 ? d.deadlineISO : t.deadlineISO;
             const description = typeof d.description === "string" && d.description.length > 0 ? d.description : t.description;
             const scope = typeof d.scope === "string" && d.scope.length > 0 ? d.scope : null;
             const estimatedValue = typeof d.estimatedValue === "string" && d.estimatedValue.length > 0 ? d.estimatedValue : null;
@@ -719,11 +732,10 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
             const requirements = Array.isArray(d.requirements) ? d.requirements as string[] : [];
             const awardCriteria = Array.isArray(d.awardCriteria) ? d.awardCriteria as string[] : [];
             const pdfUrls = Array.isArray(d.pdfUrls) ? d.pdfUrls as string[] : t.pdfUrls ?? [];
-            const deadlineUrgent = t.deadlineISO ? (new Date(t.deadlineISO).getTime() - Date.now()) / (1000 * 60 * 60 * 24) < 7 : false;
 
             return (
-              <Stack spacing={4}>
-                <Typography variant="h5" fontWeight={700} sx={{ lineHeight: 1.3 }}>
+              <Stack spacing={3}>
+                <Typography variant="h5" component="p" fontWeight={600} sx={{ lineHeight: 1.3, color: "#1e293b", fontSize: { xs: "1.5rem", md: "1.75rem" } }}>
                   {t.title}
                 </Typography>
 
@@ -731,70 +743,70 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                 <Stack spacing={3}>
                   {client && (
                     <Box>
-                      <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 0.5, lineHeight: 1.2 }}>
+                      <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 0.5, lineHeight: 1.2, color: "#475569", fontSize: "0.75rem" }}>
                         Auftraggeber
                       </Typography>
-                      <Typography variant="h6" fontWeight={600} sx={{ fontSize: "1.3rem", lineHeight: 1.3 }}>
+                      <Typography variant="h6" fontWeight={600} sx={{ fontSize: "1rem", lineHeight: 1.3, color: "#1e293b" }}>
                         {client}
                       </Typography>
                     </Box>
                   )}
                   {estimatedValue && (
                     <Box>
-                      <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 0.5, lineHeight: 1.2 }}>
+                      <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 0.5, lineHeight: 1.2, color: "#475569", fontSize: "0.75rem" }}>
                         Geschätzter Auftragswert
                       </Typography>
-                      <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1.5rem", lineHeight: 1.3, color: "success.main" }}>
+                      <Typography variant="h6" fontWeight={600} sx={{ fontSize: "1rem", lineHeight: 1.3, color: "#1e293b" }}>
                         {estimatedValue}
                       </Typography>
                     </Box>
                   )}
                   {deadline && (
                     <Box>
-                      <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 0.5, lineHeight: 1.2 }}>
+                      <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 0.5, lineHeight: 1.2, color: "#475569", fontSize: "0.75rem" }}>
                         Frist
                       </Typography>
-                      <Typography variant="h6" fontWeight={600} sx={{ fontSize: "1.3rem", lineHeight: 1.3, color: deadlineUrgent ? "error.main" : "text.primary" }}>
-                        {deadline}
+                       <Typography variant="h6" fontWeight={600} sx={{ fontSize: "1rem", lineHeight: 1.3, color: deadlineColor(deadlineISO ?? deadline) }}>
+                         {deadline}{deadlineLabel(deadlineISO ?? deadline) ? ` (${deadlineLabel(deadlineISO ?? deadline)})` : ""}
                       </Typography>
                     </Box>
                   )}
                   {location && (
                     <Box>
-                      <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 0.5, lineHeight: 1.2 }}>
+                      <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 0.5, lineHeight: 1.2, color: "#475569", fontSize: "0.75rem" }}>
                         Standort
                       </Typography>
-                      <Typography variant="h6" fontWeight={600} sx={{ fontSize: "1.3rem", lineHeight: 1.3 }}>
+                      <Typography variant="h6" fontWeight={600} sx={{ fontSize: "1rem", lineHeight: 1.3, color: "#1e293b" }}>
                         {location}
                       </Typography>
                     </Box>
                   )}
                   {procedure && (
                     <Box>
-                      <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 0.5, lineHeight: 1.2 }}>
+                      <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 0.5, lineHeight: 1.2, color: "#475569", fontSize: "0.75rem" }}>
                         Verfahren
                       </Typography>
-                      <Typography variant="body1" fontWeight={500} sx={{ fontSize: "1.05rem", lineHeight: 1.4 }}>
+                      <Typography variant="body1" fontWeight={500} sx={{ fontSize: "0.9375rem", lineHeight: 1.5, color: "#334155" }}>
                         {procedure}
                       </Typography>
                     </Box>
                   )}
                   {duration && (
                     <Box>
-                      <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 0.5, lineHeight: 1.2 }}>
+                      <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 0.5, lineHeight: 1.2, color: "#475569", fontSize: "0.75rem" }}>
                         Laufzeit
                       </Typography>
-                      <Typography variant="body1" fontWeight={500} sx={{ fontSize: "1.05rem", lineHeight: 1.4 }}>
+                      <Typography variant="body1" fontWeight={500} sx={{ fontSize: "0.9375rem", lineHeight: 1.5, color: "#334155" }}>
                         {duration}
                       </Typography>
                     </Box>
                   )}
                   {t.category && (
                     <Box>
-                      <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 0.5, lineHeight: 1.2 }}>
+                      <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 0.5, lineHeight: 1.2, color: "#475569", fontSize: "0.75rem" }}>
                         Kategorie
                       </Typography>
-                      <Typography variant="h6" fontWeight={600} sx={{ fontSize: "1.3rem", lineHeight: 1.3 }}>
+                      <Typography variant="h6" fontWeight={600} sx={{ fontSize: "1rem", lineHeight: 1.3, color: "#1e293b" }}>
                         {t.category}
                       </Typography>
                     </Box>
@@ -804,10 +816,10 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                 {/* Description */}
                 {description && description.length > 0 && (
                   <Box>
-                    <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 1, lineHeight: 1.2 }}>
+                    <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 1, lineHeight: 1.2, color: "#475569", fontSize: "0.75rem" }}>
                       Beschreibung
                     </Typography>
-                    <Typography variant="body1" sx={{ lineHeight: 1.7, fontSize: "1.05rem" }}>
+                    <Typography variant="body1" sx={{ lineHeight: 1.5, fontSize: "0.9375rem", color: "#334155" }}>
                       {description.length > 600 ? description.slice(0, 600) + "..." : description}
                     </Typography>
                   </Box>
@@ -816,10 +828,10 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                 {/* Scope (detailed) */}
                 {scope && scope.length > 0 && scope !== description && (
                   <Box>
-                    <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 1, lineHeight: 1.2 }}>
+                    <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 1, lineHeight: 1.2, color: "#475569", fontSize: "0.75rem" }}>
                       Leistungsumfang
                     </Typography>
-                    <Typography variant="body1" sx={{ lineHeight: 1.7, fontSize: "1.05rem", whiteSpace: "pre-line" }}>
+                    <Typography variant="body1" sx={{ lineHeight: 1.5, fontSize: "0.9375rem", whiteSpace: "pre-line", color: "#334155" }}>
                       {scope}
                     </Typography>
                   </Box>
@@ -828,12 +840,12 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                 {/* Requirements */}
                 {requirements.length > 0 && (
                   <Box>
-                    <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 1, lineHeight: 1.2 }}>
+                    <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 1, lineHeight: 1.2, color: "#475569", fontSize: "0.75rem" }}>
                       Anforderungen
                     </Typography>
                     <Stack spacing={0.5}>
                       {requirements.map((req, i) => (
-                        <Typography key={i} variant="body1" sx={{ lineHeight: 1.6, fontSize: "1rem", pl: 1.5, position: "relative", "&::before": { content: '"•"', position: "absolute", left: 0, color: "text.secondary" } }}>
+                        <Typography key={i} variant="body1" sx={{ lineHeight: 1.5, fontSize: "0.9375rem", pl: 1.5, color: "#334155", position: "relative", "&::before": { content: '"•"', position: "absolute", left: 0, color: "#475569" } }}>
                           {req}
                         </Typography>
                       ))}
@@ -844,12 +856,12 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                 {/* Award Criteria */}
                 {awardCriteria.length > 0 && (
                   <Box>
-                    <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 1, lineHeight: 1.2 }}>
+                    <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 1, lineHeight: 1.2, color: "#475569", fontSize: "0.75rem" }}>
                       Zuschlagskriterien
                     </Typography>
                     <Stack spacing={0.5}>
                       {awardCriteria.map((crit, i) => (
-                        <Typography key={i} variant="body1" sx={{ lineHeight: 1.6, fontSize: "1rem", pl: 1.5, position: "relative", "&::before": { content: '"•"', position: "absolute", left: 0, color: "text.secondary" } }}>
+                        <Typography key={i} variant="body1" sx={{ lineHeight: 1.5, fontSize: "0.9375rem", pl: 1.5, color: "#334155", position: "relative", "&::before": { content: '"•"', position: "absolute", left: 0, color: "#475569" } }}>
                           {crit}
                         </Typography>
                       ))}
@@ -860,10 +872,10 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                 {/* Contact */}
                 {contact && (
                   <Box>
-                    <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 1, lineHeight: 1.2 }}>
+                    <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 1, lineHeight: 1.2, color: "#475569", fontSize: "0.75rem" }}>
                       Kontakt
                     </Typography>
-                    <Typography variant="body1" sx={{ lineHeight: 1.7, fontSize: "1.05rem", whiteSpace: "pre-line" }}>
+                    <Typography variant="body1" sx={{ lineHeight: 1.5, fontSize: "0.9375rem", whiteSpace: "pre-line", color: "#334155" }}>
                       {contact}
                     </Typography>
                   </Box>
@@ -872,21 +884,12 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                 {/* PDFs */}
                 {pdfUrls.length > 0 && (
                   <Box>
-                    <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 1, lineHeight: 1.2 }}>
+                    <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 1, lineHeight: 1.2, color: "#475569", fontSize: "0.75rem" }}>
                       Dokumente
                     </Typography>
                     <Stack spacing={1}>
                       {pdfUrls.map((url, i) => (
-                        <Link
-                          key={i}
-                          href={url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          variant="body1"
-                          sx={{ color: "primary.main", textDecoration: "none", fontSize: "1rem", "&:hover": { textDecoration: "underline" } }}
-                        >
-                          {url.split("/").pop() ?? `Dokument ${i + 1}`}
-                        </Link>
+                        <PdfDocumentLink key={i} url={url} index={i} />
                       ))}
                     </Stack>
                   </Box>
@@ -896,15 +899,28 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
           })()}
         </DialogContent>
         <DialogActions>
+          {selectedTender && (
+            <Button
+              href={`/ausschreibung/${selectedTender.id}/${generateTenderSlug(selectedTender.title, selectedTender.location)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              endIcon={<ExternalLink size={20} />}
+              variant="contained"
+              size="medium"
+            >
+              Details ansehen
+            </Button>
+          )}
           {selectedTender?.sourceUrl && (
             <Button
               href={selectedTender.sourceUrl}
               target="_blank"
               rel="noopener noreferrer"
-              endIcon={<ExternalLink size={20} />}
               size="medium"
+              color="inherit"
+              sx={{ color: "text.secondary" }}
             >
-              Original ansehen
+              Quelle öffnen
             </Button>
           )}
           <Button onClick={() => setDetailOpen(false)} size="medium">
@@ -928,6 +944,7 @@ function TenderCard({ tender, onDetailClick, distance }: { tender: ApiTender; on
       onClick={() => onDetailClick(tender)}
       sx={{
         cursor: "pointer",
+        borderRadius: "6px",
         transition: "border-color 0.2s, box-shadow 0.2s",
         "&:hover": {
           borderColor: "primary.light",
@@ -935,7 +952,7 @@ function TenderCard({ tender, onDetailClick, distance }: { tender: ApiTender; on
         },
       }}
     >
-      <CardContent sx={{ p: { xs: 3, sm: 4 }, "&:last-child": { pb: { xs: 3, sm: 4 } } }}>
+      <CardContent sx={{ p: { xs: 1.5, md: 2 }, "&:last-child": { pb: { xs: 1.5, md: 2 } } }}>
         <Box
           sx={{
             display: "flex",
@@ -947,12 +964,12 @@ function TenderCard({ tender, onDetailClick, distance }: { tender: ApiTender; on
           }}
         >
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 0.5, fontSize: { xs: "1.1rem", sm: "1.25rem" } }}>
+            <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 0.5, fontSize: "0.9375rem", color: "#1e293b" }}>
               {tender.title}
             </Typography>
             <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
               <Building2 size={18} style={{ opacity: 0.5 }} />
-              <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: "0.9rem", sm: "1rem" } }}>
+              <Typography variant="body2" sx={{ color: "#475569", fontSize: "0.8125rem" }}>
                 {tender.client}
               </Typography>
             </Box>
@@ -961,17 +978,17 @@ function TenderCard({ tender, onDetailClick, distance }: { tender: ApiTender; on
             {distance !== undefined && (
               <Chip
                 label={`${Math.round(distance)}km`}
-                size="medium"
+                size="small"
                 color="primary"
                 variant="outlined"
-                sx={{ fontWeight: 600 }}
+                sx={{ fontWeight: 600, height: 22, borderRadius: "4px", fontSize: "0.6875rem" }}
               />
             )}
             <Chip
               label={tender.category}
-              size="medium"
+              size="small"
               variant="outlined"
-              sx={{ flexShrink: 0, alignSelf: { xs: "flex-start", sm: "flex-start" } }}
+              sx={{ flexShrink: 0, alignSelf: { xs: "flex-start", sm: "flex-start" }, height: 22, borderRadius: "4px", fontSize: "0.6875rem" }}
             />
           </Box>
         </Box>
@@ -979,11 +996,11 @@ function TenderCard({ tender, onDetailClick, distance }: { tender: ApiTender; on
         {tender.description && (
           <Typography
             variant="body2"
-            color="text.secondary"
             sx={{
               mb: 2,
-              lineHeight: 1.6,
-              fontSize: { xs: "0.9rem", sm: "1rem" },
+              lineHeight: 1.5,
+              color: "#334155",
+              fontSize: "0.9375rem",
               display: "-webkit-box",
               WebkitLineClamp: { xs: 2, sm: 3 },
               WebkitBoxOrient: "vertical",
@@ -1006,9 +1023,9 @@ function TenderCard({ tender, onDetailClick, distance }: { tender: ApiTender; on
             mb: 1.5,
           }}
         >
-          {tender.contractValueMax && tender.contractValueMax > 0 && (
+           {tender.contractValueMax && tender.contractValueMax > 0 && (
             <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-              <Typography variant="body2" fontWeight={600} color="success.main" sx={{ fontSize: { xs: "0.9rem", sm: "1rem" } }}>
+              <Typography variant="body2" fontWeight={600} color="success.main" sx={{ fontSize: "0.8125rem" }}>
                 {new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(tender.contractValueMax)}
               </Typography>
             </Box>
@@ -1016,13 +1033,13 @@ function TenderCard({ tender, onDetailClick, distance }: { tender: ApiTender; on
           {tender.location && (
             <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
               <MapPin size={18} style={{ opacity: 0.5 }} />
-              <Typography variant="body2" sx={{ fontSize: { xs: "0.9rem", sm: "1rem" } }}>{tender.location}</Typography>
+              <Typography variant="body2" sx={{ color: "#475569", fontSize: "0.8125rem" }}>{tender.location}</Typography>
             </Box>
           )}
-          {tender.deadline && (
+          {tender.deadline && formatDeadlineDE(tender.deadline) && (
             <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
               <Calendar size={18} style={{ opacity: 0.5 }} />
-              <Typography variant="body2" sx={{ fontSize: { xs: "0.9rem", sm: "1rem" } }}>Frist: {tender.deadline}</Typography>
+              <Typography variant="body2" sx={{ color: "#475569", fontSize: "0.8125rem" }}>Frist: {formatDeadlineDE(tender.deadline)}{deadlineLabel(tender.deadlineISO ?? tender.deadline) ? ` (${deadlineLabel(tender.deadlineISO ?? tender.deadline)})` : ""}</Typography>
             </Box>
           )}
           {tender.referenceNumber && (
@@ -1030,7 +1047,7 @@ function TenderCard({ tender, onDetailClick, distance }: { tender: ApiTender; on
               <FileText size={18} style={{ opacity: 0.5 }} />
               <Typography
                 variant="body2"
-                sx={{ fontFamily: '"IBM Plex Mono", monospace', fontSize: { xs: "0.9rem", sm: "1rem" } }}
+                sx={{ fontFamily: '"IBM Plex Mono", monospace', color: "#475569", fontSize: "0.8125rem" }}
               >
                 {tender.referenceNumber}
               </Typography>
@@ -1048,12 +1065,12 @@ function TenderCard({ tender, onDetailClick, distance }: { tender: ApiTender; on
             borderColor: "divider",
           }}
         >
-          <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: "0.8rem", sm: "0.875rem" } }}>
+          <Typography variant="caption" sx={{ color: "#475569", fontSize: "0.75rem" }}>
             Quelle: {tender.source}
           </Typography>
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, color: "primary.main" }}>
             <Eye size={18} />
-            <Typography variant="caption" fontWeight={500} sx={{ fontSize: { xs: "0.8rem", sm: "0.875rem" } }}>
+            <Typography variant="caption" fontWeight={500} sx={{ fontSize: "0.75rem" }}>
               Details
             </Typography>
           </Box>

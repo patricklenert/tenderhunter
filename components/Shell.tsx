@@ -17,9 +17,10 @@ import {
 import {
   Menu as MenuIcon,
   BriefcaseBusiness,
-  Crosshair,
-  Building2,
+  // Crosshair,  // Ursprüngliches Analyse-Icon (Lucide) — auskommentiert für Rollback
+  // Building2,  // Ursprüngliches Ausschreibungen-Icon (Lucide) — auskommentiert für Rollback
 } from "lucide-react";
+import { AnalyseIcon, SearchLocationIcon } from "@/components/icons/SidebarIcons";
 import { AuthModal } from "@/components/AuthModal";
 import { UserMenu } from "@/components/UserMenu";
 import Link from "next/link";
@@ -36,9 +37,11 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  { key: "discovery", label: "Analyse", icon: Crosshair },
+  // { key: "discovery", label: "Analyse", icon: Crosshair },  // Ursprüngliches Lucide-Icon — auskommentiert für Rollback
+  { key: "discovery", label: "Analyse", icon: AnalyseIcon },
   { key: "trackedTenders", label: "Verfolgte Ausschreibungen", icon: BriefcaseBusiness },
-  { key: "publicTenders", label: "Ausschreibungen", icon: Building2 },
+  // { key: "publicTenders", label: "Ausschreibungen", icon: Building2 },  // Ursprüngliches Lucide-Icon — auskommentiert für Rollback
+  { key: "publicTenders", label: "Ausschreibungen", icon: SearchLocationIcon },
 ];
 
 const HASH_TO_VIEW: Record<string, ViewKey> = {
@@ -145,7 +148,7 @@ export function Shell({ children }: ShellProps) {
             flexShrink: 0,
           }}
         >
-          <Crosshair size={22} color="#fff" />
+          <AnalyseIcon size={22} color="#fff" />
         </Box>
         <Typography variant="subtitle1" fontWeight={700} noWrap>
           Tenderhunter
@@ -250,7 +253,7 @@ export function Shell({ children }: ShellProps) {
                 <MenuIcon size={20} />
               </IconButton>
             )}
-            <Typography variant="h6" fontWeight={600} fontSize={18} noWrap color="text.primary" sx={{ flex: 1 }}>
+            <Typography component="div" variant="h6" fontWeight={600} fontSize={18} noWrap color="text.primary" sx={{ flex: 1 }}>
               {currentLabel}
             </Typography>
             <UserMenu onOpenAuth={() => { setAuthModalTab("login"); setAuthModalOpen(true); }} />

@@ -1,21 +1,38 @@
-import { Box, Container, Skeleton, Stack, Typography } from "@mui/material";
+import { Box, Container, Skeleton, Stack } from "@mui/material";
 
 export default function Loading() {
   return (
     <Box sx={{ minHeight: "100vh", bgcolor: "grey.50", py: { xs: 4, md: 6 } }}>
+      {/* SEO: Hidden text for crawlers when ISR cache is cold — not visible to users */}
+      <Box
+        component="h1"
+        sx={{
+          position: "absolute",
+          width: 1,
+          height: 1,
+          overflow: "hidden",
+          clip: "rect(0 0 0 0)",
+          clipPath: "inset(50%)",
+          whiteSpace: "nowrap",
+        }}
+      >
+        Tenderhunter – Öffentliche Ausschreibungen in Deutschland
+      </Box>
+      <Box
+        component="p"
+        sx={{
+          position: "absolute",
+          width: 1,
+          height: 1,
+          overflow: "hidden",
+          clip: "rect(0 0 0 0)",
+          clipPath: "inset(50%)",
+          whiteSpace: "nowrap",
+        }}
+      >
+        Aktuelle öffentliche Ausschreibungen, Vergabeverfahren und Aufträge der öffentlichen Hand. Täglich aktualisiert.
+      </Box>
       <Container maxWidth="md">
-        {/* SEO: Visible text for crawlers when ISR cache is cold — prevents thin-content skeleton pages */}
-        <Typography
-          variant="h4"
-          component="h1"
-          fontWeight={800}
-          sx={{ mb: 2, fontSize: { xs: "1.5rem", md: "2.25rem" }, color: "text.primary" }}
-        >
-          Tenderhunter – Öffentliche Ausschreibungen in Deutschland
-        </Typography>
-        <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-          Aktuelle öffentliche Ausschreibungen, Vergabeverfahren und Aufträge der öffentlichen Hand. Täglich aktualisiert.
-        </Typography>
         <Skeleton variant="text" sx={{ fontSize: "2.5rem", mb: 2, maxWidth: "70%" }} />
         <Skeleton variant="text" sx={{ fontSize: "1rem", mb: 4, maxWidth: "90%" }} />
         <Stack spacing={2}>

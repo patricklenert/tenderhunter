@@ -12,7 +12,7 @@
   --color-accent-soft: oklch(92.8% 0.034 35);
   --color-success: oklch(58% 0.12 152);
   --color-risk: oklch(56.2% 0.18 25);
-  --font-sans: "Manrope", sans-serif;
+  --font-sans: "Inter", sans-serif;
 }
 
 @layer base {

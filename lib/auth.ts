@@ -41,6 +41,7 @@ export const auth = betterAuth({
   trustedOrigins: [
     "http://localhost:3025",
     "https://tenderhunter.palemadigital.com",
+    "https://palemaz.com",
     process.env.BETTER_AUTH_URL ?? "",
   ].filter(Boolean),
   advanced: {

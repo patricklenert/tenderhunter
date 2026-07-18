@@ -1,13 +1,13 @@
 import type { Metadata, Viewport } from "next";
-import { Manrope } from "next/font/google";
+import { Inter } from "next/font/google";
 import { ThemeRegistry } from "@/components/ThemeRegistry";
 import { SiteHeader } from "@/components/seo/SiteHeader";
 import { SwetrixAnalytics } from "@/components/SwetrixAnalytics";
 import "./globals.css";
 
-const manrope = Manrope({
+const inter = Inter({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
@@ -63,6 +63,7 @@ export const metadata: Metadata = {
     title: "Tenderhunter – KI-Ausschreibungssoftware",
     description:
       "Deutsche Ausschreibungsportale automatisch durchsuchen. KI-gestütztes Matching für Ihr Unternehmen.",
+    images: [`${siteUrl}/opengraph-image`],
   },
   robots: {
     index: true,
@@ -73,6 +74,13 @@ export const metadata: Metadata = {
       "max-image-preview": "large",
       "max-snippet": -1,
     },
+  },
+  // SEO: Google Search Console verification — replace with actual code from GSC
+  verification: {
+    google: process.env.GOOGLE_SITE_VERIFICATION ?? "",
+  },
+  other: {
+    "link-preconnect": "https://swetrix.pagestats.win",
   },
 };
 
@@ -155,7 +163,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           dangerouslySetInnerHTML={{ __html: JSON.stringify(siteOrganizationJsonLd) }}
         />
       </head>
-      <body className={manrope.className}>
+      <body className={inter.className}>
         <ThemeRegistry>
           <SiteHeader />
           {children}

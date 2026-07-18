@@ -10,9 +10,7 @@ import {
   Typography,
   Stack,
   Chip,
-  Divider,
   Paper,
-  Breadcrumbs,
 } from "@mui/material";
 import {
   Building2,
@@ -24,29 +22,41 @@ import {
   ArrowUpRight,
   Clock,
   Briefcase,
-  Home as HomeIcon,
+  ChevronRight,
 } from "lucide-react";
 import { cleanDescription } from "@/lib/public-tender-scraper";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 import { deriveBundesland, deriveCity, BUNDESLAND_SLUGS } from "@/lib/bundesland";
 import { CITY_SLUG_MAP } from "@/lib/cities";
 import { normalizeAgencySlug } from "@/lib/agencies";
+import { generateTenderSlug } from "@/lib/tender-slug";
 import { SiteFooter } from "@/components/seo/SiteFooter";
+import { PdfDocumentLink } from "@/components/PdfDocumentLink";
+import { PageFooter } from "@/components/profile/PageFooter";
 
 export const revalidate = 3600;
 export const runtime = "nodejs";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
 
+// SEO: Catch-all route handles both /ausschreibung/[id] and /ausschreibung/[id]/[slug].
+// Old numeric-only URLs redirect (301) to keyword-rich slug URLs for better long-tail SEO.
 interface PageProps {
-  params: Promise<{ id: string }>;
+  params: Promise<{ params: string[] }>;
+}
+
+function parseParams(params: { params: string[] }): { id: string; slug: string | null } {
+  const arr = params.params;
+  if (arr.length === 0) return { id: "", slug: null };
+  if (arr.length === 1) return { id: arr[0], slug: null };
+  return { id: arr[0], slug: arr[1] };
 }
 
 export async function generateStaticParams() {
   try {
     const now = new Date();
     const rows = await db
-      .select({ id: tenders.id })
+      .select({ id: tenders.id, title: tenders.title, metadataJson: tenders.metadataJson })
       .from(tenders)
       .where(
         and(
@@ -54,14 +64,21 @@ export async function generateStaticParams() {
           or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
         ),
       );
-    return rows.map((row) => ({ id: String(row.id) }));
+    return rows.map((row) => {
+      const meta = (typeof row.metadataJson === "object" && row.metadataJson !== null
+        ? row.metadataJson
+        : {}) as Record<string, unknown>;
+      const location = typeof meta.location === "string" ? meta.location : "";
+      const slug = generateTenderSlug(row.title ?? "", location);
+      return { params: [String(row.id), slug] };
+    });
   } catch {
     return [];
   }
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const { id } = await params;
+  const { id, slug } = parseParams(await params);
   const numericId = parseInt(id, 10);
   if (!Number.isFinite(numericId)) return { title: "Ausschreibung nicht gefunden", robots: { index: false, follow: true } };
 
@@ -101,11 +118,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const description = `${rawTitle}. ${descParts ? descParts + ". " : ""}Öffentliche Ausschreibung aus ${row.source}. Alle Details, Anforderungen und Fristen.`;
 
   const isExpired = row.deadlineAt && new Date(row.deadlineAt) < new Date();
+  const expectedSlug = generateTenderSlug(rawTitle, location);
+  const canonicalSlug = slug || expectedSlug;
 
   return {
     title,
     description,
-    alternates: { canonical: `/ausschreibung/${id}`, languages: { "de-DE": `/ausschreibung/${id}` } },
+    alternates: { canonical: `/ausschreibung/${id}/${canonicalSlug}`, languages: { "de-DE": `/ausschreibung/${id}/${canonicalSlug}` } },
     robots: isExpired ? { index: false, follow: true } : undefined,
     openGraph: {
       title,
@@ -120,7 +139,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 export default async function TenderDetailPage({ params }: PageProps) {
-  const { id } = await params;
+  const { id, slug } = parseParams(await params);
   const numericId = parseInt(id, 10);
   if (!Number.isFinite(numericId)) notFound();
 
@@ -155,16 +174,25 @@ export default async function TenderDetailPage({ params }: PageProps) {
   const categorySlug = CATEGORY_SLUGS[tender.category ?? "Sonstiges"] ?? "diverse";
 
   const description = cleanDescription(
-    String(blob?.description ?? meta.description ?? tender.rawText ?? "").trim(),
+    String(blob?.description ?? blob?.summary ?? meta.description ?? tender.rawText ?? "").trim(),
   );
   const scope = String(blob?.scope ?? "").trim();
-  const client = String(blob?.client ?? meta.client ?? "").trim();
-  const location = String(blob?.location ?? meta.location ?? "").trim();
+  const hardFacts = (blob?.hard_facts ?? {}) as Record<string, unknown>;
+  const client = String(
+    blob?.client ?? (typeof hardFacts.buyer === "string" ? hardFacts.buyer : null) ?? meta.client ?? ""
+  ).replace(/^\/\s*/, "").replace(/Ausschreibende[rn]?\s*Stelle\s*/i, "").replace(/\s+Ausschreibungs-?\s*$/, "").trim();
+  const location = String(blob?.location ?? (typeof hardFacts.location === "string" ? hardFacts.location : null) ?? meta.location ?? "").trim();
   const contactInfo = String(blob?.contact ?? "").trim();
   const estimatedValue = String(blob?.estimatedValue ?? "").trim();
   const referenceNumber = String(blob?.referenceNumber ?? "").trim();
   const procedure = String(blob?.procedure ?? tender.procedureType ?? "").trim();
   const duration = String(blob?.duration ?? "").trim();
+
+  // SEO: Generate slug and redirect if URL lacks slug or has wrong slug
+  const expectedSlug = generateTenderSlug(title, location);
+  if (!slug || slug !== expectedSlug) {
+    redirect(`/ausschreibung/${tender.id}/${expectedSlug}`);
+  }
 
   const requirements = Array.isArray(blob?.requirements)
     ? (blob.requirements as string[]).filter((r) => r.trim().length > 5)
@@ -218,8 +246,11 @@ export default async function TenderDetailPage({ params }: PageProps) {
     const m = (typeof t.metadataJson === "object" && t.metadataJson !== null
       ? t.metadataJson
       : {}) as Record<string, unknown>;
+    const tLocation = typeof m.location === "string" ? m.location : "";
+    const tSlug = generateTenderSlug(t.title ?? "", tLocation);
     return {
       id: t.id,
+      slug: tSlug,
       title: t.title ?? `Ausschreibung #${t.id}`,
       client: typeof m.client === "string" ? m.client : "",
       location: typeof m.location === "string" ? m.location.split(",")[0] : "",
@@ -256,11 +287,12 @@ export default async function TenderDetailPage({ params }: PageProps) {
   const tenderBundesland = deriveBundesland(location);
   const bundeslandSlug = tenderBundesland ? BUNDESLAND_SLUGS[tenderBundesland] : null;
   const tenderCity = deriveCity(location);
-  // Look up city slug from the CITY_SLUG_MAP by matching label
   const citySlug = tenderCity
     ? Object.values(CITY_SLUG_MAP).find((c) => c.label.toLowerCase() === tenderCity.toLowerCase())?.slug ?? null
     : null;
   const agencySlug = client ? normalizeAgencySlug(client) : null;
+
+  const tenderUrl = `/ausschreibung/${tender.id}/${expectedSlug}`;
 
   // SEO: Dual-typed schema — Article for content indexing, GovernmentPermit for procurement semantics
   const spatialCoverageParts = [];
@@ -271,23 +303,18 @@ export default async function TenderDetailPage({ params }: PageProps) {
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": ["Article", "GovernmentPermit"],
-    "@id": `${siteUrl}/ausschreibung/${tender.id}#article`,
+    "@id": `${siteUrl}${tenderUrl}#article`,
     headline: title,
     description: description.slice(0, 300),
-    url: `${siteUrl}/ausschreibung/${tender.id}`,
-    image: `${siteUrl}/ausschreibung/${tender.id}/opengraph-image`,
+    url: `${siteUrl}${tenderUrl}`,
+    image: `${siteUrl}${tenderUrl}/opengraph-image`,
     articleSection: categoryLabel,
     ...(referenceNumber ? { identifier: referenceNumber } : {}),
     keywords: categoryLabel,
-    // SEO: Custom type for tender-specific structured data extraction
     additionalType: "https://schema.org/Tender",
-    // SEO: Category as topical entity for richer SERP understanding
     about: { "@type": "Thing", name: categoryLabel },
-    // SEO: Explicit provider (Auftraggeber) for procurement context
     provider: client ? { "@type": "Organization", name: client } : undefined,
-    // SEO: Deadline as expiry signal for timely result prioritization
     expires: deadlineISO ?? undefined,
-    // SEO: Multi-level spatial coverage (city + Bundesland) for local search signals
     spatialCoverage: spatialCoverageParts.length === 1
       ? spatialCoverageParts[0]
       : spatialCoverageParts,
@@ -331,7 +358,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
   }
   breadcrumbItems.push(
     { "@type": "ListItem", position: breadcrumbPos++, name: categoryLabel, item: `${siteUrl}/ausschreibungen/${categorySlug}` },
-    { "@type": "ListItem", position: breadcrumbPos, name: title, item: `${siteUrl}/ausschreibung/${tender.id}` },
+    { "@type": "ListItem", position: breadcrumbPos, name: title, item: `${siteUrl}${tenderUrl}` },
   );
   const breadcrumbJsonLd = {
     "@context": "https://schema.org",
@@ -339,182 +366,247 @@ export default async function TenderDetailPage({ params }: PageProps) {
     itemListElement: breadcrumbItems,
   };
 
+  const breadcrumbLinks: { href: string; label: string }[] = [
+    { href: "/", label: "Start" },
+    { href: "/ausschreibungen", label: "Ausschreibungen" },
+  ];
+  if (bundeslandSlug && tenderBundesland) {
+    breadcrumbLinks.push({ href: `/ausschreibungen/region/${bundeslandSlug}`, label: tenderBundesland });
+  }
+  if (citySlug && tenderCity) {
+    breadcrumbLinks.push({ href: `/ausschreibungen/stadt/${citySlug}`, label: tenderCity });
+  }
+  breadcrumbLinks.push({ href: `/ausschreibungen/${categorySlug}`, label: categoryLabel });
+
+  const sectionHeadingSx = {
+    fontSize: { xs: "1.25rem", md: "1.375rem" },
+    fontWeight: 600,
+    color: "#1e293b",
+    mb: 1,
+    lineHeight: 1.2,
+  };
+
+  const sectionCardSx = {
+    p: { xs: 1.5, md: 2 },
+    border: "1px solid",
+    borderColor: "divider",
+    borderRadius: "6px",
+  };
+
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
 
-      <Box sx={{ minHeight: "100vh", bgcolor: "background.default", py: { xs: 3, md: 5 } }}>
-        <Container maxWidth="md">
+      <Box sx={{ minHeight: "100vh", bgcolor: "#f8fafc" }}>
+        <Container maxWidth={false} sx={{ maxWidth: "1120px", mx: "auto", px: { xs: 2, sm: 3 }, py: { xs: 3, md: 4 } }}>
           {/* Breadcrumbs */}
-          <Breadcrumbs
-            sx={{ mb: 3, fontSize: "0.85rem" }}
-            separator={<span style={{ color: "#999" }}>/</span>}
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 0.5,
+              mb: 2,
+              fontSize: "0.8125rem",
+              flexWrap: "wrap",
+            }}
           >
-            <Link href="/" style={{ color: "#667288", textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}>
-              <HomeIcon size={14} />
-              Start
-            </Link>
-            <Link href="/ausschreibungen" style={{ color: "#667288", textDecoration: "none" }}>
-              Ausschreibungen
-            </Link>
-            {bundeslandSlug && tenderBundesland && (
-              <Link href={`/ausschreibungen/region/${bundeslandSlug}`} style={{ color: "#667288", textDecoration: "none" }}>
-                {tenderBundesland}
-              </Link>
-            )}
-            {citySlug && tenderCity && (
-              <Link href={`/ausschreibungen/stadt/${citySlug}`} style={{ color: "#667288", textDecoration: "none" }}>
-                {tenderCity}
-              </Link>
-            )}
-            <Link href={`/ausschreibungen/${categorySlug}`} style={{ color: "#667288", textDecoration: "none" }}>
-              {categoryLabel}
-            </Link>
-          </Breadcrumbs>
+            {breadcrumbLinks.map((link, i) => (
+              <Box key={link.href} sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                <Link
+                  href={link.href}
+                  style={{
+                    color: "#475569",
+                    textDecoration: "none",
+                  }}
+                >
+                  {link.label}
+                </Link>
+                <ChevronRight size={14} color="#94a3b8" />
+              </Box>
+            ))}
+            <Typography
+              component="span"
+              sx={{
+                fontSize: "0.8125rem",
+                fontWeight: 600,
+                color: "#1e293b",
+              }}
+            >
+              {title}
+            </Typography>
+          </Box>
 
           {/* Title */}
           <Typography
-            variant="h4"
             component="h1"
-            fontWeight={800}
             sx={{
-              mb: 2,
-              fontSize: { xs: "1.5rem", md: "2rem" },
+              fontSize: { xs: "1.75rem", md: "2rem" },
+              fontWeight: 600,
               lineHeight: 1.2,
-              letterSpacing: "-0.01em",
+              color: "#1e293b",
+              mb: 1.5,
             }}
           >
             {title}
           </Typography>
 
-          {/* Key Facts */}
-          <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, border: 1, borderColor: "divider", mb: 3 }}>
-            <Stack direction={{ xs: "column", sm: "row" }} spacing={{ xs: 2, sm: 3 }} useFlexGap flexWrap="wrap">
+          {/* Key Facts - compact metadata line */}
+          <Box sx={{ mb: 1.5 }}>
+            <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap alignItems="center">
               {client && (
-                <Box>
-                  <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.5 }}>
-                    <Building2 size={14} color="#667288" />
-                    <Typography variant="overline" color="text.secondary" sx={{ fontSize: "0.7rem" }}>
-                      Auftraggeber
-                    </Typography>
-                  </Stack>
-                  <Typography variant="body2" fontWeight={600}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.4 }}>
+                  <Building2 size={13} color="#475569" />
+                  <Typography variant="caption" sx={{ color: "#475569", fontSize: "0.8125rem" }}>
                     {client}
                   </Typography>
                 </Box>
               )}
               {location && (
-                <Box>
-                  <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.5 }}>
-                    <MapPin size={14} color="#667288" />
-                    <Typography variant="overline" color="text.secondary" sx={{ fontSize: "0.7rem" }}>
-                      Ort
-                    </Typography>
-                  </Stack>
-                  <Typography variant="body2" fontWeight={600}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.4 }}>
+                  <MapPin size={13} color="#475569" />
+                  <Typography variant="caption" sx={{ color: "#475569", fontSize: "0.8125rem" }}>
                     {location}
                   </Typography>
                 </Box>
               )}
+              {procedure && (
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.4 }}>
+                  <FileText size={13} color="#475569" />
+                  <Typography variant="caption" sx={{ color: "#475569", fontSize: "0.8125rem" }}>
+                    {procedure}
+                  </Typography>
+                </Box>
+              )}
               {deadline && (
-                <Box>
-                  <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.5 }}>
-                    <Calendar size={14} color="#667288" />
-                    <Typography variant="overline" color="text.secondary" sx={{ fontSize: "0.7rem" }}>
-                      Frist
-                    </Typography>
-                  </Stack>
-                  <Typography variant="body2" fontWeight={600} component="time" dateTime={deadlineISO ?? undefined}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.4 }}>
+                  <Calendar size={13} color="#475569" />
+                  <Typography
+                    variant="caption"
+                    sx={{ color: "#475569", fontSize: "0.8125rem" }}
+                    component="time"
+                    dateTime={deadlineISO ?? undefined}
+                  >
                     {deadline}
                   </Typography>
                 </Box>
               )}
               {contractValue && (
-                <Box>
-                  <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.5 }}>
-                    <Euro size={14} color="#667288" />
-                    <Typography variant="overline" color="text.secondary" sx={{ fontSize: "0.7rem" }}>
-                      Geschätzter Wert
-                    </Typography>
-                  </Stack>
-                  <Typography variant="body2" fontWeight={600}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.4 }}>
+                  <Euro size={13} color="#475569" />
+                  <Typography variant="caption" sx={{ color: "#475569", fontSize: "0.8125rem" }}>
                     {contractValue}
                   </Typography>
                 </Box>
               )}
-              {procedure && (
-                <Box>
-                  <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.5 }}>
-                    <FileText size={14} color="#667288" />
-                    <Typography variant="overline" color="text.secondary" sx={{ fontSize: "0.7rem" }}>
-                      Verfahren
-                    </Typography>
-                  </Stack>
-                  <Typography variant="body2" fontWeight={600}>
-                    {procedure}
+              {duration && (
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.4 }}>
+                  <Clock size={13} color="#475569" />
+                  <Typography variant="caption" sx={{ color: "#475569", fontSize: "0.8125rem" }}>
+                    {duration}
                   </Typography>
                 </Box>
               )}
             </Stack>
+          </Box>
 
-            <Divider sx={{ my: 2 }} />
-
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              <Chip label={categoryLabel} size="small" color="primary" variant="outlined" />
-              <Chip label={tender.source} size="small" sx={{ opacity: 0.7 }} />
-              {referenceNumber && (
-                <Chip label={`Ref: ${referenceNumber}`} size="small" variant="outlined" sx={{ opacity: 0.6 }} />
-              )}
-            </Stack>
-          </Paper>
+          {/* Tags */}
+          <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ mb: 2.5 }}>
+            <Chip
+              label={categoryLabel}
+              size="small"
+              sx={{
+                height: 22,
+                fontSize: "0.6875rem",
+                fontWeight: 600,
+                bgcolor: "#f1f5f9",
+                color: "#334155",
+                borderRadius: "4px",
+                "& .MuiChip-label": { px: 0.75 },
+              }}
+            />
+            <Chip
+              label={tender.source}
+              size="small"
+              sx={{
+                height: 22,
+                fontSize: "0.6875rem",
+                fontWeight: 500,
+                bgcolor: "#f8fafc",
+                color: "#475569",
+                borderRadius: "4px",
+                border: "1px solid #e2e8f0",
+                "& .MuiChip-label": { px: 0.75 },
+              }}
+            />
+            {referenceNumber && (
+              <Chip
+                label={`Ref: ${referenceNumber}`}
+                size="small"
+                sx={{
+                  height: 22,
+                  fontSize: "0.6875rem",
+                  fontWeight: 500,
+                  bgcolor: "#f8fafc",
+                  color: "#475569",
+                  borderRadius: "4px",
+                  border: "1px solid #e2e8f0",
+                  "& .MuiChip-label": { px: 0.75 },
+                }}
+              />
+            )}
+          </Stack>
 
           {/* Description */}
           {description && (
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 1.5 }}>
+            <Box sx={{ mb: 2.5 }}>
+              <Typography component="h2" sx={sectionHeadingSx}>
                 Beschreibung
               </Typography>
-              <Typography variant="body1" sx={{ lineHeight: 1.8, color: "text.primary", whiteSpace: "pre-line" }}>
-                {description}
-              </Typography>
+              <Paper elevation={0} sx={sectionCardSx}>
+                <Typography variant="body2" sx={{ lineHeight: 1.5, color: "#334155", whiteSpace: "pre-line", fontSize: "0.9375rem" }}>
+                  {description}
+                </Typography>
+              </Paper>
             </Box>
           )}
 
           {/* Scope */}
           {scope && scope !== description && (
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 1.5 }}>
+            <Box sx={{ mb: 2.5 }}>
+              <Typography component="h2" sx={sectionHeadingSx}>
                 Leistungsumfang
               </Typography>
-              <Typography variant="body1" sx={{ lineHeight: 1.8, color: "text.primary", whiteSpace: "pre-line" }}>
-                {scope}
-              </Typography>
+              <Paper elevation={0} sx={sectionCardSx}>
+                <Typography variant="body2" sx={{ lineHeight: 1.5, color: "#334155", whiteSpace: "pre-line", fontSize: "0.9375rem" }}>
+                  {scope}
+                </Typography>
+              </Paper>
             </Box>
           )}
 
           {/* Requirements */}
           {requirements.length > 0 && (
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 1.5 }}>
+            <Box sx={{ mb: 2.5 }}>
+              <Typography component="h2" sx={sectionHeadingSx}>
                 Anforderungen
               </Typography>
-              <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, border: 1, borderColor: "divider" }}>
-                <Stack spacing={1.5}>
+              <Paper elevation={0} sx={sectionCardSx}>
+                <Stack spacing={1}>
                   {requirements.map((req, i) => (
                     <Stack key={i} direction="row" spacing={1.5} alignItems="flex-start">
                       <Box
                         component="span"
                         sx={{
-                          mt: 0.5,
-                          width: 6,
-                          height: 6,
+                          mt: 0.625,
+                          width: 5,
+                          height: 5,
                           borderRadius: "50%",
-                          bgcolor: "primary.main",
+                          bgcolor: "#94a3b8",
                           flexShrink: 0,
                         }}
                       />
-                      <Typography variant="body2" sx={{ lineHeight: 1.7 }}>
+                      <Typography variant="body2" sx={{ lineHeight: 1.5, fontSize: "0.9375rem", color: "#334155" }}>
                         {req}
                       </Typography>
                     </Stack>
@@ -526,26 +618,26 @@ export default async function TenderDetailPage({ params }: PageProps) {
 
           {/* Award Criteria */}
           {awardCriteria.length > 0 && (
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 1.5 }}>
+            <Box sx={{ mb: 2.5 }}>
+              <Typography component="h2" sx={sectionHeadingSx}>
                 Zuschlagskriterien
               </Typography>
-              <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, border: 1, borderColor: "divider" }}>
-                <Stack spacing={1.5}>
+              <Paper elevation={0} sx={sectionCardSx}>
+                <Stack spacing={1}>
                   {awardCriteria.map((crit, i) => (
                     <Stack key={i} direction="row" spacing={1.5} alignItems="flex-start">
                       <Box
                         component="span"
                         sx={{
-                          mt: 0.5,
-                          width: 6,
-                          height: 6,
+                          mt: 0.625,
+                          width: 5,
+                          height: 5,
                           borderRadius: "50%",
-                          bgcolor: "success.main",
+                          bgcolor: "#94a3b8",
                           flexShrink: 0,
                         }}
                       />
-                      <Typography variant="body2" sx={{ lineHeight: 1.7 }}>
+                      <Typography variant="body2" sx={{ lineHeight: 1.5, fontSize: "0.9375rem", color: "#334155" }}>
                         {crit}
                       </Typography>
                     </Stack>
@@ -555,26 +647,14 @@ export default async function TenderDetailPage({ params }: PageProps) {
             </Box>
           )}
 
-          {/* Duration */}
-          {duration && (
-            <Box sx={{ mb: 3 }}>
-              <Stack direction="row" spacing={1} alignItems="center">
-                <Clock size={16} color="#667288" />
-                <Typography variant="body2" color="text.secondary">
-                  <strong>Laufzeit:</strong> {duration}
-                </Typography>
-              </Stack>
-            </Box>
-          )}
-
           {/* Contact */}
           {contactInfo && (
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 1.5 }}>
+            <Box sx={{ mb: 2.5 }}>
+              <Typography component="h2" sx={sectionHeadingSx}>
                 Kontakt / Vergabestelle
               </Typography>
-              <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, border: 1, borderColor: "divider" }}>
-                <Typography variant="body2" sx={{ lineHeight: 1.7, whiteSpace: "pre-line" }}>
+              <Paper elevation={0} sx={sectionCardSx}>
+                <Typography variant="body2" sx={{ lineHeight: 1.5, whiteSpace: "pre-line", fontSize: "0.9375rem", color: "#334155" }}>
                   {contactInfo}
                 </Typography>
               </Paper>
@@ -583,87 +663,75 @@ export default async function TenderDetailPage({ params }: PageProps) {
 
           {/* Documents */}
           {pdfUrls.length > 0 && (
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 1.5 }}>
+            <Box sx={{ mb: 2.5 }}>
+              <Typography component="h2" sx={sectionHeadingSx}>
                 Vergabeunterlagen
               </Typography>
               <Stack spacing={1}>
                 {pdfUrls.map((pdfUrl, i) => (
-                  <Box
-                    key={i}
-                    component="a"
-                    href={pdfUrl}
-                    target="_blank"
-                    rel="nofollow noopener noreferrer"
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 1,
-                      p: 1.5,
-                      border: 1,
-                      borderColor: "divider",
-                      borderRadius: 1,
-                      textDecoration: "none",
-                      color: "text.primary",
-                      "&:hover": { bgcolor: "action.hover" },
-                    }}
-                  >
-                    <FileText size={18} color="#e9644d" />
-                    <Typography variant="body2" sx={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {pdfUrl.split("/").pop() ?? `Dokument ${i + 1}`}
-                    </Typography>
-                    <ArrowUpRight size={16} color="#667288" />
-                  </Box>
+                  <PdfDocumentLink key={i} url={pdfUrl} index={i} />
                 ))}
               </Stack>
             </Box>
           )}
 
           {/* Source Link */}
-          <Paper elevation={0} sx={{ p: 2, border: 1, borderColor: "divider", mb: 4 }}>
-            <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
-              <Stack direction="row" spacing={1} alignItems="center">
-                <Briefcase size={16} color="#667288" />
-                <Typography variant="caption" color="text.secondary">
-                  Quelle: {tender.source}
-                </Typography>
-              </Stack>
-              <Box
-                component="a"
-                href={tender.url}
-                target="_blank"
-                rel="nofollow noopener noreferrer"
-                sx={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 0.5,
-                  color: "primary.main",
-                  textDecoration: "none",
-                  fontWeight: 600,
-                  fontSize: "0.85rem",
-                  "&:hover": { textDecoration: "underline" },
-                }}
-              >
-                Original-Anzeige
-                <ArrowUpRight size={14} />
-              </Box>
-            </Stack>
+          <Paper
+            elevation={0}
+            sx={{
+              p: { xs: 1.5, md: 1.5 },
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: "6px",
+              mb: 3,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 1,
+            }}
+          >
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+              <Briefcase size={14} color="#475569" />
+              <Typography variant="caption" sx={{ color: "#475569", fontSize: "0.75rem" }}>
+                Quelle: {tender.source}
+              </Typography>
+            </Box>
+            <Box
+              component="a"
+              href={tender.url}
+              target="_blank"
+              rel="nofollow noopener noreferrer"
+              sx={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 0.5,
+                color: "primary.main",
+                textDecoration: "none",
+                fontWeight: 600,
+                fontSize: "0.8125rem",
+                "&:hover": { textDecoration: "underline" },
+              }}
+            >
+              Original-Anzeige
+              <ArrowUpRight size={14} />
+            </Box>
           </Paper>
 
           {/* CTA */}
           <Box
             sx={{
-              p: { xs: 3, md: 4 },
-              mb: 4,
+              p: { xs: 2, md: 2.5 },
+              mb: 3,
               textAlign: "center",
-              bgcolor: "primary.light",
-              borderRadius: 2,
+              bgcolor: "#f8fafc",
+              borderRadius: "6px",
+              border: "1px solid #e2e8f0",
             }}
           >
-            <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 1 }}>
+            <Typography variant="subtitle1" component="h2" fontWeight={600} sx={{ mb: 0.5, fontSize: "1rem", color: "#1e293b" }}>
               Passende Ausschreibungen für Ihr Unternehmen?
             </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            <Typography variant="body2" sx={{ mb: 1.5, fontSize: "0.8125rem", color: "#475569" }}>
               Scannen Sie Ihre Website und finden Sie automatisch Ausschreibungen, die zu Ihren Leistungen passen.
             </Typography>
             <Box
@@ -675,62 +743,100 @@ export default async function TenderDetailPage({ params }: PageProps) {
                 gap: 1,
                 bgcolor: "primary.main",
                 color: "#fff",
-                px: 3,
-                py: 1.25,
-                borderRadius: 2,
-                fontWeight: 700,
+                px: 2,
+                py: 0.75,
+                borderRadius: "6px",
+                fontWeight: 600,
+                fontSize: "0.8125rem",
                 textDecoration: "none",
                 "&:hover": { opacity: 0.88 },
               }}
             >
               Jetzt Website analysieren
-              <ArrowRight size={16} />
+              <ArrowRight size={15} />
             </Box>
           </Box>
 
           {/* Similar Tenders */}
           {similarTenders.length > 0 && (
-            <Box>
-              <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
+            <Box sx={{ mb: 3 }}>
+              <Typography component="h2" sx={sectionHeadingSx}>
                 Ähnliche Ausschreibungen
               </Typography>
-              <Stack spacing={1.5}>
+              <Stack spacing={1}>
                 {similarTenders.map((t) => (
                   <Link
                     key={t.id}
-                    href={`/ausschreibung/${t.id}`}
+                    href={`/ausschreibung/${t.id}/${t.slug}`}
                     style={{ textDecoration: "none", color: "inherit" }}
                   >
                     <Paper
                       elevation={0}
                       sx={{
-                        p: 2,
-                        border: 1,
+                        p: { xs: 1.5, md: 2 },
+                        border: "1px solid",
                         borderColor: "divider",
-                        "&:hover": { borderColor: "primary.main" },
-                        transition: "border-color 0.15s",
+                        borderRadius: "6px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 2,
+                        transition: "border-color 0.15s, background-color 0.15s",
+                        "&:hover": {
+                          borderColor: "grey.400",
+                          bgcolor: "grey.25",
+                          "& .chevron": { transform: "translateX(2px)", opacity: 1 },
+                        },
                       }}
                     >
-                      <Typography variant="subtitle2" component="h3" fontWeight={600} sx={{ mb: 0.5, "&:hover": { color: "primary.main" } }}>
-                        {t.title}
-                      </Typography>
-                      <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap>
-                        {t.client && (
-                          <Typography variant="caption" color="text.secondary">
-                            {t.client.slice(0, 50)}
-                          </Typography>
-                        )}
-                        {t.location && (
-                          <Typography variant="caption" color="text.secondary">
-                            {t.location}
-                          </Typography>
-                        )}
-                        {t.deadline && (
-                          <Typography variant="caption" color="text.secondary">
-                            Frist: {t.deadline}
-                          </Typography>
-                        )}
-                      </Stack>
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography
+                          variant="subtitle2"
+                          component="h3"
+                          fontWeight={600}
+                          sx={{
+                            mb: 0.25,
+                            fontSize: "0.875rem",
+                            lineHeight: 1.35,
+                            color: "#1e293b",
+                            display: "-webkit-box",
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: "vertical",
+                            overflow: "hidden",
+                          }}
+                        >
+                          {t.title}
+                        </Typography>
+                        <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap alignItems="center">
+                          {t.client && (
+                            <Typography variant="caption" sx={{ color: "#475569", fontSize: "0.75rem" }}>
+                              {t.client.slice(0, 50)}
+                            </Typography>
+                          )}
+                          {t.location && (
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.3 }}>
+                              <MapPin size={12} color="#475569" />
+                              <Typography variant="caption" sx={{ color: "#475569", fontSize: "0.75rem" }}>
+                                {t.location}
+                              </Typography>
+                            </Box>
+                          )}
+                          {t.deadline && (
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.3 }}>
+                              <Calendar size={12} color="#475569" />
+                              <Typography variant="caption" sx={{ color: "#475569", fontSize: "0.75rem" }}>
+                                {t.deadline}
+                              </Typography>
+                            </Box>
+                          )}
+                        </Stack>
+                      </Box>
+                      <ChevronRight
+                        size={18}
+                        className="chevron"
+                        style={{ opacity: 0.3, transition: "all 0.15s", flexShrink: 0 }}
+                        color="#475569"
+                      />
                     </Paper>
                   </Link>
                 ))}
@@ -739,11 +845,11 @@ export default async function TenderDetailPage({ params }: PageProps) {
           )}
 
           {/* SEO: Contextual internal links to category and region pages */}
-          <Box sx={{ mt: 4 }}>
-            <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
+          <Box sx={{ mb: 3 }}>
+            <Typography component="h2" sx={sectionHeadingSx}>
               Weitere Ausschreibungen
             </Typography>
-            <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
+            <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
               <Link
                 href={`/ausschreibungen/${categorySlug}`}
                 style={{ textDecoration: "none" }}
@@ -753,7 +859,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
                   label={`Alle ${categoryLabel} Ausschreibungen`}
                   color="primary"
                   variant="outlined"
-                  sx={{ fontWeight: 600 }}
+                  sx={{ fontWeight: 600, height: 24, fontSize: "0.75rem", borderRadius: "4px" }}
                 />
               </Link>
               {bundeslandSlug && tenderBundesland && (
@@ -765,11 +871,10 @@ export default async function TenderDetailPage({ params }: PageProps) {
                     clickable
                     label={`Ausschreibungen in ${tenderBundesland}`}
                     variant="outlined"
-                    sx={{ fontWeight: 600 }}
+                    sx={{ fontWeight: 500, height: 24, fontSize: "0.75rem", borderRadius: "4px" }}
                   />
                 </Link>
               )}
-              {/* SEO: Cross-link to Region×Category long-tail page */}
               {bundeslandSlug && tenderBundesland && (
                 <Link
                   href={`/ausschreibungen/region/${bundeslandSlug}/${categorySlug}`}
@@ -779,11 +884,10 @@ export default async function TenderDetailPage({ params }: PageProps) {
                     clickable
                     label={`${categoryLabel} in ${tenderBundesland}`}
                     variant="outlined"
-                    sx={{ fontWeight: 600 }}
+                    sx={{ fontWeight: 500, height: 24, fontSize: "0.75rem", borderRadius: "4px" }}
                   />
                 </Link>
               )}
-              {/* SEO: Cross-link to city landing page */}
               {citySlug && tenderCity && (
                 <Link
                   href={`/ausschreibungen/stadt/${citySlug}`}
@@ -793,11 +897,10 @@ export default async function TenderDetailPage({ params }: PageProps) {
                     clickable
                     label={`Ausschreibungen in ${tenderCity}`}
                     variant="outlined"
-                    sx={{ fontWeight: 600 }}
+                    sx={{ fontWeight: 500, height: 24, fontSize: "0.75rem", borderRadius: "4px" }}
                   />
                 </Link>
               )}
-              {/* SEO: Cross-link to City×Category long-tail page */}
               {citySlug && tenderCity && (
                 <Link
                   href={`/ausschreibungen/stadt/${citySlug}/${categorySlug}`}
@@ -807,11 +910,10 @@ export default async function TenderDetailPage({ params }: PageProps) {
                     clickable
                     label={`${categoryLabel} in ${tenderCity}`}
                     variant="outlined"
-                    sx={{ fontWeight: 600 }}
+                    sx={{ fontWeight: 500, height: 24, fontSize: "0.75rem", borderRadius: "4px" }}
                   />
                 </Link>
               )}
-              {/* SEO: Cross-link to agency/ Auftraggeber page */}
               {agencySlug && client && (
                 <Link
                   href={`/auftraggeber/${agencySlug}`}
@@ -821,7 +923,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
                     clickable
                     label={`Alle Ausschreibungen von ${client.slice(0, 40)}`}
                     variant="outlined"
-                    sx={{ fontWeight: 600 }}
+                    sx={{ fontWeight: 500, height: 24, fontSize: "0.75rem", borderRadius: "4px" }}
                   />
                 </Link>
               )}
@@ -830,7 +932,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
                   clickable
                   label="Alle Kategorien"
                   variant="outlined"
-                  sx={{ fontWeight: 500 }}
+                  sx={{ fontWeight: 500, height: 24, fontSize: "0.75rem", borderRadius: "4px" }}
                 />
               </Link>
             </Stack>
@@ -838,11 +940,11 @@ export default async function TenderDetailPage({ params }: PageProps) {
 
           {/* Scored Companies */}
           {scoredCompanies.length > 0 && (
-            <Box sx={{ mt: 4 }}>
-              <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
+            <Box sx={{ mb: 3 }}>
+              <Typography component="h2" sx={sectionHeadingSx}>
                 Passende Auftraggeber
               </Typography>
-              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
                 {scoredCompanies.map((c) => (
                   <Link
                     key={c.slug}
@@ -853,16 +955,18 @@ export default async function TenderDetailPage({ params }: PageProps) {
                       clickable
                       label={`${c.name}${c.industry ? ` – ${c.industry}` : ""}`}
                       variant="outlined"
-                      sx={{ fontWeight: 500 }}
+                      sx={{ fontWeight: 500, height: 24, fontSize: "0.75rem", borderRadius: "4px" }}
                     />
                   </Link>
                 ))}
               </Stack>
             </Box>
           )}
+
+          <PageFooter />
         </Container>
       </Box>
-      <SiteFooter />
+      <SiteFooter containerMaxWidth="1120px" />
     </>
   );
 }

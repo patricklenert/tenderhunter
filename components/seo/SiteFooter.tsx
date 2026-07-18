@@ -19,14 +19,18 @@ const TOP_REGIONS = [
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
 
-export function SiteFooter() {
+export function SiteFooter({ containerMaxWidth = "lg" }: { containerMaxWidth?: string }) {
+  const isMuiBreakpoint = ["xs", "sm", "md", "lg", "xl", false].includes(containerMaxWidth as string);
   return (
     <Box
       component="footer"
       sx={{ bgcolor: "grey.50", borderTop: 1, borderColor: "divider", mt: 8, py: { xs: 4, md: 5 } }}
     >
-      <Container maxWidth="lg">
-        <Stack
+      <Container
+        maxWidth={isMuiBreakpoint ? (containerMaxWidth as "lg") : false}
+        sx={isMuiBreakpoint ? {} : { maxWidth: containerMaxWidth, mx: "auto" }}
+      >
+      <Stack
           direction={{ xs: "column", md: "row" }}
           spacing={{ xs: 3, md: 5 }}
           flexWrap="wrap"
@@ -97,6 +101,9 @@ export function SiteFooter() {
               </Link>
               <Link href="/feeds/tender.xml" style={{ color: "#667288", textDecoration: "none", fontSize: "0.85rem" }}>
                 RSS-Feed
+              </Link>
+              <Link href="/impressum" style={{ color: "#667288", textDecoration: "none", fontSize: "0.85rem" }}>
+                Impressum
               </Link>
             </Stack>
           </Box>

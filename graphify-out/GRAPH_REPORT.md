@@ -1,13 +1,18 @@
-# Graph Report - tenderhunter  (2026-06-11)
+# Graph Report - tenderhunter  (2026-07-18)
 
 ## Corpus Check
-- 196 files · ~115,918 words
+- 287 files · ~199,715 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1931 nodes · 2614 edges · 155 communities (113 shown, 42 thin omitted)
-- Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 13 edges (avg confidence: 0.82)
+- 2456 nodes · 3771 edges · 204 communities (157 shown, 47 thin omitted)
+- Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 17 edges (avg confidence: 0.81)
 - Token cost: 0 input · 0 output
+
+## Graph Freshness
+- Built from commit: `83f2e246`
+- Run `git rev-parse HEAD` and compare to check if the graph is stale.
+- Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - [[_COMMUNITY_Tender Metrics and Workflow|Tender Metrics and Workflow]]
@@ -135,18 +140,63 @@
 - [[_COMMUNITY_Community 152|Community 152]]
 - [[_COMMUNITY_Community 153|Community 153]]
 - [[_COMMUNITY_Community 154|Community 154]]
+- [[_COMMUNITY_Community 155|Community 155]]
+- [[_COMMUNITY_Community 156|Community 156]]
+- [[_COMMUNITY_Community 157|Community 157]]
+- [[_COMMUNITY_Community 158|Community 158]]
+- [[_COMMUNITY_Community 159|Community 159]]
+- [[_COMMUNITY_Community 160|Community 160]]
+- [[_COMMUNITY_Community 161|Community 161]]
+- [[_COMMUNITY_Community 162|Community 162]]
+- [[_COMMUNITY_Community 163|Community 163]]
+- [[_COMMUNITY_Community 164|Community 164]]
+- [[_COMMUNITY_Community 165|Community 165]]
+- [[_COMMUNITY_Community 166|Community 166]]
+- [[_COMMUNITY_Community 167|Community 167]]
+- [[_COMMUNITY_Community 168|Community 168]]
+- [[_COMMUNITY_Community 169|Community 169]]
+- [[_COMMUNITY_Community 170|Community 170]]
+- [[_COMMUNITY_Community 171|Community 171]]
+- [[_COMMUNITY_Community 172|Community 172]]
+- [[_COMMUNITY_Community 173|Community 173]]
+- [[_COMMUNITY_Community 174|Community 174]]
+- [[_COMMUNITY_Community 175|Community 175]]
+- [[_COMMUNITY_Community 176|Community 176]]
+- [[_COMMUNITY_Community 177|Community 177]]
+- [[_COMMUNITY_Community 178|Community 178]]
+- [[_COMMUNITY_Community 179|Community 179]]
+- [[_COMMUNITY_Community 180|Community 180]]
+- [[_COMMUNITY_Community 181|Community 181]]
+- [[_COMMUNITY_Community 182|Community 182]]
+- [[_COMMUNITY_Community 183|Community 183]]
+- [[_COMMUNITY_Community 184|Community 184]]
+- [[_COMMUNITY_Community 185|Community 185]]
+- [[_COMMUNITY_Community 186|Community 186]]
+- [[_COMMUNITY_Community 187|Community 187]]
+- [[_COMMUNITY_Community 188|Community 188]]
+- [[_COMMUNITY_Community 189|Community 189]]
+- [[_COMMUNITY_Community 190|Community 190]]
+- [[_COMMUNITY_Community 191|Community 191]]
+- [[_COMMUNITY_Community 192|Community 192]]
+- [[_COMMUNITY_Community 193|Community 193]]
+- [[_COMMUNITY_Community 194|Community 194]]
+- [[_COMMUNITY_Community 195|Community 195]]
+- [[_COMMUNITY_Community 196|Community 196]]
+- [[_COMMUNITY_Community 197|Community 197]]
+- [[_COMMUNITY_Community 198|Community 198]]
+- [[_COMMUNITY_Community 199|Community 199]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `json()` - 44 edges
+1. `json()` - 50 edges
 2. `metadata` - 42 edges
-3. `metadata` - 33 edges
-4. `metadata` - 31 edges
-5. `metadata` - 29 edges
-6. `errorResponse()` - 28 edges
-7. `metadata` - 23 edges
-8. `metadata` - 23 edges
-9. `metadata` - 21 edges
-10. `scrapeWebsite()` - 19 edges
+3. `db` - 35 edges
+4. `errorResponse()` - 34 edges
+5. `metadata` - 33 edges
+6. `metadata` - 31 edges
+7. `metadata` - 30 edges
+8. `metadata` - 29 edges
+9. `metadata` - 29 edges
+10. `metadata` - 28 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `Tenderhunter Logo` --conceptually_related_to--> `Tenderhunter Next.js Base Version README`  [INFERRED]
@@ -154,52 +204,52 @@
 - `Public Logo Image` --conceptually_related_to--> `Tenderhunter Next.js Base Version README`  [INFERRED]
   public/logo.webp → README.md
 - `GET()` --calls--> `json()`  [EXTRACTED]
-  app/api/dashboard/route.ts → lib/http.ts
-- `GET()` --calls--> `json()`  [EXTRACTED]
-  app/api/recommendations/[companyId]/route.ts → lib/http.ts
+  app/api/jobs/route.ts → lib/http.ts
 - `TenderCard()` --calls--> `useTheme()`  [INFERRED]
   components/AusschreibungenSection.tsx → ausschreibungen-site/client/src/contexts/ThemeContext.tsx
+- `main()` --calls--> `client`  [INFERRED]
+  scripts/backfill-quality.ts → lib/db.ts
 
 ## Import Cycles
 - None detected.
 
-## Communities (155 total, 42 thin omitted)
+## Communities (204 total, 47 thin omitted)
 
 ### Community 0 - "Tender Metrics and Workflow"
-Cohesion: 0.10
-Nodes (36): TrackingEventType, ACTIVE_TRACKED_TENDER_STATUSES, mapTrackedStatusToTrackingEvent(), TRACKED_TENDER_STATUSES, TRACKING_EVENT_TYPES, baseTrackedTenderQuery(), buildCompanyOptions(), buildSummary() (+28 more)
+Cohesion: 0.12
+Nodes (29): trackedTenders, ACTIVE_TRACKED_TENDER_STATUSES, mapTrackedStatusToTrackingEvent(), baseTrackedTenderQuery(), buildCompanyOptions(), buildSummary(), createOrUpdateTrackedTender(), getScoreSnapshot() (+21 more)
 
 ### Community 1 - "Frontend Utility Libraries"
 Cohesion: 0.04
 Nodes (52): dependencies, axios, class-variance-authority, clsx, cmdk, embla-carousel-react, express, framer-motion (+44 more)
 
 ### Community 2 - "Authentication and ORM Packages"
-Cohesion: 0.04
-Nodes (48): dependencies, better-auth, @better-auth/core, @better-auth/passkey, @better-auth/utils, better-sqlite3, boneyard-js, cheerio (+40 more)
+Cohesion: 0.06
+Nodes (36): dependencies, adm-zip, better-auth, @better-auth/core, @better-auth/passkey, @better-auth/utils, better-sqlite3, boneyard-js (+28 more)
 
 ### Community 3 - "Form Field Components"
-Cohesion: 0.06
-Nodes (19): ButtonGroup(), buttonGroupVariants, Field(), fieldVariants, FormControl(), FormDescription(), FormFieldContext, FormFieldContextValue (+11 more)
+Cohesion: 0.10
+Nodes (12): Field(), fieldVariants, FormControl(), FormDescription(), FormFieldContext, FormFieldContextValue, FormItemContext, FormItemContextValue (+4 more)
 
 ### Community 4 - "Insight and Scoring Logic"
-Cohesion: 0.08
-Nodes (38): firstItems(), generateInsight(), InsightResult, pct(), clamp(), CompanyRow, complexityScore(), computeScores() (+30 more)
+Cohesion: 0.16
+Nodes (18): firstItems(), generateInsight(), InsightResult, pct(), clamp(), CompanyRow, complexityScore(), computeScores() (+10 more)
 
 ### Community 5 - "Dashboard and Discovery UI"
 Cohesion: 0.05
-Nodes (24): DashboardSection(), DashboardSectionProps, DiscoverSession, DiscoverStartResponse, DiscoverStatusResponse, DiscoveryStatus, ExportFormat, ExtractedData (+16 more)
+Nodes (25): CompanySelector(), CompanySelectorProps, UserCompany, DashboardSectionProps, DiscoverSession, DiscoverStartResponse, DiscoverStatusResponse, DiscoveryStatus (+17 more)
 
 ### Community 6 - "Tender Web Scraping"
-Cohesion: 0.11
-Nodes (34): ScrapedPage, searchTenders(), cleanDescription(), deduplicateTenders(), extractClientFromUrl(), extractDetailFromMarkdown(), ExtractedTender, ExtractionResult (+26 more)
+Cohesion: 0.05
+Nodes (68): BROWSER_ARGS, extractWithReadability(), getBrowser(), htmlToBasicMarkdown(), ScrapedPage, scrapeMultiple(), scrapeWebsite(), SearchResult (+60 more)
 
 ### Community 7 - "Tender Data Parsing"
-Cohesion: 0.11
-Nodes (31): extractTextFromFile(), clearTenderScoring(), evaluateTenderQuality(), findPdfLinks(), getTender(), handlers, parseDeadline(), parseRecord() (+23 more)
+Cohesion: 0.15
+Nodes (24): clearTenderScoring(), evaluateTenderQuality(), findPdfLinks(), getTender(), handlers, JOB_TIMEOUT_MS, parseRecord(), parseStructured() (+16 more)
 
 ### Community 8 - "Responsive Design Breakpoints"
-Cohesion: 0.07
-Nodes (38): bones, height, name, viewportWidth, width, bones, height, name (+30 more)
+Cohesion: 0.15
+Nodes (19): bones, height, name, viewportWidth, width, bones, height, name (+11 more)
 
 ### Community 9 - "General Metadata Fields"
 Cohesion: 0.05
@@ -210,8 +260,8 @@ Cohesion: 0.06
 Nodes (34): links, markdown, metadata, cacheState, concurrencyLimited, contentType, creditsUsed, description (+26 more)
 
 ### Community 11 - "Database and Job Models"
-Cohesion: 0.10
-Nodes (23): GET(), Params, GET(), CompanyProfile, companyProfiles, Document, documents, Insight (+15 more)
+Cohesion: 0.07
+Nodes (27): GET(), account, passkey, session, user, verification, ApiJob, Document (+19 more)
 
 ### Community 12 - "TED Search Metadata"
 Cohesion: 0.06
@@ -223,31 +273,31 @@ Nodes (31): links, metadata, cachedAt, cacheState, concurrencyLimited, contentTy
 
 ### Community 14 - "API Route and Error Handling"
 Cohesion: 0.17
-Nodes (24): GET(), POST(), POST(), POST(), GET(), GET(), db, errorResponse() (+16 more)
+Nodes (21): PUT(), GET(), GET(), POST(), GET(), POST(), POST(), GET() (+13 more)
 
 ### Community 15 - "DTVP Search Metadata"
 Cohesion: 0.08
 Nodes (25): links, markdown, metadata, audience, cacheState, concurrencyLimited, contentType, copyright (+17 more)
 
 ### Community 16 - "Development and Build Scripts"
-Cohesion: 0.08
-Nodes (28): account, passkey, session, user, verification, client, initializeDatabase(), scripts (+20 more)
+Cohesion: 0.29
+Nodes (10): assessQuality(), buildFingerprintSeed(), buildTenderFingerprint(), compactText(), countKeywordMatches(), main(), NEGATIVE_KEYWORDS, POSITIVE_KEYWORDS (+2 more)
 
 ### Community 17 - "Command Dialog Components"
-Cohesion: 0.06
-Nodes (24): ManusDialogProps, MapView(), MapViewProps, Window, TimerResponse, useComposition(), UseCompositionOptions, UseCompositionReturn (+16 more)
+Cohesion: 0.11
+Nodes (8): ManusDialogProps, Dialog(), DialogCompositionContext, DialogContent(), DialogDescription(), DialogFooter(), DialogHeader(), DialogTitle()
 
 ### Community 18 - "DTVP Test Metadata"
 Cohesion: 0.09
 Nodes (22): markdown, metadata, audience, cachedAt, cacheState, concurrencyLimited, contentType, copyright (+14 more)
 
 ### Community 19 - "Sidebar UI Components"
-Cohesion: 0.06
-Nodes (20): useIsMobile(), Sheet(), SheetContent(), SheetDescription(), SheetHeader(), SheetTitle(), Sidebar(), SidebarContext (+12 more)
+Cohesion: 0.08
+Nodes (11): useIsMobile(), Sidebar(), SidebarContext, SidebarContextProps, SidebarMenuButton(), sidebarMenuButtonVariants, SidebarProvider(), SidebarRail() (+3 more)
 
 ### Community 20 - "Card UI Components"
-Cohesion: 0.13
-Nodes (10): Card(), CardContent(), CardDescription(), CardHeader(), CardTitle(), Select(), SelectContent(), SelectItem() (+2 more)
+Cohesion: 0.12
+Nodes (12): Badge(), badgeVariants, Card(), CardContent(), CardDescription(), CardHeader(), CardTitle(), Select() (+4 more)
 
 ### Community 21 - "Workflow and Feedback State"
 Cohesion: 0.10
@@ -258,8 +308,8 @@ Cohesion: 0.09
 Nodes (23): metadata, audience, cacheState, concurrencyLimited, contentType, copyright, creditsUsed, date (+15 more)
 
 ### Community 23 - "Job and Tender API Routes"
-Cohesion: 0.17
-Nodes (17): ACTIVE_JOB_STATUSES, DiscoverBody, GET(), getSessionSources(), listCachedTenders(), listMatchedTenders(), normalizeScoreDetails(), normalizeUrl() (+9 more)
+Cohesion: 0.18
+Nodes (16): ACTIVE_JOB_STATUSES, DiscoverBody, GET(), getSessionSources(), listCachedTenders(), listMatchedTenders(), normalizeScoreDetails(), normalizeUrl() (+8 more)
 
 ### Community 24 - "TypeScript Compiler Config"
 Cohesion: 0.10
@@ -274,8 +324,8 @@ Cohesion: 0.10
 Nodes (19): compilerOptions, allowImportingTsExtensions, baseUrl, esModuleInterop, incremental, jsx, lib, module (+11 more)
 
 ### Community 27 - "Tender Source Configuration"
-Cohesion: 0.12
-Nodes (20): defaultSources, Settings, processNextJob(), runBatch(), claimNextJob(), markDone(), markFailed(), Job (+12 more)
+Cohesion: 0.15
+Nodes (17): defaultSources, Settings, cleanupExpiredTenders(), processNextJob(), withTimeout(), claimNextJob(), markDone(), markFailed() (+9 more)
 
 ### Community 28 - "UI Components and Utilities"
 Cohesion: 0.11
@@ -326,8 +376,8 @@ Cohesion: 0.15
 Nodes (19): bones, height, name, viewportWidth, width, bones, height, name (+11 more)
 
 ### Community 42 - "Shell and Navigation UI"
-Cohesion: 0.05
-Nodes (29): ApiTender, AusschreibungenSection(), CHART_COLORS, TenderCard(), AuthModal(), AuthModalProps, AuthTab, ErrorBoundary (+21 more)
+Cohesion: 0.15
+Nodes (13): AuthModal(), AuthModalProps, AuthTab, HASH_TO_VIEW, NAV_ITEMS, NavItem, ShellProps, VIEW_TO_HASH (+5 more)
 
 ### Community 43 - "Chart Components and Config"
 Cohesion: 0.22
@@ -350,7 +400,7 @@ Cohesion: 0.28
 Nodes (7): ensureLogDir(), LOG_DIR, LogSource, plugins, TRIM_TARGET_BYTES, trimLogFile(), writeToLogFile()
 
 ### Community 50 - "Design Breakpoints Data"
-Cohesion: 0.15
+Cohesion: 0.14
 Nodes (19): bones, height, name, viewportWidth, width, bones, height, name (+11 more)
 
 ### Community 51 - "Design Breakpoints Data"
@@ -358,8 +408,8 @@ Cohesion: 0.15
 Nodes (19): bones, height, name, viewportWidth, width, bones, height, name (+11 more)
 
 ### Community 52 - "Design Breakpoints Data"
-Cohesion: 0.18
-Nodes (13): CompanyOption, daysUntil(), deadlineLabel(), formatDate(), progressColor(), STATUS_FILTER_OPTIONS, StatusBadge(), statusChipColor() (+5 more)
+Cohesion: 0.23
+Nodes (10): ApiTender, TenderCard(), PdfDocumentLink(), PdfDocumentLinkProps, ViewKey, progressColor(), TrackedTenderCard(), getAllLocationOptions() (+2 more)
 
 ### Community 53 - "Design Breakpoints Data"
 Cohesion: 0.15
@@ -374,28 +424,28 @@ Cohesion: 0.21
 Nodes (12): computedHash, skillPath, source, sourceType, computedHash, skillPath, source, sourceType (+4 more)
 
 ### Community 58 - "Layout and Theme Registry"
-Cohesion: 0.25
-Nodes (5): manrope, metadata, ThemeRegistry(), colors, theme
+Cohesion: 0.13
+Nodes (12): inter, metadata, organizationJsonLd, siteOrganizationJsonLd, viewport, websiteJsonLd, SwetrixAnalytics(), ThemeRegistry() (+4 more)
 
 ### Community 59 - "Tender Categories and Stats"
 Cohesion: 0.29
 Nodes (7): categories, getCategoryStats(), getLocationStats(), locations, Tender, tenders, Home()
 
 ### Community 60 - "Tracking and Job Types"
-Cohesion: 0.22
-Nodes (9): TrackingEventType, CompanyProfileCreate, CrawlRequest, JobProcessResult, JobRow, JobStatus, JobType, ManualTenderCreate (+1 more)
+Cohesion: 0.25
+Nodes (8): TrackingEventType, CompanyProfileCreate, CrawlRequest, JobProcessResult, JobRow, JobStatus, ManualTenderCreate, TrackEventCreate
 
 ### Community 62 - "Build and Dev Scripts"
-Cohesion: 0.18
-Nodes (10): FollowState, MetricBar(), MetricColor, resolveMetricColor(), TenderDetailDrawer(), TenderDetailDrawerProps, TenderDetailItem, toDateInputValue() (+2 more)
+Cohesion: 0.10
+Nodes (26): FollowState, MetricBar(), MetricColor, resolveMetricColor(), TenderDetailDrawer(), TenderDetailDrawerProps, TenderDetailItem, TenderWorkflowDraft (+18 more)
 
 ### Community 63 - "Error Boundary Component"
 Cohesion: 0.18
 Nodes (10): Color Strategy, Color Tokens, Components, Content Tone, Design, Layout, Motion, Scene (+2 more)
 
 ### Community 64 - "Map View Components"
-Cohesion: 0.31
-Nodes (9): BROWSER_ARGS, extractWithReadability(), getBrowser(), htmlToBasicMarkdown(), scrapeMultiple(), scrapeWebsite(), SearchResult, runCacheDetail() (+1 more)
+Cohesion: 0.11
+Nodes (24): PageProps, generateMetadata(), PageProps, sitemap(), clientMatchesSlug(), normalizeAgencySlug(), replaceUmlauts(), UMLAUT_MAP (+16 more)
 
 ### Community 65 - "Authentication UI Components"
 Cohesion: 0.22
@@ -414,8 +464,8 @@ Cohesion: 0.22
 Nodes (8): Common Product Patterns, Default Recommendations, Docs (Source of Truth), Escalation Rules, Firecrawl Build Search, Implementation Notes, See Also, Use This When
 
 ### Community 70 - "Auth API Routes"
-Cohesion: 0.50
-Nodes (3): { GET, POST }, auth, Session
+Cohesion: 0.10
+Nodes (17): { GET, POST }, AusschreibungenPage(), Params, auth, Session, db, tenders, userCompanies (+9 more)
 
 ### Community 76 - "Tooltip UI Components"
 Cohesion: 0.22
@@ -437,6 +487,10 @@ Nodes (3): Hero Architecture Photo, Design Ideas for Real Estate Tender Website,
 Cohesion: 0.67
 Nodes (3): Public Logo Image, Tenderhunter Next.js Base Version README, Tenderhunter Logo
 
+### Community 87 - "Badge UI Components"
+Cohesion: 0.11
+Nodes (12): PageProps, PageProps, PageProps, PageProps, size, ALL_CATEGORY_SLUGS, CATEGORY_LABELS, SLUG_TO_CATEGORY (+4 more)
+
 ### Community 105 - "Better Auth Integration Guide"
 Cohesion: 0.22
 Nodes (8): Accessibility & Inclusion, Anti-references, Brand Personality, Design Principles, Product, Product Purpose, Register, Users
@@ -446,8 +500,8 @@ Cohesion: 0.22
 Nodes (8): Hinweise, Konfiguration, Schnellstart, Stack, Tenderhunter (Next.js Basis-Version), Typischer Ablauf, Was die App kann, Wichtige API-Routen
 
 ### Community 138 - "Community 138"
-Cohesion: 0.39
-Nodes (8): TenderWorkflowDraft, TrackedTenderItem, TrackedTenderStatus, ListTrackedTendersOptions, TrackedTenderListItem, TrackedTenderCreate, TrackedTenderUpdate, isTrackedTenderStatus()
+Cohesion: 0.12
+Nodes (18): HUB_FAQS, hubFaqJsonLd, metadata, generateMetadata(), generateMetadata(), generateMetadata(), metadata, BUNDESLAND_SLUGS (+10 more)
 
 ### Community 139 - "Community 139"
 Cohesion: 0.25
@@ -497,25 +551,181 @@ Nodes (5): Auth Flow, Step 1: Generate auth parameters, Step 2: Ask the user to 
 Cohesion: 0.50
 Nodes (3): JavaScript / TypeScript, Python, SDK Installation
 
+### Community 155 - "Community 155"
+Cohesion: 0.06
+Nodes (31): markdown, metadata, cachedAt, cacheState, concurrencyLimited, contentType, creditsUsed, csrf-param (+23 more)
+
+### Community 156 - "Community 156"
+Cohesion: 0.06
+Nodes (30): markdown, metadata, cacheState, concurrencyLimited, contentType, creditsUsed, description, favicon (+22 more)
+
+### Community 157 - "Community 157"
+Cohesion: 0.07
+Nodes (29): markdown, metadata, cacheState, concurrencyLimited, contentType, creditsUsed, favicon, HandheldFriendly (+21 more)
+
+### Community 158 - "Community 158"
+Cohesion: 0.07
+Nodes (29): markdown, metadata, cachedAt, cacheState, concurrencyLimited, contentType, creditsUsed, description (+21 more)
+
+### Community 159 - "Community 159"
+Cohesion: 0.11
+Nodes (14): PageProps, btnBase, metadata, PageProps, ALL_ARTICLE_SLUGS, Article, ARTICLES, CATEGORY_SLUGS (+6 more)
+
+### Community 160 - "Community 160"
+Cohesion: 0.10
+Nodes (15): PageProps, size, PageProps, generateRegionCategoryFaq(), RegionCategoryPage(), ALL_BUNDESLAND_SLUGS, BUNDESLAENDER, CITY_ALIASES (+7 more)
+
+### Community 161 - "Community 161"
+Cohesion: 0.13
+Nodes (15): PageProps, size, PageProps, CityCategoryPage(), generateCityCategoryFaq(), ALL_CITY_SLUGS, CITIES, CITY_LABEL_MAP (+7 more)
+
+### Community 162 - "Community 162"
+Cohesion: 0.17
+Nodes (15): TrackingEventType, GET(), requireSession(), AttributionEvent, attributionEvents, TRACKED_TENDER_STATUSES, TRACKING_EVENT_TYPES, manualTenderSchema (+7 more)
+
+### Community 163 - "Community 163"
+Cohesion: 0.15
+Nodes (19): bones, height, name, viewportWidth, width, bones, height, name (+11 more)
+
+### Community 164 - "Community 164"
+Cohesion: 0.20
+Nodes (14): daysUntil(), deadlineColor(), formatDeadlineDE(), cleanDescription(), getOpenAI(), POST(), DeadlineStatus(), DeadlineStatusProps (+6 more)
+
+### Community 165 - "Community 165"
+Cohesion: 0.21
+Nodes (18): AwardCriterion, compactSpaces(), detectContractType(), detectProcedureType(), extractBudget(), extractContractValue(), extractCpvCodes(), extractDeadline() (+10 more)
+
+### Community 166 - "Community 166"
+Cohesion: 0.20
+Nodes (15): AnalyzeBody, getTopTenders(), normalizeUrl(), POST(), runAnalysis(), scoreAllTenders(), TenderResult, GET() (+7 more)
+
+### Community 167 - "Community 167"
+Cohesion: 0.20
+Nodes (12): MapView(), MapViewProps, Window, TimerResponse, useComposition(), UseCompositionOptions, UseCompositionReturn, noop (+4 more)
+
+### Community 168 - "Community 168"
+Cohesion: 0.14
+Nodes (10): Theme, ThemeContext, ThemeContextType, ThemeProvider(), ThemeProviderProps, Toaster(), Tooltip(), TooltipContent() (+2 more)
+
+### Community 169 - "Community 169"
+Cohesion: 0.22
+Nodes (10): metadata, AusschreibungenSection(), DashboardSection(), filterAndSortTenders(), Shell(), TrackedTendersSection(), useTheme(), InteractiveApp() (+2 more)
+
+### Community 170 - "Community 170"
+Cohesion: 0.21
+Nodes (13): assessTenderQuality(), AWARDED_PHRASES, buildFingerprintSeed(), buildTenderFingerprint(), compactText(), countKeywordMatches(), ERROR_TITLE_PATTERNS, NAVIGATION_TITLE_PATTERNS (+5 more)
+
+### Community 171 - "Community 171"
+Cohesion: 0.15
+Nodes (13): devDependencies, autoprefixer, class-variance-authority, drizzle-kit, @radix-ui/react-slot, shadcn, tsx, @types/node (+5 more)
+
+### Community 172 - "Community 172"
+Cohesion: 0.18
+Nodes (4): Item(), ItemMedia(), itemMediaVariants, itemVariants
+
+### Community 173 - "Community 173"
+Cohesion: 0.18
+Nodes (5): Sheet(), SheetContent(), SheetDescription(), SheetHeader(), SheetTitle()
+
+### Community 174 - "Community 174"
+Cohesion: 0.24
+Nodes (5): PageProps, ALL_CPV_CODES, CPV_CODES, CPV_DIVISION_PREFIXES, CpvEntry
+
+### Community 175 - "Community 175"
+Cohesion: 0.20
+Nodes (10): scripts, backfill-quality, build, db:push, dev, lint, migrate, start (+2 more)
+
+### Community 176 - "Community 176"
+Cohesion: 0.28
+Nodes (4): ALL_PROCEDURE_TYPE_SLUGS, PROCEDURE_TYPES, ProcedureTypeEntry, PageProps
+
+### Community 177 - "Community 177"
+Cohesion: 0.28
+Nodes (4): InputGroupAddon(), inputGroupAddonVariants, InputGroupButton(), inputGroupButtonVariants
+
+### Community 178 - "Community 178"
+Cohesion: 0.29
+Nodes (3): ErrorBoundary, Props, State
+
+### Community 179 - "Community 179"
+Cohesion: 0.48
+Nodes (5): callLLM(), CompanyProfile, extractCompanyProfile(), extractLogoUrl(), getClient()
+
+### Community 180 - "Community 180"
+Cohesion: 0.33
+Nodes (7): parseDeadline(), queueTenderProcessing(), runScrapePublicTenders(), seedManualTender(), upsertTender(), UpsertTenderInput, JsonValue
+
+### Community 181 - "Community 181"
+Cohesion: 0.38
+Nodes (6): documents, db, detectHtmlEncoding(), extractTextFromHtml(), main(), pool
+
+### Community 182 - "Community 182"
+Cohesion: 0.38
+Nodes (3): ButtonGroup(), buttonGroupVariants, Separator()
+
+### Community 183 - "Community 183"
+Cohesion: 0.33
+Nodes (4): faqs, features, metadata, steps
+
+### Community 184 - "Community 184"
+Cohesion: 0.40
+Nodes (4): CompanyLogo(), CompanyLogoProps, CompanyProfileHeader(), CompanyProfileHeaderProps
+
+### Community 185 - "Community 185"
+Cohesion: 0.50
+Nodes (5): configureMeiliIndex(), deleteTenderFromMeili(), getMeiliClient(), syncTendersToMeili(), runSyncMeili()
+
+### Community 186 - "Community 186"
+Cohesion: 0.67
+Nodes (3): DOCS_DIR, GET(), sanitizeFilename()
+
+### Community 187 - "Community 187"
+Cohesion: 0.50
+Nodes (3): data, web, success
+
+### Community 188 - "Community 188"
+Cohesion: 0.50
+Nodes (3): data, web, success
+
+### Community 189 - "Community 189"
+Cohesion: 0.50
+Nodes (3): data, web, success
+
+### Community 190 - "Community 190"
+Cohesion: 0.50
+Nodes (3): data, web, success
+
+### Community 191 - "Community 191"
+Cohesion: 0.50
+Nodes (3): client, initializeDatabase(), main()
+
+### Community 192 - "Community 192"
+Cohesion: 0.83
+Nodes (3): runBatch(), parseLimit(), POST()
+
+### Community 193 - "Community 193"
+Cohesion: 0.50
+Nodes (3): name, private, version
+
 ## Knowledge Gaps
-- **944 isolated node(s):** `markdown`, `description`, `title`, `language`, `robots` (+939 more)
+- **1174 isolated node(s):** `markdown`, `description`, `title`, `language`, `robots` (+1169 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **42 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **47 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `client` connect `Development and Build Scripts` to `API Route and Error Handling`?**
-  _High betweenness centrality (0.061) - this node is a cross-community bridge._
-- **Why does `scripts` connect `Development and Build Scripts` to `Authentication and ORM Packages`?**
-  _High betweenness centrality (0.056) - this node is a cross-community bridge._
+- **Why does `useTheme()` connect `Community 169` to `Community 168`, `Design Breakpoints Data`?**
+  _High betweenness centrality (0.068) - this node is a cross-community bridge._
+- **Why does `client` connect `Community 191` to `Development and Build Scripts`, `Auth API Routes`?**
+  _High betweenness centrality (0.046) - this node is a cross-community bridge._
+- **Why does `main()` connect `Development and Build Scripts` to `Community 191`?**
+  _High betweenness centrality (0.045) - this node is a cross-community bridge._
 - **What connects `markdown`, `description`, `title` to the rest of the system?**
-  _944 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _1174 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Tender Metrics and Workflow` be split into smaller, more focused modules?**
-  _Cohesion score 0.0975609756097561 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.11827956989247312 - nodes in this community are weakly interconnected._
 - **Should `Frontend Utility Libraries` be split into smaller, more focused modules?**
   _Cohesion score 0.038461538461538464 - nodes in this community are weakly interconnected._
 - **Should `Authentication and ORM Packages` be split into smaller, more focused modules?**
-  _Cohesion score 0.04081632653061224 - nodes in this community are weakly interconnected._
-- **Should `Form Field Components` be split into smaller, more focused modules?**
-  _Cohesion score 0.05603864734299517 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.05555555555555555 - nodes in this community are weakly interconnected._

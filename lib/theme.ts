@@ -44,7 +44,7 @@ const theme = createTheme({
     divider: colors.border,
   },
   typography: {
-    fontFamily: '"Manrope", "Roboto", "Helvetica", "Arial", sans-serif',
+    fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
     h1: { fontWeight: 700 },
     h2: { fontWeight: 700 },
     h3: { fontWeight: 600 },
