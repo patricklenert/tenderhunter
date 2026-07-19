@@ -76,12 +76,12 @@ const run = async (): Promise<void> => {
   if (withPollingCrawl && settings.defaultSources.length > 0) {
     await enqueueJob(JOB_CRAWL, {
       sources: serializeSourceItems(settings.defaultSources),
-    });
+    }, { jobKey: JOB_CRAWL });
   }
 
   try {
     if (await shouldEnqueuePublicScrape()) {
-      await enqueueJob(JOB_SCRAPE_PUBLIC, {});
+      await enqueueJob(JOB_SCRAPE_PUBLIC, {}, { jobKey: JOB_SCRAPE_PUBLIC });
       console.log("[scheduler] scrape_public_tenders Job eingereiht.");
     }
   } catch (error) {

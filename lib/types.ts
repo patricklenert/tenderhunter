@@ -12,6 +12,7 @@ export const JOB_INSIGHT = "generate_insight";
 export const JOB_NOTIFY = "notify_company";
 export const JOB_CACHE_DETAIL = "cache_detail";
 export const JOB_SYNC_MEILI = "sync_meilisearch";
+export const JOB_DISCOVER_COMPANY = "discover_company";
 
 export type JobType =
   | typeof JOB_CRAWL
@@ -23,7 +24,8 @@ export type JobType =
   | typeof JOB_INSIGHT
   | typeof JOB_NOTIFY
   | typeof JOB_CACHE_DETAIL
-  | typeof JOB_SYNC_MEILI;
+  | typeof JOB_SYNC_MEILI
+  | typeof JOB_DISCOVER_COMPANY;
 
 export type JsonValue =
   | string
@@ -100,6 +102,8 @@ export interface JobProcessResult {
   job_id: number;
   job_type: JobType;
   status: "done" | "failed";
+  queue_latency_ms?: number;
+  duration_ms?: number;
   result?: Record<string, JsonValue>;
   error?: string;
 }

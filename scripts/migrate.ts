@@ -137,14 +137,29 @@ async function main() {
         status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'running', 'done', 'failed')),
         retries INTEGER NOT NULL DEFAULT 0,
         max_retries INTEGER NOT NULL DEFAULT 3,
-        run_after TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        locked_at TIMESTAMPTZ,
-        locked_by TEXT,
-        last_error TEXT,
+         run_after TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+         locked_at TIMESTAMPTZ,
+         locked_by TEXT,
+         job_key TEXT,
+         group_key TEXT,
+         started_at TIMESTAMPTZ,
+         heartbeat_at TIMESTAMPTZ,
+         finished_at TIMESTAMPTZ,
+         queue_latency_ms INTEGER,
+         duration_ms INTEGER,
+         last_error TEXT,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `;
+       )
+     `;
+
+    await client`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS job_key TEXT`;
+    await client`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS group_key TEXT`;
+    await client`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS started_at TIMESTAMPTZ`;
+    await client`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS heartbeat_at TIMESTAMPTZ`;
+    await client`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS finished_at TIMESTAMPTZ`;
+    await client`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS queue_latency_ms INTEGER`;
+    await client`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS duration_ms INTEGER`;
 
     await client`
       CREATE TABLE IF NOT EXISTS tracked_tenders (
@@ -163,7 +178,10 @@ async function main() {
 
     console.log("Creating indexes...");
 
-    await client`CREATE INDEX IF NOT EXISTS idx_jobs_status_run_after ON jobs(status, run_after)`;
+     await client`CREATE INDEX IF NOT EXISTS idx_jobs_status_run_after ON jobs(status, run_after)`;
+    await client`CREATE INDEX IF NOT EXISTS idx_jobs_type_status_created ON jobs(type, status, created_at)`;
+    await client`CREATE INDEX IF NOT EXISTS idx_jobs_running_heartbeat ON jobs(status, heartbeat_at)`;
+    await client`CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_active_job_key ON jobs(job_key) WHERE job_key IS NOT NULL AND status IN ('pending', 'running')`;
     await client`CREATE INDEX IF NOT EXISTS idx_scores_company ON scores(company_id)`;
     await client`CREATE INDEX IF NOT EXISTS idx_tenders_source_url ON tenders(source, url)`;
     await client`CREATE INDEX IF NOT EXISTS idx_tenders_source_external ON tenders(source, external_id)`;

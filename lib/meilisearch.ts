@@ -1,7 +1,7 @@
 import { Meilisearch, type SearchResponse } from "meilisearch";
 import { db } from "@/lib/db";
 import { tenders } from "@/lib/schema";
-import { inArray, or, isNull, gt, desc } from "drizzle-orm";
+import { and, eq, gt, isNull, or } from "drizzle-orm";
 import { cleanDescription } from "@/lib/public-tender-scraper";
 import { deriveBundesland, deriveCity } from "@/lib/bundesland";
 
@@ -11,6 +11,7 @@ const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY ?? "";
 const INDEX_NAME = "tenders";
 
 let clientInstance: Meilisearch | null = null;
+let configurePromise: Promise<void> | null = null;
 
 export function getMeiliClient(): Meilisearch {
   if (clientInstance) return clientInstance;
@@ -38,7 +39,16 @@ interface TenderDocument {
   contractValueMax: number | null;
 }
 
-export async function configureMeiliIndex(): Promise<void> {
+export function configureMeiliIndex(): Promise<void> {
+  if (configurePromise) return configurePromise;
+  configurePromise = configureMeiliIndexOnce().catch((error) => {
+    configurePromise = null;
+    throw error;
+  });
+  return configurePromise;
+}
+
+async function configureMeiliIndexOnce(): Promise<void> {
   const client = getMeiliClient();
 
   await client.createIndex(INDEX_NAME, { primaryKey: "id" }).catch(() => {});
@@ -95,6 +105,12 @@ export async function configureMeiliIndex(): Promise<void> {
     "exactness",
   ]);
 
+  // Meilisearch defaults maxTotalHits to 1000, which caps estimatedTotalHits and pagination.
+  // Lift the cap so all qualified tenders are searchable/counted.
+  await index.updatePagination({ maxTotalHits: 1_000_000 }).catch((err) => {
+    console.warn("[meilisearch] Pagination-Setting fehlgeschlagen:", err);
+  });
+
   console.log("[meilisearch] Index konfiguriert");
 }
 
@@ -102,74 +118,69 @@ export async function syncTendersToMeili(): Promise<{ indexed: number; skipped: 
   const client = getMeiliClient();
   const index = client.index(INDEX_NAME);
 
-  const items = await db
-    .select({
-      id: tenders.id,
-      title: tenders.title,
-      source: tenders.source,
-      url: tenders.url,
-      deadlineAt: tenders.deadlineAt,
-      category: tenders.category,
-      metadataJson: tenders.metadataJson,
-      contractValueMax: tenders.contractValueMax,
-    })
-    .from(tenders)
-    .where(
-      inArray(tenders.qualityStatus, ["qualified"]),
-    )
-    .orderBy(desc(tenders.createdAt))
-    .limit(1000);
+  const batchSize = 250;
+  const now = new Date();
+  let lastId = 0;
+  let indexed = 0;
 
-  const docs: TenderDocument[] = [];
-
-  for (const item of items) {
-    const meta =
-      typeof item.metadataJson === "object" && item.metadataJson !== null
-        ? (item.metadataJson as Record<string, unknown>)
-        : {};
-
-    const location = String(meta.location ?? "");
-    const bundesland = deriveBundesland(location);
-    const city = deriveCity(location);
-    const description = cleanDescription(String(meta.description ?? ""));
-    const pdfUrls = Array.isArray(meta.pdf_urls) ? meta.pdf_urls : [];
-
-    const isExpired =
-      item.deadlineAt !== null && new Date(item.deadlineAt).getTime() < Date.now();
-
-    if (isExpired) continue;
-
-    docs.push({
-      id: item.id,
-      title: item.title ?? `Ausschreibung #${item.id}`,
-      description: description.slice(0, 5000),
-      client: String(meta.client ?? "Unbekannt"),
-      category: item.category ?? "Sonstiges",
-      bundesland,
-      city,
-      location,
-      source: item.source,
-      sourceUrl: item.url,
-      deadlineAt: item.deadlineAt ? new Date(item.deadlineAt).getTime() / 1000 : null,
-      hasDeadline: item.deadlineAt !== null,
-      pdfCount: pdfUrls.length,
-      contractValueMax: item.contractValueMax,
-    });
-  }
-
-  if (docs.length === 0) {
-    console.log("[meilisearch] Keine Dokumente zu indizieren");
-    return { indexed: 0, skipped: items.length };
-  }
-
-  // Clear index first to remove stale documents (tenders deleted from DB)
+  // Clear first so deleted, expired, and disqualified tenders cannot remain searchable.
   await index.deleteAllDocuments();
-  const task = await index.addDocuments(docs);
-  console.log(`[meilisearch] ${docs.length} Dokumente indiziert (Task ${task.taskUid})`);
 
-  console.log(`[meilisearch] Sync abgeschlossen: ${docs.length} indiziert, ${items.length - docs.length} übersprungen`);
+  while (true) {
+    const items = await db
+      .select({
+        id: tenders.id,
+        title: tenders.title,
+        source: tenders.source,
+        url: tenders.url,
+        deadlineAt: tenders.deadlineAt,
+        category: tenders.category,
+        metadataJson: tenders.metadataJson,
+        contractValueMax: tenders.contractValueMax,
+      })
+      .from(tenders)
+      .where(
+        and(
+          eq(tenders.qualityStatus, "qualified"),
+          gt(tenders.id, lastId),
+          or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
+        ),
+      )
+      .orderBy(tenders.id)
+      .limit(batchSize);
 
-  return { indexed: docs.length, skipped: items.length - docs.length };
+    if (items.length === 0) break;
+    const docs: TenderDocument[] = items.map((item) => {
+      const meta =
+        typeof item.metadataJson === "object" && item.metadataJson !== null
+          ? (item.metadataJson as Record<string, unknown>)
+          : {};
+      const location = String(meta.location ?? "");
+      const pdfUrls = Array.isArray(meta.pdf_urls) ? meta.pdf_urls : [];
+      return {
+        id: item.id,
+        title: item.title ?? `Ausschreibung #${item.id}`,
+        description: cleanDescription(String(meta.description ?? "")).slice(0, 5000),
+        client: String(meta.client ?? "Unbekannt"),
+        category: item.category ?? "Sonstiges",
+        bundesland: deriveBundesland(location),
+        city: deriveCity(location),
+        location,
+        source: item.source,
+        sourceUrl: item.url,
+        deadlineAt: item.deadlineAt ? new Date(item.deadlineAt).getTime() / 1000 : null,
+        hasDeadline: item.deadlineAt !== null,
+        pdfCount: pdfUrls.length,
+        contractValueMax: item.contractValueMax,
+      };
+    });
+    await index.addDocuments(docs);
+    indexed += docs.length;
+    lastId = items[items.length - 1].id;
+  }
+
+  console.log(`[meilisearch] Sync abgeschlossen: ${indexed} Dokumente in Batches indiziert`);
+  return { indexed, skipped: 0 };
 }
 
 export interface MeilisearchParams {
@@ -215,8 +226,11 @@ export async function searchTenders(
 
   const hasQuery = params.query.trim().length > 0;
 
+  const limit = Math.min(Math.max(params.limit ?? 24, 1), 30);
+  const page = Math.max(params.page ?? 1, 1);
   const searchParams: Record<string, unknown> = {
-    limit: params.limit ?? 50,
+    limit,
+    offset: (page - 1) * limit,
     showRankingScore: true,
   };
 

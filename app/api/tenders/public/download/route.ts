@@ -47,11 +47,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "file too large (max 50MB)" }, { status: 413 });
     }
 
-    const buffer = Buffer.from(await resp.arrayBuffer());
-    if (buffer.length > MAX_SIZE) {
-      return NextResponse.json({ error: "file too large (max 50MB)" }, { status: 413 });
-    }
-
     // Determine extension
     let ext = ".pdf";
     if (contentType.includes("zip")) ext = ".zip";
@@ -76,15 +71,45 @@ export async function GET(req: NextRequest) {
     const hash = crypto.createHash("sha256").update(url).digest("hex").slice(0, 12);
     const safeName = `${hash}-${filename}`.replace(/[^a-zA-Z0-9äöüÄÖÜß._\-]/g, "_").slice(0, 120);
 
-    fs.mkdirSync(DOCS_DIR, { recursive: true });
+    await fs.promises.mkdir(DOCS_DIR, { recursive: true });
     const filePath = path.join(DOCS_DIR, safeName);
 
-    if (!fs.existsSync(filePath)) {
-      fs.writeFileSync(filePath, buffer);
+    let size: number;
+    try {
+      size = (await fs.promises.stat(filePath)).size;
+    } catch {
+      if (!resp.body) {
+        return NextResponse.json({ error: "upstream response has no body" }, { status: 502 });
+      }
+
+      const temporary = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+      let file: Awaited<ReturnType<typeof fs.promises.open>> | null = null;
+      size = 0;
+      try {
+        file = await fs.promises.open(temporary, "w");
+        const reader = resp.body.getReader();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          size += value.byteLength;
+          if (size > MAX_SIZE) {
+            await reader.cancel();
+            throw new Error("file too large (max 50MB)");
+          }
+          await file.write(value);
+        }
+        await file.close();
+        file = null;
+        await fs.promises.rename(temporary, filePath);
+      } catch (error) {
+        if (file) await file.close().catch(() => undefined);
+        await fs.promises.rm(temporary, { force: true }).catch(() => undefined);
+        throw error;
+      }
     }
 
     const publicUrl = `https://palemaz.com/api/docs/${safeName}`;
-    return NextResponse.json({ url: publicUrl, filename, size: buffer.length });
+    return NextResponse.json({ url: publicUrl, filename, size });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "unknown error";
     return NextResponse.json({ error: msg }, { status: 500 });

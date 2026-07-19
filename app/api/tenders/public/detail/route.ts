@@ -87,7 +87,7 @@ export async function POST(request: Request): Promise<Response> {
 
     // 4. Queue background enrichment (LLM extraction) — ALWAYS
     if (tender.url) {
-      enqueueJob(JOB_CACHE_DETAIL, { tender_id: tenderId }).catch((e: unknown) =>
+      enqueueJob(JOB_CACHE_DETAIL, { tender_id: tenderId }, { jobKey: `${JOB_CACHE_DETAIL}:${tenderId}` }).catch((e: unknown) =>
         console.error(`[tender-detail] Enqueue failed for ${tenderId}:`, e)
       );
     }

@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 export async function POST(request: Request): Promise<Response> {
   try {
     const payload = crawlSchema.parse(await parseJsonBody<unknown>(request));
-    const jobId = await enqueueJob(JOB_CRAWL, payload);
+    const jobId = await enqueueJob(JOB_CRAWL, payload, { jobKey: JOB_CRAWL });
     return json({ enqueued_job_id: jobId }, { status: 202 });
   } catch (error) {
     return errorResponse(error);

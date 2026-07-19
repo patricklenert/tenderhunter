@@ -13,7 +13,7 @@ const parseParam = (url: URL, name: string, fallback: string): string =>
 export async function GET(request: Request): Promise<Response> {
   try {
     const url = new URL(request.url);
-    const limit = Math.max(1, Math.min(Number.parseInt(url.searchParams.get("limit") ?? "200", 10) || 200, 500));
+    const limit = Math.max(1, Math.min(Number.parseInt(url.searchParams.get("limit") ?? "24", 10) || 24, 30));
     const category = parseParam(url, "category", "");
     const location = parseParam(url, "location", "");
     const search = parseParam(url, "search", "");

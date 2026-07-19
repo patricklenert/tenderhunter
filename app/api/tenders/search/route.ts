@@ -11,7 +11,7 @@ export async function GET(request: Request): Promise<Response> {
     const query = url.searchParams.get("q") ?? "";
     const bundesland = url.searchParams.get("bundesland");
     const city = url.searchParams.get("city");
-    const limit = Math.min(Math.max(Number.parseInt(url.searchParams.get("limit") ?? "50", 10) || 50, 1), 200);
+    const limit = Math.min(Math.max(Number.parseInt(url.searchParams.get("limit") ?? "24", 10) || 24, 1), 30);
     const page = Math.max(Number.parseInt(url.searchParams.get("page") ?? "1", 10) || 1, 1);
 
     const result = await searchTenders({

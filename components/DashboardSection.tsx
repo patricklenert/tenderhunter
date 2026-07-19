@@ -49,6 +49,7 @@ interface DiscoverStartResponse {
   extracted: ExtractedData;
   matched: MatchedTender[];
   sessionStartedAt: string;
+  discoveryId?: string;
   cached?: boolean;
   error?: string;
 }
@@ -83,6 +84,7 @@ interface DiscoverSession {
   company: { id: number; name: string };
   extracted: ExtractedData;
   sessionStartedAt: string;
+  discoveryId?: string;
   cached?: boolean;
 }
 
@@ -688,6 +690,9 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
           companyId: String(session.company.id),
           since: session.sessionStartedAt,
         });
+        if (session.discoveryId) {
+          params.set("discoveryId", session.discoveryId);
+        }
         const res = await fetch(`/api/discover?${params.toString()}`, { cache: "no-store" });
         const json = (await res.json()) as DiscoverStatusResponse;
         if (!res.ok) {
@@ -796,6 +801,7 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
           company: json.company,
           extracted: json.extracted,
           sessionStartedAt: json.sessionStartedAt,
+          discoveryId: json.discoveryId,
           cached: json.cached,
         });
 

@@ -1,16 +1,25 @@
-import { eq, and, lte, sql } from "drizzle-orm";
+import { eq, and, lte, sql, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { jobs, type Job } from "@/lib/schema";
 import { settings } from "@/lib/config";
 import type { JobType, JsonValue } from "@/lib/types";
 
-/** Jobs stuck in "running" longer than this are considered stale (15 min). */
-const STALE_JOB_THRESHOLD_MS = 50 * 60 * 1000;
+/** Jobs without a heartbeat for this long are considered stale. */
+const STALE_JOB_THRESHOLD_MS = 15 * 60 * 1000;
+
+const ACTIVE_JOB_STATUSES = ["pending", "running"] as const;
+
+type EnqueueOptions = {
+  maxRetries?: number;
+  runAfter?: Date;
+  jobKey?: string;
+  groupKey?: string;
+};
 
 export async function enqueueJob(
   jobType: JobType,
   payload: Record<string, JsonValue>,
-  opts?: { maxRetries?: number; runAfter?: Date }
+  opts?: EnqueueOptions
 ): Promise<number> {
   const runAfter = opts?.runAfter ?? new Date();
   const maxRetries = opts?.maxRetries ?? settings.maxJobRetries;
@@ -24,10 +33,28 @@ export async function enqueueJob(
       retries: 0,
       maxRetries,
       runAfter,
+      jobKey: opts?.jobKey,
+      groupKey: opts?.groupKey,
     })
+    .onConflictDoNothing()
     .returning({ id: jobs.id });
 
-  return result[0].id;
+  if (result.length > 0) return result[0].id;
+
+  if (!opts?.jobKey) {
+    throw new Error(`Job ${jobType} konnte nicht eingereiht werden`);
+  }
+
+  const active = await db
+    .select({ id: jobs.id })
+    .from(jobs)
+    .where(and(eq(jobs.jobKey, opts.jobKey), inArray(jobs.status, ACTIVE_JOB_STATUSES)))
+    .limit(1);
+
+  if (active.length === 0) {
+    throw new Error(`Job ${jobType} mit Key ${opts.jobKey} konnte nicht eingereiht werden`);
+  }
+  return active[0].id;
 }
 
 export async function claimNextJob(workerId: string): Promise<Job | null> {
@@ -55,15 +82,39 @@ export async function claimNextJob(workerId: string): Promise<Job | null> {
         status: "running",
         lockedAt: new Date(),
         lockedBy: workerId,
+        startedAt: new Date(),
+        heartbeatAt: new Date(),
+        finishedAt: null,
+        durationMs: null,
+        queueLatencyMs: sql`GREATEST(0, EXTRACT(EPOCH FROM (NOW() - ${jobs.createdAt})) * 1000)::integer`,
         updatedAt: new Date(),
       })
       .where(eq(jobs.id, job.id));
 
-    return { ...job, status: "running" as const, lockedAt: new Date(), lockedBy: workerId };
+    const now = new Date();
+    return {
+      ...job,
+      status: "running" as const,
+      lockedAt: now,
+      lockedBy: workerId,
+      startedAt: now,
+      heartbeatAt: now,
+      finishedAt: null,
+      durationMs: null,
+      queueLatencyMs: Math.max(0, now.getTime() - job.createdAt.getTime()),
+    };
   });
 }
 
-export async function markDone(jobId: number): Promise<void> {
+export async function heartbeatJob(jobId: number, workerId: string): Promise<void> {
+  const now = new Date();
+  await db
+    .update(jobs)
+    .set({ heartbeatAt: now, lockedAt: now, updatedAt: now })
+    .where(and(eq(jobs.id, jobId), eq(jobs.status, "running"), eq(jobs.lockedBy, workerId)));
+}
+
+export async function markDone(jobId: number, workerId: string): Promise<void> {
   await db
     .update(jobs)
     .set({
@@ -71,16 +122,19 @@ export async function markDone(jobId: number): Promise<void> {
       updatedAt: new Date(),
       lockedAt: null,
       lockedBy: null,
+      heartbeatAt: null,
+      finishedAt: new Date(),
+      durationMs: sql`GREATEST(0, EXTRACT(EPOCH FROM (NOW() - ${jobs.startedAt})) * 1000)::integer`,
     })
-    .where(eq(jobs.id, jobId));
+    .where(and(eq(jobs.id, jobId), eq(jobs.status, "running"), eq(jobs.lockedBy, workerId)));
 }
 
-export async function markFailed(jobId: number, errorMessage: string): Promise<void> {
+export async function markFailed(jobId: number, workerId: string, errorMessage: string): Promise<void> {
   await db.transaction(async (tx) => {
     const row = await tx
-      .select({ retries: jobs.retries, maxRetries: jobs.maxRetries })
+      .select({ retries: jobs.retries, maxRetries: jobs.maxRetries, startedAt: jobs.startedAt })
       .from(jobs)
-      .where(eq(jobs.id, jobId))
+      .where(and(eq(jobs.id, jobId), eq(jobs.status, "running"), eq(jobs.lockedBy, workerId)))
       .limit(1)
       .for("update");
 
@@ -96,10 +150,13 @@ export async function markFailed(jobId: number, errorMessage: string): Promise<v
           status: "failed",
           retries: newRetries,
           lastError: errorMessage.slice(0, 1000),
-          updatedAt: new Date(),
-          lockedAt: null,
-          lockedBy: null,
-        })
+           updatedAt: new Date(),
+           lockedAt: null,
+           lockedBy: null,
+           heartbeatAt: null,
+           finishedAt: new Date(),
+           durationMs: sql`GREATEST(0, EXTRACT(EPOCH FROM (NOW() - ${jobs.startedAt})) * 1000)::integer`,
+         })
         .where(eq(jobs.id, jobId));
       return;
     }
@@ -114,10 +171,13 @@ export async function markFailed(jobId: number, errorMessage: string): Promise<v
         retries: newRetries,
         runAfter,
         lastError: errorMessage.slice(0, 1000),
-        updatedAt: new Date(),
-        lockedAt: null,
-        lockedBy: null,
-      })
+         updatedAt: new Date(),
+         lockedAt: null,
+         lockedBy: null,
+         heartbeatAt: null,
+         finishedAt: null,
+         durationMs: null,
+       })
       .where(eq(jobs.id, jobId));
   });
 }
@@ -138,7 +198,7 @@ export async function reapStaleJobs(): Promise<number> {
     .where(
       and(
         eq(jobs.status, "running"),
-        lte(jobs.lockedAt, staleThreshold)
+        sql`COALESCE(${jobs.heartbeatAt}, ${jobs.lockedAt}) <= ${staleThreshold.toISOString()}::timestamptz`
       )
     );
 
@@ -156,10 +216,13 @@ export async function reapStaleJobs(): Promise<number> {
           retries: newRetries,
           lastError: sql`COALESCE(${jobs.lastError}, '') || ' [reaped: stale lock - max retries exceeded]'`,
           updatedAt: new Date(),
-          lockedAt: null,
-          lockedBy: null,
-        })
-        .where(eq(jobs.id, job.id));
+           lockedAt: null,
+           lockedBy: null,
+           heartbeatAt: null,
+           finishedAt: new Date(),
+           durationMs: sql`GREATEST(0, EXTRACT(EPOCH FROM (NOW() - ${jobs.startedAt})) * 1000)::integer`,
+         })
+        .where(and(eq(jobs.id, job.id), eq(jobs.status, "running")));
     } else {
       // Retry with backoff
       const backoffSeconds = Math.min(300, 30 * 2 ** (newRetries - 1));
@@ -170,11 +233,15 @@ export async function reapStaleJobs(): Promise<number> {
           retries: newRetries,
           runAfter: new Date(Date.now() + backoffSeconds * 1000),
           lastError: sql`COALESCE(${jobs.lastError}, '') || ' [reaped: stale lock]'`,
-          updatedAt: new Date(),
-          lockedAt: null,
-          lockedBy: null,
-        })
-        .where(eq(jobs.id, job.id));
+           updatedAt: new Date(),
+           lockedAt: null,
+           lockedBy: null,
+           heartbeatAt: null,
+           startedAt: null,
+           finishedAt: null,
+           durationMs: null,
+         })
+        .where(and(eq(jobs.id, job.id), eq(jobs.status, "running")));
     }
     reaped++;
   }

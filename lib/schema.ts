@@ -11,6 +11,7 @@ import {
   index,
   pgEnum,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { user } from "./auth-schema";
 
 export const jobStatusEnum = pgEnum("job_status", ["pending", "running", "done", "failed"]);
@@ -234,18 +235,30 @@ export const jobs = pgTable(
     payload: jsonb("payload").notNull(),
     status: jobStatusEnum("status").notNull().default("pending"),
     retries: integer("retries").notNull().default(0),
-    maxRetries: integer("max_retries").notNull().default(3),
-    runAfter: timestamp("run_after", { withTimezone: true }).notNull().defaultNow(),
-    lockedAt: timestamp("locked_at", { withTimezone: true }),
-    lockedBy: text("locked_by"),
-    lastError: text("last_error"),
+     maxRetries: integer("max_retries").notNull().default(3),
+     runAfter: timestamp("run_after", { withTimezone: true }).notNull().defaultNow(),
+     lockedAt: timestamp("locked_at", { withTimezone: true }),
+     lockedBy: text("locked_by"),
+     jobKey: text("job_key"),
+     groupKey: text("group_key"),
+     startedAt: timestamp("started_at", { withTimezone: true }),
+     heartbeatAt: timestamp("heartbeat_at", { withTimezone: true }),
+     finishedAt: timestamp("finished_at", { withTimezone: true }),
+     queueLatencyMs: integer("queue_latency_ms"),
+     durationMs: integer("duration_ms"),
+     lastError: text("last_error"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [
-    index("idx_jobs_status_run_after").on(table.status, table.runAfter),
-  ]
-);
+   (table) => [
+     index("idx_jobs_status_run_after").on(table.status, table.runAfter),
+     index("idx_jobs_type_status_created").on(table.type, table.status, table.createdAt),
+     index("idx_jobs_running_heartbeat").on(table.status, table.heartbeatAt),
+     uniqueIndex("idx_jobs_active_job_key")
+       .on(table.jobKey)
+       .where(sql`${table.jobKey} IS NOT NULL AND ${table.status} IN ('pending', 'running')`),
+   ]
+ );
 
 export const apiJobs = pgTable(
   "api_jobs",

@@ -1,16 +1,13 @@
 import { db } from "@/lib/db";
 import { settings } from "@/lib/config";
-import { companyProfiles, tenders, structuredData, scores, jobs, insights, userCompanies } from "@/lib/schema";
+import { companyProfiles, tenders, scores, jobs, insights, userCompanies } from "@/lib/schema";
 import { errorResponse, json, parseJsonBody } from "@/lib/http";
 import { scrapeWebsite } from "@/lib/firecrawl";
 import { extractCompanyProfile } from "@/lib/perplexity";
-import { computeScores, type CompanyRow } from "@/lib/scoring";
-import { generateInsight } from "@/lib/insights";
 import { enqueueJob } from "@/lib/queue";
-import { JOB_CRAWL } from "@/lib/types";
-import { and, desc, eq, gte, or, sql } from "drizzle-orm";
+import { JOB_CRAWL, JOB_DISCOVER_COMPANY } from "@/lib/types";
+import { and, desc, eq, gte, or } from "drizzle-orm";
 import { buildDefaultTenderSources, serializeSourceItems } from "@/lib/tender-sources";
-import type { StructuredData as StructuredTenderData } from "@/lib/structurer";
 import { auth } from "@/lib/auth";
 
 export const runtime = "nodejs";
@@ -107,151 +104,6 @@ const listMatchedTenders = async (companyId: number, since: Date) => {
     }));
 };
 
-const scoreKnownTenders = async (companyId: number, companyRow: CompanyRow) => {
-  const allTenders = await db
-    .select({
-      id: tenders.id,
-      title: tenders.title,
-      source: tenders.source,
-      url: tenders.url,
-    })
-    .from(tenders)
-    .where(or(eq(tenders.qualityStatus, "qualified"), eq(tenders.qualityStatus, "candidate")))
-    .orderBy(desc(tenders.createdAt))
-    .limit(200);
-
-  const matched: Array<{
-    id: number;
-    title: string;
-    source: string;
-    url: string | null;
-    fit: number;
-    winProbability: number;
-    effort: number;
-    requirementCoverage: number;
-    killSwitch: boolean;
-    explanation: string;
-    actions: string[];
-    missingItems: string[];
-    details: {
-      domainMatch: number;
-      requirementCoverage: number;
-      regionMatch: number;
-      sizeMatch: number;
-      complexity: number;
-    } | null;
-  }> = [];
-
-  for (const tender of allTenders) {
-    const structuredRows = await db
-      .select({ jsonBlob: structuredData.jsonBlob })
-      .from(structuredData)
-      .where(eq(structuredData.tenderId, tender.id))
-      .limit(1);
-
-    let scoreResult;
-    let structuredForInsight: StructuredTenderData;
-    if (structuredRows.length > 0) {
-      try {
-        const parsed = structuredRows[0].jsonBlob as unknown as StructuredTenderData;
-        scoreResult = computeScores(tender.title ?? "", parsed, companyRow);
-        structuredForInsight = parsed;
-      } catch {
-        continue;
-      }
-    } else {
-      const text = tender.title ?? "";
-      const mockStructured: StructuredTenderData = {
-        title: tender.title ?? "",
-        summary: text,
-        confidence: 0.3,
-        hard_facts: { location: "Deutschland", deadline: null, budget: null, buyer: null, contract_type: null },
-        decision_relevant: {
-          scope: text.split(" ").filter((word) => word.length > 3),
-          requirements: [],
-          mandatory_documents: [],
-          award_criteria: [],
-        },
-        procurement: {
-          contract_value: { min: null, max: null, currency: "EUR" },
-          contract_duration: { months: null, renewal: false },
-          award_criteria_detailed: [],
-          participation_requirements: [],
-          cpv_codes: [],
-          procedure_type: "offen",
-        },
-      };
-      scoreResult = computeScores(tender.title ?? "", mockStructured, companyRow);
-      structuredForInsight = mockStructured;
-    }
-
-    const insight = generateInsight(scoreResult, structuredForInsight);
-
-    await db
-      .insert(scores)
-      .values({
-        tenderId: tender.id,
-        companyId,
-        fit: scoreResult.fit,
-        winProbability: scoreResult.win_probability,
-        effort: scoreResult.effort,
-        requirementCoverage: scoreResult.requirement_coverage,
-        killSwitch: scoreResult.kill_switch,
-        detailsJson: scoreResult.details,
-      })
-      .onConflictDoUpdate({
-        target: [scores.tenderId, scores.companyId],
-        set: {
-          fit: scoreResult.fit,
-          winProbability: scoreResult.win_probability,
-          effort: scoreResult.effort,
-          requirementCoverage: scoreResult.requirement_coverage,
-          killSwitch: scoreResult.kill_switch,
-          detailsJson: scoreResult.details,
-          updatedAt: new Date(),
-        },
-      });
-
-    await db
-      .insert(insights)
-      .values({
-        tenderId: tender.id,
-        companyId,
-        explanation: insight.explanation,
-        actionsJson: insight.actions,
-        missingItemsJson: insight.missing_items,
-      })
-      .onConflictDoUpdate({
-        target: [insights.tenderId, insights.companyId],
-        set: {
-          explanation: insight.explanation,
-          actionsJson: insight.actions,
-          missingItemsJson: insight.missing_items,
-          updatedAt: new Date(),
-        },
-      });
-
-    matched.push({
-      id: tender.id,
-      title: tender.title ?? `Ausschreibung #${tender.id}`,
-      source: tender.source,
-      url: tender.url ?? null,
-      fit: toRoundedScore(scoreResult.fit),
-      winProbability: toRoundedScore(scoreResult.win_probability),
-      effort: toRoundedScore(scoreResult.effort),
-      requirementCoverage: toRoundedPercent(scoreResult.requirement_coverage),
-      killSwitch: scoreResult.kill_switch,
-      explanation: insight.explanation,
-      actions: insight.actions,
-      missingItems: insight.missing_items,
-      details: normalizeScoreDetails(scoreResult.details),
-    });
-  }
-
-  matched.sort((left, right) => right.winProbability - left.winProbability || right.fit - left.fit);
-  return matched;
-};
-
 const getSessionSources = () => {
   if (settings.defaultSources.length === 0) {
     return buildDefaultTenderSources();
@@ -273,6 +125,8 @@ export async function GET(request: Request): Promise<Response> {
     if (Number.isNaN(since.getTime())) {
       return json({ error: "ungueltiger Zeitpunkt" }, { status: 400 });
     }
+    const discoveryId = url.searchParams.get("discoveryId") ?? "";
+    const discoveryGroup = discoveryId ? `discover:${companyId}:${discoveryId}` : "";
 
     const companyRows = await db
       .select({ id: companyProfiles.id, name: companyProfiles.name })
@@ -291,7 +145,14 @@ export async function GET(request: Request): Promise<Response> {
         lastError: jobs.lastError,
       })
       .from(jobs)
-      .where(gte(jobs.createdAt, since))
+      .where(
+        discoveryId
+          ? or(
+              eq(jobs.groupKey, discoveryGroup),
+              and(eq(jobs.type, JOB_CRAWL), gte(jobs.createdAt, since)),
+            )
+          : gte(jobs.createdAt, since),
+      )
       .orderBy(jobs.id);
 
     const matched = await listMatchedTenders(companyId, since);
@@ -523,26 +384,30 @@ export async function POST(request: Request): Promise<Response> {
         .onConflictDoNothing();
     }
 
+    const discoveryId = crypto.randomUUID();
+    const discoveryGroup = `discover:${companyId}:${discoveryId}`;
+
     await enqueueJob(JOB_CRAWL, {
       sources: serializeSourceItems(getSessionSources()),
-    });
-
-    const companyRow: CompanyRow = {
-      capabilities_json: JSON.stringify(profile.capabilities),
-      certifications_json: JSON.stringify(profile.certifications),
-      regions_json: JSON.stringify(profile.regions),
-      team_size: profile.team_size,
-    };
-
-    const matched = await scoreKnownTenders(companyId, companyRow);
+    }, { jobKey: JOB_CRAWL, groupKey: discoveryGroup });
+    const scoreJobId = await enqueueJob(
+      JOB_DISCOVER_COMPANY,
+      { company_id: companyId, discovery_id: discoveryId },
+      {
+        jobKey: `${JOB_DISCOVER_COMPANY}:${companyId}:${discoveryId}`,
+        groupKey: discoveryGroup,
+      },
+    );
 
     return json({
       company: { id: companyId, name: profile.name },
       extracted: profile,
-      matched,
+      matched: [],
+      discoveryId,
+      enqueuedJobId: scoreJobId,
       sessionStartedAt: sessionStartedAt.toISOString(),
       cached: false,
-    });
+    }, { status: 202 });
   } catch (error) {
     return errorResponse(error);
   }

@@ -46,19 +46,50 @@ export const fetchAndStore = async (url: string, relativePath: string): Promise<
     throw new Error(`Dokument zu gross: ${contentLength} Bytes (Limit: ${MAX_FILE_SIZE_BYTES})`);
   }
 
-  const payload = Buffer.from(await response.arrayBuffer());
-
-  // Enforce size limit after download (covers cases without Content-Length)
-  if (payload.length > MAX_FILE_SIZE_BYTES) {
-    throw new Error(`Dokument zu gross: ${payload.length} Bytes (Limit: ${MAX_FILE_SIZE_BYTES})`);
+  if (!response.body) {
+    throw new Error("Dokument ohne lesbaren Response-Stream");
   }
 
-  // Validate that we got actual content, not an error/login page
-  if (payload.length < 100 && contentType.includes("html")) {
-    throw new Error(`Dokument zu kurz (${payload.length} Bytes), vermutlich Fehlerseite`);
-  }
+  const absolute = path.join(settings.objectStorePath, relativePath);
+  const temporary = `${absolute}.${process.pid}.${Date.now()}.tmp`;
+  await fs.promises.mkdir(path.dirname(absolute), { recursive: true });
 
-  return saveBytes(relativePath, payload, contentType);
+  let file: Awaited<ReturnType<typeof fs.promises.open>> | null = null;
+  let size = 0;
+  const hash = createHash("sha256");
+  try {
+    file = await fs.promises.open(temporary, "w");
+    const reader = response.body.getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > MAX_FILE_SIZE_BYTES) {
+        await reader.cancel();
+        throw new Error(`Dokument zu gross: ${size} Bytes (Limit: ${MAX_FILE_SIZE_BYTES})`);
+      }
+      hash.update(value);
+      await file.write(value);
+    }
+    await file.close();
+    file = null;
+
+    // Validate that we got actual content, not an error/login page
+    if (size < 100 && contentType.includes("html")) {
+      throw new Error(`Dokument zu kurz (${size} Bytes), vermutlich Fehlerseite`);
+    }
+
+    await fs.promises.rename(temporary, absolute);
+    return {
+      storagePath: relativePath,
+      sha256: hash.digest("hex"),
+      contentType,
+    };
+  } catch (error) {
+    if (file) await file.close().catch(() => undefined);
+    await fs.promises.rm(temporary, { force: true }).catch(() => undefined);
+    throw error;
+  }
 };
 
 export const objectAbsolutePath = (relativePath: string): string => path.join(settings.objectStorePath, relativePath);

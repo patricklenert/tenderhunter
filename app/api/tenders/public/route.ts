@@ -75,7 +75,7 @@ export async function POST(request: Request): Promise<Response> {
       });
     }
 
-    const jobId = await enqueueJob(JOB_SCRAPE_PUBLIC, {});
+    const jobId = await enqueueJob(JOB_SCRAPE_PUBLIC, {}, { jobKey: JOB_SCRAPE_PUBLIC });
 
     return json({
       message: "Oeffentliche Ausschreibungen Scrape gestartet.",

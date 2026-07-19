@@ -190,7 +190,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
 
-  const searchTendersApi = useCallback(async (query: string, location: string) => {
+  const searchTendersApi = useCallback(async (query: string, location: string, signal?: AbortSignal) => {
     setLoading(true);
     setError(null);
     try {
@@ -198,26 +198,31 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
       if (query.trim()) params.set("q", query.trim());
       if (location.startsWith("bl:")) params.set("bundesland", location.slice(3));
       if (location.startsWith("city:")) params.set("city", location.slice(5));
-      params.set("limit", "100");
+      params.set("limit", "24");
 
-      const res = await fetch(`/api/tenders/search?${params.toString()}`);
+      const res = await fetch(`/api/tenders/search?${params.toString()}`, signal ? { signal } : undefined);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setTenders(data.items ?? []);
       setTotalResults(data.total ?? data.items?.length ?? 0);
     } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
       setError(err instanceof Error ? err.message : "Fehler beim Laden");
       setTenders([]);
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
+    const controller = new AbortController();
     const timer = setTimeout(() => {
-      searchTendersApi(searchQuery, selectedLocation);
+      searchTendersApi(searchQuery, selectedLocation, controller.signal);
     }, searchQuery ? 350 : 0);
-    return () => clearTimeout(timer);
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+    };
   }, [searchQuery, selectedLocation, searchTendersApi]);
 
   useEffect(() => {
