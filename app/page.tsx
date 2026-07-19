@@ -1,12 +1,10 @@
 import type { Metadata } from "next";
 import { InteractiveApp } from "@/components/seo/InteractiveApp";
 import { HomeTenderList } from "@/components/seo/HomeTenderList";
-import { HomeSeoContent } from "@/components/seo/HomeSeoContent";
 import { SeoFooter } from "@/components/seo/SeoFooter";
 
 export const runtime = "nodejs";
-// SEO: ISR instead of force-dynamic to improve LCP — tender data refreshes every hour
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: { absolute: "Tenderhunter – KI-Ausschreibungssoftware für deutsche Unternehmen" },
@@ -32,7 +30,6 @@ export default function HomePage() {
   return (
     <>
       <HomeTenderList />
-      <HomeSeoContent />
       <InteractiveApp />
       <SeoFooter />
     </>

@@ -16,7 +16,8 @@ RUN npx playwright install chromium
 COPY . .
 
 ENV BETTER_AUTH_SECRET="build-placeholder"
-RUN npm run build
+ENV NEXT_PUBLIC_SITE_URL="https://palemaz.com"
+RUN nice -n 19 npm run build
 
 RUN mkdir -p /app/data
 

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="de">
+  <body>
+    <table>
+      <tbody>
+        <tr class="tableRow clickable-row publicationDetail" data-oid="mv-001" data-category="InvitationToTender">
+          <td>16.07.2026</td>
+          <td class="tender">Analyse von Wasserproben</td>
+          <td class="tenderAuthority">Landesamt fuer Umwelt M-V</td>
+          <td class="tenderType">Offenes Verfahren</td>
+          <td class="tenderType">UVgO/VgV</td>
+          <td class="tenderDeadline">27.08.2026 10:00</td>
+        </tr>
+        <tr class="tableRow clickable-row publicationDetail" data-oid="mv-002" data-category="InvitationToTender">
+          <td>15.07.2026</td>
+          <td class="tender">Bauwerksinspektion Wehr</td>
+          <td class="tenderAuthority">StALU Mecklenburgische Seenplatte</td>
+          <td class="tenderType">Oeffentliche Ausschreibung</td>
+          <td class="tenderType">VOB</td>
+          <td class="tenderDeadline">14.08.2026 09:30</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Mobile markup repeats the same records and must not create duplicates. -->
+    <table class="tableMobile">
+      <tbody data-oid="mv-001" data-category="InvitationToTender">
+        <tr><td>Ausschreibung</td><td>Analyse von Wasserproben</td></tr>
+      </tbody>
+      <tbody data-oid="mv-002" data-category="InvitationToTender">
+        <tr><td>Ausschreibung</td><td>Bauwerksinspektion Wehr</td></tr>
+      </tbody>
+    </table>
+
+    <a href="PublicationSearchControllerServlet?function=SearchPublications&amp;Start=100&amp;Max=100&amp;Category=InvitationToTender">Naechste Seite</a>
+  </body>
+</html>

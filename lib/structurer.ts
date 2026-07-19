@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { callLLM } from "@/lib/llm";
 
 const openrouterKey = process.env.OPENROUTER_API_KEY ?? "";
 
@@ -20,11 +21,48 @@ const DURATION_PATTERN = /(?:laufzeit|vertragslaufzeit|dauer|zeitraum)\s*[:\-]?\
 
 const compactSpaces = (value: string): string => value.split(/\s+/).join(" ").trim();
 
+const normalizeUmlauts = (value: string): string =>
+  value.replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss").replace(/Ä/g, "Ae").replace(/Ö/g, "Oe").replace(/Ü/g, "Ue");
+
 const firstMatchingLine = (lines: string[], keywords: string[]): string | null => {
-  for (const line of lines) {
-    const lower = line.toLowerCase();
+  for (let i = 0; i < lines.length; i++) {
+    const lower = normalizeUmlauts(lines[i].toLowerCase());
     if (keywords.some((keyword) => lower.includes(keyword))) {
-      return line.slice(0, 400);
+      // Skip same-line extraction — for label-style lines like "e)Ort der Ausführung"
+      // the value is almost always on the next line. Check next lines directly.
+      for (let j = i + 1; j < Math.min(i + 4, lines.length); j++) {
+        const nextLine = lines[j].trim();
+        if (nextLine.length === 0) continue;
+        // Skip section headers like "g)", "h)" etc.
+        if (/^[a-z]\)\s*[A-ZÄÖÜ]/.test(nextLine)) break;
+        // Skip lines that look like more label text (contain keywords for other fields)
+        const nextLower = normalizeUmlauts(nextLine.toLowerCase());
+        if (["auftraggeber", "vergabestelle", "beschaffer", "frist", "deadline"].some(kw => nextLower.includes(kw))) break;
+        // Clean up common prefixes from the next line
+        const cleaned = nextLine.replace(/^(Name|Stra[ßs]e|Plz,?\s*Ort|Telefon|Fax|E-Mail|Internet|Bezeichnung|Haupterf[üu]llungsort|Auftragsgegenstand)\s*/i, "").trim();
+        return (cleaned.length > 2 ? cleaned : nextLine).slice(0, 400);
+      }
+      return lines[i].slice(0, 400);
+    }
+  }
+  return null;
+};
+
+const extractValueFromLine = (line: string, keywords: string[]): string | null => {
+  // Remove the keyword prefix and common label patterns
+  let cleaned = line.trim();
+  // Remove patterns like "a)", "b)", "1.", "•" at the start
+  cleaned = cleaned.replace(/^[a-z]\)\s*/, "").replace(/^\d+\.\s*/, "").replace(/^[•\-]\s*/, "");
+  // Find and extract value after the keyword — only if keyword is near the start
+  for (const keyword of keywords) {
+    const idx = normalizeUmlauts(cleaned.toLowerCase()).indexOf(keyword);
+    if (idx >= 0 && idx <= 5) {
+      const afterKeyword = cleaned.slice(idx + keyword.length).trim();
+      // Remove common separators after keyword
+      const value = afterKeyword.replace(/^[:\s,\-]+/, "").trim();
+      // Remove common label suffixes
+      const finalValue = value.replace(/\(Vergabestelle\)/gi, "").replace(/\(Auftraggeber\)/gi, "").replace(/^Bezeichnung\s*/i, "").trim();
+      if (finalValue.length > 2) return finalValue;
     }
   }
   return null;
@@ -35,7 +73,7 @@ const matchingLines = (lines: string[], keywords: string[], limit = 8): string[]
   const result: string[] = [];
 
   for (const line of lines) {
-    const lower = line.toLowerCase();
+    const lower = normalizeUmlauts(line.toLowerCase());
     if (!keywords.some((keyword) => lower.includes(keyword))) {
       continue;
     }
@@ -49,6 +87,37 @@ const matchingLines = (lines: string[], keywords: string[], limit = 8): string[]
     result.push(compact.slice(0, 500));
     if (result.length >= limit) {
       break;
+    }
+  }
+
+  return result;
+};
+
+const matchingLinesWithContext = (lines: string[], keywords: string[], contextLines = 10, maxTotalChars = 3000): string[] => {
+  const result: string[] = [];
+  let totalChars = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    const lower = normalizeUmlauts(lines[i].toLowerCase());
+    if (!keywords.some((keyword) => lower.includes(keyword))) {
+      continue;
+    }
+
+    // Collect the content lines after the keyword line
+    const contentLines: string[] = [];
+    for (let j = i + 1; j < Math.min(i + 1 + contextLines, lines.length); j++) {
+      const nextLine = lines[j].trim();
+      if (nextLine.length === 0) continue;
+      // Stop if we hit another section header (single letter + closing paren like "g)" or "h)")
+      if (/^[a-z]\)\s*[A-ZÄÖÜ]/.test(nextLine)) break;
+      contentLines.push(nextLine);
+    }
+
+    if (contentLines.length > 0) {
+      const joined = contentLines.join(" ").slice(0, 2000);
+      totalChars += joined.length;
+      if (totalChars > maxTotalChars) break;
+      result.push(joined);
     }
   }
 
@@ -272,8 +341,7 @@ async function extractWithLLM(title: string, rawText: string): Promise<LLMExtrac
     const openai = getOpenAI();
     const textForLLM = rawText.slice(0, 8000); // Limit for context
     
-    const response = await openai.chat.completions.create({
-      model: "deepseek/deepseek-v4-pro",
+    const content = await callLLM(openai, {
       messages: [
         { role: "system", content: LLM_STRUCTURE_PROMPT },
         { role: "user", content: `Titel: ${title}\n\nText:\n${textForLLM}` },
@@ -282,8 +350,6 @@ async function extractWithLLM(title: string, rawText: string): Promise<LLMExtrac
       max_tokens: 1000,
       response_format: { type: "json_object" },
     });
-
-    const content = response.choices[0]?.message?.content;
     if (!content) return null;
 
     const parsed = JSON.parse(content);
@@ -327,12 +393,12 @@ export const extractStructuredData = async (title: string, rawText: string): Pro
 
   const deadline = extractDeadline(lines);
   const budget = extractBudget(rawText);
-  const location = firstMatchingLine(lines, ["ort", "ausfuehrungsort", "ausfuhrungsort"]);
+  const location = firstMatchingLine(lines, ["ort der ausf", "ort der leistung", "ausfuehrungsort", "ausfuhrungsort", "erfuellungsort", "erfuellungsort"]);
   const buyer = firstMatchingLine(lines, ["auftraggeber", "vergabestelle", "beschaffer"]);
   const contractType = detectContractType(rawText);
 
   const requirements = matchingLines(lines, ["eignung", "mindestanforderung", "fachkunde", "leistungsfaehigkeit"]);
-  const scope = matchingLines(lines, ["leistungsbeschreibung", "leistungsumfang", "gegenstand der ausschreibung"]);
+  const scope = matchingLinesWithContext(lines, ["art und umfang der leistung", "leistungsbeschreibung", "leistungsumfang", "gegenstand der ausschreibung", "art und umfang", "umfang der leistung", "beschreibung der leistung", "auftragsgegenstand"]);
   const awardCriteria = matchingLines(lines, ["zuschlagskriter", "bewertung", "gewichtung"]);
   const mandatoryDocuments = matchingLines(lines, ["nachweis", "zertifikat", "referenz", "pflichtunterlage", "muss"]);
 

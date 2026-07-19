@@ -8,6 +8,9 @@ import { CITY_SLUG_MAP, ALL_CITY_SLUGS } from "@/lib/cities";
 import { normalizeAgencySlug } from "@/lib/agencies";
 import { ALL_PORTAL_SLUGS } from "@/lib/portal-content";
 import { ALL_ARTICLE_SLUGS, ARTICLES } from "@/lib/articles";
+import { ALL_CPV_CODES } from "@/lib/cpv-codes";
+import { ALL_PROCEDURE_TYPE_SLUGS } from "@/lib/procedure-types";
+import { generateTenderSlug } from "@/lib/tender-slug";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
 
@@ -66,6 +69,36 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: now,
       changeFrequency: "daily",
       priority: 0.8,
+    });
+    // SEO: Portal×Category cross pages — target "{Portal} {Kategorie}" long-tail keywords
+    for (const [, catSlug] of Object.entries(CATEGORY_SLUGS)) {
+      if (!catSlug) continue;
+      entries.push({
+        url: `${siteUrl}/ausschreibungen/${portalSlug}/${catSlug}`,
+        lastModified: now,
+        changeFrequency: "weekly",
+        priority: 0.6,
+      });
+    }
+  }
+
+  // SEO: Always include CPV code landing pages — target "{CPV-Code} Ausschreibungen" queries
+  for (const cpvCode of ALL_CPV_CODES) {
+    entries.push({
+      url: `${siteUrl}/ausschreibungen/cpv/${cpvCode}`,
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.6,
+    });
+  }
+
+  // SEO: Always include procedure type landing pages — target "{Verfahren} Ausschreibungen" queries
+  for (const procSlug of ALL_PROCEDURE_TYPE_SLUGS) {
+    entries.push({
+      url: `${siteUrl}/ausschreibungen/verfahren/${procSlug}`,
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.6,
     });
   }
 
@@ -134,14 +167,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   // --- Dynamic URLs below: gracefully degrade on DB/Meilisearch errors ---
 
-  let tenderRows: { id: number; updatedAt: Date | null; metadataJson: unknown }[] = [];
+  let tenderRows: { id: number; title: string | null; updatedAt: Date | null; metadataJson: unknown }[] = [];
   let categoryRows: { category: string | null; updatedAt: Date | null }[] = [];
   let companyRows: { slug: string | null; updatedAt: Date | null; logoUrl: string | null }[] = [];
 
   try {
     [tenderRows, categoryRows, companyRows] = await Promise.all([
       db
-        .select({ id: tenders.id, updatedAt: tenders.updatedAt, metadataJson: tenders.metadataJson })
+        .select({ id: tenders.id, title: tenders.title, updatedAt: tenders.updatedAt, metadataJson: tenders.metadataJson })
         .from(tenders)
         .where(
           and(
@@ -200,12 +233,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   // SEO: Add tender detail pages
   for (const row of tenderRows) {
+    const meta = (typeof row.metadataJson === "object" && row.metadataJson !== null
+      ? row.metadataJson as Record<string, unknown>
+      : {}) as Record<string, unknown>;
+    const location = typeof meta.location === "string" ? meta.location : "";
+    const slug = generateTenderSlug(row.title ?? "", location);
     entries.push({
-      url: `${siteUrl}/ausschreibung/${row.id}`,
+      url: `${siteUrl}/ausschreibung/${row.id}/${slug}`,
       lastModified: row.updatedAt ?? new Date(),
       changeFrequency: "daily",
       priority: 0.6,
-      images: [`${siteUrl}/ausschreibung/${row.id}/opengraph-image`],
+      images: [`${siteUrl}/ausschreibung/${row.id}/${slug}/opengraph-image`],
     });
   }
 

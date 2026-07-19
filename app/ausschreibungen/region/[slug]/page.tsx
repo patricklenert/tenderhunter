@@ -22,6 +22,7 @@ import { BUNDESLAND_CONTENT } from "@/lib/bundesland-content";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 import { searchTenders } from "@/lib/meilisearch";
 import { CITIES } from "@/lib/cities";
+import { generateTenderSlug } from "@/lib/tender-slug";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 
 // SEO: Bundesland landing pages for regional long-tail keywords like "Ausschreibungen Bayern"
@@ -109,6 +110,7 @@ export default async function RegionPage({ params, searchParams }: PageProps) {
     client: string;
     location: string;
     deadline: string | null;
+    slug: string;
   }> = [];
   let totalCount = 0;
   let totalPages = 1;
@@ -131,6 +133,7 @@ export default async function RegionPage({ params, searchParams }: PageProps) {
       deadline: hit.deadlineAt
         ? new Date(hit.deadlineAt).toLocaleDateString("de-DE", { day: "2-digit", month: "short", year: "numeric" })
         : null,
+      slug: generateTenderSlug(hit.title || "", hit.location || ""),
     }));
   } catch {
     // Meilisearch unavailable — page renders empty with noindex
@@ -144,7 +147,7 @@ export default async function RegionPage({ params, searchParams }: PageProps) {
     itemListElement: tenders.slice(0, 20).map((t, i) => ({
       "@type": "ListItem",
       position: i + 1,
-      url: `${siteUrl}/ausschreibung/${t.id}`,
+      url: `${siteUrl}/ausschreibung/${t.id}/${t.slug}`,
       name: t.title,
     })),
   };
@@ -226,7 +229,7 @@ export default async function RegionPage({ params, searchParams }: PageProps) {
               {tenders.map((tender) => (
                 <Link
                   key={tender.id}
-                  href={`/ausschreibung/${tender.id}`}
+                  href={`/ausschreibung/${tender.id}/${tender.slug}`}
                   style={{ textDecoration: "none", color: "inherit" }}
                 >
                   <Paper

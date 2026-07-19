@@ -4,7 +4,10 @@ import { json, errorResponse } from "@/lib/http";
 import { eq } from "drizzle-orm";
 import { scrapeWebsite } from "@/lib/firecrawl";
 import { cleanDescription } from "@/lib/public-tender-scraper";
+import { formatDeadlineDE } from "@/lib/date-utils";
+import { requireSession } from "@/lib/api-auth";
 import OpenAI from "openai";
+import { callLLM } from "@/lib/llm";
 
 const openrouterKey = process.env.OPENROUTER_API_KEY ?? "";
 
@@ -43,6 +46,9 @@ Reasons sollten auf konkreten Staerken des Unternehmens basieren.`;
 export const runtime = "nodejs";
 
 export async function POST(request: Request): Promise<Response> {
+  const sessionOrResponse = await requireSession(request);
+  if (sessionOrResponse instanceof Response) return sessionOrResponse;
+
   try {
     const body = (await request.json()) as {
       tenderId?: number;
@@ -86,7 +92,7 @@ export async function POST(request: Request): Promise<Response> {
     let tenderDetails: Record<string, unknown> = {
       title: tender.title,
       client: metadata.client ?? metadata.auftraggeber ?? "Unbekannt",
-      deadline: tender.deadlineAt ? new Date(tender.deadlineAt).toLocaleDateString("de-DE") : null,
+      deadline: tender.deadlineAt ? formatDeadlineDE(tender.deadlineAt) : null,
       description: cleanDescription(String(metadata.description ?? tender.rawText ?? "")),
       category: tender.category,
       location: metadata.location ?? metadata.ort ?? "",
@@ -117,8 +123,7 @@ export async function POST(request: Request): Promise<Response> {
 
     // 4. Call GPT for matching
     const client = getOpenAI();
-    const response = await client.chat.completions.create({
-      model: "openai/gpt-4o-mini",
+    const content = await callLLM(client, {
       messages: [
         { role: "system", content: MATCH_PROMPT },
         {
@@ -145,8 +150,6 @@ Standort: ${tenderDetails.location ?? "Nicht angegeben"}`,
       temperature: 0.2,
       max_tokens: 1500,
     });
-
-    const content = response.choices[0]?.message?.content ?? "";
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       return json({ error: "Konnte Matching nicht berechnen" }, { status: 500 });

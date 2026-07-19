@@ -12,9 +12,7 @@ import { SiteFooter } from "@/components/seo/SiteFooter";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
 
-// SEO: ISR instead of force-dynamic — hub page content (categories, regions, cities) changes rarely.
-// Tender list is fetched client-side via InteractiveApp, so ISR cache is safe here.
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Ausschreibungen Deutschland – aktuelle Vergaben und Aufträge",
@@ -207,7 +205,7 @@ export default async function AusschreibungenPage() {
                 {latestTenders.map((t) => (
                   <Link
                     key={t.id}
-                    href={`/ausschreibung/${t.id}`}
+                    href={`/ausschreibung/${t.id}/${t.slug}`}
                     style={{ textDecoration: "none", color: "inherit" }}
                   >
                     <Box

@@ -4,6 +4,7 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   experimental: {
     optimizePackageImports: ["@mui/material", "@mui/icons-material", "lucide-react"],
+    cpus: 2,
   },
 };
 

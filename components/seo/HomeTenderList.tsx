@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { tenders } from "@/lib/schema";
 import { eq, and, or, isNull, gt, asc } from "drizzle-orm";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
+import { generateTenderSlug } from "@/lib/tender-slug";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
 
@@ -40,6 +41,7 @@ export async function getLatestTenders() {
         ? new Date(row.deadlineAt).toLocaleDateString("de-DE", { day: "2-digit", month: "short", year: "numeric" })
         : null,
       location: typeof meta.location === "string" ? meta.location.split(",")[0].trim().slice(0, 60) : null,
+      slug: generateTenderSlug(row.title ?? "", typeof meta.location === "string" ? meta.location : ""),
     };
   });
 }
@@ -55,7 +57,7 @@ export async function HomeTenderList() {
     itemListElement: items.map((t, i) => ({
       "@type": "ListItem",
       position: i + 1,
-      url: `${siteUrl}/ausschreibung/${t.id}`,
+      url: `${siteUrl}/ausschreibung/${t.id}/${t.slug}`,
       name: t.title,
     })),
   };

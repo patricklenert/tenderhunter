@@ -17,6 +17,38 @@ export const BUNDESLAENDER = [
   "Thüringen",
 ] as const;
 
+// SEO: URL-friendly slugs for Bundesländer region landing pages
+export const BUNDESLAND_SLUGS: Record<string, string> = {
+  "Baden-Württemberg": "baden-wuerttemberg",
+  Bayern: "bayern",
+  Berlin: "berlin",
+  Brandenburg: "brandenburg",
+  Bremen: "bremen",
+  Hamburg: "hamburg",
+  Hessen: "hessen",
+  "Mecklenburg-Vorpommern": "mecklenburg-vorpommern",
+  Niedersachsen: "niedersachsen",
+  "Nordrhein-Westfalen": "nordrhein-westfalen",
+  "Rheinland-Pfalz": "rheinland-pfalz",
+  Saarland: "saarland",
+  Sachsen: "sachsen",
+  "Sachsen-Anhalt": "sachsen-anhalt",
+  "Schleswig-Holstein": "schleswig-holstein",
+  Thüringen: "thueringen",
+};
+
+export const SLUG_TO_BUNDESLAND: Record<string, string> = Object.entries(
+  BUNDESLAND_SLUGS,
+).reduce(
+  (acc, [bundesland, slug]) => {
+    acc[slug] = bundesland;
+    return acc;
+  },
+  {} as Record<string, string>,
+);
+
+export const ALL_BUNDESLAND_SLUGS = Object.values(BUNDESLAND_SLUGS);
+
 const CITY_TO_BUNDESLAND: Record<string, string> = {
   "Baden-Württemberg": "Baden-Württemberg",
   Stuttgart: "Baden-Württemberg",
@@ -69,6 +101,15 @@ const CITY_TO_BUNDESLAND: Record<string, string> = {
   Neubrandenburg: "Mecklenburg-Vorpommern",
   Stralsund: "Mecklenburg-Vorpommern",
   Greifswald: "Mecklenburg-Vorpommern",
+  Güstrow: "Mecklenburg-Vorpommern",
+  Wismar: "Mecklenburg-Vorpommern",
+  Waren: "Mecklenburg-Vorpommern",
+  Malchin: "Mecklenburg-Vorpommern",
+  Penzlin: "Mecklenburg-Vorpommern",
+  Neustrelitz: "Mecklenburg-Vorpommern",
+  Anklam: "Mecklenburg-Vorpommern",
+  Barth: "Mecklenburg-Vorpommern",
+  "Bad Doberan": "Mecklenburg-Vorpommern",
 
   Hannover: "Niedersachsen",
   Braunschweig: "Niedersachsen",

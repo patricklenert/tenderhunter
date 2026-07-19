@@ -25,6 +25,7 @@ import { CATEGORY_CONTENT } from "@/lib/category-content";
 import { BUNDESLAND_SLUGS } from "@/lib/bundesland";
 import { CITIES } from "@/lib/cities";
 import { ARTICLES } from "@/lib/articles";
+import { generateTenderSlug } from "@/lib/tender-slug";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 
 // SEO: Pagination for category pages — 20 tenders per page
@@ -116,6 +117,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
     deadline: string | null;
     location: string | null;
     client: string | null;
+    slug: string;
   }> = [];
 
   let otherCategories: Array<{ slug: string; label: string; count: number }> =
@@ -168,6 +170,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
         typeof row.metadataJson === "object" && row.metadataJson !== null
           ? (row.metadataJson as Record<string, unknown>)
           : {};
+      const rawLocation = typeof meta.location === "string" ? meta.location : "";
       return {
         id: row.id,
         title: row.title ?? `Ausschreibung #${row.id}`,
@@ -187,6 +190,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
           typeof meta.client === "string"
             ? meta.client.slice(0, 80)
             : null,
+        slug: generateTenderSlug(row.title ?? "", rawLocation),
       };
     });
 
@@ -225,7 +229,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
     itemListElement: categoryTenders.slice(0, 10).map((t, i) => ({
       "@type": "ListItem",
       position: i + 1,
-      url: `${siteUrl}/ausschreibung/${t.id}`,
+      url: `${siteUrl}/ausschreibung/${t.id}/${t.slug}`,
       name: t.title,
     })),
   };
@@ -349,7 +353,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
               {categoryTenders.map((tender) => (
                 <Link
                   key={tender.id}
-                  href={`/ausschreibung/${tender.id}`}
+                  href={`/ausschreibung/${tender.id}/${tender.slug}`}
                   style={{ textDecoration: "none", color: "inherit" }}
                 >
                   <Paper

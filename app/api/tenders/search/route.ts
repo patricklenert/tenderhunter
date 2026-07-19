@@ -1,5 +1,6 @@
 import { json, errorResponse } from "@/lib/http";
 import { searchTenders } from "@/lib/meilisearch";
+import { formatDeadlineDE } from "@/lib/date-utils";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,7 +31,7 @@ export async function GET(request: Request): Promise<Response> {
       city: hit.city,
       category: hit.category,
       description: hit.description,
-      deadline: hit.deadlineAt ? new Date(hit.deadlineAt * 1000).toLocaleDateString("de-DE") : null,
+      deadline: hit.deadlineAt ? formatDeadlineDE(new Date(hit.deadlineAt * 1000)) : null,
       deadlineISO: hit.deadlineAt ? new Date(hit.deadlineAt * 1000).toISOString() : null,
       source: hit.source,
       sourceUrl: hit.sourceUrl,

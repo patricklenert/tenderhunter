@@ -22,10 +22,16 @@ export const saveBytes = (relativePath: string, payload: Buffer, contentType: st
   };
 };
 
+const FETCH_TIMEOUT_MS = 30_000;
+const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
+
 export const fetchAndStore = async (url: string, relativePath: string): Promise<StoredObject> => {
   // Strip jsessionid from URL for cleaner requests
   const cleanUrl = url.replace(/;jsessionid=[^;?/]+/gi, "");
-  const response = await fetch(cleanUrl, { redirect: "follow" });
+  const response = await fetch(cleanUrl, {
+    redirect: "follow",
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
   if (!response.ok) {
     throw new Error(`Dokument konnte nicht geladen werden: ${response.status}`);
   }
@@ -33,7 +39,25 @@ export const fetchAndStore = async (url: string, relativePath: string): Promise<
   const contentType = (response.headers.get("content-type") ?? "application/octet-stream")
     .split(";")[0]
     .trim();
+
+  // Check Content-Length header for early rejection
+  const contentLength = response.headers.get("content-length");
+  if (contentLength && parseInt(contentLength, 10) > MAX_FILE_SIZE_BYTES) {
+    throw new Error(`Dokument zu gross: ${contentLength} Bytes (Limit: ${MAX_FILE_SIZE_BYTES})`);
+  }
+
   const payload = Buffer.from(await response.arrayBuffer());
+
+  // Enforce size limit after download (covers cases without Content-Length)
+  if (payload.length > MAX_FILE_SIZE_BYTES) {
+    throw new Error(`Dokument zu gross: ${payload.length} Bytes (Limit: ${MAX_FILE_SIZE_BYTES})`);
+  }
+
+  // Validate that we got actual content, not an error/login page
+  if (payload.length < 100 && contentType.includes("html")) {
+    throw new Error(`Dokument zu kurz (${payload.length} Bytes), vermutlich Fehlerseite`);
+  }
+
   return saveBytes(relativePath, payload, contentType);
 };
 
@@ -65,6 +89,9 @@ export const ensureExtension = (filename: string, contentType: string): string =
   }
   if (contentType.includes("spreadsheet") || contentType.includes("excel") || contentType.includes("xlsx")) {
     return `${filename}.xlsx`;
+  }
+  if (contentType.includes("zip") || contentType.includes("archive")) {
+    return `${filename}.zip`;
   }
   return `${filename}.bin`;
 };

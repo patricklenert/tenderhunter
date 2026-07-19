@@ -19,7 +19,8 @@ export const BUNDESLAND_CONTENT: Record<string, BundeslandContent> = {
       "Eintragung im Handelsregister oder Gewerbeanmeldung mit Sitz oder Niederlassung in Deutschland",
       "Berufshaftpflichtversicherung mit branchenüblicher Deckungssumme",
       "Referenzen vergleichbarer Projekte aus den letzten 3–5 Jahren",
-      "Unbedenklichkeitsbescheinigungen von Finanzamt und Krankenkasse",
+      "Registrierung im Vergabeportal Baden-Württemberg (VP BW) für elektronische Submissionen",
+      "Einhaltung des Landesvergabegesetzes Baden-Württemberg (LVerG BW) bei Unterschwellenvergaben",
     ],
     faq: [
       {
@@ -46,6 +47,7 @@ export const BUNDESLAND_CONTENT: Record<string, BundeslandContent> = {
       "Eintragung in die Handwerksrolle oder das Handelsregister",
       "Berufshaftpflichtversicherung (Höhe je nach Auftragsart)",
       "Referenzprojekte vergleichbarer Art und Größe",
+      "Einhaltung des Bayerischen Vergabegesetzes (BayVgG) bei Unterschwellenvergaben",
       "PQ-VOLK-Zertifikat wird bei vielen bayerischen Kommunen gefordert",
     ],
     faq: [
@@ -73,6 +75,7 @@ export const BUNDESLAND_CONTENT: Record<string, BundeslandContent> = {
       "Gewerbeanmeldung mit Sitz in Deutschland (Berlin-Sitz ist kein Muss, aber vorteilhaft)",
       "Berufshaftpflichtversicherung mit ausreichender Deckung",
       "Referenzen aus vergleichbaren öffentlichen Projekten",
+      "Einhaltung des Berliner Vergabegesetzes (VgG Bln) und der Berliner Vergabe- und Vertragsordnung",
       "Sicherheitsüberprüfung des Personals bei Aufträgen für Bundesbehörden",
     ],
     faq: [
@@ -100,7 +103,8 @@ export const BUNDESLAND_CONTENT: Record<string, BundeslandContent> = {
       "Gewerbeanmeldung oder Handelsregistereintragung",
       "Berufshaftpflichtversicherung",
       "Referenzen vergleichbarer Projekte",
-      "Bei Energieprojekten: Nachweis technischer Qualifikation",
+      "Registrierung im Vergabeportal Brandenburg (VPB) für elektronische Submissionen",
+      "Bei Energieprojekten: Nachweis technischer Qualifikation und Genehmigungen",
     ],
     faq: [
       {
@@ -127,7 +131,8 @@ export const BUNDESLAND_CONTENT: Record<string, BundeslandContent> = {
       "Gewerbeanmeldung mit Sitz in Deutschland",
       "Berufshaftpflichtversicherung",
       "Referenzen aus vergleichbaren Projekten",
-      "Bei Hafenaufträgen: spezielle Sicherheitsnachweise",
+      "Einhaltung der Vergabegrundsätze der Freien Hansestadt Bremen",
+      "Bei Hafenaufträgen: spezielle Sicherheitsnachweise (ISPS-Code)",
     ],
     faq: [
       {
@@ -154,6 +159,7 @@ export const BUNDESLAND_CONTENT: Record<string, BundeslandContent> = {
       "Gewerbeanmeldung oder Handelsregistereintragung",
       "Berufshaftpflichtversicherung mit angemessener Deckung",
       "Referenzen vergleichbarer Projekte",
+      "Registrierung auf dem Vergabeportal der Freien und Hansestadt Hamburg",
       "Bei IT-Aufträgen: BSI-Grundschutz oder ISO 27001",
     ],
     faq: [
@@ -181,6 +187,7 @@ export const BUNDESLAND_CONTENT: Record<string, BundeslandContent> = {
       "Gewerbeanmeldung oder Handelsregistereintragung",
       "Berufshaftpflichtversicherung",
       "Referenzen vergleichbarer Projekte",
+      "Registrierung im e-Vergabeportal des Landes Hessen für elektronische Submissionen",
       "Bei IT-Aufträgen: ISO 27001 oder BSI-Grundschutz",
     ],
     faq: [
@@ -208,7 +215,8 @@ export const BUNDESLAND_CONTENT: Record<string, BundeslandContent> = {
       "Gewerbeanmeldung oder Handelsregistereintragung",
       "Berufshaftpflichtversicherung",
       "Referenzen vergleichbarer Projekte",
-      "Bei Küstenschutz: Fachkundenachweis Wasserbau",
+      "Registrierung im Vergabeportal Mecklenburg-Vorpommern (VPMV) für elektronische Submissionen",
+      "Bei Küstenschutz: Fachkundenachweis Wasserbau und DIN-Normen für Wasserbau",
     ],
     faq: [
       {
@@ -235,6 +243,7 @@ export const BUNDESLAND_CONTENT: Record<string, BundeslandContent> = {
       "Gewerbeanmeldung oder Handelsregistereintragung",
       "Berufshaftpflichtversicherung",
       "Referenzen vergleichbarer Projekte",
+      "Einhaltung des Niedersächsischen Vergabegesetzes (NVgG) bei Unterschwellenvergaben",
       "PQ-VOLK-Zertifikat wird bei vielen niedersächsischen Kommunen gefordert",
     ],
     faq: [
@@ -263,6 +272,7 @@ export const BUNDESLAND_CONTENT: Record<string, BundeslandContent> = {
       "Berufshaftpflichtversicherung mit angemessener Deckung",
       "Referenzen vergleichbarer Projekte",
       "Registrierung auf evergabe.nrw.de für elektronische Submissionen",
+      "Quartalsbericht über Auftragsvergabe bei Aufträgen über 50.000 € (§ 3a LHO NRW)",
     ],
     faq: [
       {
@@ -289,7 +299,8 @@ export const BUNDESLAND_CONTENT: Record<string, BundeslandContent> = {
       "Gewerbeanmeldung oder Handelsregistereintragung",
       "Berufshaftpflichtversicherung",
       "Referenzen vergleichbarer Projekte",
-      "Bei Weinbauprojekten: Fachkundenachweis",
+      "Einhaltung der Landesvergabeordnung Rheinland-Pfalz (LVO RP) bei Unterschwellenvergaben",
+      "Bei Weinbauprojekten: Fachkundenachweis und Kenntnis der Weinbaunormen",
     ],
     faq: [
       {
@@ -316,7 +327,8 @@ export const BUNDESLAND_CONTENT: Record<string, BundeslandContent> = {
       "Gewerbeanmeldung oder Handelsregistereintragung",
       "Berufshaftpflichtversicherung",
       "Referenzen vergleichbarer Projekte",
-      "Bei grenzüberschreitenden Aufträgen: Kenntnis der EU-Vergaberichtlinien",
+      "Einhaltung des Saarländischen Vergaberechts bei Unterschwellenvergaben",
+      "Bei grenzüberschreitenden Aufträgen: Kenntnis der EU-Vergaberichtlinien und französischer Vergabestrukturen",
     ],
     faq: [
       {
@@ -370,7 +382,8 @@ export const BUNDESLAND_CONTENT: Record<string, BundeslandContent> = {
       "Gewerbeanmeldung oder Handelsregistereintragung",
       "Berufshaftpflichtversicherung",
       "Referenzen vergleichbarer Projekte",
-      "Bei Infrastrukturprojekten: Fachkundenachweis",
+      "Registrierung im Vergabeportal des Freistaates Sachsen (VPS) für elektronische Submissionen",
+      "Bei Digitalisierungsprojekten: BSI-Grundschutz oder ISO 27001",
     ],
     faq: [
       {
@@ -397,7 +410,8 @@ export const BUNDESLAND_CONTENT: Record<string, BundeslandContent> = {
       "Gewerbeanmeldung oder Handelsregistereintragung",
       "Berufshaftpflichtversicherung",
       "Referenzen vergleichbarer Projekte",
-      "Bei Windenergie: Fachkundenachweis und Sicherheitszertifikate",
+      "Einhaltung des Landesvergabegesetzes Schleswig-Holstein (LVgG SH) bei Unterschwellenvergaben",
+      "Bei Windenergie: Fachkundenachweis und Sicherheitszertifikate (GWO-Standard)",
     ],
     faq: [
       {
@@ -424,6 +438,7 @@ export const BUNDESLAND_CONTENT: Record<string, BundeslandContent> = {
       "Gewerbeanmeldung oder Handelsregistereintragung",
       "Berufshaftpflichtversicherung",
       "Referenzen vergleichbarer Projekte",
+      "Registrierung im Vergabeportal des Freistaates Thüringen (VPT) für elektronische Submissionen",
       "Bei Digitalisierungsprojekten: BSI-Grundschutz oder ISO 27001",
     ],
     faq: [

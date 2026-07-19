@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { enqueueJob } from "@/lib/queue";
 import { JOB_CACHE_DETAIL } from "@/lib/types";
 import { cleanDescription } from "@/lib/public-tender-scraper";
+import { formatDeadlineDE, sanitizeTenderUrl } from "@/lib/date-utils";
 
 export const runtime = "nodejs";
 
@@ -25,7 +26,7 @@ export async function POST(request: Request): Promise<Response> {
       .limit(1);
 
     if (rows.length === 0) {
-      return json({ error: "Ausschreibung nicht gefunden" }, { status: 404 });
+      return json({ error: "Ausschreibung nicht gefunden", reason: "expired_or_removed" }, { status: 404 });
     }
 
     const tender = rows[0];
@@ -45,6 +46,9 @@ export async function POST(request: Request): Promise<Response> {
         if (typeof blob.description === "string") {
           blob.description = cleanDescription(blob.description);
         }
+        if (typeof blob.sourceUrl === "string") {
+          blob.sourceUrl = sanitizeTenderUrl(blob.sourceUrl, blob.sourceUrl as string) ?? "";
+        }
         return json({
           ...blob,
           cached: true,
@@ -61,7 +65,8 @@ export async function POST(request: Request): Promise<Response> {
     const result = {
       title: tender.title ?? "",
       client: String(meta.client ?? "Unbekannt"),
-      deadline: tender.deadlineAt ? new Date(tender.deadlineAt).toISOString().split("T")[0] : null,
+      deadline: tender.deadlineAt ? formatDeadlineDE(tender.deadlineAt) : null,
+      deadlineISO: tender.deadlineAt ? new Date(tender.deadlineAt).toISOString() : null,
       description: cleanDescription(String(meta.description ?? tender.rawText ?? "")),
       requirements: [] as string[],
       scope: "",
@@ -74,7 +79,7 @@ export async function POST(request: Request): Promise<Response> {
       pdfUrls: Array.isArray(meta.pdfUrls) ? meta.pdfUrls as string[] : [],
       estimatedValue: tender.contractValueMax ? `${tender.contractValueMax} EUR` : null,
       divisible: null,
-      sourceUrl: tender.url ?? "",
+      sourceUrl: sanitizeTenderUrl(tender.url, String(meta.sourceUrl ?? "")) ?? "",
       cached: false,
       enriching: true,
       scrapedAt: new Date().toISOString(),

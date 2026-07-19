@@ -21,6 +21,7 @@ import { tenders } from "@/lib/schema";
 import { and, inArray, or, isNull, gt, sql, desc } from "drizzle-orm";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 import { normalizeAgencySlug } from "@/lib/agencies";
+import { generateTenderSlug } from "@/lib/tender-slug";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 
 // SEO: Agency/Auftraggeber landing pages for long-tail keywords like "Ausschreibungen Stadt München"
@@ -190,6 +191,7 @@ export default async function AuftraggeberPage({ params, searchParams }: PagePro
     const meta = (typeof t.metadataJson === "object" && t.metadataJson !== null
       ? t.metadataJson
       : {}) as Record<string, unknown>;
+    const rawLocation = typeof meta.location === "string" ? meta.location : "";
     return {
       id: t.id,
       title: t.title ?? `Ausschreibung #${t.id}`,
@@ -198,6 +200,7 @@ export default async function AuftraggeberPage({ params, searchParams }: PagePro
       deadline: t.deadlineAt
         ? new Date(t.deadlineAt).toLocaleDateString("de-DE", { day: "2-digit", month: "short", year: "numeric" })
         : null,
+      slug: generateTenderSlug(t.title ?? "", rawLocation),
     };
   });
 
@@ -209,7 +212,7 @@ export default async function AuftraggeberPage({ params, searchParams }: PagePro
     itemListElement: tenderList.slice(0, 20).map((t, i) => ({
       "@type": "ListItem",
       position: i + 1,
-      url: `${siteUrl}/ausschreibung/${t.id}`,
+      url: `${siteUrl}/ausschreibung/${t.id}/${t.slug}`,
       name: t.title,
     })),
   };
@@ -319,7 +322,7 @@ export default async function AuftraggeberPage({ params, searchParams }: PagePro
               {tenderList.map((tender) => (
                 <Link
                   key={tender.id}
-                  href={`/ausschreibung/${tender.id}`}
+                  href={`/ausschreibung/${tender.id}/${tender.slug}`}
                   style={{ textDecoration: "none", color: "inherit" }}
                 >
                   <Paper

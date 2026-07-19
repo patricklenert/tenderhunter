@@ -80,7 +80,7 @@ export async function configureMeiliIndex(): Promise<void> {
         } as never,
       })
       .catch((err) => {
-        console.warn("[meilisearch] Embedder-Setup fehlgeschlagen, fahre ohne Semantic fort:", err);
+        console.warn("[meilisearch] Embedder-Setup fehlgeschlagen:", err);
       });
   } else {
     console.warn("[meilisearch] Kein OPENROUTER_API_KEY — nur Keyword-Suche verfügbar");
@@ -115,7 +115,7 @@ export async function syncTendersToMeili(): Promise<{ indexed: number; skipped: 
     })
     .from(tenders)
     .where(
-      inArray(tenders.qualityStatus, ["qualified", "candidate"]),
+      inArray(tenders.qualityStatus, ["qualified"]),
     )
     .orderBy(desc(tenders.createdAt))
     .limit(1000);
@@ -162,6 +162,8 @@ export async function syncTendersToMeili(): Promise<{ indexed: number; skipped: 
     return { indexed: 0, skipped: items.length };
   }
 
+  // Clear index first to remove stale documents (tenders deleted from DB)
+  await index.deleteAllDocuments();
   const task = await index.addDocuments(docs);
   console.log(`[meilisearch] ${docs.length} Dokumente indiziert (Task ${task.taskUid})`);
 
@@ -174,6 +176,9 @@ export interface MeilisearchParams {
   query: string;
   bundesland?: string | null;
   city?: string | null;
+  category?: string | null;
+  // SEO: source filter for portal landing pages (supports OR via array)
+  source?: string | string[] | null;
   limit?: number;
   page?: number;
 }
@@ -191,6 +196,19 @@ export async function searchTenders(
   }
   if (params.city) {
     filters.push(`city = "${params.city}"`);
+  }
+  if (params.category) {
+    filters.push(`category = "${params.category}"`);
+  }
+  // SEO: source filter supports single string or OR-array for portal pages
+  if (params.source) {
+    const sources = Array.isArray(params.source) ? params.source : [params.source];
+    if (sources.length === 1) {
+      filters.push(`source = "${sources[0]}"`);
+    } else {
+      const orParts = sources.map((s) => `source = "${s}"`).join(" OR ");
+      filters.push(`(${orParts})`);
+    }
   }
 
   const filterStr = filters.length > 0 ? filters.join(" AND ") : undefined;
@@ -228,5 +246,11 @@ export async function searchTenders(
 
 export async function deleteTenderFromMeili(tenderId: number): Promise<void> {
   const client = getMeiliClient();
-  await client.index(INDEX_NAME).deleteDocument(tenderId).catch(() => {});
+  try {
+    await client.index(INDEX_NAME).deleteDocument(tenderId);
+    console.log(`[meilisearch] Tender ${tenderId} aus Meilisearch gelöscht.`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[meilisearch] Fehler beim Löschen von Tender ${tenderId}: ${message}`);
+  }
 }

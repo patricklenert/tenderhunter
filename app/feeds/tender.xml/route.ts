@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { tenders } from "@/lib/schema";
 import { eq, and, inArray, or, gt, isNull, desc } from "drizzle-orm";
 import { CATEGORY_LABELS } from "@/lib/categories";
+import { generateTenderSlug } from "@/lib/tender-slug";
 
 export const revalidate = 3600;
 
@@ -85,10 +86,12 @@ export async function GET() {
         ? new Date(item.createdAt).toUTCString()
         : now.toUTCString();
 
+      const slug = generateTenderSlug(item.title ?? "", typeof meta.location === "string" ? meta.location : "");
+
       return `    <item>
       <title>${escapeXml(item.title ?? `Ausschreibung #${item.id}`)}</title>
-      <link>${siteUrl}/ausschreibung/${item.id}</link>
-      <guid>${siteUrl}/ausschreibung/${item.id}</guid>
+      <link>${siteUrl}/ausschreibung/${item.id}/${slug}</link>
+      <guid>${siteUrl}/ausschreibung/${item.id}/${slug}</guid>
       <description>${description}</description>
       <pubDate>${pubDate}</pubDate>
       <category>${escapeXml(categoryLabel)}</category>

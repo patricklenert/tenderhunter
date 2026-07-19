@@ -1,6 +1,7 @@
 import { errorResponse, json, parseJsonBody } from "@/lib/http";
 import { getTrackedTender, updateTrackedTender } from "@/lib/tracked-tenders";
 import { trackedTenderUpdateSchema } from "@/lib/validation";
+import { requireSession } from "@/lib/api-auth";
 
 export const runtime = "nodejs";
 
@@ -8,7 +9,10 @@ interface Params {
   params: Promise<{ companyId: string; tenderId: string }>;
 }
 
-export async function GET(_: Request, { params }: Params): Promise<Response> {
+export async function GET(request: Request, { params }: Params): Promise<Response> {
+  const sessionOrResponse = await requireSession(request);
+  if (sessionOrResponse instanceof Response) return sessionOrResponse;
+
   try {
     const { companyId: companyIdRaw, tenderId: tenderIdRaw } = await params;
     const companyId = Number.parseInt(companyIdRaw, 10);
@@ -30,6 +34,9 @@ export async function GET(_: Request, { params }: Params): Promise<Response> {
 }
 
 export async function PATCH(request: Request, { params }: Params): Promise<Response> {
+  const sessionOrResponse = await requireSession(request);
+  if (sessionOrResponse instanceof Response) return sessionOrResponse;
+
   try {
     const { companyId: companyIdRaw, tenderId: tenderIdRaw } = await params;
     const companyId = Number.parseInt(companyIdRaw, 10);

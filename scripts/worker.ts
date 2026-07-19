@@ -1,6 +1,6 @@
 import { settings } from "@/lib/config";
-import { processNextJob } from "@/lib/pipeline";
-import { enqueueJob } from "@/lib/queue";
+import { processNextJob, cleanupExpiredTenders } from "@/lib/pipeline";
+import { enqueueJob, reapStaleJobs } from "@/lib/queue";
 import { serializeSourceItems } from "@/lib/tender-sources";
 import { JOB_CRAWL, JOB_SCRAPE_PUBLIC } from "@/lib/types";
 import { db } from "@/lib/db";
@@ -56,6 +56,23 @@ const shouldEnqueuePublicScrape = async (): Promise<boolean> => {
 };
 
 const run = async (): Promise<void> => {
+  // Reap stale jobs on startup (e.g. after a crash or deploy)
+  try {
+    await reapStaleJobs();
+  } catch (error) {
+    console.warn("[reaper] Fehler beim Aufräumen stale Jobs:", error);
+  }
+
+  // Cleanup expired tenders on startup
+  try {
+    const { deleted } = await cleanupExpiredTenders();
+    if (deleted > 0) {
+      console.log(`[cleanup] ${deleted} abgelaufene Ausschreibungen entfernt.`);
+    }
+  } catch (error) {
+    console.warn("[cleanup] Fehler beim Aufräumen abgelaufener Ausschreibungen:", error);
+  }
+
   if (withPollingCrawl && settings.defaultSources.length > 0) {
     await enqueueJob(JOB_CRAWL, {
       sources: serializeSourceItems(settings.defaultSources),
@@ -83,7 +100,18 @@ const run = async (): Promise<void> => {
   }
 
   console.log(`Worker ${workerId} gestartet. Polling alle ${settings.workerPollSeconds}s.`);
+  let reapCounter = 0;
   while (true) {
+    // Reap stale jobs every 10 poll cycles (~30s with default 3s poll)
+    if (++reapCounter >= 10) {
+      reapCounter = 0;
+      try {
+        await reapStaleJobs();
+      } catch (error) {
+        console.warn("[reaper] Fehler:", error);
+      }
+    }
+
     const result = await processNextJob(workerId);
     if (result) {
       console.log(JSON.stringify(result));

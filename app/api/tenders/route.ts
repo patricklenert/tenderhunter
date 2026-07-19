@@ -2,10 +2,14 @@ import { db } from "@/lib/db";
 import { tenders } from "@/lib/schema";
 import { json } from "@/lib/http";
 import { desc } from "drizzle-orm";
+import { requireSession } from "@/lib/api-auth";
 
 export const runtime = "nodejs";
 
 export async function GET(request: Request): Promise<Response> {
+  const sessionOrResponse = await requireSession(request);
+  if (sessionOrResponse instanceof Response) return sessionOrResponse;
+
   const limitRaw = new URL(request.url).searchParams.get("limit") ?? "100";
   const limit = Math.max(1, Math.min(Number.parseInt(limitRaw, 10) || 100, 500));
 

@@ -8,6 +8,8 @@ export interface Article {
   dateModified: string;
   content: string;
   relatedCategories: string[];
+  // SEO: Cross-links to related articles for improved crawl depth and PageRank flow
+  relatedArticles?: string[];
   // SEO: HowTo step data for HowTo JSON-LD rich snippets — only for step-by-step articles
   howToSteps?: Array<{ name: string; text: string }>;
 }
@@ -21,6 +23,7 @@ export const ARTICLES: Record<string, Article> = {
     datePublished: "2025-01-15",
     dateModified: "2025-01-15",
     relatedCategories: ["Bauarbeiten", "IT-Dienstleistungen", "Planungsleistungen"],
+    relatedArticles: ["vob-vergabe", "wie-funktioniert-ausschreibung", "oeffentliche-auftraege-finden"],
     content: `
 ## Was sind Vergabeverfahren?
 
@@ -92,6 +95,7 @@ Unterhalb dieser Werte gelten nationale Vergaberegeln mit geringeren Formalanfor
     datePublished: "2025-01-15",
     dateModified: "2025-01-15",
     relatedCategories: ["Bauarbeiten", "Tiefbau", "TGA", "Planungsleistungen"],
+    relatedArticles: ["vergabeverfahren-uebersicht", "ausschreibung-muster", "bietergemeinschaft-gruenden"],
     content: `
 ## Was ist die VOB/A?
 
@@ -165,6 +169,7 @@ Bei komplexen Bauvorhaben werden häufig Ortstermine angeboten. Die Teilnahme is
       "IT-Dienstleistungen",
       "Lieferung",
     ],
+    relatedArticles: ["wie-funktioniert-ausschreibung", "ausschreibung-gewinnen", "vergabeverfahren-uebersicht"],
     content: `
 ## Warum öffentliche Aufträge für KMU interessant sind
 
@@ -255,6 +260,7 @@ Nicht jedes Angebot führt zum Zuschlag. Nutzen Sie Ablehnungen als Lernchance:
     datePublished: "2025-02-01",
     dateModified: "2025-02-01",
     relatedCategories: ["Bauarbeiten", "IT-Dienstleistungen", "Facility Management"],
+    relatedArticles: ["vergabeverfahren-uebersicht", "oeffentliche-auftraege-finden", "ausschreibung-gewinnen"],
     // SEO: HowTo steps extracted from H2 headings — enables HowTo rich snippet in Google SERP
     howToSteps: [
       { name: "Bedarfsfeststellung und Leistungsbeschreibung", text: "Der öffentliche Auftraggeber definiert seinen Bedarf und erstellt eine detaillierte Leistungsbeschreibung mit Umfang, Fristen und Formalien." },
@@ -355,6 +361,7 @@ Eine öffentliche Ausschreibung folgt klaren Regeln und Schritten. Wer die einze
     datePublished: "2025-02-01",
     dateModified: "2025-02-01",
     relatedCategories: ["Bauarbeiten", "Tiefbau", "Planungsleistungen"],
+    relatedArticles: ["vob-vergabe", "ausschreibung-gewinnen", "vergabeverfahren-uebersicht"],
     // SEO: HowTo steps for ARGE founding — enables HowTo rich snippet in Google SERP
     howToSteps: [
       { name: "Passende Partner finden", text: "Suchen Sie Unternehmen mit komplementären Leistungen, vergleichbaren Qualitätsstandards und stabiler Finanzkraft. Nutzen Sie IHK-Netzwerke und Fachverbände." },
@@ -453,6 +460,1219 @@ Nach dem Zuschlag:
 ## Fazit
 
 Eine Bietergemeinschaft ist ein mächtiges Instrument, um bei großen öffentlichen Ausschreibungen wettbewerbsfähig zu sein. Die rechtlichen und organisatorischen Anforderungen sind hoch — aber mit sorgfältiger Planung und einem soliden ARGE-Vertrag ist die Zusammenarbeit erfolgreich.
+`,
+  },
+
+  // SEO: Neue Artikel für Cycle 4 — gezielte Long-Tail-Keywords abdecken
+  "schwellenwerte-vergabe-2025": {
+    slug: "schwellenwerte-vergabe-2025",
+    title: "Schwellenwerte Vergabe 2025: Übersicht für Bieter und Auftraggeber",
+    description:
+      "EU-Schwellenwerte und nationale Schwellenwerte für öffentliche Aufträge 2025 im Überblick. Welche Werte gelten, ab wann gelten EU-Regeln und was bedeutet das für Ihre Ausschreibung?",
+    datePublished: "2025-06-01",
+    dateModified: "2025-06-01",
+    relatedCategories: ["Bauarbeiten", "IT-Dienstleistungen", "Lieferung"],
+    relatedArticles: ["vergabeverfahren-uebersicht", "vob-vergabe", "ausschreibung-muster"],
+    howToSteps: [
+      { name: "Schwellenwert prüfen", text: "Ermitteln Sie den geschätzten Auftragswert ohne Umsatzsteuer. Vergleichen Sie diesen mit den geltenden EU-Schwellenwerten für Ihre Leistungsart." },
+      { name: "Verfahren wählen", text: "Liegt der Auftragswert über dem EU-Schwellenwert, gilt EU-Vergaberecht mit Bekanntmachung auf TED. Unterhalb gelten nationale Regeln mit vereinfachten Verfahren." },
+      { name: "Angebot vorbereiten", text: "Je nach Verfahrenstyp variieren Fristen und Formalien. EU-Vergaben erfordern längere Fristen (mind. 35 Tage) und strengere Eignungsanforderungen." },
+    ],
+    content: `
+## Was sind Schwellenwerte in der Vergabe?
+
+Schwellenwerte legen fest, ab welchem Auftragswert öffentliche Auftraggeber das EU-Vergaberecht anwenden müssen. Oberhalb dieser Werte gelten strengere Regeln: EU-weite Bekanntmachung auf TED, längere Angebotsfristen und formale Eignungsprüfungen. Unterhalb gelten nationale Vergaberegeln mit geringeren Formalanforderungen.
+
+Die Schwellenwerte werden alle zwei Jahre von der Europäischen Kommission aktualisiert. Die aktuellen Werte gelten seit Februar 2024 und voraussichtlich bis Januar 2026.
+
+## EU-Schwellenwerte 2024/2025
+
+| Auftragsart | EU-Schwellenwert (netto) |
+|-------------|--------------------------|
+| Bauaufträge | 5.538.000 € |
+| Liefer- und Dienstleistungen (Bund) | 143.000 € |
+| Liefer- und Dienstleistungen (Kommunen/Länder) | 221.000 € |
+| Sektorenaufträge (Wasser, Energie, Verkehr) | 452.000 € |
+| Konzessionen | 5.538.000 € |
+| Soziale und andere besondere Dienstleistungen | 750.000 € |
+
+**Wichtig:** Die Werte gelten netto (ohne Umsatzsteuer). Bei der Schwellenwertberechnung darf der Auftrag nicht künstlich aufgeteilt werden, um unter den Schwellenwert zu fallen (§ 3 GWB).
+
+## Nationale Schwellenwerte (Unterschwellenbereich)
+
+Unterhalb der EU-Schwellenwerte gelten nationale Regeln. Die Vergabeverordnung (VgV) unterscheidet:
+
+### Oberschwelle (ab 100.000 € für Liefer-/Dienstleistungen)
+- Pflicht zur Bekanntmachung auf nationalen Portalen (DTVP, evergabe)
+- Mindestens 3 qualifizierte Angebote anstreben
+- Dokumentationspflicht
+
+### Mittlerer Bereich (ab 15.000 €)
+- Freihändige Vergabe zulässig, aber Vergabegrundsätze beachten
+- Mindestens 3 Angebote einholen
+- Wirtschaftlichkeit dokumentieren
+
+### Unterschwelle (unter 15.000 €)
+- Keine vergaberechtlichen Vorgaben
+- Wirtschaftlichkeit und Sparsamkeit beachten
+
+## Praxis-Tipps für Bieter
+
+1. **Schwellenwert im Auge behalten:** Prüfen Sie bei jeder Ausschreibung, ob der Auftragswert über oder unter dem EU-Schwellenwert liegt. Daran entscheiden sich Fristen und Formalien.
+2. **EU-weite Bekanntmachung:** Oberhalb des Schwellenwerts muss die Ausschreibung auf TED veröffentlicht werden. Nutzen Sie Tenderhunter, um auch diese Aufträge zu finden.
+3. **Fristen beachten:** EU-Vergaben: mindestens 35 Kalendertage Angebotsfrist. Nationale Vergaben: meist 10-20 Kalendertage.
+4. **Eignungsanforderungen unterscheiden sich:** EU-Vergaben haben strengere Eignungsanforderungen (Referenzen, Bilanzen, Zertifikate). Bereiten Sie diese vor.
+5. **Teillosevergabe:** Ab EU-Schwellenwert muss der Auftrag grundsätzlich in Lose aufgeteilt werden — eine Chance für KMU.
+
+## Sonderfälle und Ausnahmen
+
+### Kalkulation des Auftragswerts
+- Berechnung auf Basis des Gesamtwerts ohne Umsatzsteuer
+- Bei Rahmenverträgen: Höchstwert aller möglichen Aufträge
+- Bei Losen: Summe aller Lose (wenn Lose zusammen vergeben werden)
+
+### Beschaffungsverbund
+Bilden mehrere Auftraggeber einen Beschaffungsverbund, werden die Auftragswerte addiert. So kann ein Gemeinschaftskauf über den EU-Schwellenwert fallen.
+
+### Wechselkurse
+Bei Aufträgen in Fremdwährung gilt der Euro-Referenzkurs der EZB am Tag der Bekanntmachung.
+
+## Häufige Fragen
+
+**Gilt der Schwellenwert pro Jahr oder pro Auftrag?**
+Der Schwellenwert gilt pro einzelnen Auftrag, nicht pro Jahr. Allerdings darf ein Auftrag nicht künstlich aufgeteilt werden, um unter den Schwellenwert zu fallen.
+
+**Was passiert, wenn der Auftragswert knapp unter dem Schwellenwert liegt?**
+Es gelten nationale Vergaberegeln. Die Vergabegrundsätze (Wirtschaftlichkeit, Transparenz, Wettbewerb) bleiben trotzdem zu beachten.
+
+**Wer überwacht die Einhaltung der Schwellenwerte?**
+Die Vergabekammern der Länder und des Bundes überwachen die Einhaltung. Bieter können bei Verstößen ein Nachprüfungsverfahren anstrengen.
+`,
+  },
+
+  "ausschreibung-schreiben": {
+    slug: "ausschreibung-schreiben",
+    title: "Ausschreibung schreiben: Anleitung für Auftraggeber und Bieter",
+    description:
+      "Schritt-für-Schritt-Anleitung zum Schreiben einer öffentlichen Ausschreibung. Leistungsbeschreibung, Zuschlagskriterien, Vergabeunterlagen — was Auftraggeber und Bieter wissen müssen.",
+    datePublished: "2025-06-01",
+    dateModified: "2025-06-01",
+    relatedCategories: ["Planungsleistungen", "Facility Management"],
+    relatedArticles: ["vergabeverfahren-uebersicht", "vob-vergabe", "oeffentliche-auftraege-finden"],
+    howToSteps: [
+      { name: "Bedarf ermitteln", text: "Definieren Sie den genauen Bedarf: Was wird benötigt, in welchem Umfang, bis wann? Klären Sie technische Anforderungen und Rahmenbedingungen." },
+      { name: "Leistungsbeschreibung erstellen", text: "Formulieren Sie eine präzise Leistungsbeschreibung mit Spezifikationen, Mengen, Fristen und Qualitätsanforderungen. Nutzen Sie ATV-DIN-Normen bei Bauleistungen." },
+      { name: "Vergabeunterlagen zusammenstellen", text: "Erstellen Sie das vollständige Vergabepaket: Leistungsbeschreibung, Entwurfsvertrag, Eignungsanforderungen, Zuschlagskriterien, Angebotsfrist und Formalien." },
+      { name: "Bekanntmachung veröffentlichen", text: "Veröffentlichen Sie die Ausschreibung auf den relevanten Portalen (DTVP, TED, evergabe). Beachten Sie die vorgeschriebenen Bekanntmachungsformulare." },
+    ],
+    content: `
+## Wer schreibt öffentliche Ausschreibungen?
+
+Öffentliche Ausschreibungen werden von öffentlichen Auftraggebern geschrieben: Bund, Länder, Kommunen, öffentliche Unternehmen und Einrichtungen des Gesundheitswesens. Aber auch Bieter profitieren davon zu verstehen, wie eine Ausschreibung entsteht — denn nur wer die Anforderungen kennt, kann ein überzeugendes Angebot schreiben.
+
+## Schritt 1: Bedarfsfeststellung
+
+Alles beginnt mit einem konkreten Bedarf. Die Vergabestelle muss präzise definieren:
+
+- **Was** wird benötigt? (Leistungsart, Umfang, Qualität)
+- **Wann** wird es benötigt? (Ausführungsfrist, Liefertermin)
+- **Wo** wird es benötigt? (Ausführungsort, Einsatzgebiet)
+- **Budget:** Welcher geschätzte Auftragswert liegt vor?
+
+**Tipp:** Eine ungenaue Bedarfsdefinition führt zu Nachfragen, Angeboten an der Realität vorbei und Vergabeverzögerungen.
+
+## Schritt 2: Leistungsbeschreibung erstellen
+
+Die Leistungsbeschreibung ist das Herzstück jeder Ausschreibung. Sie muss so formuliert sein, dass alle Bieter die gleiche Leistung anbieten können.
+
+### Grundsätze guter Leistungsbeschreibungen
+
+- **Eindeutig:** Keine Mehrdeutigkeiten, klare Spezifikationen
+- **Neutral:** Keine Herstellerangaben oder diskriminierende Anforderungen
+- **Vollständig:** Alle geforderten Leistungen sind beschrieben
+- **Prüfbar:** Anforderungen sind messbar und nachvollziehbar
+
+### Bauleistungen nach VOB/C
+
+Bei Bauaufträgen verwenden Sie die ATV-DIN-Normen (Allgemeine Technische Vertragsbedingungen) aus dem VOB/C-Teil. Die Leistungsbeschreibung gliedert sich in:
+
+1. **Beschreibung der Baumaßnahme** (Projektbeschreibung)
+2. **Technische Anforderungen** (Zeichnungen, Pläne, statische Berechnungen)
+3. **Ausführungsfristen und Termine**
+4. **Formalien** (Angebotsformat, Nachweise, Unterschrift)
+
+### Liefer- und Dienstleistungen
+
+Bei Liefer- und Dienstleistungen beschreiben Sie:
+
+- **Spezifikationen** (technische Daten, Normen, Qualitätsstandards)
+- **Mengen und Einheiten**
+- **Liefer- oder Leistungszeitraum**
+- **Besondere Anforderungen** (Verpackung, Anlieferung, Abnahme)
+
+## Schritt 3: Zuschlagskriterien festlegen
+
+Die Zuschlagskriterien bestimmen, wie das wirtschaftlichste Angebot ermittelt wird. Zwei Modelle:
+
+### Preis allein (niedrigstes Angebot)
+- Standard bei einfachen, gut definierten Leistungen
+- Transparent und einfach zu bewerten
+- Geeignet bei homogenen Leistungen (Beton, Asphalt, Standard-IT)
+
+### Wirtschaftlichstes Angebot (Preis + Qualität)
+- Qualitative Kriterien werden berücksichtigt
+- Beispiel: Preis 70 %, Qualität 20 %, Nachhaltigkeit 10 %
+- Geeignet bei komplexen Leistungen mit Qualitätsunterschieden
+
+**Wichtig:** Die Zuschlagskriterien und ihre Gewichtung müssen in der Bekanntmachung veröffentlicht werden. Nachträgliche Änderungen sind nicht zulässig.
+
+## Schritt 4: Eignungsanforderungen definieren
+
+Eignungsanforderungen prüfen, ob ein Bieter die Leistung erbringen kann:
+
+| Anforderung | Typisch für |
+|-------------|------------|
+| Berufliche Zulassung | Bau, Handwerk |
+| Leistungsreferenzen | Alle Bereiche |
+| Finanzielle Leistungsfähigkeit | Großaufträge |
+| Technische Ausstattung | Bau, IT |
+| Qualitätssicherung (ISO 9001) | Alle Bereiche |
+| Berufshaftpflicht | Planungsleistungen |
+
+**Tipp:** Formulieren Sie Eignungsanforderungen so, dass KMU sie erfüllen können. Überzogene Anforderungen schränken den Wettbewerb ein.
+
+## Schritt 5: Vergabeunterlagen zusammenstellen
+
+Das vollständige Vergabepaket enthält:
+
+1. **Bekanntmachung** (vorgeschriebenes Formular)
+2. **Leistungsbeschreibung** mit Anlagen
+3. **Entwurfsvertrag** (VOB/B, BGB oder EVB-IT)
+4. **Eignungsanforderungen** (Nachweisliste)
+5. **Zuschlagskriterien** (Gewichtung)
+6. **Angebotsfrist** und Formalien
+7. **Ergänzende Unterlagen** (Pläne, Bodengutachten, etc.)
+
+## Schritt 6: Bekanntmachung und Vergabeprozess
+
+### Bekanntmachungsportale
+- **Unterhalb EU-Schwellenwert:** DTVP, evergabe, regionale Portale
+- **Oberhalb EU-Schwellenwert:** TED zusätzlich zu nationalen Portalen
+
+### Ablauf
+1. Bekanntmachung veröffentlichen
+2. Vergabeunterlagen bereitstellen
+3. Bieterfragen beantworten (meist anonymisiert)
+4. Angebote öffnen und prüfen
+5. Zuschlag erteilen (nach Wartepflicht)
+6. Vertrag schließen
+
+## Fazit
+
+Eine gute Ausschreibung zeichnet sich durch präzise Leistungsbeschreibung, faire Eignungsanforderungen und transparente Zuschlagskriterien aus. Wer als Bieter die Perspektive des Auftraggebers versteht, kann gezielt auf die Anforderungen eingehen und seine Chancen auf den Zuschlag deutlich erhöhen.
+`,
+  },
+
+  // SEO: Cycle 5 — "Ausschreibung Muster" targets high-volume informational query with zero prior coverage
+  "ausschreibung-muster": {
+    slug: "ausschreibung-muster",
+    title: "Ausschreibung Muster und Vorlage: Aufbau, Inhalte und Beispiel",
+    description:
+      "Ausschreibung Muster und Vorlage für öffentliche Aufträge: Aufbau einer Leistungsbeschreibung, Pflichtangaben nach VOB/A, Beispieltexte und Checkliste zum Erstellen.",
+    datePublished: "2025-07-04",
+    dateModified: "2025-07-04",
+    relatedCategories: ["Bauarbeiten", "Planungsleistungen", "IT-Dienstleistungen"],
+    relatedArticles: ["ausschreibung-schreiben", "vob-vergabe", "wie-funktioniert-ausschreibung"],
+    howToSteps: [
+      { name: "Bedarf feststellen", text: "Definieren Sie den genauen Beschaffungsbedarf: Was wird benötigt, in welchem Umfang und bis wann? Klären Sie technische Anforderungen und Budgetrahmen." },
+      { name: "Leistungsbeschreibung erstellen", text: "Formulieren Sie eine präzise Leistungsbeschreibung mit Spezifikationen, Mengen, Qualitätsanforderungen und Ausführungsfristen. Nutzen Sie ATV-DIN-Normen bei Bauleistungen." },
+      { name: "Angebotsfrist und Formalien festlegen", text: "Legen Sie die Angebotsfrist fest (mind. 10 Tage unterhalb EU-Schwellenwert, 35 Tage bei EU-Vergaben). Definieren Sie Angebotsformat, Nachweise und Unterschrift." },
+      { name: "Bekanntmachung veröffentlichen", text: "Veröffentlichen Sie die Ausschreibung auf den relevanten Portalen (DTVP, TED, evergabe). Beachten Sie die vorgeschriebenen Bekanntmachungsformulare." },
+      { name: "Angebote auswerten", text: "Öffnen Sie die Angebote, prüfen Sie Formalien und Eignung. Werten Sie nach den veröffentlichten Zuschlagskriterien aus." },
+      { name: "Zuschlag erteilen", text: "Das wirtschaftlichste Angebot erhält den Zuschlag. Nach der Wartepflicht (15 Kalendertage bei EU-Vergaben) wird der Vertrag geschlossen." },
+    ],
+    content: `
+## Was ist eine Ausschreibung?
+
+Eine Ausschreibung ist ein geregeltes Vergabeverfahren, bei dem öffentliche Auftraggeber (Bund, Länder, Kommunen) private Unternehmen auffordern, ein Angebot für eine bestimmte Leistung abzugeben. Ziel ist es, das wirtschaftlichste Angebot bei fairem Wettbewerb zu finden.
+
+In Deutschland unterliegen Ausschreibungen dem Vergaberecht, das im Gesetz gegen Wettbewerbsbeschränkungen (GWB) sowie in den Vergabeverordnungen (VgV, VOB/A, VOL/A) geregelt ist.
+
+## Aufbau einer Ausschreibung
+
+Jede öffentliche Ausschreibung folgt einem klar definierten Aufbau. Die wichtigsten Bestandteile sind:
+
+### 1. Bekanntmachung
+Die Bekanntmachung enthält die Eckdaten der Ausschreibung: Auftragsgegenstand, Vergabestelle, Angebotsfrist, Verfahrensart und Kontaktdaten. Sie wird auf Vergabeportalen (DTVP, TED, evergabe) veröffentlicht.
+
+### 2. Leistungsbeschreibung
+Die Leistungsbeschreibung ist das Herzstück der Ausschreibung. Sie beschreibt genau, welche Leistung erwartet wird — einschließlich Umfang, Qualität, Fristen und technischer Anforderungen.
+
+### 3. Vergabeunterlagen
+Die Vergabeunterlagen enthalten alle Dokumente, die der Bieter benötigt: Leistungsbeschreibung, Entwurfsvertrag, Eignungsanforderungen, Zuschlagskriterien und Formalien.
+
+### 4. Zuschlagskriterien
+Die Zuschlagskriterien legen fest, wie das wirtschaftlichste Angebot ermittelt wird — entweder nach niedrigstem Preis oder nach Preis und Qualität (z.B. 70% Preis, 30% Qualität).
+
+## Pflichtangaben nach VOB/A §7
+
+Die Vergabe- und Vertragsordnung für Bauleistungen (VOB/A) schreibt folgende Pflichtangaben vor:
+
+- **Art und Umfang der Leistung** — präzise Beschreibung der Baumaßnahme
+- **Ausführungsfristen** — Beginn, Dauer und Abnahmetermin
+- **Angebotsfrist** — mindestens 10 Kalendertage (national) bzw. 35 Tage (EU-Schwellenwert)
+- **Zuschlagskriterien** — transparente Gewichtung von Preis und Qualität
+- **Eignungsanforderungen** — Nachweise über Referenzen, Finanzkraft und Personal
+- **Formalien** — Angebotsformat, Unterschrift, elektronische Einreichung
+- **Nebenangebote** — ob und unter welchen Bedingungen sie zulässig sind
+- **Teillosevergabe** — ob der Auftrag in Lose aufgeteilt ist
+
+## Muster: Leistungsbeschreibung
+
+Hier ein vereinfachtes Muster für eine Leistungsbeschreibung:
+
+**Auftragsgegenstand:** Gebäudereinigung für Verwaltungsgebäude
+
+**Leistungsumfang:**
+- Tägliche Grundreinigung aller Büroräume (3.200 m²)
+- Wöchentliche Glasreinigung (Innenseiten)
+- Monatliche Unterhaltsreinigung von Sanitäranlagen
+- Halbjährliche Grundreinigung aller Böden
+
+**Qualitätsanforderungen:**
+- Reinigung nach DIN EN 13549
+- Einsatz umweltfreundlicher Reinigungsmittel (EU-Blume oder vergleichbar)
+- Dokumentation jeder Reinigung per Checkliste
+
+**Fristen:**
+- Vertragsbeginn: 01.10.2025
+- Vertragslaufzeit: 24 Monate mit Option auf Verlängerung
+
+**Eignungsanforderungen:**
+- Mindestens 3 Referenzen vergleichbarer Reinigungsaufträge (letzte 3 Jahre)
+- Berufshaftpflichtversicherung (mind. 1 Mio. € Deckungssumme)
+- Unbedenklichkeitsbescheinigungen (Finanzamt, Krankenkasse, Berufsgenossenschaft)
+
+## Checkliste: Ausschreibung erstellen
+
+- [ ] Bedarf genau definiert (Was, Wann, Wo, Umfang)
+- [ ] Leistungsbeschreibung erstellt (eindeutig, neutral, vollständig, prüfbar)
+- [ ] Eignungsanforderungen formuliert (angemessen, nicht überzogen)
+- [ ] Zuschlagskriterien und Gewichtung festgelegt
+- [ ] Angebotsfrist festgelegt (gesetzliche Mindestfristen beachten)
+- [ ] Vergabeunterlagen zusammengestellt (inkl. Entwurfsvertrag)
+- [ ] Bekanntmachungsformular ausgefüllt
+- [ ] Bekanntmachung auf relevanten Portalen veröffentlicht
+- [ ] Bieterfragen beantwortet und allen Bietern zur Verfügung gestellt
+- [ ] Angebote fristgerecht geöffnet und geprüft
+- [ ] Zuschlag nach Kriterien erteilt
+- [ ] Wartepflicht eingehalten (15 Tage bei EU-Vergaben)
+
+## Häufige Fehler bei Ausschreibungen
+
+1. **Unpräzise Leistungsbeschreibung:** Führt zu Nachfragen und ungleichen Angeboten
+2. **Überzogene Eignungsanforderungen:** Schränken den Wettbewerb unnötig ein
+3. **Fehlende Zuschlagskriterien:** Macht die Bewertung intransparent
+4. **Zu kurze Fristen:** Verstoß gegen Vergaberecht
+5. **Diskriminierende Anforderungen:** Herstellerangaben oder regionale Beschränkungen sind unzulässig
+
+## Fazit
+
+Eine gute Ausschreibung zeichnet sich durch präzise Leistungsbeschreibung, faire Eignungsanforderungen und transparente Zuschlagskriterien aus. Das Muster und die Checkliste oben helfen Auftraggebern, eine vergaberechtskonforme Ausschreibung zu erstellen — und Bietern, die Anforderungen richtig zu verstehen.
+`,
+  },
+
+  // SEO: Cycle 5 — "Ausschreibung gewinnen" targets high-intent informational query for bidders
+  "ausschreibung-gewinnen": {
+    slug: "ausschreibung-gewinnen",
+    title: "Ausschreibung gewinnen: 10 Tipps für erfolgreiche Bieter",
+    description:
+      "Erfolgreich bei öffentlichen Ausschreibungen: Angebot strategisch gestalten, Eignungsnachweise vorbereiten, Preis-Leistung optimieren und Zuschlag erhalten.",
+    datePublished: "2025-07-04",
+    dateModified: "2025-07-04",
+    relatedCategories: ["Bauarbeiten", "IT-Dienstleistungen", "Facility Management"],
+    relatedArticles: ["wie-funktioniert-ausschreibung", "oeffentliche-auftraege-finden", "ausschreibung-muster"],
+    howToSteps: [
+      { name: "Passende Ausschreibungen finden", text: "Durchsuchen Sie regelmäßig DTVP, TED und evergabe nach passenden Aufträgen. Nutzen Sie KI-Tools wie Tenderhunter, um relevante Ausschreibungen frühzeitig zu erkennen." },
+      { name: "Ausschreibungsunterlagen sorgfältig lesen", text: "Lesen Sie die Leistungsbeschreibung vollständig. Prüfen Sie Zuschlagskriterien, Eignungsanforderungen und Formalien — Fehler führen zum Ausschluss." },
+      { name: "Eignungsnachweise vorbereiten", text: "Halten Sie alle Nachweise aktuell: Handelsregister, Gewerbeanmeldung, Unbedenklichkeitsbescheinigungen, Referenzen, Bilanzen und Versicherungen." },
+      { name: "Angebot strategisch kalkulieren", text: "Kalkulieren Sie den Preis realistisch — zu niedrig wirkt unseriös, zu hoch verliert den Zuschlag. Berücksichtigen Sie Mindestlohn und Tariftreue." },
+      { name: "Angebot fristgerecht einreichen", text: "Reichen Sie das Angebot elektronisch und vor Fristende ein. Verspätete Angebote werden ausnahmslos ausgeschlossen." },
+    ],
+    content: `
+## Warum gewinnen manche Bieter regelmäßig?
+
+Öffentliche Ausschreibungen folgen klaren Regeln. Bieter, die diese Regeln verstehen und systematisch vorgehen, haben deutlich bessere Chancen auf den Zuschlag. Die wichtigsten Erfolgsfaktoren sind: sorgfältige Vorbereitung, realistische Kalkulation und fehlerfreie Unterlagen.
+
+## Tipp 1: Passende Ausschreibungen frühzeitig erkennen
+
+Der erste Schritt zum Gewinn ist die richtige Ausschreibung. Nicht jeder Auftrag passt zu Ihrem Unternehmen — bewerben Sie sich nur auf Aufträge, die Sie tatsächlich erfüllen können.
+
+- Nutzen Sie Vergabeportale (DTVP, TED, evergabe) für tägliche Recherche
+- Setzen Sie KI-gestützte Tools ein, die automatisch passende Ausschreibungen filtern
+- Prüfen Sie die Eignungsanforderungen bevor Sie sich bewerben — eine unrealistische Bewerbung kostet nur Zeit
+
+## Tipp 2: Ausschreibungsunterlagen genau lesen
+
+Die häufigste Ursache für den Ausschluss: formale Fehler oder fehlende Unterlagen. Lesen Sie die Vergabeunterlagen vollständig:
+
+- Welche Zuschlagskriterien gelten? (Preis allein oder Preis + Qualität?)
+- Welche Formalien sind vorgeschrieben? (Format, Unterschrift, elektronische Einreichung)
+- Welche Eignungsnachweise werden gefordert? (Referenzen, Bilanzen, Zertifikate)
+- Sind Nebenangebote zulässig?
+- Welche Vertragsbedingungen gelten? (VOB/B, BGB, EVB-IT)
+
+## Tipp 3: Eignungsanforderungen vorbereiten
+
+Halten Sie folgende Unterlagen immer aktuell und griffbereit:
+
+- Handelsregisterauszug und Gewerbeanmeldung
+- Unbedenklichkeitsbescheinigungen (Finanzamt, Krankenkasse, Berufsgenossenschaft)
+- Jahresabschlüsse (letzte 2–3 Jahre)
+- Referenzliste mit vergleichbaren Projekten (inkl. Auftraggeber, Volumen, Zeitraum)
+- Versicherungsnachweise (Berufshaftpflicht, Betriebshaftpflicht)
+- Zertifikate (ISO 9001, ISO 14001, ISO 27001)
+
+**Tipp:** Viele Bieter verlieren Aufträge, weil sie Referenzen nicht aktuell haben oder Nachweise zu spät besorgen. Führen Sie ein Eignungs-Dossier, das Sie bei jeder Ausschreibung aktualisieren.
+
+## Tipp 4: Preis-Leistungs-Verhältnis optimieren
+
+Bei öffentlichen Ausschreibungen entscheidet meist der Preis — aber nicht immer der niedrigste. Zwei Modelle:
+
+### Niedrigstes Angebot (Preis allein)
+- Standard bei einfachen, gut definierten Leistungen
+- Kalkulieren Sie realistisch: Material, Personal, Overhead, Marge
+- Zu niedrige Preise wirken unseriös und können zum Ausschluss führen
+
+### Wirtschaftlichstes Angebot (Preis + Qualität)
+- Qualitative Kriterien werden berücksichtigt (z.B. 70% Preis, 30% Qualität)
+- Investieren Sie in ein überzeugendes Qualitätskonzept
+- Dokumentieren Sie Referenzen, Zertifikate und besondere Qualifikationen
+
+**Tipp:** Bei Preis-Plus-Qualität-Vergaben lohnt es sich, mehr in Qualität zu investieren — der Preisvorteil eines Konkurrenten kann durch bessere Qualität ausgeglichen werden.
+
+## Tipp 5: Referenzen und Nachweise strategisch auswählen
+
+Nicht jede Referenz ist gleich viel wert. Wählen Sie Projekte aus, die:
+
+- **Vergleichbar** sind — ähnliche Leistung, ähnliches Volumen, ähnliche Branche
+- **Aktuell** sind — die letzten 3–5 Jahre
+- **Erfolgreich** waren — fristgerecht, budgetgerecht, ohne Mängel
+- **Nachweisbar** sind — mit Bestätigung des Auftraggebers
+
+## Tipp 6: Formale Fehler vermeiden
+
+Die häufigsten formalen Gründe für den Ausschluss:
+
+1. **Frist versäumt** — Verspätete Angebote werden ausnahmslos ausgeschlossen
+2. **Unterschrift fehlt** — Elektronische Signatur oder eigenhändige Unterschrift
+3. **Nachweise unvollständig** — Fehlende Bescheinigungen oder abgelaufene Zertifikate
+4. **Format nicht eingehalten** — PDF statt Word, falsche Seitenzahl, fehlende Anlagen
+5. **Nebenangebot nicht gekennzeichnet** — Muss klar als solches erkennbar sein
+
+## Tipp 7: Bieterfragen nutzen
+
+In der Angebotsfrist können Bieter Fragen stellen. Nutzen Sie diese Möglichkeit:
+
+- Stellen Sie Fragen zu unklaren Anforderungen
+- Fragen Sie nach technischen Details, die in der Leistungsbeschreibung fehlen
+- Die Vergabestelle muss antworten — und die Antwort gilt für alle Bieter
+
+## Tipp 8: Nachverhandlungen vorbereiten
+
+Bei Verhandlungsverfahren oder wirtschaftlichstem Angebot kann es zu Nachverhandlungen kommen. Bereiten Sie sich vor:
+
+- Kennen Sie Ihre Schmerzgrenze beim Preis
+- Haben Sie Argumente für Ihre Qualitätsvorteile parat
+- Seien Sie offen für Kompromisse bei der Leistungserbringung
+
+## Tipp 9: Aus Absagen lernen
+
+Nicht jedes Angebot führt zum Zuschlag. Nutzen Sie Ablehnungen als Lernchance:
+
+- Fordern Sie eine Aufklärung über den Zuschlagsempfänger an
+- Analysieren Sie, woran es lag (Preis, Qualität, Referenzen?)
+- Passen Sie Ihre Strategie für zukünftige Ausschreibungen an
+
+## Tipp 10: Netzwerken und Kooperieren
+
+Bei größeren Aufträgen können Bietergemeinschaften (ARGE) oder Subunternehmer-Strategien sinnvoll sein:
+
+- Kleinere Unternehmen schließen sich zusammen, um die Eignungsanforderungen zu erfüllen
+- Generalunternehmer beziehen spezialisierte Subunternehmer ein
+- Nutzen Sie IHK-Netzwerke und Fachverbände für Kontakte
+
+## Fazit
+
+Ausschreibungen gewinnen ist keine Glückssache — es erfordert Systematik, Vorbereitung und Erfahrung. Wer die Vergabeunterlagen sorgfältig liest, die Eignungsnachweise aktuell hält und ein realistisches Angebot kalkuliert, hat beste Chancen auf den Zuschlag.
+`,
+  },
+
+  "nachpruefungsverfahren-vergabe": {
+    slug: "nachpruefungsverfahren-vergabe",
+    title: "Nachprüfungsverfahren bei der Vergabe: Widerspruch und Rechte der Bieter",
+    description:
+      "Vergabefehler erkennen, Rüge aussprechen und Nachprüfungsverfahren einleiten. Alle Rechte der Bieter bei Vergabeverstößen — von der Rüge bis zur Vergabekammer.",
+    datePublished: "2025-06-01",
+    dateModified: "2025-06-01",
+    relatedCategories: ["Bauarbeiten", "Tiefbau"],
+    relatedArticles: ["vob-vergabe", "vergabeverfahren-uebersicht", "ausschreibung-gewinnen"],
+    howToSteps: [
+      { name: "Vergabefehler erkennen", text: "Prüfen Sie die Vergabeunterlagen und das Verfahren auf Verstöße gegen Vergaberecht: formale Fehler, inhaltliche Mängel oder Verfahrensverstöße." },
+      { name: "Rüge aussprechen", text: "Setzen Sie dem Auftraggeber eine Frist zur Abhilfe (meist 10-15 Tage). Die Rüge muss den Vergabefehler konkret benennen." },
+      { name: "Antrag bei Vergabekammer stellen", text: "Wenn der Auftraggeber nicht abhilft, stellen Sie einen Nachprüfungsantrag bei der zuständigen Vergabekammer. Frist: 15 Kalendertage nach Bekanntgabe des Vergabefehlers." },
+      { name: "Kammer-Entscheidung abwarten", text: "Die Vergabekammer prüft den Antrag innerhalb von 5 Wochen (EU-Vergaben) bzw. 7 Wochen (nationale Vergaben). Die Entscheidung ist bindend." },
+    ],
+    content: `
+## Was ist ein Nachprüfungsverfahren?
+
+Das Nachprüfungsverfahren ist das vergaberechtliche Instrument, mit dem Bieter Verstöße gegen Vergaberegeln geltend machen können. Es funktioniert ähnlich einem Widerspruch, ist aber eigenständig im GWB (Gesetz gegen Wettbewerbsbeschränkungen) geregelt.
+
+**Wichtig:** Das Nachprüfungsverfahren ist nur für Bieter zugänglich, die sich um einen konkreten Auftrag bewerben. Allgemeine Kritik an Vergabeverfahren kann nicht geltend gemacht werden.
+
+## Welche Vergabefehler können gerügt werden?
+
+### Formale Fehler
+- Fehlende oder fehlerhafte Bekanntmachung
+- Unvollständige Vergabeunterlagen
+- Zu kurze Angebotsfristen
+- Verstoß gegen die Pflicht zur Teillosevergabe
+
+### Inhaltliche Mängel
+- Diskriminierende Eignungsanforderungen
+- Unklare oder nachträglich geänderte Zuschlagskriterien
+- Unzulässige Produktvorgaben (Herstellerangaben)
+- Fehlerhafte Bewertung der Angebote
+
+### Verfahrensverstöße
+- Verstoß gegen das Transparenzgebot
+- Geheime Verhandlungen mit ausgewählten Bietern
+- Zuschlag ohne ordnungsgemäße Bekanntmachung
+- Verstoß gegen die Wartepflicht
+
+## Schritt 1: Vergabefehler erkennen
+
+Prüfen Sie systematisch:
+
+1. **Bekanntmachung:** Ist sie ordnungsgemäß veröffentlicht? Stimmen die Angaben?
+2. **Vergabeunterlagen:** Sind sie vollständig und widerspruchsfrei?
+3. **Eignungsanforderungen:** Sind sie diskriminierungsfrei und angemessen?
+4. **Zuschlagskriterien:** Sind sie transparent und nachvollziehbar?
+5. **Verfahrensablauf:** Wurden Fristen und Formalien eingehalten?
+
+**Tipp:** Dokumentieren Sie alle Auffälligkeiten sofort mit Datum, Uhrzeit und Quelle. Spätere Nachweise sind schwierig.
+
+## Schritt 2: Rüge aussprechen
+
+Bevor Sie einen Nachprüfungsantrag stellen können, müssen Sie den Vergabefehler beim Auftraggeber rügen (§ 160 Abs. 3 GWB).
+
+### Anforderungen an die Rüge
+- **Schriftlich** (E-Mail reicht aus)
+- **Konkret:** Benennen Sie den Vergabefehler genau
+- **Frist:** Setzen Sie eine angemessene Frist zur Abhilfe (10-15 Tage)
+- **Dokumentation:** Bewahren Sie den Versandnachweis auf
+
+### Musterformulierung
+"Hiermit rüge ich den Vergabefehler [konkret beschreiben] im Vergabeverfahren [Aktenzeichen]. Ich bitte um Abhilfe bis zum [Datum]."
+
+**Wichtig:** Die Rüge muss vor Ablauf der Angebotsfrist oder innerhalb von 10 Kalendertagen nach Kenntnis des Vergabefehlers erfolgen.
+
+## Schritt 3: Nachprüfungsantrag stellen
+
+Wenn der Auftraggeber nicht abhilft, können Sie einen Nachprüfungsantrag bei der zuständigen Vergabekammer stellen.
+
+### Zuständige Vergabekammer
+- **Bundesvergabekammer:** Für Aufträge des Bundes
+- **Landesvergabekammern:** Für Aufträge der Länder und Kommunen
+- **Zuständigkeit:** Nach dem Sitz des Auftraggebers
+
+### Fristen
+- **15 Kalendertage** nach Bekanntgabe des Vergabefehlers
+- **10 Kalendertage** nach Eingang der Rüge-Antwort des Auftraggebers
+- **Bei EU-Vergaben:** 15 Kalendertage nach Information über den Zuschlag
+
+### Antragsinhalt
+Der Antrag muss enthalten:
+1. Bezeichnung des Vergabeverfahrens
+2. Konkrete Benennung des Vergabefehlers
+3. Antrag auf Abhilfe oder Aufhebung des Vergabeverfahrens
+4. Nachweis der Rüge (Kopie der Rüge und Antwort)
+
+## Schritt 4: Verfahren vor der Vergabekammer
+
+### Ablauf
+1. **Antragseingang** bei der Vergabekammer
+2. **Prüfung der Zulässigkeit** (Fristen, Rügepflicht, Antragsbefugnis)
+3. **Anhörung** der Beteiligten (Auftraggeber und betroffene Bieter)
+4. **Entscheidung** innerhalb der gesetzlichen Frist
+
+### Entscheidungsmöglichkeiten
+- **Antrag abgelehnt:** Kein Vergabefehler festgestellt
+- **Antrag stattgegeben:** Auftraggeber muss den Fehler korrigieren
+- **Vergabeverfahren aufgehoben:** Neues Verfahren erforderlich
+- **Zuschlag untersagt:** Auftraggeber darf keinen Vertrag schließen
+
+### Fristen der Vergabekammer
+- **EU-Vergaben:** Entscheidung innerhalb von 5 Wochen
+- **Nationale Vergaben:** Entscheidung innerhalb von 7 Wochen
+- **Verlängerung:** Um 2 Wochen in besonderen Fällen
+
+## Schritt 5: Rechtsmittel
+
+Gegen die Entscheidung der Vergabekammer können Sie Rechtsmittel einlegen:
+
+### Oberlandesgericht (OLG)
+- **Frist:** 2 Wochen nach Zustellung der Kammer-Entscheidung
+- **Prüfung:** Rechtsfragen und Tatsachenfragen
+- **Entscheidung:** Endgültig (keine weitere Berufung)
+
+### Sofortige Beschwerde
+- Bei besonders eiligen Fällen
+- Entscheidung innerhalb weniger Tage
+- Nur bei drohenden schweren Schäden
+
+## Kosten des Nachprüfungsverfahrens
+
+### Gebühren der Vergabekammer
+- **EU-Vergaben:** 2.500 € bis 50.000 € (nach Auftragswert)
+- **Nationale Vergaben:** 500 € bis 25.000 €
+- **Bei Erfolg:** Gebühren werden dem Auftraggeber auferlegt
+
+### Anwaltskosten
+- **Erstberatung:** 200 € bis 500 €
+- **Verfahren:** 1.000 € bis 5.000 € (je nach Komplexität)
+- **Bei Erfolg:** Kostenerstattung durch den Auftraggeber
+
+## Häufige Fragen
+
+**Kann ich nach der Angebotsabgabe noch rügen?**
+Ja, aber nur innerhalb von 10 Kalendertagen nach Kenntnis des Vergabefehlers. Nach Ablauf der Angebotsfrist ist die Rüge nur noch bei offensichtlichen Fehlern möglich.
+
+**Was passiert, wenn ich zu spät rüge?**
+Verspätete Rügen sind unzulässig. Sie verlieren Ihr Recht auf Nachprüfung, auch wenn ein Vergabefehler vorliegt.
+
+**Kann ich Schadensersatz verlangen?**
+Ja, bei nachgewiesenen Vergabefehlern können Sie entgangenen Gewinn geltend machen. Allerdings nur, wenn Sie den Zuschlag bei korrektem Verfahren erhalten hätten.
+
+**Muss ich den Auftraggeber vorher informieren?**
+Ja, die Rüge ist Pflicht. Ohne vorherige Rüge ist der Nachprüfungsantrag unzulässig (§ 160 Abs. 3 GWB).
+
+## Fazit
+
+Das Nachprüfungsverfahren ist ein starkes Instrument für Bieter bei Vergabefehlern. Entscheidend sind: schnelle Erkennung des Fehlers, ordnungsgemäße Rüge und fristgerechter Antrag. Wer diese Schritte befolgt, hat gute Chancen, Vergabefehler korrigieren zu lassen.
+`,
+  },
+
+  // SEO: Neue Artikel für Cycle 6 — "Angebot schreiben" targets high-intent informational query
+  "angebot-oeffentliche-ausschreibung-schreiben": {
+    slug: "angebot-oeffentliche-ausschreibung-schreiben",
+    title: "Angebot bei öffentlicher Ausschreibung schreiben: Anleitung und Checkliste",
+    description:
+      "Angebot bei öffentlichen Ausschreibungen schreiben: Struktur, Preisermittlung, Formblätter, Eignungsnachweise und Checkliste. Schritt-für-Schritt für Bieter bei VOB- und VOL-Vergaben.",
+    datePublished: "2026-07-05",
+    dateModified: "2026-07-05",
+    relatedCategories: ["Bauarbeiten", "IT-Dienstleistungen", "Facility Management", "Lieferung"],
+    relatedArticles: ["wie-funktioniert-ausschreibung", "ausschreibung-gewinnen", "vob-vergabe"],
+    howToSteps: [
+      { name: "Ausschreibungsunterlagen sorgfältig lesen", text: "Lesen Sie die Leistungsbeschreibung, Vergabeunterlagen und Zuschlagskriterien vollständig. Notieren Sie alle Formalien, Fristen und Eignungsanforderungen." },
+      { name: "Eignungsnachweise zusammenstellen", text: "Stellen Sie alle geforderten Nachweise zusammen: Handelsregister, Gewerbeanmeldung, Unbedenklichkeitsbescheinigungen, Referenzen, Bilanzen und Versicherungen." },
+      { name: "Preis kalkulieren", text: "Kalkulieren Sie den Preis realistisch: Material, Personal (inkl. Mindestlohn), Lohnnebenkosten, Overhead und Marge. Berücksichtigen Sie Tariftreue und Nachhaltigkeitsanforderungen." },
+      { name: "Angebot formatieren und einreichen", text: "Formatieren Sie das Angebot nach den Vorgaben der Ausschreibung. Reichen Sie elektronisch und vor Fristende ein. Verspätete Angebote werden ausnahmslos ausgeschlossen." },
+    ],
+    content: `
+## Warum ein gutes Angebot über den Zuschlag entscheidet
+
+Bei öffentlichen Ausschreibungen gewinnt nicht das billigste Angebot — sondern das wirtschaftlichste. Das bedeutet: Wer ein vollständiges, formal korrektes und strategisch kalkuliertes Angebot abgibt, hat die besten Chancen auf den Zuschlag. Dieser Artikel erklärt, wie Sie ein Angebot bei öffentlichen Ausschreibungen Schritt für Schritt erstellen.
+
+## Schritt 1: Die Ausschreibung verstehen
+
+Bevor Sie mit der Angebotserstellung beginnen, müssen Sie die Ausschreibung vollständig verstehen:
+
+### Leistungsbeschreibung studieren
+- Was genau wird gefordert? (Umfang, Qualität, Menge)
+- Welche technischen Anforderungen gelten? (Normen, Standards)
+- Welche Fristen sind vorgegeben? (Ausführungsfrist, Liefertermin)
+- Welche Formalien sind einzuhalten? (Format, Unterschrift, Anlagen)
+
+### Zuschlagskriterien analysieren
+- **Niedrigstes Angebot:** Preis allein entscheidet
+- **Wirtschaftlichstes Angebot:** Preis und Qualität (z.B. 70% Preis, 30% Qualität)
+
+**Tipp:** Bei wirtschaftlichstem Angebot lohnt es sich, mehr in Qualität zu investieren — der Preisvorteil eines Konkurrenten kann durch bessere Qualität ausgeglichen werden.
+
+### Eignungsanforderungen prüfen
+- Welche Nachweise werden gefordert?
+- Erfüllen Sie alle Anforderungen?
+- Können Sie die Nachweise fristgerecht besorgen?
+
+## Schritt 2: Eignungsnachweise zusammenstellen
+
+Halten Sie folgende Unterlagen immer aktuell und griffbereit:
+
+| Nachweis | Gültigkeit | Bezugsquelle |
+|----------|-----------|--------------|
+| Handelsregisterauszug | Aktuell | Amtsgericht |
+| Gewerbeanmeldung | Aktuell | Gewerbeamt |
+| Unbedenklichkeitsbescheinigung Finanzamt | Aktuell | Finanzamt |
+| Unbedenklichkeitsbescheinigung Krankenkasse | Aktuell | Krankenkasse |
+| Berufsgenossenschaft | Aktuell | BG |
+| Jahresabschlüsse | Letzte 2-3 Jahre | Steuerberater |
+| Referenzliste | Letzte 3-5 Jahre | Intern |
+| Berufshaftpflicht | Aktuell | Versicherer |
+| ISO-Zertifikate | Gültig | Zertifizierungsstelle |
+
+**Tipp:** Führen Sie ein Eignungs-Dossier, das Sie bei jeder Ausschreibung aktualisieren. Viele Bieter verlieren Aufträge, weil sie Nachweise nicht aktuell haben.
+
+## Schritt 3: Preis kalkulieren
+
+Die Preisermittlung ist der sensibelste Teil der Angebotserstellung. Kalkulieren Sie realistisch:
+
+### Kostenbestandteile
+1. **Materialkosten:** Rohstoffe, Verbrauchsgüter, Betriebsstoffe
+2. **Personalkosten:** Brutto-Lohn + Lohnnebenkosten (AG-Anteil SV, BG, Urlaubs-/Weihnachtsgeld)
+3. **Overhead:** Verwaltung, IT, Miete, Fuhrpark
+4. **Marge:** Gewinnzuschlag (üblich: 5-15% je nach Branche)
+
+### Wichtige Hinweise
+- **Mindestlohn:** Der gesetzliche Mindestlohn (derzeit 12,41 €/h) ist Pflicht — Unterschreitung führt zum Ausschluss
+- **Tariftreue:** Viele Vergabestellen fordern Tariflohn — prüfen Sie die AVR, TVöD oder TV-L
+- **Materialpreise:** Bei langfristigen Verträgen (Rahmenvereinbarungen) Preissteigerungen einkalkulieren
+- **Nachhaltigkeit:** Zertifizierte Materialien (EU-Blume, Blauer Engel) können Mehrkosten verursachen, aber den Zuschlag sichern
+
+### Preis-Plus-Qualität-Strategie
+Bei wirtschaftlichstem Angebot (Preis + Qualität):
+- Kalkulieren Sie den Preis nicht zu niedrig — das wirkt unseriös
+- Investieren Sie in ein überzeugendes Qualitätskonzept
+- Dokumentieren Sie Referenzen, Zertifikate und besondere Qualifikationen
+
+## Schritt 4: Angebot formatieren
+
+Das Angebot muss den Formalien der Ausschreibung entsprechen:
+
+### Typische Formalien
+- **Format:** PDF oder Word (vorgegeben)
+- **Unterschrift:** Eigenhändig oder elektronisch (QES)
+- **Seitenzahl:** Paginierung vorgeschrieben
+- **Anlagen:** Nummeriert und referenziert
+- **Umschlag:** Bei postalischer Einreichung versiegelt
+
+### Elektronische Einreichung
+Viele Vergaben erfolgen elektronisch über evergabe, DTVP oder vergabio:
+- Registrieren Sie sich rechtzeitig auf der Plattform
+- Testen Sie den Upload-Prozess vor Fristende
+- Hochladen dauert länger als gedacht — nicht auf die letzte Minute warten
+
+### Angebotsinhalt
+Das Angebot sollte enthalten:
+1. **Deckblatt:** Firmenname, Ansprechpartner, Aktenzeichen
+2. **Preisübersicht:** Nach Losen oder Leistungspositionen
+3. **Eignungsnachweise:** Als Anlagen
+4. **Qualitätskonzept:** Bei wirtschaftlichstem Angebot
+5. **Referenzliste:** Vergleichbare Projekte
+6. **Erklärungen:** Keine Korruption, keine Kartellabsprachen
+
+## Schritt 5: Angebot einreichen
+
+### Frist einhalten
+- **EU-Schwellenwert:** Mindestens 35 Kalendertage Angebotsfrist
+- **Unterhalb Schwelle:** Meist 10-20 Kalendertage
+- **Fristversäumnis = Ausschluss** — Ausnahmen gibt es praktisch nicht
+
+### Einreichung prüfen
+Vor der Einreichung prüfen:
+- [ ] Alle Formalien erfüllt?
+- [ ] Alle Nachweise beigefügt?
+- [ ] Preis korrekt kalkuliert?
+- [ ] Unterschrift vorhanden?
+- [ ] Angebot vollständig?
+
+## Typische Fehler vermeiden
+
+1. **Frist versäumt** — Verspätete Angebote werden ausnahmslos ausgeschlossen
+2. **Unterschrift fehlt** — Elektronische Signatur oder eigenhändige Unterschrift
+3. **Nachweise unvollständig** — Fehlende Bescheinigungen oder abgelaufene Zertifikate
+4. **Format nicht eingehalten** — PDF statt Word, falsche Seitenzahl, fehlende Anlagen
+5. **Nebenangebot nicht gekennzeichnet** — Muss klar als solches erkennbar sein
+6. **Preis zu niedrig** — Wirkt unseriös, kann zum Ausschluss führen (§ 60 VgV)
+7. **Mindestlohn unterschritten** — Pflicht bei allen öffentlichen Aufträgen
+
+## Checkliste: Angebot erstellen
+
+- [ ] Ausschreibungsunterlagen vollständig gelesen
+- [ ] Zuschlagskriterien analysiert
+- [ ] Eignungsanforderungen geprüft
+- [ ] Eignungsnachweise zusammengestellt
+- [ ] Preis realistisch kalkuliert (inkl. Lohnnebenkosten)
+- [ ] Angebot nach Formalien formatiert
+- [ ] Alle Anlagen beigefügt
+- [ ] Angebot auf Vollständigkeit geprüft
+- [ ] Unterschrift (eigenhändig oder QES)
+- [ ] Elektronische Einreichung getestet
+- [ ] Angebot fristgerecht eingereicht
+
+## Fazit
+
+Ein Angebot bei öffentlichen Ausschreibungen zu schreiben erfordert Sorgfalt, Systematik und Erfahrung. Wer die Leistungsbeschreibung genau liest, die Eignungsnachweise aktuell hält und den Preis realistisch kalkuliert, hat beste Chancen auf den Zuschlag. Die Checkliste oben hilft, keine wichtigen Punkte zu übersehen.
+`,
+  },
+  "vergaberecht-leitfaden": {
+    slug: "vergaberecht-leitfaden",
+    title: "Vergaberecht in Deutschland – Leitfaden für Unternehmen",
+    description:
+      "Umfassender Leitfaden zum Vergaberecht in Deutschland: Gesetzliche Grundlagen, Zuständigkeiten, Rechtsschutz und praktische Tipps für Unternehmen bei öffentlichen Ausschreibungen.",
+    datePublished: "2025-02-01",
+    dateModified: "2025-02-01",
+    relatedCategories: ["Bauarbeiten", "IT-Dienstleistungen", "Planungsleistungen"],
+    relatedArticles: ["vergabeverfahren-uebersicht", "vob-vergabe", "nachpruefungsverfahren-vergabe"],
+    content: `
+## Was ist Vergaberecht?
+
+Das Vergaberecht regelt, wie öffentliche Aufträge an private Unternehmen vergeben werden. Es soll fairen Wettbewerb garantieren und sicher, dass Steuergelder wirtschaftlich eingesetzt werden. In Deutschland basiert es auf EU-Richtlinien und ist im Gesetz gegen Wettbewerbsbeschränkungen (GWB) verankert.
+
+## Gesetzliche Grundlagen
+
+### Gesetz gegen Wettbewerbsbeschränkungen (GWB)
+
+Das GWB bildet die Grundlage des deutschen Vergaberechts. Die §§ 97–186 GWB regeln die Vergabe öffentlicher Aufträge. Seit der Vergaberechtsreform 2016 gelten neue Regelungen, die das Verfahren modernisieren und digitalisieren.
+
+**Wichtige Paragrafen:**
+- § 97 GWB: Grundsätze der Vergabe (Wettbewerb, Transparenz, Gleichbehandlung)
+- § 98 GWB: Öffentliche Auftraggeber
+- § 99 GWB: Vergabeverfahren
+- § 103 GWB: Auftragsarten (Liefer-, Dienstleistungs-, Bauaufträge)
+- § 104 GWB: Schwellenwerte
+
+### Vergabeverordnungen
+
+Die detaillierten Verfahrensregeln stehen in den Vergabeverordnungen:
+
+| Verordnung | Anwendungsbereich |
+|-----------|------------------|
+| VgV | Vergabe von Liefer- und Dienstleistungen oberhalb EU-Schwellenwerte |
+| VOB/A | Vergabe von Bauleistungen |
+| VOL/A | Vergabe von Liefer- und Dienstleistungen unterhalb EU-Schwellenwerte |
+| SektVO | Vergabe durch Sektorenauftraggeber (Energie, Wasser, Verkehr) |
+
+## Zuständigkeiten
+
+### Vergabekammern
+
+In Deutschland gibt es 17 Vergabekammern, die als erste Instanz für vergaberechtliche Nachprüfungsverfahren zuständig sind. Sie sind bei den Landesregierungen angesiedelt.
+
+**Aufgaben der Vergabekammern:**
+- Prüfung von Vergabeverfahren auf Rechtmäßigkeit
+- Erlass von einstweiligen Anordnungen
+- Aufhebung rechtswidriger Vergabeentscheidungen
+- Schadensersatzfestsetzung
+
+### Oberlandesgerichte
+
+Die Oberlandesgerichte sind die zweite Instanz im vergaberechtlichen Rechtsschutz. Sie entscheiden über Beschwerden gegen Entscheidungen der Vergabekammern.
+
+## Rechtsschutz im Vergabeverfahren
+
+### Rügepflicht
+
+Unternehmen müssen Vergabeverstöße unverzüglich rügen (§ 160 Abs. 3 GWB). Die Rüge muss:
+- Schriftlich erfolgen
+- Den Verstoß konkret benennen
+- Innerhalb von 10 Tagen nach Kenntnis erfolgen
+
+### Nachprüfungsantrag
+
+Wenn die Rüge nicht abhilft, können Unternehmen einen Nachprüfungsantrag bei der Vergabekammer stellen. Voraussetzungen:
+- Schwerwiegender Vergabeverstoß
+- Rechtzeitige Rüge
+- Antragsfrist: 15 Kalendertage nach Zustellung der Vergabeinformation
+
+### Einstweilige Anordnung
+
+Bei dringender Eilbedürftigkeit können Unternehmen eine einstweilige Anordnung beantragen, um die Zuschlagserteilung zu verhindern.
+
+## Praktische Tipps für Unternehmen
+
+### Ausschreibungen finden
+
+- **Bundesanzeiger**: Offizielle Plattform für nationale Ausschreibungen
+- **TED (Tenders Electronic Daily)**: EU-weite Ausschreibungen
+- **DTVP**: Deutsche Vergabeportal
+- **evergabe**: Online-Vergabeplattform
+- **Tenderhunter**: KI-gestützte Ausschreibungssuche
+
+### Angebotsstellung
+
+1. **Vergabeunterlagen vollständig lesen**: Alle Anforderungen verstehen
+2. **Eignungsanforderungen prüfen**: Sicherstellen, dass alle Nachweise vorliegen
+3. **Zuschlagskriterien analysieren**: Angebot auf Kriterien ausrichten
+4. **Fristen einhalten**: Angebot fristgerecht einreichen
+5. **Formalien beachten**: Format, Unterschrift, Anlagen
+
+### Häufige Fehler
+
+- Unvollständige Eignungsnachweise
+- Fristversäumnis
+- Formale Mängel im Angebot
+- Fehlende Unterschrift
+- Nichtbeachtung der Zuschlagskriterien
+
+## Aktuelle Entwicklungen
+
+### Digitalisierung
+
+Die Vergabe wird zunehmend digitalisiert. Seit 2024 sind elektronische Vergabeverfahren Pflicht. Das bedeutet:
+- Elektronische Einreichung von Angeboten
+- Digitale Vergabeunterlagen
+- Elektronische Kommunikation
+
+### Nachhaltigkeit
+
+Nachhaltigkeitskriterien gewinnen im Vergaberecht an Bedeutung. Öffentliche Auftraggeber müssen zunehmend ökologische und soziale Aspekte berücksichtigen.
+
+### Künstliche Intelligenz
+
+KI wird im Vergabewesen eingesetzt für:
+- Automatische Kategorisierung von Ausschreibungen
+- Bewertung von Angeboten
+- Erkennung von Vergabeverstößen
+
+## Fazit
+
+Das Vergaberecht ist komplex, aber durchsichtig. Wer die grundlegenden Regeln kennt und die Rechtsschutzmöglichkeiten nutzt, kann erfolgreich an öffentlichen Ausschreibungen teilnehmen. Wichtig ist, Vergabeverstöße frühzeitig zu erkennen und zu rügen.
+`,
+  },
+  "eu-vergabe": {
+    slug: "eu-vergabe",
+    title: "EU-Vergabe – Ausschreibungen europaweit finden und gewinnen",
+    description:
+      "EU-Vergabe erklärt: Schwellenwerte, TED-Suche, Vergabeverfahren in der EU, Rechtsschutz und Tipps für deutsche Unternehmen bei europaweiten Ausschreibungen.",
+    datePublished: "2025-02-15",
+    dateModified: "2025-02-15",
+    relatedCategories: ["IT-Dienstleistungen", "Planungsleistungen", "Lieferung"],
+    relatedArticles: ["vergabeverfahren-uebersicht", "vergaberecht-leitfaden", "oeffentliche-auftraege-finden"],
+    content: `
+## Was ist EU-Vergabe?
+
+Die EU-Vergabe regelt die Vergabe öffentlicher Aufträge oberhalb bestimmter Schwellenwerte in allen EU-Mitgliedstaaten. Ziel ist ein europaweit einheitlicher Wettbewerb und die Öffnung des Binnenmarktes für Unternehmen aus allen Mitgliedstaaten.
+
+## EU-Schwellenwerte (2024–2025)
+
+| Auftragsart | Schwellenwert (netto) |
+|------------|----------------------|
+| Bauaufträge | 5.538.000 € |
+| Liefer- und Dienstleistungen (Bund) | 143.000 € |
+| Liefer- und Dienstleistungen (Kommunen) | 221.000 € |
+| Sektorenaufträge | 452.000 € |
+| Soziale Dienste | 750.000 € |
+
+Oberhalb dieser Werte gelten die EU-Vergaberichtlinien und das GWB. Unterhalb gelten nationale Regeln.
+
+## Vergabeplattformen in der EU
+
+### TED (Tenders Electronic Daily)
+
+TED ist die offizielle Plattform der EU für die Veröffentlichung von Ausschreibungen. Alle Aufträge oberhalb der EU-Schwellenwerte müssen hier veröffentlicht werden.
+
+**TED bietet:**
+- Volltextsuche nach Aufträgen
+- Filter nach Land, CPV-Code, Auftragsart
+- E-Mail-Benachrichtigungen
+- Statistiken und Analysen
+
+### Nationale Portale
+
+Jedes EU-Land hat eigene Vergabeplattformen:
+
+| Land | Plattform |
+|------|----------|
+| Deutschland | DTVP, evergabe, TED-DE |
+| Österreich | Unternehmensserviceportal |
+| Schweiz | Simap |
+| Frankenção | BOAMP |
+| Niederlande | TenderNed |
+
+## Vergabeverfahren in der EU
+
+### Standardverfahren
+
+Die EU kennt dieselben Verfahrenstypen wie Deutschland:
+- Offenes Verfahren
+- Nichtoffenes Verfahren
+- Verhandlungsverfahren
+- Wettbewerblicher Dialog
+- Innovationspartnerschaft
+
+### Besondere Verfahren
+
+**Dynamisches Beschaffungssystem (DBS):**
+- Elektronisches Verfahren für häufige Beschaffungen
+- Jedes qualifizierte Unternehmen kann teilnehmen
+- Laufend geöffnet für neue Teilnehmer
+
+**Elektronische Auktion:**
+- Preis oder andere quantifizierbare Kriterien werden online versteigert
+- Nach vorheriger Qualitätsprüfung der Angebote
+
+## Rechtsschutz in der EU
+
+### EU-Rechtsschutzrichtlinie
+
+Die EU-Rechtsschutzrichtlinie (2007/66/EG) gewährt Unternehmen effektiven Rechtsschutz bei Vergabeverstößen. Sie gilt in allen EU-Mitgliedstaaten.
+
+**Wesentliche Regelungen:**
+- Mindeststandards für Nachprüfungsverfahren
+- Einstweiliger Rechtsschutz
+- Schadensersatz bei rechtswidrigen Vergaben
+- Stillhaltefristen vor Zuschlagserteilung
+
+### Nationale Umsetzung
+
+In Deutschland wird die Richtlinie durch das GWB umgesetzt. Die Vergabekammern und Oberlandesgerichte sind zuständig.
+
+## Tipps für Unternehmen
+
+### EU-weit Ausschreibungen finden
+
+1. **TED nutzen**: Täglich neue Ausschreibungen aus allen EU-Ländern
+2. **CPV-Codes lernen**: Common Procurement Vocabulary für präzise Suche
+3. **Tenderhunter verwenden**: KI-gestützte Suche mit deutschen Filtern
+4. **Lokale Partner suchen**: Joint Ventures für ausländische Märkte
+
+### Angebotstellung für EU-Aufträge
+
+- **Sprachkenntnisse**: Angebot in Landessprache oder Englisch
+- **Lokale Anforderungen**: Zertifizierungen und Normen des Ziellandes
+- **Referenzen**: Internationale Projekte hervorheben
+- **Preisgestaltung**: Währungsrisiken und Transportkosten kalkulieren
+
+### Häufige Herausforderungen
+
+- Unterschiedliche Vergabekulturen in den EU-Ländern
+- Sprachbarrieren bei Vergabeunterlagen
+- Lokale Zertifizierungspflichten
+- Unterschiedliche Rechtsschutzmöglichkeiten
+
+## EU-Förderprogramme
+
+Die EU fördert grenzüberschreitende Projekte durch verschiedene Programme:
+- **Horizont Europa**: Forschung und Innovation
+- **CEF**: Verkehrsinfrastruktur
+- **EFRE**: Regionalentwicklung
+- **ESF+**: Soziale Projekte
+
+Unternehmen, die EU-Fördermittel beantragen, müssen die EU-Vergaberegeln einhalten.
+
+## Fazit
+
+Die EU-Vergabe bietet deutschen Unternehmen große Chancen. Wer die EU-Schwellenwerte kennt, TED regelmäßig nutzt und die lokalen Anforderungen der Zielländer beachtet, kann erfolgreich europaweit Aufträge gewinnen. Wichtig ist die frühzeitige Vorbereitung und der Aufbau lokaler Partnerschaften.
+`,
+  },
+  "vergabeportal-vergleich": {
+    slug: "vergabeportal-vergleich",
+    title: "Vergabeportal Vergleich – Welches Portal ist das richtige?",
+    description:
+      "Vergabeportal Vergleich: DTVP, evergabe, TED und Bauportal im direkten Vergleich. Funktionen, Kosten, Vor- und Nachteile für Unternehmen bei der Ausschreibungssuche.",
+    datePublished: "2025-03-01",
+    dateModified: "2025-03-01",
+    relatedCategories: ["Bauarbeiten", "IT-Dienstleistungen", "Facility Management"],
+    relatedArticles: ["oeffentliche-auftraege-finden", "vergabeverfahren-uebersicht", "vergaberecht-leitfaden"],
+    content: `
+## Warum einen Vergabeportal-Vergleich?
+
+Die Wahl des richtigen Vergabeportals ist entscheidend für den Erfolg bei öffentlichen Ausschreibungen. Jedes Portal hat Stärken und Schwächen. Dieser Vergleich hilft Unternehmen, das passende Portal für ihre Bedürfnisse zu finden.
+
+## Die wichtigsten Vergabeportale
+
+### DTVP (Deutsches Vergabeportal)
+
+**Beschreibung:** Das DTVP ist das führende deutsche Vergabeportal und wird von der Bundesregierung betrieben. Es ist die zentrale Plattform für nationale Ausschreibungen.
+
+**Funktionen:**
+- Volltextsuche nach Ausschreibungen
+- Filter nach Kategorie, Region, Auftraggeber
+- E-Mail-Benachrichtigungen
+- Elektronische Angebotstellung
+- Vergabeunterlagen downloaden
+
+**Kosten:**
+- Suche: Kostenlos
+- Angebotstellung: Teilweise gebührenpflichtig
+- Premium-Funktionen: Abonnement möglich
+
+**Vorteile:**
+- Sehr große Datenbank
+- Offizielle Plattform der Bundesregierung
+- Zuverlässige und aktuelle Daten
+- Gute Suchfunktionen
+
+**Nachteile:**
+- Teilweise unübersichtlich
+- Nicht alle Auftraggeber nutzen DTVP
+- Angebotstellung komplex
+
+### evergabe
+
+**Beschreibung:** evergabe ist eine Online-Vergabeplattform, die von vielen deutschen Auftraggebern genutzt wird. Sie bietet ein einheitliches Verfahren für die Angebotstellung.
+
+**Funktionen:**
+- Elektronische Angebotstellung
+- Vergabeunterlagen einsehen
+- Kommunikation mit Auftraggebern
+- Bewertungssystem für Bieter
+
+**Kosten:**
+- Registrierung: Kostenlos
+- Angebotstellung: Teilweise gebührenpflichtig
+- Premium-Funktionen: Abo-Modelle
+
+**Vorteile:**
+- Einheitliches Verfahren
+- Viele Auftraggeber
+- Gute Benutzeroberfläche
+- Elektronische Angebotstellung
+
+**Nachteile:**
+- Nicht alle Auftraggeber nutzen evergabe
+- Teilweise hohe Gebühren
+- Begrenzte Suchfunktionen
+
+### TED (Tenders Electronic Daily)
+
+**Beschreibung:** TED ist die offizielle Plattform der EU für die Veröffentlichung von Ausschreibungen oberhalb der EU-Schwellenwerte.
+
+**Funktionen:**
+- Suche nach EU-weiten Ausschreibungen
+- Filter nach Land, CPV-Code, Auftragsart
+- E-Mail-Benachrichtigungen
+- Statistiken und Analysen
+
+**Kosten:**
+- Suche: Kostenlos
+- Angebotstellung: Kostenlos (aber komplex)
+
+**Vorteile:**
+- EU-weite Abdeckung
+- Offizielle EU-Plattform
+- Sehr große Datenbank
+- Detaillierte Filtermöglichkeiten
+
+**Nachteile:**
+- Komplexe Benutzeroberfläche
+- Viele Ergebnisse erfordern Filterung
+- Angebotstellung oft komplex
+- Sprachbarrieren
+
+### Bauportal Deutschland
+
+**Beschreibung:** Das Bauportal Deutschland ist spezialisiert auf Bauausschreibungen und wird von der Deutschen Bauindustrie betrieben.
+
+**Funktionen:**
+- Spezialisiert auf Bauausschreibungen
+- Regionale Filtermöglichkeiten
+- E-Mail-Benachrichtigungen
+- Fachinformationen zur Bauindustrie
+
+**Kosten:**
+- Suche: Kostenlos
+- Premium-Funktionen: Abonnement
+
+**Vorteile:**
+- Spezialisierung auf Baubranche
+- Regionale Abdeckung
+- Fachinformationen
+- Gute Suchfunktionen
+
+**Nachteile:**
+- Nur Bauausschreibungen
+- Begrenzte Datenbank
+- Weniger Funktionen als DTVP
+
+## Direkter Vergleich
+
+| Kriterium | DTVP | evergabe | TED | Bauportal |
+|-----------|------|----------|-----|-----------|
+| Abdeckung | Deutschland | Deutschland | EU | Deutschland |
+| Spezialisierung | Alle Branchen | Alle Branchen | Alle Branchen | Bau |
+| Suchfunktionen | Gut | Mittel | Gut | Gut |
+| Angebotstellung | Komplex | Einfach | Komplex | Einfach |
+| Kosten | Teilweise | Teilweise | Kostenlos | Teilweise |
+| Benutzerfreundlichkeit | Mittel | Gut | Schlecht | Gut |
+
+## Welches Portal für welches Unternehmen?
+
+### Kleine und mittlere Unternehmen (KMU)
+
+**Empfehlung:** DTVP + evergabe
+
+- DTVP für die Suche nach Ausschreibungen
+- evergabe für die Angebotstellung
+- Kostenlose Registrierung bei beiden Portalen
+
+### Bauunternehmen
+
+**Empfehlung:** DTVP + Bauportal Deutschland
+
+- DTVP für allgemeine Ausschreibungen
+- Bauportal für spezialisierte Bauaufträge
+- Regionale Filter nutzen
+
+### IT-Dienstleister
+
+**Empfehlung:** DTVP + TED
+
+- DTVP für nationale IT-Aufträge
+- TED für EU-weite IT-Projekte
+- CPV-Code 72000000 (IT-Dienstleistungen) nutzen
+
+### Exportorientierte Unternehmen
+
+**Empfehlung:** TED + nationale Portale der Zielländer
+
+- TED für EU-weite Aufträge
+- Nationale Portale für spezifische Märkte
+- Lokale Partner für Angebotstellung
+
+## Tipps für die Portal-Nutzung
+
+### Suchstrategie
+
+1. **Relevante CPV-Codes definieren**: Für die eigene Branche
+2. **Regionale Filter setzen**: Aufträge im eigenen Aktionsradius
+3. **Benachrichtigungen einrichten**: Tägliche Updates
+4. **Suchbegriffe optimieren**: Synonyme und Oberbegriffe nutzen
+
+### Angebotstellung
+
+1. **Vergabeunterlagen vollständig lesen**: Vor der Angebotstellung
+2. **Fristen im Auge behalten**: Angebot rechtzeitig einreichen
+3. **Formalien beachten**: Format, Unterschrift, Anlagen
+4. **Kommunikation nutzen**: Fragen an den Auftraggeber stellen
+
+### Erfolgsfaktoren
+
+- **Regelmäßige Nutzung**: Tägliche Suche nach neuen Ausschreibungen
+- **Schnelle Reaktion**: Angebotstellung zügig beginnen
+- **Qualität vor Quantität**: Nur passende Aufträge bearbeiten
+- **Netzwerk aufbauen**: Mit anderen Bietern und Auftraggebern
+
+## Tenderhunter: Die intelligente Alternative
+
+Tenderhunter bietet eine KI-gestützte Alternative zu herkömmlichen Vergabeportalen:
+
+**Vorteile von Tenderhunter:**
+- Automatische Kategorisierung von Ausschreibungen
+- Relevante Aufträge werden automatisch erkannt
+- Keine manuelle Suche notwendig
+- Echtzeit-Benachrichtigungen
+- Intelligente Filterung
+
+**Für wen ist Tenderhunter geeignet?**
+- Unternehmen, die Zeit bei der Ausschreibungssuche sparen wollen
+- Firmen, die ihre Erfolgsquote erhöhen möchten
+- Bieter, die keine relevanten Ausschreibungen verpassen wollen
+
+## Fazit
+
+Die Wahl des richtigen Vergabeportals hängt von der Branche, der Unternehmensgröße und den Zielmärkten ab. Für die meisten deutschen Unternehmen empfiehlt sich die Kombination aus DTVP für die Suche und evergabe für die Angebotstellung. Wer EU-weit tätig ist, sollte zusätzlich TED nutzen. Tenderhunter bietet als KI-gestützte Alternative eine intelligente Ergänzung zu den klassischen Portalen.
 `,
   },
 };

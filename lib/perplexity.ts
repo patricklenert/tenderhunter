@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { callLLM } from "@/lib/llm";
 
 const apiKey = process.env.OPENROUTER_API_KEY ?? "";
 
@@ -86,8 +87,7 @@ ${websiteContent.substring(0, 12000)}
 
 Extrahiere das Firmenprofil als JSON.`;
 
-  const response = await perplexity.chat.completions.create({
-    model: "openai/gpt-4o-mini",
+  const content = await callLLM(perplexity, {
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
@@ -95,8 +95,6 @@ Extrahiere das Firmenprofil als JSON.`;
     temperature: 0.1,
     max_tokens: 2000,
   });
-
-  const content = response.choices[0]?.message?.content ?? "";
 
   const jsonMatch = content.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {

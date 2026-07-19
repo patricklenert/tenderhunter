@@ -67,7 +67,32 @@ async function runAnalysis(jobId: number, url: string) {
         return;
       }
 
-      const profile = await extractCompanyProfile(scraped.markdown, scraped.url);
+      const canonicalUrl = normalizeUrl(scraped.url);
+
+      if (canonicalUrl !== normalizedUrl) {
+        const existingByCanonical = await db
+          .select({ id: companyProfiles.id, name: companyProfiles.name, slug: companyProfiles.slug })
+          .from(companyProfiles)
+          .where(eq(companyProfiles.websiteUrl, canonicalUrl))
+          .limit(1);
+
+        if (existingByCanonical.length > 0) {
+          companyId = existingByCanonical[0].id;
+          companyName = existingByCanonical[0].name;
+          companySlug = existingByCanonical[0].slug ?? generateSlug(companyName);
+          if (!existingByCanonical[0].slug) {
+            await db.update(companyProfiles).set({ slug: companySlug }).where(eq(companyProfiles.id, companyId));
+          }
+          const topTenders = await getTopTenders(companyId);
+          const profileUrl = `${BASE_URL}/p/${companySlug}`;
+          await db.update(apiJobs).set({
+            status: "completed", companyId, profileUrl, tendersJson: topTenders, updatedAt: new Date(),
+          }).where(eq(apiJobs.id, jobId));
+          return;
+        }
+      }
+
+      const profile = await extractCompanyProfile(scraped.markdown, canonicalUrl);
       const slug = generateSlug(profile.name);
 
       const existingByName = await db
@@ -81,7 +106,7 @@ async function runAnalysis(jobId: number, url: string) {
         companyName = profile.name;
         companySlug = existingByName[0].slug ?? slug;
         await db.update(companyProfiles).set({
-          websiteUrl: normalizedUrl, description: profile.description, industry: profile.industry,
+          websiteUrl: canonicalUrl, description: profile.description, industry: profile.industry,
           logoUrl: profile.logo_url, contactEmail: profile.contact_email, contactPhone: profile.contact_phone,
           address: profile.address, capabilitiesJson: profile.capabilities, certificationsJson: profile.certifications,
           teamSize: profile.team_size, regionsJson: profile.regions, slug: companySlug, updatedAt: new Date(),
@@ -94,7 +119,7 @@ async function runAnalysis(jobId: number, url: string) {
         }
 
         const result = await db.insert(companyProfiles).values({
-          name: profile.name, slug: uniqueSlug, websiteUrl: normalizedUrl, description: profile.description,
+          name: profile.name, slug: uniqueSlug, websiteUrl: canonicalUrl, description: profile.description,
           industry: profile.industry, logoUrl: profile.logo_url, contactEmail: profile.contact_email,
           contactPhone: profile.contact_phone, address: profile.address, capabilitiesJson: profile.capabilities,
           certificationsJson: profile.certifications, teamSize: profile.team_size, regionsJson: profile.regions,
@@ -230,11 +255,13 @@ async function getTopTenders(companyId: number): Promise<TenderResult[]> {
       or(eq(tenders.qualityStatus, "qualified"), eq(tenders.qualityStatus, "candidate")),
     ))
     .orderBy(desc(scores.winProbability), desc(scores.fit))
-    .limit(3);
+    .limit(10);
 
-  return rows
-    .filter((row) => (row.fit ?? 0) >= 15)
-    .map((row) => {
+  const filtered = rows.filter((row) => (row.fit ?? 0) >= 15);
+  const MIN_TENDERS = 5;
+  const results = filtered.length >= MIN_TENDERS ? filtered : rows.slice(0, MIN_TENDERS);
+
+  return results.map((row) => {
     const blob = (row.jsonBlob ?? {}) as Record<string, unknown>;
     const hardFacts = (blob.hard_facts ?? {}) as Record<string, unknown>;
     const procurement = (blob.procurement ?? {}) as Record<string, unknown>;

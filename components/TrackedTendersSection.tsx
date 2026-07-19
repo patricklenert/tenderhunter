@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowUpRight, BriefcaseBusiness, CalendarClock, CircleAlert, ClipboardList, Search, UserRound } from "lucide-react";
+import { formatDeadlineDE, daysUntil, deadlineLabel } from "@/lib/date-utils";
 import {
   Box,
   Button,
@@ -92,56 +93,6 @@ const STATUS_FILTER_OPTIONS: Array<{ value: TrackedStatusFilter; label: string }
   { value: "lost", label: TRACKED_TENDER_STATUS_LABELS.lost },
 ];
 
-const formatDate = (value: string | null): string => {
-  if (!value) {
-    return "Keine Frist";
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "Keine Frist";
-  }
-
-  return date.toLocaleDateString("de-DE", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-};
-
-const daysUntil = (value: string | null): number | null => {
-  if (!value) {
-    return null;
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-
-  const today = new Date();
-  const start = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
-  const target = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
-  return Math.round((target - start) / (24 * 60 * 60 * 1000));
-};
-
-const deadlineLabel = (value: string | null): string | null => {
-  const distance = daysUntil(value);
-  if (distance === null) {
-    return null;
-  }
-  if (distance < 0) {
-    return `Frist seit ${Math.abs(distance)} Tagen ueberschritten`;
-  }
-  if (distance === 0) {
-    return "Frist heute";
-  }
-  if (distance === 1) {
-    return "Frist morgen";
-  }
-  return `Frist in ${distance} Tagen`;
-};
-
 const progressColor = (value: number): "success" | "warning" | "error" => {
   if (value >= 70) return "success";
   if (value >= 40) return "warning";
@@ -169,7 +120,7 @@ function SummaryTile({ label, value, detail }: { label: string; value: string | 
       <Typography variant="caption" fontWeight={600} textTransform="uppercase" letterSpacing="0.05em" color="text.secondary">
         {label}
       </Typography>
-      <Typography variant="h3" fontWeight={700} sx={{ mt: 1, lineHeight: 1 }} fontFamily="monospace">
+      <Typography variant="h3" component="p" fontWeight={700} sx={{ mt: 1, lineHeight: 1 }} fontFamily="monospace">
         {value}
       </Typography>
       {detail ? (
@@ -194,7 +145,7 @@ function StatusBadge({ status }: { status: TrackedTenderStatus }) {
 
 function TrackedTenderCard({ item, onOpen }: { item: TrackedTenderItem; onOpen: () => void }) {
   const deadlineHint = deadlineLabel(item.deadlineAt);
-  const deadlineUrgent = deadlineHint && (deadlineHint.includes("heute") || deadlineHint.includes("ueberschritten"));
+  const deadlineUrgent = deadlineHint && (deadlineHint.includes("heute") || deadlineHint.includes("abgelaufen"));
 
   return (
     <Card variant="outlined" sx={{ borderRadius: 3 }}>
@@ -208,7 +159,7 @@ function TrackedTenderCard({ item, onOpen }: { item: TrackedTenderItem; onOpen: 
               {item.killSwitch ? <Chip label="Stopp-Signal" color="error" variant="filled" size="small" /> : null}
             </Stack>
 
-            <Typography variant="h6" fontWeight={600} sx={{ mt: 1.5, lineHeight: 1.3 }}>
+            <Typography variant="h6" component="p" fontWeight={600} sx={{ mt: 1.5, lineHeight: 1.3 }}>
               {item.title}
             </Typography>
 
@@ -261,7 +212,7 @@ function TrackedTenderCard({ item, onOpen }: { item: TrackedTenderItem; onOpen: 
                     Frist
                   </Typography>
                   <Typography variant="body2" fontWeight={600} sx={{ mt: 0.25 }}>
-                    {formatDate(item.deadlineAt)}
+                    {formatDeadlineDE(item.deadlineAt)}
                   </Typography>
                 </Box>
               </Grid>
@@ -463,7 +414,7 @@ export function TrackedTendersSection() {
               <Typography variant="caption" fontWeight={600} textTransform="uppercase" letterSpacing="0.05em" color="text.secondary">
                 Arbeitsansicht
               </Typography>
-              <Typography variant="h4" fontWeight={700} sx={{ mt: 1 }}>
+              <Typography variant="h4" component="h2" fontWeight={700} sx={{ mt: 1 }}>
                 Verfolgte Ausschreibungen
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 1, maxWidth: 800, lineHeight: 1.6 }}>
@@ -584,7 +535,7 @@ export function TrackedTendersSection() {
               <Stack spacing={1.5}>
                 <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2 }}>
                   <Box>
-                    <Typography variant="h6" fontWeight={600}>
+                    <Typography variant="h6" component="p" fontWeight={600}>
                       {group.label}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">

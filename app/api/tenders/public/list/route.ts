@@ -3,6 +3,7 @@ import { tenders } from "@/lib/schema";
 import { json, errorResponse } from "@/lib/http";
 import { desc, and, eq, or, like, gt, isNull, inArray } from "drizzle-orm";
 import { cleanDescription } from "@/lib/public-tender-scraper";
+import { formatDeadlineDE, sanitizeTenderUrl } from "@/lib/date-utils";
 
 export const runtime = "nodejs";
 
@@ -20,7 +21,7 @@ export async function GET(request: Request): Promise<Response> {
     const conditions = [];
     const minContractValue = url.searchParams.get("minContractValue");
 
-    conditions.push(inArray(tenders.qualityStatus, ["qualified", "candidate"]));
+    conditions.push(inArray(tenders.qualityStatus, ["qualified"]));
     conditions.push(or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, new Date())));
 
     if (category && category !== "Alle Kategorien") {
@@ -80,13 +81,13 @@ export async function GET(request: Request): Promise<Response> {
           title: item.title ?? `Ausschreibung #${item.id}`,
           client: String(meta.client ?? "Unbekannt"),
           location: String(meta.location ?? ""),
-          deadline: item.deadlineAt ? new Date(item.deadlineAt).toLocaleDateString("de-DE") : null,
+          deadline: item.deadlineAt ? formatDeadlineDE(item.deadlineAt) : null,
           deadlineISO: item.deadlineAt ? new Date(item.deadlineAt).toISOString() : null,
           category: item.category ?? "Sonstiges",
           description: cleanDescription(String(meta.description ?? "")),
           referenceNumber: meta.reference_number ? String(meta.reference_number) : null,
           source: item.source,
-          sourceUrl: item.url,
+          sourceUrl: sanitizeTenderUrl(item.url) ?? "",
           pdfUrls: Array.isArray(meta.pdf_urls) ? meta.pdf_urls : [],
           contractValueMin: item.contractValueMin,
           contractValueMax: item.contractValueMax,

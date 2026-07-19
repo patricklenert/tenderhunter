@@ -15,21 +15,31 @@ let browserInstance: Browser | null = null;
 let browserPromise: Promise<Browser> | null = null;
 
 async function getBrowser(): Promise<Browser> {
+  // If a launch is already in flight, wait for it
   if (browserPromise) return browserPromise;
+  // If we have a connected instance, use it
   if (browserInstance?.isConnected()) return browserInstance;
 
+  // Clear any stale reference
+  browserInstance = null;
+
+  // Launch with a single-flight pattern: only one launch at a time
   browserPromise = chromium
     .launch({ headless: true, args: BROWSER_ARGS })
     .then((b) => {
       browserInstance = b;
       browserPromise = null;
       b.on("disconnected", () => {
-        browserInstance = null;
+        // Only clear if this is still the active instance
+        if (browserInstance === b) {
+          browserInstance = null;
+        }
       });
       return b;
     })
     .catch((e) => {
       browserPromise = null;
+      browserInstance = null;
       throw e;
     });
 
@@ -59,6 +69,11 @@ function extractWithReadability(html: string, url: string): string {
 
 function htmlToBasicMarkdown(html: string): string {
   return html
+    // Strip script, style, svg, and noscript tags with their content first
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<svg[\s\S]*?<\/svg>/gi, "")
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, "")
     .replace(/<h[1-6][^>]*>/gi, "\n## ")
     .replace(/<\/h[1-6]>/gi, "\n")
     .replace(/<p[^>]*>/gi, "\n")
@@ -78,7 +93,7 @@ function htmlToBasicMarkdown(html: string): string {
 
 export async function scrapeWebsite(
   url: string,
-  options?: { onlyMainContent?: boolean; waitForSelector?: string; waitMs?: number }
+  options?: { onlyMainContent?: boolean; waitForSelector?: string; waitMs?: number; waitUntil?: "load" | "domcontentloaded" | "networkidle" | "commit"; useBodyText?: boolean }
 ): Promise<ScrapedPage> {
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
@@ -91,7 +106,7 @@ export async function scrapeWebsite(
       const page: Page = await context.newPage();
 
       try {
-        await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
+        await page.goto(url, { waitUntil: options?.waitUntil ?? "domcontentloaded", timeout: 30000 });
 
         if (options?.waitForSelector) {
           await page.waitForSelector(options.waitForSelector, { timeout: 15000 }).catch(() => {});
@@ -105,7 +120,11 @@ export async function scrapeWebsite(
 
         let markdown: string;
 
-        if (options?.onlyMainContent !== false) {
+        if (options?.useBodyText) {
+          // For SPA pages: use visible text to avoid JS/CSS/filter noise
+          const visibleText = await page.evaluate(() => document.body?.innerText ?? "");
+          markdown = visibleText.length > 200 ? visibleText : htmlToBasicMarkdown(html);
+        } else if (options?.onlyMainContent !== false) {
           const cleanContent = extractWithReadability(html, url);
           if (cleanContent.length > 500) {
             markdown = cleanContent;

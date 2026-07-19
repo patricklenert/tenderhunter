@@ -24,6 +24,7 @@ import { BUNDESLAND_CONTENT } from "@/lib/bundesland-content";
 import { ARTICLES } from "@/lib/articles";
 import { CITIES } from "@/lib/cities";
 import { searchTenders } from "@/lib/meilisearch";
+import { generateTenderSlug } from "@/lib/tender-slug";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 
 // SEO: Region×Category cross pages for long-tail keywords like "gebäudereinigung ausschreibung nrw"
@@ -121,6 +122,7 @@ export default async function RegionCategoryPage({ params, searchParams }: PageP
     client: string;
     location: string;
     deadline: string | null;
+    slug: string;
   }> = [];
   let totalCount = 0;
   let totalPages = 1;
@@ -140,6 +142,7 @@ export default async function RegionCategoryPage({ params, searchParams }: PageP
       deadline: hit.deadlineAt
         ? new Date(hit.deadlineAt).toLocaleDateString("de-DE", { day: "2-digit", month: "short", year: "numeric" })
         : null,
+      slug: generateTenderSlug(hit.title || "", hit.location || ""),
     }));
   } catch {
     // Meilisearch unavailable — page renders empty with noindex
@@ -153,7 +156,7 @@ export default async function RegionCategoryPage({ params, searchParams }: PageP
     itemListElement: tendersList.slice(0, 10).map((t, i) => ({
       "@type": "ListItem",
       position: i + 1,
-      url: `${siteUrl}/ausschreibung/${t.id}`,
+      url: `${siteUrl}/ausschreibung/${t.id}/${t.slug}`,
       name: t.title,
     })),
   };
@@ -231,7 +234,7 @@ export default async function RegionCategoryPage({ params, searchParams }: PageP
               {tendersList.map((tender) => (
                 <Link
                   key={tender.id}
-                  href={`/ausschreibung/${tender.id}`}
+                  href={`/ausschreibung/${tender.id}/${tender.slug}`}
                   style={{ textDecoration: "none", color: "inherit" }}
                 >
                   <Paper

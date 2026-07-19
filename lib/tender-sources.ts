@@ -28,6 +28,12 @@ export const TENDER_SOURCE_DEFINITIONS: readonly TenderSourceDefinition[] = [
     defaultUrl: "https://www.service.bund.de",
     aliases: ["service.bund.de", "www.service.bund.de", "bund.de", "www.bund.de"],
   },
+  {
+    key: "mv",
+    name: "Vergabemarktplatz Mecklenburg-Vorpommern",
+    defaultUrl: "https://vergabe.mv-regierung.de/NetServer/",
+    aliases: ["vergabe.mv-regierung.de", "www.vergabemarktplatz-mv.de"],
+  },
 ] as const;
 
 const SOURCE_BY_KEY = new Map(TENDER_SOURCE_DEFINITIONS.map((definition) => [definition.key, definition]));

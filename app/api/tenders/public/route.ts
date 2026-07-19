@@ -4,10 +4,14 @@ import { enqueueJob } from "@/lib/queue";
 import { json, errorResponse } from "@/lib/http";
 import { JOB_SCRAPE_PUBLIC } from "@/lib/types";
 import { eq, desc, and, count, gte } from "drizzle-orm";
+import { requireSession } from "@/lib/api-auth";
 
 export const runtime = "nodejs";
 
-export async function GET(): Promise<Response> {
+export async function GET(request: Request): Promise<Response> {
+  const sessionOrResponse = await requireSession(request);
+  if (sessionOrResponse instanceof Response) return sessionOrResponse;
+
   try {
     const lastJob = await db
       .select({
@@ -54,7 +58,10 @@ export async function GET(): Promise<Response> {
   }
 }
 
-export async function POST(): Promise<Response> {
+export async function POST(request: Request): Promise<Response> {
+  const sessionOrResponse = await requireSession(request);
+  if (sessionOrResponse instanceof Response) return sessionOrResponse;
+
   try {
     const pendingJobs = await db
       .select({ id: jobs.id })

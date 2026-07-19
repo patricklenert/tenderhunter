@@ -9,6 +9,43 @@ import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
 
+// SEO: Extract FAQ questions from article content for FAQPage JSON-LD
+function extractFaqFromContent(content: string): Array<{ question: string; answer: string }> {
+  const faqs: Array<{ question: string; answer: string }> = [];
+  const lines = content.split("\n");
+  let currentQuestion: string | null = null;
+  let currentAnswer: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    // Detect questions: ### or ## headings ending with ?
+    if (/^#{2,3}\s+.+\?\s*$/.test(trimmed)) {
+      // Save previous Q&A if exists
+      if (currentQuestion && currentAnswer.length > 0) {
+        faqs.push({ question: currentQuestion, answer: currentAnswer.join(" ").trim() });
+      }
+      currentQuestion = trimmed.replace(/^#{2,3}\s+/, "").trim();
+      currentAnswer = [];
+    } else if (currentQuestion && trimmed && !trimmed.startsWith("#")) {
+      // Collect answer lines (skip empty lines and new headings)
+      currentAnswer.push(trimmed);
+    } else if (currentQuestion && trimmed.startsWith("#")) {
+      // New non-question heading — save and reset
+      if (currentAnswer.length > 0) {
+        faqs.push({ question: currentQuestion, answer: currentAnswer.join(" ").trim() });
+      }
+      currentQuestion = null;
+      currentAnswer = [];
+    }
+  }
+  // Save last Q&A
+  if (currentQuestion && currentAnswer.length > 0) {
+    faqs.push({ question: currentQuestion, answer: currentAnswer.join(" ").trim() });
+  }
+
+  return faqs.slice(0, 6); // Limit to 6 FAQs
+}
+
 export const revalidate = 3600;
 
 interface PageProps {
@@ -149,12 +186,29 @@ export default async function ArticlePage({ params }: PageProps) {
       }
     : null;
 
+  // SEO: FAQPage JSON-LD extracted from article content — enables FAQ rich snippets in Google SERP
+  const faqItems = extractFaqFromContent(article.content);
+  const faqJsonLd = faqItems.length > 0
+    ? {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        mainEntity: faqItems.map((item) => ({
+          "@type": "Question",
+          name: item.question,
+          acceptedAnswer: { "@type": "Answer", text: item.answer },
+        })),
+      }
+    : null;
+
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }} />
       {howToJsonLd && (
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(howToJsonLd) }} />
+      )}
+      {faqJsonLd && (
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
       )}
 
       <Box sx={{ minHeight: "100vh", bgcolor: "background.default", py: { xs: 3, md: 5 } }}>

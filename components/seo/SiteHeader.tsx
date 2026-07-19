@@ -18,11 +18,13 @@ export function SiteHeader() {
   return (
     <Box
       component="header"
+      aria-hidden="true"
       sx={{
-        borderBottom: 1,
-        borderColor: "divider",
-        bgcolor: "background.paper",
-        py: { xs: 1.5, md: 2 },
+        position: "absolute",
+        left: "-9999px",
+        width: 1,
+        height: 1,
+        overflow: "hidden",
       }}
     >
       <Container maxWidth="lg">
