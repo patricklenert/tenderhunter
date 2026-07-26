@@ -14,7 +14,7 @@ export const auth = betterAuth({
   plugins: [
     nextCookies(),
     passkey({
-      rpID: "tenderhunter.palemadigital.com",
+      rpID: "palemaz.com",
       rpName: "Tenderhunter",
     }),
   ],
@@ -40,7 +40,6 @@ export const auth = betterAuth({
   },
   trustedOrigins: [
     "http://localhost:3025",
-    "https://tenderhunter.palemadigital.com",
     "https://palemaz.com",
     process.env.BETTER_AUTH_URL ?? "",
   ].filter(Boolean),

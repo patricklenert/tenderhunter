@@ -88,7 +88,6 @@ export async function GET(request: Request): Promise<Response> {
           referenceNumber: meta.reference_number ? String(meta.reference_number) : null,
           source: item.source,
           sourceUrl: sanitizeTenderUrl(item.url) ?? "",
-          pdfUrls: Array.isArray(meta.pdf_urls) ? meta.pdf_urls : [],
           contractValueMin: item.contractValueMin,
           contractValueMax: item.contractValueMax,
           contractDurationMonths: item.contractDurationMonths,

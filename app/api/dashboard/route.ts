@@ -3,13 +3,13 @@ import { tenders, companyProfiles, jobs, insights, scores, trackedTenders } from
 import { json } from "@/lib/http";
 import { ACTIVE_TRACKED_TENDER_STATUSES } from "@/lib/tracked-tender-types";
 import { and, avg, count, desc, eq, gte, inArray, lte, or, sql } from "drizzle-orm";
-import { requireSession } from "@/lib/api-auth";
+import { requirePremiumSession } from "@/lib/entitlements";
 
 export const runtime = "nodejs";
 
 export async function GET(request: Request): Promise<Response> {
-  const sessionOrResponse = await requireSession(request);
-  if (sessionOrResponse instanceof Response) return sessionOrResponse;
+  const premiumOrResponse = await requirePremiumSession(request);
+  if (premiumOrResponse instanceof Response) return premiumOrResponse;
 
   try {
     const scoreEligible = or(eq(tenders.qualityStatus, "qualified"), eq(tenders.qualityStatus, "candidate"));

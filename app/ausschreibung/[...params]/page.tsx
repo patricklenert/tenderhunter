@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { tenders, structuredData, scores, companyProfiles } from "@/lib/schema";
 import { eq, and, ne, or, gt, isNull, inArray, desc } from "drizzle-orm";
 import { notFound, redirect } from "next/navigation";
+import { headers } from "next/headers";
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
@@ -36,8 +37,11 @@ import { generateTenderSlug } from "@/lib/tender-slug";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 import { PdfDocumentLink } from "@/components/PdfDocumentLink";
 import { PageFooter } from "@/components/profile/PageFooter";
+import { PaywallPanel } from "@/components/billing/PaywallPanel";
+import { auth } from "@/lib/auth";
+import { getBillingStatus } from "@/lib/entitlements";
 
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
@@ -53,32 +57,6 @@ function parseParams(params: { params: string[] }): { id: string; slug: string |
   if (arr.length === 0) return { id: "", slug: null };
   if (arr.length === 1) return { id: arr[0], slug: null };
   return { id: arr[0], slug: arr[1] };
-}
-
-export async function generateStaticParams() {
-  try {
-    const now = new Date();
-    const rows = await db
-      .select({ id: tenders.id, slug: tenders.slug, title: tenders.title, metadataJson: tenders.metadataJson })
-      .from(tenders)
-      .where(
-        and(
-          inArray(tenders.qualityStatus, ["qualified", "candidate"]),
-          or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
-        ),
-      );
-    return rows.map((row) => {
-      const meta = (typeof row.metadataJson === "object" && row.metadataJson !== null
-        ? row.metadataJson
-        : {}) as Record<string, unknown>;
-      const location = typeof meta.location === "string" ? meta.location : "";
-      // Prefer persisted DB slug, fall back to live computation (covers legacy rows during rollout)
-      const slug = row.slug ?? generateTenderSlug(row.title ?? "", location);
-      return { params: [String(row.id), slug] };
-    });
-  } catch {
-    return [];
-  }
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -160,6 +138,9 @@ export default async function TenderDetailPage({ params }: PageProps) {
   const row = rows[0];
   const tender = row.tenders;
   const sd = row.structured_data;
+  const requestHeaders = await headers();
+  const session = await auth.api.getSession({ headers: requestHeaders });
+  const hasPremiumDocuments = session?.user?.id ? (await getBillingStatus(session.user.id)).active : false;
 
   // Status-Page statt Redirect: expired/rejected Tenders bleiben indexable,
   // erhalten aber einen prominenten Status-Banner und Cross-Links zu aktiven Tenders.
@@ -752,11 +733,19 @@ export default async function TenderDetailPage({ params }: PageProps) {
               <Typography component="h2" sx={sectionHeadingSx}>
                 Vergabeunterlagen
               </Typography>
-              <Stack spacing={1}>
-                {pdfUrls.map((pdfUrl, i) => (
-                  <PdfDocumentLink key={i} url={pdfUrl} index={i} />
-                ))}
-              </Stack>
+              {hasPremiumDocuments ? (
+                <Stack spacing={1}>
+                  {pdfUrls.map((pdfUrl, i) => (
+                    <PdfDocumentLink key={i} url={pdfUrl} index={i} />
+                  ))}
+                </Stack>
+              ) : (
+                <PaywallPanel
+                  feature="Dokumente"
+                  title="Vergabeunterlagen freischalten"
+                  description="Titel, Frist und Anforderungen bleiben frei. Mit einem Billing-Plan kannst du die Originalunterlagen direkt öffnen und teilen."
+                />
+              )}
             </Box>
           )}
 

@@ -7,11 +7,15 @@ import { findUsPrimeContractors } from "@/lib/us/usaspending";
 import { getUsTeamingResources } from "@/lib/us/teaming-resources";
 import { parseStringArray } from "@/lib/us/types";
 import { eq } from "drizzle-orm";
+import { requirePremiumSession } from "@/lib/entitlements";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
+  const premiumOrResponse = await requirePremiumSession(request);
+  if (premiumOrResponse instanceof Response) return premiumOrResponse;
+
   const id = Number.parseInt((await params).id, 10);
   if (!Number.isSafeInteger(id) || id <= 0) return json({ error: "Invalid opportunity id" }, { status: 400 });
   const tender = await getUsTenderById(id);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Box,
   Button,
@@ -11,7 +11,7 @@ import {
   ListItemText,
   Typography,
 } from "@mui/material";
-import { LogOut, User, KeyRound } from "lucide-react";
+import { CreditCard, LogOut, User, KeyRound } from "lucide-react";
 import { useSession, authClient } from "@/lib/auth-client";
 
 interface UserMenuProps {
@@ -21,6 +21,29 @@ interface UserMenuProps {
 export function UserMenu({ onOpenAuth }: UserMenuProps) {
   const { data: session, isPending } = useSession();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [billingActive, setBillingActive] = useState(false);
+  const [billingLoading, setBillingLoading] = useState(false);
+
+  useEffect(() => {
+    if (!session?.user?.id) {
+      setBillingActive(false);
+      return;
+    }
+
+    let cancelled = false;
+    void fetch("/api/billing/status", { cache: "no-store" })
+      .then(async (response) => response.ok ? response.json() as Promise<{ active?: boolean }> : { active: false })
+      .then((status) => {
+        if (!cancelled) setBillingActive(status.active === true);
+      })
+      .catch(() => {
+        if (!cancelled) setBillingActive(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.user?.id]);
 
   const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -47,6 +70,26 @@ export function UserMenu({ onOpenAuth }: UserMenuProps) {
       }
     } catch (err) {
       alert(`Passkey-Fehler: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  };
+
+  const handleBilling = async () => {
+    handleMenuClose();
+    if (!billingActive) {
+      window.location.assign("/upgrade");
+      return;
+    }
+
+    setBillingLoading(true);
+    try {
+      const response = await fetch("/api/billing/portal", { method: "POST" });
+      const payload = await response.json() as { url?: string };
+      if (response.ok && payload.url) window.location.assign(payload.url);
+      else window.location.assign("/upgrade");
+    } catch {
+      window.location.assign("/upgrade");
+    } finally {
+      setBillingLoading(false);
     }
   };
 
@@ -151,6 +194,12 @@ export function UserMenu({ onOpenAuth }: UserMenuProps) {
         transformOrigin={{ horizontal: "right", vertical: "top" }}
         anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
       >
+        <MenuItem onClick={() => void handleBilling()} disabled={billingLoading} sx={{ borderRadius: 1, mx: 0.5, my: 0.25 }}>
+          <ListItemIcon>
+            <CreditCard size={16} />
+          </ListItemIcon>
+          <ListItemText primary={billingActive ? "Billing verwalten" : "Upgrade"} primaryTypographyProps={{ fontSize: 14, fontWeight: 500 }} />
+        </MenuItem>
         <MenuItem onClick={handleAddPasskey} sx={{ borderRadius: 1, mx: 0.5, my: 0.25 }}>
           <ListItemIcon>
             <KeyRound size={16} />

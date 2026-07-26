@@ -8,7 +8,7 @@ import { enqueueJob } from "@/lib/queue";
 import { JOB_CRAWL, JOB_DISCOVER_COMPANY } from "@/lib/types";
 import { and, desc, eq, gte, or } from "drizzle-orm";
 import { buildDefaultTenderSources, serializeSourceItems } from "@/lib/tender-sources";
-import { auth } from "@/lib/auth";
+import { requirePremiumSession } from "@/lib/entitlements";
 
 export const runtime = "nodejs";
 
@@ -113,6 +113,9 @@ const getSessionSources = () => {
 };
 
 export async function GET(request: Request): Promise<Response> {
+  const premiumOrResponse = await requirePremiumSession(request);
+  if (premiumOrResponse instanceof Response) return premiumOrResponse;
+
   try {
     const url = new URL(request.url);
     const companyId = Number.parseInt(url.searchParams.get("companyId") ?? "", 10);
@@ -252,9 +255,11 @@ const listCachedTenders = async (companyId: number) => {
 };
 
 export async function POST(request: Request): Promise<Response> {
+  const premiumOrResponse = await requirePremiumSession(request);
+  if (premiumOrResponse instanceof Response) return premiumOrResponse;
+
   try {
-    const session = await auth.api.getSession({ headers: request.headers });
-    const userId = session?.user?.id ?? null;
+    const userId = premiumOrResponse.session.user.id;
 
     const body = await parseJsonBody<DiscoverBody>(request);
     const url = typeof body.url === "string" ? body.url.trim() : "";

@@ -7,6 +7,8 @@ import { JOB_CACHE_DETAIL } from "@/lib/types";
 import { pickPublicDescription } from "@/lib/public-tender-scraper";
 import { formatDeadlineDE, sanitizeTenderUrl } from "@/lib/date-utils";
 import { detectAccessPage } from "@/lib/access-page-detector";
+import { auth } from "@/lib/auth";
+import { hasPremiumAccess } from "@/lib/entitlements";
 
 export const runtime = "nodejs";
 
@@ -34,6 +36,8 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const tender = rows[0];
+    const session = await auth.api.getSession({ headers: request.headers });
+    const hasDocumentsAccess = session?.user?.id ? await hasPremiumAccess(session.user.id) : false;
 
     if (tender.deadlineAt && !isActiveTender(tender.deadlineAt)) {
       return json({ error: "Ausschreibung abgelaufen", reason: "expired" }, { status: 410 });
@@ -61,12 +65,14 @@ export async function POST(request: Request): Promise<Response> {
           const publicSummary = pickPublicDescription(blob.summary);
           if (publicSummary) blob.summary = publicSummary;
           else delete blob.summary;
+          if (!hasDocumentsAccess) delete blob.pdfUrls;
           if (typeof blob.sourceUrl === "string") {
             blob.sourceUrl = sanitizeTenderUrl(blob.sourceUrl, blob.sourceUrl as string) ?? "";
           }
           return json({
             ...blob,
             cached: true,
+            documentsLocked: !hasDocumentsAccess,
             scrapedAt: cached[0].updatedAt,
           });
         }
@@ -105,8 +111,12 @@ export async function POST(request: Request): Promise<Response> {
       sourceUrl: sanitizeTenderUrl(tender.url, String(meta.sourceUrl ?? "")) ?? "",
       cached: false,
       enriching: true,
+      documentsLocked: !hasDocumentsAccess,
       scrapedAt: new Date().toISOString(),
     };
+    const responsePayload = hasDocumentsAccess
+      ? result
+      : (({ pdfUrls: _pdfUrls, ...resultWithoutDocuments }) => resultWithoutDocuments)(result);
 
     // 4. Queue background enrichment (LLM extraction) — ALWAYS
     if (tender.url) {
@@ -115,7 +125,7 @@ export async function POST(request: Request): Promise<Response> {
       );
     }
 
-    return json(result);
+    return json(responsePayload);
   } catch (error) {
     console.error("[tender-detail] Fehler:", error);
     return errorResponse(error);

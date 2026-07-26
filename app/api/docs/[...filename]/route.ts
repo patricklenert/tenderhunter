@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "node:fs";
 import path from "node:path";
+import { requirePremiumSession } from "@/lib/entitlements";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,6 +12,9 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ filename: string[] }> },
 ) {
+  const premiumOrResponse = await requirePremiumSession(req);
+  if (premiumOrResponse instanceof Response) return premiumOrResponse;
+
   const { filename } = await params;
   const filePath = path.join(DOCS_DIR, ...filename);
 

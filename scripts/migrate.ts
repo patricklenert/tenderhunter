@@ -95,6 +95,7 @@ async function main() {
     await client`
       CREATE TABLE IF NOT EXISTS us_alert_subscriptions (
         id SERIAL PRIMARY KEY,
+        user_id TEXT REFERENCES "user"(id) ON DELETE CASCADE,
         email TEXT NOT NULL,
         filters_json JSONB NOT NULL DEFAULT '{}'::jsonb,
         confirm_token TEXT NOT NULL,
@@ -103,6 +104,33 @@ async function main() {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         UNIQUE(email, filters_json)
+      )
+    `;
+    await client`ALTER TABLE us_alert_subscriptions ADD COLUMN IF NOT EXISTS user_id TEXT`;
+
+    await client`
+      CREATE TABLE IF NOT EXISTS billing_subscriptions (
+        id SERIAL PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+        stripe_customer_id TEXT,
+        stripe_subscription_id TEXT NOT NULL,
+        stripe_price_id TEXT NOT NULL,
+        plan TEXT NOT NULL,
+        status TEXT NOT NULL,
+        current_period_start TIMESTAMPTZ,
+        current_period_end TIMESTAMPTZ,
+        cancel_at_period_end BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE(stripe_subscription_id)
+      )
+    `;
+
+    await client`
+      CREATE TABLE IF NOT EXISTS stripe_events (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,
+        processed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `;
 
@@ -265,6 +293,9 @@ async function main() {
     await client`CREATE INDEX IF NOT EXISTS idx_us_tenders_quality_status ON us_tenders(quality_status)`;
     await client`CREATE INDEX IF NOT EXISTS idx_us_tenders_category ON us_tenders(category)`;
     await client`CREATE INDEX IF NOT EXISTS idx_us_source_runs_source_finished ON us_source_runs(source, finished_at)`;
+    await client`CREATE INDEX IF NOT EXISTS idx_billing_subscriptions_user_updated ON billing_subscriptions(user_id, updated_at)`;
+    await client`CREATE INDEX IF NOT EXISTS idx_billing_subscriptions_customer ON billing_subscriptions(stripe_customer_id)`;
+    await client`CREATE INDEX IF NOT EXISTS idx_stripe_events_processed_at ON stripe_events(processed_at)`;
     await client`CREATE INDEX IF NOT EXISTS idx_documents_tender ON documents(tender_id)`;
     await client`CREATE INDEX IF NOT EXISTS idx_events_company ON attribution_events(company_id, event_type)`;
     await client`CREATE INDEX IF NOT EXISTS idx_tracked_tenders_status_updated ON tracked_tenders(status, updated_at)`;

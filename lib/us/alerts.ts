@@ -4,8 +4,9 @@ import { searchUsTenders, getUsTenderMetadata } from "@/lib/us/repository";
 import { sendEmail } from "@/lib/email";
 import { and, eq } from "drizzle-orm";
 import { randomBytes } from "node:crypto";
+import { hasPremiumAccess } from "@/lib/entitlements";
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+const SITE_URL = "https://palemaz.com";
 
 export interface AlertFilters {
   query?: string;
@@ -15,7 +16,7 @@ export interface AlertFilters {
   subcontracting?: boolean;
 }
 
-export async function createAlertSubscription(email: string, filters: AlertFilters): Promise<{ id: number; confirmToken: string; alreadyConfirmed: boolean }> {
+export async function createAlertSubscription(userId: string, email: string, filters: AlertFilters): Promise<{ id: number; confirmToken: string; alreadyConfirmed: boolean }> {
   const confirmToken = randomBytes(32).toString("hex");
   const filtersJson = filters as Record<string, unknown>;
 
@@ -31,14 +32,14 @@ export async function createAlertSubscription(email: string, filters: AlertFilte
     }
     await db
       .update(usAlertSubscriptions)
-      .set({ confirmToken, updatedAt: new Date() })
+      .set({ userId, confirmToken, updatedAt: new Date() })
       .where(eq(usAlertSubscriptions.id, existing[0].id));
     return { id: existing[0].id, confirmToken, alreadyConfirmed: false };
   }
 
   const result = await db
     .insert(usAlertSubscriptions)
-    .values({ email, filtersJson, confirmToken, confirmed: false })
+    .values({ userId, email, filtersJson, confirmToken, confirmed: false })
     .returning({ id: usAlertSubscriptions.id });
 
   return { id: result[0].id, confirmToken, alreadyConfirmed: false };
@@ -93,6 +94,8 @@ export async function processUsAlerts(): Promise<{ processed: number; notified: 
   let notified = 0;
 
   for (const sub of subscriptions) {
+    if (!sub.userId || !(await hasPremiumAccess(sub.userId))) continue;
+
     const filters = sub.filtersJson as AlertFilters;
     const { items } = await searchUsTenders({
       query: filters.query,

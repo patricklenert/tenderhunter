@@ -8,6 +8,7 @@ import {
   Grid,
 } from "@mui/material";
 import { LayoutGrid } from "lucide-react";
+import { PaywallPanel } from "@/components/billing/PaywallPanel";
 
 interface DashboardMetrics {
   tenders: number;
@@ -29,13 +30,24 @@ interface DashboardMetrics {
 
 export function DashboardOverview() {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
+  const [paywall, setPaywall] = useState(false);
 
   useEffect(() => {
     fetch("/api/dashboard")
-      .then((res) => res.json())
+      .then(async (res) => {
+        if (res.status === 402) {
+          setPaywall(true);
+          return null;
+        }
+        return res.json();
+      })
       .then((data) => setMetrics(data))
       .catch(console.error);
   }, []);
+
+  if (paywall) {
+    return <PaywallPanel feature="KI-Analyse" title="Die Übersicht freischalten" description="Deine Ausschreibungen bleiben frei. Billing schaltet Scoring, Empfehlungen und die Teamübersicht frei." />;
+  }
 
   if (!metrics) return <Typography>Lade...</Typography>;
 

@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { scores, tenders, companyProfiles, insights } from "@/lib/schema";
 import { json } from "@/lib/http";
 import { eq, and, desc, or } from "drizzle-orm";
+import { requirePremiumSession } from "@/lib/entitlements";
 
 export const runtime = "nodejs";
 
@@ -9,7 +10,10 @@ interface Params {
   params: Promise<{ companyId: string }>;
 }
 
-export async function GET(_: Request, { params }: Params): Promise<Response> {
+export async function GET(request: Request, { params }: Params): Promise<Response> {
+  const premiumOrResponse = await requirePremiumSession(request);
+  if (premiumOrResponse instanceof Response) return premiumOrResponse;
+
   const companyId = Number.parseInt((await params).companyId, 10);
   if (!Number.isFinite(companyId) || companyId <= 0) {
     return json({ error: "ungueltige companyId" }, { status: 400 });

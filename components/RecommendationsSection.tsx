@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Target } from "lucide-react";
+import { PaywallPanel } from "@/components/billing/PaywallPanel";
 
 type TrackingEventType = "pursued" | "won" | "lost";
 
@@ -64,6 +65,7 @@ export function RecommendationsSection() {
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<{ tone: string; message: string } | null>(null);
   const [trackingId, setTrackingId] = useState<number | null>(null);
+  const [paywall, setPaywall] = useState(false);
 
   useEffect(() => {
     fetch("/api/company-profiles", { cache: "no-store" })
@@ -92,6 +94,10 @@ export function RecommendationsSection() {
     setFeedback(null);
     try {
       const res = await fetch(`/api/recommendations/${companyId}`, { cache: "no-store" });
+      if (res.status === 402) {
+        setPaywall(true);
+        return;
+      }
       const payload = await res.json();
       if (!res.ok) throw new Error(payload.error ?? "Fehler");
 
@@ -184,6 +190,7 @@ export function RecommendationsSection() {
 
   return (
     <div className="space-y-6">
+      {paywall && <PaywallPanel feature="KI-Empfehlungen" title="Empfehlungen freischalten" description="Die Ausschreibungssuche bleibt offen. Billing schaltet personalisierte Passungs- und Gewinnchancen frei." />}
       <div className="bg-surface border border-border rounded-xl p-5">
         <div className="flex flex-col sm:flex-row items-start sm:items-end gap-3">
           <label className="flex-1 min-w-0">

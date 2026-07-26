@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { scrapeWebsite } from "@/lib/firecrawl";
 import { cleanPublicDescription, pickPublicDescription } from "@/lib/public-tender-scraper";
 import { formatDeadlineDE } from "@/lib/date-utils";
-import { requireSession } from "@/lib/api-auth";
+import { requirePremiumSession } from "@/lib/entitlements";
 import OpenAI from "openai";
 import { callLLM } from "@/lib/llm";
 
@@ -46,7 +46,7 @@ Reasons sollten auf konkreten Staerken des Unternehmens basieren.`;
 export const runtime = "nodejs";
 
 export async function POST(request: Request): Promise<Response> {
-  const sessionOrResponse = await requireSession(request);
+  const sessionOrResponse = await requirePremiumSession(request);
   if (sessionOrResponse instanceof Response) return sessionOrResponse;
 
   try {

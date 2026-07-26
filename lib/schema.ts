@@ -102,6 +102,7 @@ export const usAlertSubscriptions = pgTable(
   "us_alert_subscriptions",
   {
     id: serial("id").primaryKey(),
+    userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
     email: text("email").notNull(),
     filtersJson: jsonb("filters_json").notNull().default({}),
     confirmToken: text("confirm_token").notNull(),
@@ -113,6 +114,41 @@ export const usAlertSubscriptions = pgTable(
   (table) => [
     uniqueIndex("idx_us_alert_subscriptions_email_filters").on(table.email, table.filtersJson),
   ]
+);
+
+export const billingSubscriptions = pgTable(
+  "billing_subscriptions",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    stripeCustomerId: text("stripe_customer_id"),
+    stripeSubscriptionId: text("stripe_subscription_id").notNull(),
+    stripePriceId: text("stripe_price_id").notNull(),
+    plan: text("plan").notNull(),
+    status: text("status").notNull(),
+    currentPeriodStart: timestamp("current_period_start", { withTimezone: true }),
+    currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
+    cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("idx_billing_subscriptions_stripe_subscription").on(table.stripeSubscriptionId),
+    index("idx_billing_subscriptions_user_updated").on(table.userId, table.updatedAt),
+    index("idx_billing_subscriptions_customer").on(table.stripeCustomerId),
+  ],
+);
+
+export const stripeEvents = pgTable(
+  "stripe_events",
+  {
+    id: text("id").primaryKey(),
+    type: text("type").notNull(),
+    processedAt: timestamp("processed_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("idx_stripe_events_processed_at").on(table.processedAt)],
 );
 
 export const usSourceRuns = pgTable(
@@ -368,6 +404,8 @@ export type UsTender = typeof usTenders.$inferSelect;
 export type NewUsTender = typeof usTenders.$inferInsert;
 export type UsSourceRun = typeof usSourceRuns.$inferSelect;
 export type UsAlertSubscription = typeof usAlertSubscriptions.$inferSelect;
+export type BillingSubscription = typeof billingSubscriptions.$inferSelect;
+export type StripeEvent = typeof stripeEvents.$inferSelect;
 export type Document = typeof documents.$inferSelect;
 export type NewDocument = typeof documents.$inferInsert;
 export type StructuredData = typeof structuredData.$inferSelect;

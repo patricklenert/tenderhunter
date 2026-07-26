@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Box, Button, Chip, Container, Divider, Stack, Typography } from "@mui/material";
 import { ArrowLeft, Building2, CalendarClock, ExternalLink, MapPin } from "lucide-react";
@@ -24,7 +23,7 @@ export default async function UsTenderPage({ params }: Props) {
     <Box sx={{ bgcolor: "#f7fafc", minHeight: "100vh", py: { xs: 3, md: 6 } }}>
       <Container maxWidth="lg">
         <Stack spacing={3}>
-          <Button component={Link} href="/us" startIcon={<ArrowLeft size={17} />} sx={{ alignSelf: "flex-start" }}>All U.S. opportunities</Button>
+          <Button href="/us" startIcon={<ArrowLeft size={17} />} sx={{ alignSelf: "flex-start" }}>All U.S. opportunities</Button>
           <Box sx={{ bgcolor: "white", border: "1px solid #d6e0e9", borderRadius: 3, p: { xs: 2.25, md: 4 } }}>
             <Stack spacing={2}>
               <Stack direction="row" spacing={0.75} sx={{ flexWrap: "wrap", rowGap: 0.75 }}>

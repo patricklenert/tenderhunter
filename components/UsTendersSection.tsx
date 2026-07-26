@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Alert, Box, Button, Card, CardContent, Chip, Container, LinearProgress, MenuItem, Stack, TextField, Typography } from "@mui/material";
 import { ArrowUpRight, Building2, CalendarClock, Landmark, Search, ShieldCheck } from "lucide-react";
 import { US_CATEGORIES } from "@/lib/us/categorize";
+import { PaywallPanel } from "@/components/billing/PaywallPanel";
 
 export interface UsTenderItem {
   id: number;
@@ -40,6 +41,7 @@ export function UsTendersSection({ initialItems, initialTotal }: { initialItems?
   const [alertEmail, setAlertEmail] = useState("");
   const [alertLoading, setAlertLoading] = useState(false);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
+  const [alertPaywall, setAlertPaywall] = useState(false);
   const [items, setItems] = useState<UsTenderItem[]>(initialItems ?? []);
   const [total, setTotal] = useState(initialTotal ?? 0);
   const [loading, setLoading] = useState(!hasInitialData);
@@ -86,6 +88,7 @@ export function UsTendersSection({ initialItems, initialTotal }: { initialItems?
   const subscribeToAlerts = async () => {
     setAlertLoading(true);
     setAlertMessage(null);
+    setAlertPaywall(false);
     try {
       const response = await fetch("/api/us/alerts/subscribe", {
         method: "POST",
@@ -102,6 +105,10 @@ export function UsTendersSection({ initialItems, initialTotal }: { initialItems?
         }),
       });
       const payload = await response.json() as { status?: string; error?: string };
+      if (response.status === 401 || response.status === 402) {
+        setAlertPaywall(true);
+        return;
+      }
       if (!response.ok) throw new Error(payload.error ?? "Unable to create alert subscription.");
       setAlertMessage(payload.status === "already_confirmed" ? "This alert is already active." : "Check your inbox to confirm the alert subscription.");
       if (payload.status !== "already_confirmed") setAlertEmail("");
@@ -157,19 +164,23 @@ export function UsTendersSection({ initialItems, initialTotal }: { initialItems?
             </CardContent>
           </Card>
 
-          <Card elevation={0} sx={{ border: "1px solid #cddce8", borderRadius: 3, bgcolor: "#f5fbfe" }}>
-            <CardContent component="form" onSubmit={(event) => { event.preventDefault(); void subscribeToAlerts(); }} sx={{ p: { xs: 2, md: 2.5 } }}>
-              <Stack direction={{ xs: "column", md: "row" }} spacing={1.5} alignItems={{ md: "center" }}>
-                <Box sx={{ flex: 1 }}>
-                  <Typography fontWeight={800} sx={{ color: "#102a43" }}>Get alerts for this search</Typography>
-                  <Typography variant="body2" color="text.secondary">We&apos;ll email you when new matching opportunities appear. Double opt-in required.</Typography>
-                </Box>
-                <TextField type="email" required size="small" label="Your email" value={alertEmail} onChange={(event) => setAlertEmail(event.target.value)} sx={{ minWidth: { md: 240 } }} />
-                <Button type="submit" variant="contained" disabled={alertLoading} sx={{ bgcolor: "#0d5c80", whiteSpace: "nowrap" }}>{alertLoading ? "Saving..." : "Subscribe"}</Button>
-              </Stack>
-              {alertMessage && <Typography variant="body2" sx={{ mt: 1.5, color: "#0d5c80" }}>{alertMessage}</Typography>}
-            </CardContent>
-          </Card>
+          {alertPaywall ? (
+            <PaywallPanel feature="U.S. Alerts" title="Such-Alerts für neue Chancen freischalten" description="Deine Filter bleiben frei. Mit einem Billing-Plan erhältst du automatisch neue passende U.S. Opportunities per E-Mail." />
+          ) : (
+            <Card elevation={0} sx={{ border: "1px solid #cddce8", borderRadius: 3, bgcolor: "#f5fbfe" }}>
+              <CardContent component="form" onSubmit={(event) => { event.preventDefault(); void subscribeToAlerts(); }} sx={{ p: { xs: 2, md: 2.5 } }}>
+                <Stack direction={{ xs: "column", md: "row" }} spacing={1.5} alignItems={{ md: "center" }}>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography fontWeight={800} sx={{ color: "#102a43" }}>Get alerts for this search</Typography>
+                    <Typography variant="body2" color="text.secondary">We&apos;ll email you when new matching opportunities appear. Double opt-in required.</Typography>
+                  </Box>
+                  <TextField type="email" required size="small" label="Your email" value={alertEmail} onChange={(event) => setAlertEmail(event.target.value)} sx={{ minWidth: { md: 240 } }} />
+                  <Button type="submit" variant="contained" disabled={alertLoading} sx={{ bgcolor: "#0d5c80", whiteSpace: "nowrap" }}>{alertLoading ? "Saving..." : "Subscribe"}</Button>
+                </Stack>
+                {alertMessage && <Typography variant="body2" sx={{ mt: 1.5, color: "#0d5c80" }}>{alertMessage}</Typography>}
+              </CardContent>
+            </Card>
+          )}
 
           {error && <Alert severity="error">{error}</Alert>}
           <Stack direction="row" justifyContent="space-between" alignItems="baseline">

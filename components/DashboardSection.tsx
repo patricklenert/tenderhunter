@@ -19,6 +19,7 @@ import { ArrowUpRight, Check, Crosshair, Download, Rocket, SlidersHorizontal } f
 import { TenderDetailDrawer, type FollowState, type TenderDetailItem } from "@/components/TenderDetailDrawer";
 import { CompanySelector, type UserCompany } from "@/components/CompanySelector";
 import { useSession } from "@/lib/auth-client";
+import { PaywallPanel } from "@/components/billing/PaywallPanel";
 
 type ViewState = "setup" | "discover" | "results";
 type StepState = "pending" | "active" | "done";
@@ -587,6 +588,7 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
   const [preferencesHydrated, setPreferencesHydrated] = useState(false);
   const [followStates, setFollowStates] = useState<Record<number, FollowState>>({});
   const [followErrors, setFollowErrors] = useState<Record<number, string>>({});
+  const [showPremiumGate, setShowPremiumGate] = useState(false);
 
   const resultTenders = data?.matched ?? [];
   const filteredResultTenders = filterAndSortTenders(resultTenders, {
@@ -696,6 +698,12 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
         const res = await fetch(`/api/discover?${params.toString()}`, { cache: "no-store" });
         const json = (await res.json()) as DiscoverStatusResponse;
         if (!res.ok) {
+          if (res.status === 402) {
+            setShowPremiumGate(true);
+            setSession(null);
+            setState("setup");
+            return;
+          }
           throw new Error(json.error ?? "Fehler bei der Statusabfrage.");
         }
         if (cancelled) return;
@@ -784,6 +792,7 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
       setCurrentPage(1);
       setFollowStates({});
       setFollowErrors({});
+      setShowPremiumGate(false);
       setSteps(buildSteps({ scrape: "active" }));
 
       try {
@@ -793,7 +802,14 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
           body: JSON.stringify({ url: inputUrl }),
         });
         const json = (await res.json()) as DiscoverStartResponse;
-        if (!res.ok) throw new Error(json.error ?? "Fehler bei der Analyse.");
+        if (!res.ok) {
+          if (res.status === 402) {
+            setShowPremiumGate(true);
+            setState("setup");
+            return;
+          }
+          throw new Error(json.error ?? "Fehler bei der Analyse.");
+        }
 
         setMatchCount(json.matched.length);
         setLiveMatches(json.matched);
@@ -877,9 +893,10 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
     setSelectedTender(null);
     setExportingFormat(null);
     setCurrentPage(1);
-    setFollowStates({});
-    setFollowErrors({});
-    setSteps(buildSteps());
+      setFollowStates({});
+      setFollowErrors({});
+      setShowPremiumGate(false);
+      setSteps(buildSteps());
   }, []);
 
   const handleResetFilters = useCallback(() => {
@@ -942,8 +959,21 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
     [activeCompanyId],
   );
 
-  const handleExportCsv = useCallback(() => {
+  const ensurePremiumAccess = useCallback(async (): Promise<boolean> => {
+    try {
+      const response = await fetch("/api/billing/status", { cache: "no-store" });
+      const status = response.ok ? await response.json() as { active?: boolean } : null;
+      if (status?.active === true) return true;
+    } catch {
+      // Show the same upgrade path for unavailable billing status and inactive access.
+    }
+    setShowPremiumGate(true);
+    return false;
+  }, []);
+
+  const handleExportCsv = useCallback(async () => {
     if (!data || filteredResultTenders.length === 0) return;
+    if (!(await ensurePremiumAccess())) return;
 
     setError(null);
     const rows = [
@@ -980,10 +1010,11 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
     ].join("\n");
 
     downloadBlob(new Blob([`\ufeff${rows}`], { type: "text/csv;charset=utf-8;" }), `${slugifyFilename(data.company.name)}-ausschreibungen.csv`);
-  }, [data, filteredResultTenders]);
+  }, [data, ensurePremiumAccess, filteredResultTenders]);
 
   const handleExportPdf = useCallback(async () => {
     if (!data || filteredResultTenders.length === 0) return;
+    if (!(await ensurePremiumAccess())) return;
 
     setExportingFormat("pdf");
     setError(null);
@@ -1079,12 +1110,21 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
     } finally {
       setExportingFormat(null);
     }
-  }, [data, filteredResultTenders]);
+  }, [data, ensurePremiumAccess, filteredResultTenders]);
 
   if (state === "setup") {
     return (
       <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "center", minHeight: "70vh", pt: 4 }}>
         <Box sx={{ width: "100%", maxWidth: 800 }}>
+          {showPremiumGate && (
+            <Box sx={{ mb: 3 }}>
+              <PaywallPanel
+                feature="KI-Analyse"
+                title="Deine Entscheidungshilfe freischalten"
+                description="Die Ausschreibungssuche bleibt offen. Billing schaltet KI-Analyse, Matching, Exporte und weitere Arbeitsaktionen frei."
+              />
+            </Box>
+          )}
           <Box sx={{ textAlign: "center", mb: 5 }}>
             <Box
               sx={{
@@ -1476,6 +1516,13 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
         {error ? (
           <Alert severity="error">{error}</Alert>
         ) : null}
+        {showPremiumGate && (
+          <PaywallPanel
+            feature="Exporte"
+            title="Ergebnisse für dein Team mitnehmen"
+            description="Exporte und weitere Arbeitsaktionen sind im Billing-Plan enthalten. Deine Treffer und Filter bleiben erhalten."
+          />
+        )}
 
         <Box
           sx={{
@@ -1700,7 +1747,7 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
                     <Button
                       variant="outlined"
                       size="small"
-                      onClick={handleExportCsv}
+                       onClick={() => void handleExportCsv()}
                       disabled={filteredResultTenders.length === 0 || exportingFormat !== null}
                       startIcon={<Download size={14} />}
                       sx={{ textTransform: "none", fontSize: "0.75rem", fontWeight: 600 }}

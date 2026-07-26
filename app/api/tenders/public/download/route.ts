@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import { requirePremiumSession } from "@/lib/entitlements";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,6 +20,9 @@ function sanitizeFilename(name: string): string {
 }
 
 export async function GET(req: NextRequest) {
+  const premiumOrResponse = await requirePremiumSession(req);
+  if (premiumOrResponse instanceof Response) return premiumOrResponse;
+
   const url = req.nextUrl.searchParams.get("url");
   if (!url) {
     return NextResponse.json({ error: "url parameter required" }, { status: 400 });

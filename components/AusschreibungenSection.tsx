@@ -57,6 +57,7 @@ import { getAllLocationOptions } from "@/lib/bundesland";
 import { formatDeadlineDE, deadlineLabel, deadlineColor, cleanPdfFilename } from "@/lib/date-utils";
 import { PdfDocumentLink } from "@/components/PdfDocumentLink";
 import { generateTenderSlug } from "@/lib/tender-slug";
+import { PaywallPanel } from "@/components/billing/PaywallPanel";
 
 interface ApiTender {
   id: number;
@@ -823,6 +824,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
             const requirements = Array.isArray(d.requirements) ? d.requirements as string[] : [];
             const awardCriteria = Array.isArray(d.awardCriteria) ? d.awardCriteria as string[] : [];
             const pdfUrls = Array.isArray(d.pdfUrls) ? d.pdfUrls as string[] : t.pdfUrls ?? [];
+            const documentsLocked = d.documentsLocked === true;
 
             return (
               <Stack spacing={3}>
@@ -857,8 +859,8 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                       <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 0.5, lineHeight: 1.2, color: "#475569", fontSize: "0.75rem" }}>
                         Frist
                       </Typography>
-                       <Typography variant="h6" fontWeight={600} sx={{ fontSize: "1rem", lineHeight: 1.3, color: deadlineColor(deadlineISO ?? deadline) }}>
-                         {deadline}{deadlineLabel(deadlineISO ?? deadline) ? ` (${deadlineLabel(deadlineISO ?? deadline)})` : ""}
+                      <Typography variant="h6" fontWeight={600} sx={{ fontSize: "1rem", lineHeight: 1.3, color: deadlineColor(deadlineISO ?? deadline) }}>
+                        {deadline}{deadlineLabel(deadlineISO ?? deadline) ? ` (${deadlineLabel(deadlineISO ?? deadline)})` : ""}
                       </Typography>
                     </Box>
                   )}
@@ -973,16 +975,24 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                 )}
 
                 {/* PDFs */}
-                {pdfUrls.length > 0 && (
+                {(pdfUrls.length > 0 || documentsLocked) && (
                   <Box>
                     <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 1, lineHeight: 1.2, color: "#475569", fontSize: "0.75rem" }}>
                       Dokumente
                     </Typography>
-                    <Stack spacing={1}>
-                      {pdfUrls.map((url, i) => (
-                        <PdfDocumentLink key={i} url={url} index={i} />
-                      ))}
-                    </Stack>
+                    {documentsLocked ? (
+                      <PaywallPanel
+                        feature="Dokumente"
+                        title="Vergabeunterlagen freischalten"
+                        description="Die wichtigsten Ausschreibungsdetails bleiben frei. Mit einem Billing-Plan kannst du Originalunterlagen öffnen und teilen."
+                      />
+                    ) : (
+                      <Stack spacing={1}>
+                        {pdfUrls.map((url, i) => (
+                          <PdfDocumentLink key={i} url={url} index={i} />
+                        ))}
+                      </Stack>
+                    )}
                   </Box>
                 )}
               </Stack>

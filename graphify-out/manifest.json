@@ -45,13 +45,13 @@
     "semantic_hash": ""
   },
   "app/api/dashboard/route.ts": {
-    "mtime": 1782609302.8799963,
-    "ast_hash": "72bd1e52576cec1ffd34163433c53fd8",
+    "mtime": 1785089736.821877,
+    "ast_hash": "aac4f51e3c346bf84038f808f2472dd3",
     "semantic_hash": ""
   },
   "app/api/discover/route.ts": {
-    "mtime": 1784557341.4405646,
-    "ast_hash": "2b2e6d21edbd79f46ba7c25a58a54519",
+    "mtime": 1785088208.6295204,
+    "ast_hash": "1dfe332176c54c8014380374e3e621d0",
     "semantic_hash": ""
   },
   "app/api/health/route.ts": {
@@ -80,9 +80,9 @@
     "semantic_hash": "0a0e8a1794ad0d39e7dd80938c615e29"
   },
   "app/api/recommendations/[companyId]/route.ts": {
-    "mtime": 1778778466.605769,
-    "ast_hash": "2a508a0a24331c05a2992f0bf967337d",
-    "semantic_hash": "2a508a0a24331c05a2992f0bf967337d"
+    "mtime": 1785089736.8228772,
+    "ast_hash": "10689889f82e9e0e9da5ce4e4b0455b7",
+    "semantic_hash": ""
   },
   "app/api/tenders/manual/route.ts": {
     "mtime": 1782609314.2029307,
@@ -90,18 +90,18 @@
     "semantic_hash": ""
   },
   "app/api/tenders/public/detail/route.ts": {
-    "mtime": 1784906440.3548934,
-    "ast_hash": "e590770e82585caf62d9c9cb7ed39b26",
+    "mtime": 1785089736.807877,
+    "ast_hash": "9a4d15b0dd4b8f1f07e574aa51d9ab0e",
     "semantic_hash": ""
   },
   "app/api/tenders/public/list/route.ts": {
-    "mtime": 1784750870.0697157,
-    "ast_hash": "ff5b1772538ac87c820b6e4d146dc564",
+    "mtime": 1785088192.5746093,
+    "ast_hash": "7e03fda41c55b7e5dd927e76de67a341",
     "semantic_hash": ""
   },
   "app/api/tenders/public/match/route.ts": {
-    "mtime": 1784755302.996813,
-    "ast_hash": "c9a480c0b434e805ca31c0ce929a120f",
+    "mtime": 1785088192.5776093,
+    "ast_hash": "d5be21bdcf5e9a9d5d1718a752eb091b",
     "semantic_hash": ""
   },
   "app/api/tenders/public/route.ts": {
@@ -570,8 +570,8 @@
     "semantic_hash": "18d83021a29ec5cd71a92a82792dc605"
   },
   "components/AusschreibungenSection.tsx": {
-    "mtime": 1784907000.8394597,
-    "ast_hash": "5dbaaf314f4d497cbe533f7540202b9c",
+    "mtime": 1785089736.820877,
+    "ast_hash": "b595547f710886af076178b8102b97f8",
     "semantic_hash": ""
   },
   "components/AuthModal.tsx": {
@@ -585,13 +585,13 @@
     "semantic_hash": "2f82457a9139f4cc29458d45ed4dd94a"
   },
   "components/DashboardOverview.tsx": {
-    "mtime": 1778778466.6267688,
-    "ast_hash": "5d47f341dcaaec5718481234c93558ae",
-    "semantic_hash": "5d47f341dcaaec5718481234c93558ae"
+    "mtime": 1785089736.8228772,
+    "ast_hash": "6dc2a8f8fd39e0efdd1b6458bb9f72f0",
+    "semantic_hash": ""
   },
   "components/DashboardSection.tsx": {
-    "mtime": 1784484507.9044943,
-    "ast_hash": "c8ce3ce3dfd5f25eeab85ccfa593227e",
+    "mtime": 1785088517.1687975,
+    "ast_hash": "ebc8052b4a7ace7f6a713259233382b4",
     "semantic_hash": ""
   },
   "components/PipelineSection.tsx": {
@@ -600,9 +600,9 @@
     "semantic_hash": "2f4e5ac7929fc86602c75fc7b044d6ea"
   },
   "components/RecommendationsSection.tsx": {
-    "mtime": 1778778466.6277688,
-    "ast_hash": "b947d28b4af0182765a0054d799f51a2",
-    "semantic_hash": "b947d28b4af0182765a0054d799f51a2"
+    "mtime": 1785089736.823877,
+    "ast_hash": "867fabc868587313bcf81bea8aa3bf04",
+    "semantic_hash": ""
   },
   "components/Shell.tsx": {
     "mtime": 1784960633.0639658,
@@ -630,9 +630,9 @@
     "semantic_hash": ""
   },
   "components/UserMenu.tsx": {
-    "mtime": 1780450743.4783685,
-    "ast_hash": "c9f1c13e4621dffe22c2fb1efb4eae07",
-    "semantic_hash": "c9f1c13e4621dffe22c2fb1efb4eae07"
+    "mtime": 1785088407.4594126,
+    "ast_hash": "b5c74f77245c574c2ad8ccb4f38d2506",
+    "semantic_hash": ""
   },
   "components/retroui/Button.tsx": {
     "mtime": 1778778466.6297688,
@@ -665,8 +665,8 @@
     "semantic_hash": ""
   },
   "lib/auth.ts": {
-    "mtime": 1784359682.3491952,
-    "ast_hash": "c8241538bc30739d5bc1d0b0d0707d52",
+    "mtime": 1785089736.8068771,
+    "ast_hash": "a31062d0006147f62fdf7f860c132ab3",
     "semantic_hash": ""
   },
   "lib/config.ts": {
@@ -725,8 +725,8 @@
     "semantic_hash": ""
   },
   "lib/schema.ts": {
-    "mtime": 1785076631.0410595,
-    "ast_hash": "69547bbf372cde85fbb345731f9dc856",
+    "mtime": 1785088240.5443432,
+    "ast_hash": "36d6ab6d6432cd06d7b3676457b8589d",
     "semantic_hash": ""
   },
   "lib/scoring.ts": {
@@ -800,8 +800,8 @@
     "semantic_hash": ""
   },
   "package.json": {
-    "mtime": 1785079184.7197359,
-    "ast_hash": "6952e8267640126b64212969c1eb64e3",
+    "mtime": 1785088813.044129,
+    "ast_hash": "dd49a9b4049aec90af787f02a87a3f1d",
     "semantic_hash": ""
   },
   "postcss.config.mjs": {
@@ -820,8 +820,8 @@
     "semantic_hash": "3fc89d6fad750908018689552eef909b"
   },
   "scripts/migrate.ts": {
-    "mtime": 1785079085.7313442,
-    "ast_hash": "1c067b3732babdbd1309634da320aa37",
+    "mtime": 1785089736.8198771,
+    "ast_hash": "503f8d4930775da09250ab302657a210",
     "semantic_hash": ""
   },
   "scripts/worker.ts": {
@@ -970,8 +970,8 @@
     "semantic_hash": ""
   },
   "docker-compose.yml": {
-    "mtime": 1785079085.7363443,
-    "ast_hash": "3ff49d69727ca1011d0c0a4436127c14",
+    "mtime": 1785088591.8843772,
+    "ast_hash": "73b9e013ea5e36d873a15ceaf73ed94b",
     "semantic_hash": ""
   },
   "searxng/settings.yml": {
@@ -1010,8 +1010,8 @@
     "semantic_hash": ""
   },
   "app/api/docs/[...filename]/route.ts": {
-    "mtime": 1784557341.4405646,
-    "ast_hash": "46f120839a4ad1318e87b96ad55d1493",
+    "mtime": 1785088192.5766094,
+    "ast_hash": "17616533e04bfabd0dabf7613fde5279",
     "semantic_hash": ""
   },
   "app/api/indexnow/route.ts": {
@@ -1020,8 +1020,8 @@
     "semantic_hash": ""
   },
   "app/api/tenders/public/download/route.ts": {
-    "mtime": 1784557341.4405646,
-    "ast_hash": "5cce87f73379d94f0ce2963ee3501821",
+    "mtime": 1785088192.5756092,
+    "ast_hash": "cb1b815c9b73368a93058b435560f533",
     "semantic_hash": ""
   },
   "app/api/tenders/search/route.ts": {
@@ -1060,8 +1060,8 @@
     "semantic_hash": ""
   },
   "app/ausschreibung/[...params]/page.tsx": {
-    "mtime": 1784609156.0679395,
-    "ast_hash": "4bc8213760f50d73b6cc55cfddaea3b1",
+    "mtime": 1785089055.098757,
+    "ast_hash": "386b0c711eab9c23d21cb3dfc7ba9419",
     "semantic_hash": ""
   },
   "app/ausschreibungen/[kategorie]/opengraph-image.tsx": {
@@ -1640,8 +1640,8 @@
     "semantic_hash": ""
   },
   "app/api/us/tenders/[id]/pursuit/route.ts": {
-    "mtime": 1784963367.5466912,
-    "ast_hash": "aebe7c448cb7bd626195128296f8e689",
+    "mtime": 1785088192.5786092,
+    "ast_hash": "7e1624c592bc00a109b61a26c5eab214",
     "semantic_hash": ""
   },
   "app/api/us/tenders/[id]/route.ts": {
@@ -1670,8 +1670,8 @@
     "semantic_hash": ""
   },
   "app/us/tender/[id]/page.tsx": {
-    "mtime": 1784927375.51451,
-    "ast_hash": "8628b2964a7a91c11e7b5797006c0951",
+    "mtime": 1785090395.833112,
+    "ast_hash": "fd89aa98f709d0fbb05efe2ff31206ea",
     "semantic_hash": ""
   },
   "components/UsCompanyProfileForm.tsx": {
@@ -1680,13 +1680,13 @@
     "semantic_hash": ""
   },
   "components/UsPursuitPanel.tsx": {
-    "mtime": 1784963367.5466912,
-    "ast_hash": "56a33a5fde44b5786decf612b0073762",
+    "mtime": 1785090793.2508426,
+    "ast_hash": "579a65e26527cd0087722f0e25b8880a",
     "semantic_hash": ""
   },
   "components/UsTendersSection.tsx": {
-    "mtime": 1785079113.0341766,
-    "ast_hash": "76e887733da13cff349f3c36787afb31",
+    "mtime": 1785090793.4498415,
+    "ast_hash": "7f4e392f9b7eade4af181e5bdae78912",
     "semantic_hash": ""
   },
   "lib/us-tender-scraper.ts": {
@@ -1905,13 +1905,13 @@
     "semantic_hash": ""
   },
   "app/api/us/alerts/confirm/route.ts": {
-    "mtime": 1785077617.592036,
-    "ast_hash": "55791832ce2208a054d77c7ed31ad73e",
+    "mtime": 1785088250.4512882,
+    "ast_hash": "ba81ab1f6d9f292088fd4d31f62937d8",
     "semantic_hash": ""
   },
   "app/api/us/alerts/subscribe/route.ts": {
-    "mtime": 1785077593.276166,
-    "ast_hash": "65e5e34cd728bb3a6771dfb00de4ef72",
+    "mtime": 1785088240.5493433,
+    "ast_hash": "613ba53ec201a298ab29629f1ffc713a",
     "semantic_hash": ""
   },
   "app/api/us/alerts/unsubscribe/route.ts": {
@@ -1930,8 +1930,8 @@
     "semantic_hash": ""
   },
   "lib/us/alerts.ts": {
-    "mtime": 1785079174.598798,
-    "ast_hash": "f7db60603825db3e54d653fce7f67a58",
+    "mtime": 1785089736.818877,
+    "ast_hash": "e4e5cc59c88e52de083484145b2aad74",
     "semantic_hash": ""
   },
   "lib/us/categorize.ts": {
@@ -1952,6 +1952,56 @@
   "scripts/backfill-us-categories.ts": {
     "mtime": 1785079174.599798,
     "ast_hash": "c1d75f2ccd79926e36865ff619d25d10",
+    "semantic_hash": ""
+  },
+  "app/api/billing/checkout/route.ts": {
+    "mtime": 1785088118.997016,
+    "ast_hash": "5e43a06134d2360d8c7de9bbc2321456",
+    "semantic_hash": ""
+  },
+  "app/api/billing/portal/route.ts": {
+    "mtime": 1785088119.0230157,
+    "ast_hash": "251d17a86d097fb52860678833fd0a85",
+    "semantic_hash": ""
+  },
+  "app/api/billing/status/route.ts": {
+    "mtime": 1785088119.0250156,
+    "ast_hash": "dd643f3bbefd7cdd36c906590a7d7b61",
+    "semantic_hash": ""
+  },
+  "app/api/stripe/webhook/route.ts": {
+    "mtime": 1785088749.2844894,
+    "ast_hash": "fbfbce4b7585fa5846a2c0e85c074f08",
+    "semantic_hash": ""
+  },
+  "app/upgrade/page.tsx": {
+    "mtime": 1785088385.580535,
+    "ast_hash": "a9d356afc544afcc8fcec040f8c33156",
+    "semantic_hash": ""
+  },
+  "components/billing/PaywallPanel.tsx": {
+    "mtime": 1785088385.566535,
+    "ast_hash": "51774ca9f8bd79af5fe6dd917723485a",
+    "semantic_hash": ""
+  },
+  "components/billing/UpgradePage.tsx": {
+    "mtime": 1785088627.2811778,
+    "ast_hash": "2cb8899cacbee0ff5188b952f41af3d4",
+    "semantic_hash": ""
+  },
+  "lib/billing.ts": {
+    "mtime": 1785088051.4143875,
+    "ast_hash": "f71e2c4106d713d450ff281b66d44e4b",
+    "semantic_hash": ""
+  },
+  "lib/entitlements.ts": {
+    "mtime": 1785088894.9686651,
+    "ast_hash": "054fb32c68fef65c500db4a2c07e2b8a",
+    "semantic_hash": ""
+  },
+  "scripts/test-billing.ts": {
+    "mtime": 1785088894.9786649,
+    "ast_hash": "a96ddbf4d3332fa876275a00647e4cf2",
     "semantic_hash": ""
   }
 }

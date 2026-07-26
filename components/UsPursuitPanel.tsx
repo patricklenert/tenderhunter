@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Alert, Box, Button, Card, CardContent, CircularProgress, Divider, MenuItem, Stack, TextField, Typography } from "@mui/material";
 import { CheckCircle2, CircleAlert, ExternalLink, UsersRound } from "lucide-react";
+import { PaywallPanel } from "@/components/billing/PaywallPanel";
 
 interface PursuitData {
   directBidReady: boolean;
@@ -27,16 +28,24 @@ export function UsPursuitPanel({ tenderId }: { tenderId: number }) {
   const [data, setData] = useState<PursuitData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [paywall, setPaywall] = useState(false);
   const [profiles, setProfiles] = useState<CompanyProfileOption[]>([]);
 
   const load = async (selectedCompanyId = companyId) => {
     setLoading(true);
     setError(null);
+    setPaywall(false);
     try {
       const params = selectedCompanyId ? `?companyId=${encodeURIComponent(selectedCompanyId)}` : "";
       const response = await fetch(`/api/us/tenders/${tenderId}/pursuit${params}`);
-      if (!response.ok) throw new Error("The pursuit brief could not be prepared.");
-      setData(await response.json() as PursuitData);
+      const payload = await response.json().catch(() => null) as PursuitData | { error?: string } | null;
+      if (response.status === 401 || response.status === 402) {
+        setData(null);
+        setPaywall(true);
+        return;
+      }
+      if (!response.ok) throw new Error(payload && "error" in payload ? payload.error : "The pursuit brief could not be prepared.");
+      setData(payload as PursuitData);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "The pursuit brief could not be prepared.");
     } finally {
@@ -77,7 +86,8 @@ export function UsPursuitPanel({ tenderId }: { tenderId: number }) {
         </CardContent>
       </Card>
       {loading && <Box sx={{ display: "grid", placeItems: "center", py: 4 }}><CircularProgress /></Box>}
-      {error && <Alert severity="error">{error}</Alert>}
+      {paywall && <PaywallPanel feature="U.S. Pursuit Brief" title="U.S. Pursuit Brief freischalten" description="Die Gelegenheit und ihre Kerndaten bleiben frei. Billing ergänzt Readiness-Check, Teaming-Ressourcen und nächste Schritte." />}
+      {error && !paywall && <Alert severity="error">{error}</Alert>}
       {data && !loading && <>
         {data.fit && <Alert severity={data.directBidReady ? "success" : "warning"}>{`Fit score: ${data.fit.score}/100. ${data.fit.reasons[0]}`}</Alert>}
         {!data.fit && <Alert severity="info">Set up or select a U.S. company profile to assess NAICS and set-aside fit. Until your UEI is active, prioritize teaming outreach rather than direct bidding.</Alert>}
