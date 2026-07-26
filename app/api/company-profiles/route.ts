@@ -2,6 +2,8 @@ import { db } from "@/lib/db";
 import { companyProfiles } from "@/lib/schema";
 import { companyProfileSchema } from "@/lib/validation";
 import { errorResponse, json, parseJsonBody } from "@/lib/http";
+import { enqueueJob } from "@/lib/queue";
+import { JOB_DISCOVER_COMPANY } from "@/lib/types";
 import { eq } from "drizzle-orm";
 
 export const runtime = "nodejs";
@@ -51,7 +53,16 @@ export async function POST(request: Request): Promise<Response> {
       })
       .returning({ id: companyProfiles.id });
 
-    return json({ id: result[0]?.id, name: payload.name }, { status: 201 });
+    const companyId = result[0]?.id;
+    if (companyId) {
+      await enqueueJob(
+        JOB_DISCOVER_COMPANY,
+        { company_id: companyId },
+        { jobKey: `${JOB_DISCOVER_COMPANY}:${companyId}:profile-update` },
+      );
+    }
+
+    return json({ id: companyId, name: payload.name, rescoreQueued: Boolean(companyId) }, { status: 201 });
   } catch (error) {
     return errorResponse(error);
   }

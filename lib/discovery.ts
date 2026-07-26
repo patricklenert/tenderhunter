@@ -3,13 +3,13 @@ import { db } from "@/lib/db";
 import { insights, scores, structuredData, tenders } from "@/lib/schema";
 import { computeScores, type CompanyRow } from "@/lib/scoring";
 import { generateInsight } from "@/lib/insights";
-import type { StructuredData as StructuredTenderData } from "@/lib/structurer";
+import { normalizeStructured, type StructuredData as StructuredTenderData } from "@/lib/structurer";
 
 const fallbackStructured = (title: string): StructuredTenderData => ({
   title,
   summary: title,
   confidence: 0.3,
-  hard_facts: { location: "Deutschland", deadline: null, budget: null, buyer: null, contract_type: null },
+  hard_facts: { location: null, deadline: null, budget: null, buyer: null, contract_type: null },
   decision_relevant: {
     scope: title.split(" ").filter((word) => word.length > 3),
     requirements: [],
@@ -27,27 +27,27 @@ const fallbackStructured = (title: string): StructuredTenderData => ({
 });
 
 const parseStructured = (value: unknown, title: string): StructuredTenderData => {
-  if (typeof value === "object" && value !== null) return value as StructuredTenderData;
+  if (typeof value === "object" && value !== null) return normalizeStructured(value, title);
   try {
     const parsed = JSON.parse(String(value));
-    return parsed && typeof parsed === "object" ? parsed as StructuredTenderData : fallbackStructured(title);
+    return parsed && typeof parsed === "object" ? normalizeStructured(parsed, title) : fallbackStructured(title);
   } catch {
     return fallbackStructured(title);
   }
 };
 
-export async function scoreKnownTenders(companyId: number, companyRow: CompanyRow, limit = 200): Promise<number> {
+export async function scoreKnownTenders(companyId: number, companyRow: CompanyRow): Promise<number> {
   const rows = await db
     .select({
       id: tenders.id,
       title: tenders.title,
+      metadataJson: tenders.metadataJson,
       structuredJson: structuredData.jsonBlob,
     })
     .from(tenders)
     .leftJoin(structuredData, eq(structuredData.tenderId, tenders.id))
     .where(or(eq(tenders.qualityStatus, "qualified"), eq(tenders.qualityStatus, "candidate")))
-    .orderBy(desc(tenders.createdAt))
-    .limit(limit);
+    .orderBy(desc(tenders.createdAt));
 
   const scoreRows = [] as Array<{
     tenderId: number;
@@ -57,7 +57,7 @@ export async function scoreKnownTenders(companyId: number, companyRow: CompanyRo
     effort: number;
     requirementCoverage: number;
     killSwitch: boolean;
-    detailsJson: Record<string, number>;
+    detailsJson: Record<string, unknown>;
   }>;
   const insightRows = [] as Array<{
     tenderId: number;
@@ -69,7 +69,14 @@ export async function scoreKnownTenders(companyId: number, companyRow: CompanyRo
 
   for (const row of rows) {
     const structured = parseStructured(row.structuredJson, row.title ?? "");
-    const score = computeScores(row.title ?? "", structured, companyRow);
+    const metadata = typeof row.metadataJson === "object" && row.metadataJson !== null
+      ? row.metadataJson as Record<string, unknown>
+      : {};
+    const score = computeScores(row.title ?? "", structured, companyRow, undefined, {
+      metadataLocation: metadata.location,
+      metadataDescription: metadata.description,
+      structuredLocation: structured.hard_facts.location,
+    });
     const insight = generateInsight(score, structured);
     scoreRows.push({
       tenderId: row.id,

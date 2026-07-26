@@ -24,7 +24,7 @@ import {
 import { generateInsight } from "@/lib/insights";
 import { extractTextFromFile } from "@/lib/parser";
 import { claimNextJob, enqueueJob, heartbeatJob, markDone, markFailed } from "@/lib/queue";
-import { computeScores, llmBatchDomainMatch, type CompanyRow } from "@/lib/scoring";
+import { buildTenderMatchDocument, computeScores, getDomainEligibility, getLocationEligibility, llmBatchDomainMatch, type CompanyRow } from "@/lib/scoring";
 import { ensureExtension, fetchAndStore, objectAbsolutePath, suggestedFilename } from "@/lib/storage";
 import { extractStructuredData, normalizeStructured, type StructuredData } from "@/lib/structurer";
 import { assessTenderQuality } from "@/lib/tender-quality";
@@ -103,6 +103,21 @@ const parseRecord = (value: string | Record<string, JsonValue>): Record<string, 
   } catch {
     return {};
   }
+};
+
+const scoringInputSignature = (value: Record<string, unknown>): string => {
+  const hardFacts = value.hard_facts as Record<string, unknown> | undefined;
+  const decisionRelevant = value.decision_relevant as Record<string, unknown> | undefined;
+  const procurement = value.procurement as Record<string, unknown> | undefined;
+
+  return JSON.stringify({
+    location: hardFacts?.location ?? null,
+    summary: value.summary ?? value.description ?? null,
+    scope: decisionRelevant?.scope ?? null,
+    requirements: decisionRelevant?.requirements ?? null,
+    mandatoryDocuments: decisionRelevant?.mandatory_documents ?? null,
+    participationRequirements: procurement?.participation_requirements ?? null,
+  });
 };
 
 const getTender = async (tenderId: number): Promise<Tender> => {
@@ -850,8 +865,8 @@ const runStructureTender = async (payload: Record<string, JsonValue>): Promise<R
     };
   }
 
-   await queueTenderStage(JOB_SCORE, tenderId);
-   await queueTenderStage(JOB_CACHE_DETAIL, tenderId);
+  await queueTenderStage(JOB_SCORE, tenderId);
+  await queueTenderStage(JOB_CACHE_DETAIL, tenderId);
   return {
     confidence: structured.confidence,
     quality_status: quality.status,
@@ -1241,6 +1256,7 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
 
   let mergedBlob: Record<string, unknown>;
   let mergedConfidence: number;
+  let scoringInputChanged = true;
 
   if (existingStructured.length > 0) {
     const existing = existingStructured[0].jsonBlob as Record<string, unknown>;
@@ -1294,6 +1310,7 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
 
     // Boost confidence since we now have more data
     mergedConfidence = Math.min(1, existingConfidence + 0.1);
+    scoringInputChanged = scoringInputSignature(existing) !== scoringInputSignature(mergedBlob);
   } else {
     // No existing structured data — write the cache_detail result as-is
     // but wrap it in the StructuredData shape for consistency
@@ -1331,6 +1348,11 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
     .values({ tenderId, jsonBlob: mergedBlob, confidence: mergedConfidence })
     .onConflictDoUpdate({ target: structuredData.tenderId, set: { jsonBlob: mergedBlob, confidence: mergedConfidence, updatedAt: new Date() } });
 
+  if (scoringInputChanged) {
+    // This distinct key queues a second score even if the initial score job is still running.
+    await queueTenderStage(JOB_SCORE, tenderId, {}, "cache-detail");
+  }
+
   console.log(`[cache-detail] Tender ${tenderId} details cached`);
   return { cached: true, detail_cached: true };
 };
@@ -1361,6 +1383,12 @@ const runScoreTender = async (payload: Record<string, JsonValue>): Promise<Recor
   }
 
   const structured = parseStructured(structuredRows[0].jsonBlob as string, tender.title ?? "");
+  const metadata = parseRecord(tender.metadataJson as string);
+  const tenderLocation = {
+    metadataLocation: metadata.location,
+    metadataDescription: metadata.description,
+    structuredLocation: structured.hard_facts.location,
+  };
   const companies = await db
     .select({
       id: companyProfiles.id,
@@ -1373,15 +1401,12 @@ const runScoreTender = async (payload: Record<string, JsonValue>): Promise<Recor
     .from(companyProfiles)
     .orderBy(companyProfiles.id);
 
-  // Build tender batch item for LLM scoring
-  const scopeText = Array.isArray(structured.decision_relevant?.scope)
-    ? structured.decision_relevant.scope.join(" ")
-    : "";
+  const matchDocument = buildTenderMatchDocument(tender.title ?? "", structured, tenderLocation);
   const tenderBatchItem = [{
     id: tenderId,
     title: tender.title ?? "",
-    scope: scopeText,
-    description: structured.summary ?? "",
+    scope: matchDocument.scope,
+    description: matchDocument.description,
   }];
 
   let scored = 0;
@@ -1395,13 +1420,18 @@ const runScoreTender = async (payload: Record<string, JsonValue>): Promise<Recor
       industry: company.industry,
     };
 
-    // Use LLM for domain scoring (handles German compounds, synonyms)
+    const locationEligibility = getLocationEligibility(companyRow, tenderLocation);
+    const domainEligibility = getDomainEligibility(companyRow, tender.title ?? "", structured, tenderLocation);
+
+    // A model may refine an evidenced match, but cannot turn an unknown service into one.
     const capabilities = Array.isArray(company.capabilitiesJson) ? company.capabilitiesJson as string[] : [];
     const regions = Array.isArray(company.regionsJson) ? company.regionsJson as string[] : [];
-    const llmScores = await llmBatchDomainMatch(capabilities, company.industry, regions, tenderBatchItem);
+    const llmScores = locationEligibility.status === "match" && domainEligibility.status === "match"
+      ? await llmBatchDomainMatch(capabilities, company.industry, regions, tenderBatchItem)
+      : new Map<number, number>();
     const llmDomainScore = llmScores.get(tenderId);
 
-    const result = computeScores(tender.title ?? "", structured, companyRow, llmDomainScore);
+    const result = computeScores(tender.title ?? "", structured, companyRow, llmDomainScore, tenderLocation);
     await db
       .insert(scores)
       .values({
@@ -1469,6 +1499,7 @@ const runGenerateInsight = async (payload: Record<string, JsonValue>): Promise<R
       effort: scores.effort,
       requirementCoverage: scores.requirementCoverage,
       killSwitch: scores.killSwitch,
+      detailsJson: scores.detailsJson,
     })
     .from(scores)
     .where(and(eq(scores.tenderId, tenderId), eq(scores.companyId, companyId)))
@@ -1486,6 +1517,7 @@ const runGenerateInsight = async (payload: Record<string, JsonValue>): Promise<R
 
   const scoreRow = scoreRows[0];
   const structured = parseStructured(structuredRows[0].jsonBlob as string, "");
+  const details = parseRecord(scoreRow.detailsJson as string);
   const insight = generateInsight(
     {
       fit: scoreRow.fit,
@@ -1494,11 +1526,37 @@ const runGenerateInsight = async (payload: Record<string, JsonValue>): Promise<R
       requirement_coverage: scoreRow.requirementCoverage,
       kill_switch: scoreRow.killSwitch,
       details: {
-        domain_match: 0,
-        requirement_coverage: scoreRow.requirementCoverage,
-        region_match: 0,
-        size_match: 0,
-        complexity: 0
+        domain_match: Number(details.domain_match ?? 0),
+        requirement_coverage: Number(details.requirement_coverage ?? scoreRow.requirementCoverage),
+        region_match: Number(details.region_match ?? 0),
+        size_match: Number(details.size_match ?? 0),
+        complexity: Number(details.complexity ?? 0),
+        location_status:
+          details.location_status === "match" ||
+          details.location_status === "mismatch" ||
+          details.location_status === "tender_location_unknown" ||
+          details.location_status === "company_location_unknown"
+            ? details.location_status
+            : "tender_location_unknown",
+        location_reason: typeof details.location_reason === "string"
+          ? details.location_reason
+          : "Der Ausführungsort der Ausschreibung ist nicht eindeutig erkannt.",
+        tender_bundesland: typeof details.tender_bundesland === "string" ? details.tender_bundesland : null,
+        tender_city: typeof details.tender_city === "string" ? details.tender_city : null,
+        location_source: typeof details.location_source === "string" ? details.location_source : "unknown",
+        domain_status:
+          details.domain_status === "match" ||
+          details.domain_status === "mismatch" ||
+          details.domain_status === "domain_unknown"
+            ? details.domain_status
+            : "domain_unknown",
+        domain_reason: typeof details.domain_reason === "string"
+          ? details.domain_reason
+          : "Die fachliche Leistungsart der Ausschreibung ist nicht eindeutig erkannt.",
+        domain_source:
+          details.domain_source === "cpv" || details.domain_source === "text" || details.domain_source === "unknown"
+            ? details.domain_source
+            : "unknown",
       }
     },
     structured
@@ -1523,7 +1581,7 @@ const runGenerateInsight = async (payload: Record<string, JsonValue>): Promise<R
       },
     });
 
-   await queueTenderStage(JOB_NOTIFY, tenderId, { company_id: companyId }, String(companyId));
+  await queueTenderStage(JOB_NOTIFY, tenderId, { company_id: companyId }, String(companyId));
   return { generated: true };
 };
 

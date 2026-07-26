@@ -45,6 +45,14 @@ export interface TenderDetailItem {
     regionMatch: number;
     sizeMatch: number;
     complexity: number;
+    locationStatus?: "match" | "mismatch" | "tender_location_unknown" | "company_location_unknown";
+    locationReason?: string;
+    tenderBundesland?: string;
+    tenderCity?: string;
+    locationSource?: string;
+    domainStatus?: "match" | "mismatch" | "domain_unknown";
+    domainReason?: string;
+    domainSource?: string;
   } | null;
   procurement?: {
     contractValueMin: number | null;
@@ -767,6 +775,42 @@ export function TenderDetailDrawer({
                 >
                   Scoring-Faktoren
                 </Box>
+                {tender.details.locationStatus && tender.details.locationStatus !== "match" ? (
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      mb: 1.5,
+                      p: 1.5,
+                      borderColor: "warning.main",
+                      bgcolor: "warning.light",
+                    }}
+                  >
+                    <Box sx={{ fontSize: "0.875rem", fontWeight: 700, color: "warning.dark" }}>
+                      Standortprüfung
+                    </Box>
+                    <Box sx={{ mt: 0.5, fontSize: "0.875rem", color: "text.secondary" }}>
+                      {tender.details.locationReason ?? "Der Ausführungsort ist nicht mit dem Einsatzgebiet abgeglichen."}
+                    </Box>
+                  </Paper>
+                ) : null}
+                {tender.details.domainStatus && tender.details.domainStatus !== "match" ? (
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      mb: 1.5,
+                      p: 1.5,
+                      borderColor: "error.main",
+                      bgcolor: "error.light",
+                    }}
+                  >
+                    <Box sx={{ fontSize: "0.875rem", fontWeight: 700, color: "error.dark" }}>
+                      Fachliche Prüfung
+                    </Box>
+                    <Box sx={{ mt: 0.5, fontSize: "0.875rem", color: "text.secondary" }}>
+                      {tender.details.domainReason ?? "Die Leistungsart passt nicht zu den hinterlegten Kernleistungen."}
+                    </Box>
+                  </Paper>
+                ) : null}
                 <Box
                   sx={{
                     display: "grid",
@@ -779,6 +823,9 @@ export function TenderDetailDrawer({
                   <DetailMetric label="Region" value={`${tender.details.regionMatch}%`} />
                   <DetailMetric label="Groesse" value={`${tender.details.sizeMatch}%`} />
                   <DetailMetric label="Komplexitaet" value={`${tender.details.complexity}%`} />
+                  {tender.details.tenderBundesland ? (
+                    <DetailMetric label="Ausführungsort" value={tender.details.tenderCity ? `${tender.details.tenderCity}, ${tender.details.tenderBundesland}` : tender.details.tenderBundesland} />
+                  ) : null}
                 </Box>
               </Paper>
             ) : null}

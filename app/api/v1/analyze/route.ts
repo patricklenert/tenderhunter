@@ -4,7 +4,7 @@ import { requireApiKey } from "@/lib/api-auth";
 import { generateSlug } from "@/lib/slug";
 import { scrapeWebsite } from "@/lib/firecrawl";
 import { extractCompanyProfile } from "@/lib/perplexity";
-import { computeScores, llmBatchDomainMatch, type CompanyRow } from "@/lib/scoring";
+import { buildTenderMatchDocument, computeScores, getDomainEligibility, getLocationEligibility, llmBatchDomainMatch, type CompanyRow } from "@/lib/scoring";
 import { generateInsight } from "@/lib/insights";
 import { eq, and, or, desc } from "drizzle-orm";
 import { normalizeStructured, type StructuredData as StructuredTenderData } from "@/lib/structurer";
@@ -245,7 +245,11 @@ async function runAnalysis(jobId: number, url: string) {
 
 async function scoreAllTenders(companyId: number, companyRow: CompanyRow) {
   const allTenders = await db
-    .select({ id: tenders.id, title: tenders.title })
+    .select({
+      id: tenders.id,
+      title: tenders.title,
+      metadataJson: tenders.metadataJson,
+    })
     .from(tenders)
     .where(or(eq(tenders.qualityStatus, "qualified"), eq(tenders.qualityStatus, "candidate")))
     .orderBy(desc(tenders.createdAt))
@@ -255,7 +259,11 @@ async function scoreAllTenders(companyId: number, companyRow: CompanyRow) {
   const tenderData: Array<{
     id: number; title: string;
     structured: StructuredTenderData;
-    hasStructured: boolean;
+    location: {
+      metadataLocation: unknown;
+      metadataDescription: unknown;
+      structuredLocation: string | null;
+    };
   }> = [];
 
   for (const tender of allTenders) {
@@ -268,17 +276,41 @@ async function scoreAllTenders(companyId: number, companyRow: CompanyRow) {
     if (structuredRows.length > 0) {
       try {
         const parsed = normalizeStructured(structuredRows[0].jsonBlob, tender.title ?? "");
-        tenderData.push({ id: tender.id, title: tender.title ?? "", structured: parsed, hasStructured: true });
+        const metadata = typeof tender.metadataJson === "object" && tender.metadataJson !== null
+          ? tender.metadataJson as Record<string, unknown>
+          : {};
+        tenderData.push({
+          id: tender.id,
+          title: tender.title ?? "",
+          structured: parsed,
+          location: {
+            metadataLocation: metadata.location,
+            metadataDescription: metadata.description,
+            structuredLocation: parsed.hard_facts.location,
+          },
+        });
       } catch { continue; }
     } else {
       const text = tender.title ?? "";
       const mockStructured: StructuredTenderData = {
         title: text, summary: text, confidence: 0.3,
-        hard_facts: { location: "Deutschland", deadline: null, budget: null, buyer: null, contract_type: null },
+        hard_facts: { location: null, deadline: null, budget: null, buyer: null, contract_type: null },
         decision_relevant: { scope: text.split(" ").filter((w) => w.length > 3), requirements: [], mandatory_documents: [], award_criteria: [] },
         procurement: { contract_value: { min: null, max: null, currency: "EUR" }, contract_duration: { months: null, renewal: false }, award_criteria_detailed: [], participation_requirements: [], cpv_codes: [], procedure_type: "offen" },
       };
-      tenderData.push({ id: tender.id, title: text, structured: mockStructured, hasStructured: false });
+      const metadata = typeof tender.metadataJson === "object" && tender.metadataJson !== null
+        ? tender.metadataJson as Record<string, unknown>
+        : {};
+      tenderData.push({
+        id: tender.id,
+        title: text,
+        structured: mockStructured,
+        location: {
+          metadataLocation: metadata.location,
+          metadataDescription: metadata.description,
+          structuredLocation: null,
+        },
+      });
     }
   }
 
@@ -289,19 +321,25 @@ async function scoreAllTenders(companyId: number, companyRow: CompanyRow) {
     capabilities,
     companyRow.industry ?? null,
     regions,
-    tenderData.map((t) => ({
-      id: t.id,
-      title: t.title,
-      scope: t.structured.decision_relevant.scope.join(" "),
-      description: t.structured.summary ?? "",
-    })),
+    tenderData.filter((t) =>
+      getLocationEligibility(companyRow, t.location).status === "match" &&
+      getDomainEligibility(companyRow, t.title, t.structured, t.location).status === "match",
+    ).map((t) => {
+      const document = buildTenderMatchDocument(t.title, t.structured, t.location);
+      return {
+        id: t.id,
+        title: t.title,
+        scope: document.scope,
+        description: document.description,
+      };
+    }),
   );
   console.log(`[analyze] LLM domain scores for ${llmScores.size}/${tenderData.length} tenders`);
 
   // Compute final scores
-  for (const { id, title, structured } of tenderData) {
+  for (const { id, title, structured, location } of tenderData) {
     const llmScore = llmScores.get(id);
-    const scoreResult = computeScores(title, structured, companyRow, llmScore);
+    const scoreResult = computeScores(title, structured, companyRow, llmScore, location);
     const insight = generateInsight(scoreResult, structured);
 
     await db.insert(scores).values({
@@ -339,6 +377,7 @@ async function getTopTenders(companyId: number): Promise<TenderResult[]> {
     .leftJoin(structuredData, eq(structuredData.tenderId, tenders.id))
     .where(and(
       eq(scores.companyId, companyId),
+      eq(scores.killSwitch, false),
       or(eq(tenders.qualityStatus, "qualified"), eq(tenders.qualityStatus, "candidate")),
     ))
     .orderBy(desc(scores.winProbability), desc(scores.fit))

@@ -17,6 +17,42 @@ export const BUNDESLAENDER = [
   "Thüringen",
 ] as const;
 
+export type Bundesland = (typeof BUNDESLAENDER)[number];
+
+const normalizeLocationText = (value: string): string =>
+  value
+    .toLocaleLowerCase("de-DE")
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+
+const BUNDESLAND_ALIASES: Record<string, Bundesland> = {
+  "baden wurttemberg": "Baden-Württemberg",
+  bayern: "Bayern",
+  berlin: "Berlin",
+  brandenburg: "Brandenburg",
+  bremen: "Bremen",
+  hamburg: "Hamburg",
+  hessen: "Hessen",
+  "mecklenburg vorpommern": "Mecklenburg-Vorpommern",
+  niedersachsen: "Niedersachsen",
+  "nordrhein westfalen": "Nordrhein-Westfalen",
+  nrw: "Nordrhein-Westfalen",
+  ruhrgebiet: "Nordrhein-Westfalen",
+  "rheinland pfalz": "Rheinland-Pfalz",
+  saarland: "Saarland",
+  sachsen: "Sachsen",
+  "sachsen anhalt": "Sachsen-Anhalt",
+  "schleswig holstein": "Schleswig-Holstein",
+  thuringen: "Thüringen",
+};
+
+export function normalizeBundesland(value: string | null | undefined): Bundesland | null {
+  if (!value) return null;
+  return BUNDESLAND_ALIASES[normalizeLocationText(value)] ?? null;
+}
+
 // SEO: URL-friendly slugs for Bundesländer region landing pages
 export const BUNDESLAND_SLUGS: Record<string, string> = {
   "Baden-Württemberg": "baden-wuerttemberg",
@@ -49,7 +85,7 @@ export const SLUG_TO_BUNDESLAND: Record<string, string> = Object.entries(
 
 export const ALL_BUNDESLAND_SLUGS = Object.values(BUNDESLAND_SLUGS);
 
-const CITY_TO_BUNDESLAND: Record<string, string> = {
+const CITY_TO_BUNDESLAND: Record<string, Bundesland> = {
   "Baden-Württemberg": "Baden-Württemberg",
   Stuttgart: "Baden-Württemberg",
   Mannheim: "Baden-Württemberg",
@@ -165,10 +201,10 @@ const CITY_TO_BUNDESLAND: Record<string, string> = {
   Weimar: "Thüringen",
 };
 
-const PLZ_PREFIX_TO_BUNDESLAND: Array<{ prefix: number; bundesland: string }> = [
+const PLZ_PREFIX_TO_BUNDESLAND: Array<{ prefix: number; bundesland: Bundesland }> = [
   { prefix: 10, bundesland: "Berlin" },
   { prefix: 11, bundesland: "Berlin" },
-  { prefix: 12, bundesland: "Brandenburg" },
+  { prefix: 12, bundesland: "Berlin" },
   { prefix: 13, bundesland: "Berlin" },
   { prefix: 14, bundesland: "Brandenburg" },
   { prefix: 15, bundesland: "Brandenburg" },
@@ -286,8 +322,15 @@ const CITY_ALIASES: Record<string, string> = {
   "Göttingen": "Göttingen",
 };
 
-export function deriveBundesland(location: string | null | undefined): string | null {
+export function deriveBundesland(location: string | null | undefined): Bundesland | null {
   if (!location || location.trim().length < 2) return null;
+
+  const normalizedLocation = normalizeLocationText(location);
+  for (const [alias, bundesland] of Object.entries(BUNDESLAND_ALIASES)) {
+    if (normalizedLocation === alias || normalizedLocation.includes(` ${alias} `) || normalizedLocation.startsWith(`${alias} `) || normalizedLocation.endsWith(` ${alias}`)) {
+      return bundesland;
+    }
+  }
 
   const parts = location.split(",").map((s) => s.trim());
   for (const part of parts) {
@@ -297,6 +340,18 @@ export function deriveBundesland(location: string | null | undefined): string | 
     for (const bl of BUNDESLAENDER) {
       if (cleaned.toLowerCase() === bl.toLowerCase()) return bl;
       if (cleaned.toLowerCase().includes(bl.toLowerCase())) return bl;
+    }
+  }
+
+  for (const [city, bundesland] of Object.entries(CITY_TO_BUNDESLAND)) {
+    const normalizedCity = normalizeLocationText(city);
+    if (
+      normalizedLocation === normalizedCity ||
+      normalizedLocation.includes(` ${normalizedCity} `) ||
+      normalizedLocation.startsWith(`${normalizedCity} `) ||
+      normalizedLocation.endsWith(` ${normalizedCity}`)
+    ) {
+      return bundesland;
     }
   }
 
@@ -334,6 +389,19 @@ export function deriveCity(location: string | null | undefined): string | null {
       if (cleaned.toLowerCase() === city.toLowerCase()) {
         return CITY_ALIASES[city] ?? city;
       }
+    }
+  }
+
+  const normalizedLocation = normalizeLocationText(location);
+  for (const city of Object.keys(CITY_TO_BUNDESLAND)) {
+    const normalizedCity = normalizeLocationText(city);
+    if (
+      normalizedLocation === normalizedCity ||
+      normalizedLocation.includes(` ${normalizedCity} `) ||
+      normalizedLocation.startsWith(`${normalizedCity} `) ||
+      normalizedLocation.endsWith(` ${normalizedCity}`)
+    ) {
+      return CITY_ALIASES[city] ?? city;
     }
   }
 

@@ -1,5 +1,11 @@
-import type { StructuredData } from "@/lib/structurer";
-import { deriveBundesland } from "@/lib/bundesland";
+import { sanitizeTenderText, type StructuredData } from "@/lib/structurer";
+import {
+  assessLocationEligibility,
+  type LocationEligibility,
+  type LocationEligibilityStatus,
+  type TenderLocationInput,
+} from "@/lib/location";
+import { callLLM } from "@/lib/llm";
 import OpenAI from "openai";
 
 const WORD_PATTERN = /[\p{L}\p{N}-]{3,}/gu;
@@ -23,25 +29,78 @@ const tokenize = (text: string): Set<string> => {
   return new Set(tokens.filter((t) => !STOP_WORDS.has(t) && t.length >= 4));
 };
 
-const CAPABILITY_GROUPS: Record<string, string[]> = {
-  green_outdoor: ["garten", "galabau", "landschaft", "gruen", "grunanlage", "aussenanlage", "pflege", "winterdienst", "pflaster", "zaun", "einfriedung", "teich", "spielplatz"],
-  construction: ["bau", "hochbau", "tiefbau", "strassenbau", "sanierung", "rohbau", "abbruch", "fassade", "dach", "beton", "erdarbeiten"],
-  cleaning: ["reinigung", "glasreinigung", "unterhaltsreinigung", "gebaeudereinigung"],
-  transport: ["transport", "logistik", "fuhrpark", "abfall", "entsorgung"],
-  wood: ["brennholz", "mischholz", "forst", "holzhandel"],
-  it: ["software", "it", "digital", "programmierung", "webentwicklung", "datenbank", "cyber", "antivirus"],
-  medical: ["medizin", "arznei", "pharma", "krankenhaus", "pflegeleistung"],
+type CapabilityGroup =
+  | "green_outdoor"
+  | "construction"
+  | "cleaning"
+  | "transport"
+  | "wood"
+  | "it"
+  | "medical"
+  | "education";
+
+const CAPABILITY_GROUPS: Record<CapabilityGroup, { terms: string[]; cpvPrefixes: string[] }> = {
+  green_outdoor: {
+    terms: ["galabau", "landschaftsbau", "landschaftspflege", "grunanlagen", "aussenanlagen", "freianlagen", "pflasterarbeiten", "zaunbau", "einfriedung", "spielplatzbau", "winterdienst"],
+    cpvPrefixes: ["451127", "772", "773"],
+  },
+  construction: {
+    terms: ["hochbau", "tiefbau", "strassenbau", "sanierungsarbeiten", "rohbau", "abbrucharbeiten", "fassadenarbeiten", "dachdecker", "betonarbeiten", "erdarbeiten"],
+    cpvPrefixes: ["452", "453", "454", "455"],
+  },
+  cleaning: {
+    terms: ["glasreinigung", "unterhaltsreinigung", "gebaeudereinigung", "reinigungsdienstleistungen"],
+    cpvPrefixes: ["909"],
+  },
+  transport: {
+    terms: ["transportdienstleistungen", "logistikdienstleistungen", "fuhrparkmanagement", "abfallentsorgung", "entsorgungsdienstleistungen"],
+    cpvPrefixes: ["60", "63"],
+  },
+  wood: {
+    terms: ["brennholz", "mischholz", "forstwirtschaft", "holzhandel"],
+    cpvPrefixes: ["03", "16"],
+  },
+  it: {
+    terms: ["softwareentwicklung", "cybersecurity", "webentwicklung", "datenbank", "programmierung", "it-betrieb", "digitalplattform"],
+    cpvPrefixes: ["48", "72"],
+  },
+  medical: {
+    terms: ["medizinische", "arzneimittel", "pharmazeutische", "krankenhaus", "pflegeleistungen", "notfallsanitaeter"],
+    cpvPrefixes: ["33", "85"],
+  },
+  education: {
+    terms: ["ausbildung", "fortbildung", "weiterbildung", "qualifizierung", "fuehrungskraeftequalifizierung", "seminare", "schulung"],
+    cpvPrefixes: ["80"],
+  },
 };
 
-const groupsForText = (text: string): Set<string> => {
+const isAddressToken = (token: string): boolean =>
+  /(?:strasse|weg|allee|platz|gasse|ring|ufer|damm|chaussee)$/u.test(token);
+
+const matchesTerm = (token: string, term: string): boolean =>
+  token === term || (
+    term.length >= 6 &&
+    token.length > term.length &&
+    token.includes(term) &&
+    !isAddressToken(token)
+  );
+
+const groupsForText = (text: string): Set<CapabilityGroup> => {
   const tokens = tokenize(text);
-  const groups = new Set<string>();
-  for (const [group, terms] of Object.entries(CAPABILITY_GROUPS)) {
-    if (terms.some((term) => [...tokens].some((token) =>
-      token === term ||
-      (term.length >= 4 && token.includes(term)) ||
-      (term.length >= 4 && term.includes(token))
-    ))) {
+  const groups = new Set<CapabilityGroup>();
+  for (const [group, definition] of Object.entries(CAPABILITY_GROUPS) as Array<[CapabilityGroup, { terms: string[]; cpvPrefixes: string[] }]>) {
+    if (definition.terms.some((term) => [...tokens].some((token) => matchesTerm(token, term)))) {
+      groups.add(group);
+    }
+  }
+  return groups;
+};
+
+const groupsForCpvCodes = (codes: string[]): Set<CapabilityGroup> => {
+  const normalizedCodes = codes.map((code) => code.replace(/\D/g, ""));
+  const groups = new Set<CapabilityGroup>();
+  for (const [group, definition] of Object.entries(CAPABILITY_GROUPS) as Array<[CapabilityGroup, { terms: string[]; cpvPrefixes: string[] }]>) {
+    if (definition.cpvPrefixes.some((prefix) => normalizedCodes.some((code) => code.startsWith(prefix)))) {
       groups.add(group);
     }
   }
@@ -111,45 +170,6 @@ const capabilityMatch = (keywords: string[], industry: string | null, text: stri
   return Math.min(1, base + directMatch * 0.15);
 };
 
-const COUNTRY_NAMES = new Set(["deutschland", "germany", "germania", "deutsche", "german"]);
-
-const regionMatch = (regions: string[], location: string | null): number => {
-  if (regions.length === 0) {
-    return 0.15;
-  }
-
-  const hasOnlyCountry = regions.every((r) => COUNTRY_NAMES.has(r.toLowerCase().trim()));
-  if (hasOnlyCountry) {
-    return 0.2;
-  }
-
-  if (!location) {
-    return 0.15;
-  }
-
-  const locationBundesland = deriveBundesland(location);
-  if (locationBundesland) {
-    const specificRegions = regions.filter((r) => !COUNTRY_NAMES.has(r.toLowerCase().trim()));
-    for (const region of specificRegions) {
-      if (region.toLowerCase().trim() === locationBundesland.toLowerCase()) {
-        return 1;
-      }
-    }
-    for (const region of specificRegions) {
-      if (locationBundesland.toLowerCase().includes(region.toLowerCase()) || region.toLowerCase().includes(locationBundesland.toLowerCase())) {
-        return 0.8;
-      }
-    }
-    if (specificRegions.some((r) => location.toLowerCase().includes(r.toLowerCase()))) {
-      return 0.9;
-    }
-    return 0;
-  }
-
-  const lower = location.toLowerCase();
-  return regions.some((region) => lower.includes(region.toLowerCase())) ? 0.9 : 0;
-};
-
 const sizeMatch = (teamSize: number | null, scopeText: string): number => {
   if (!teamSize) {
     return 0.3;
@@ -180,6 +200,77 @@ export interface CompanyRow {
   industry?: string | null;
 }
 
+export interface TenderScoringInput extends TenderLocationInput {
+  metadataDescription?: unknown;
+}
+
+export type DomainEligibilityStatus = "match" | "mismatch" | "domain_unknown";
+
+export interface DomainEligibility {
+  status: DomainEligibilityStatus;
+  reason: string;
+  source: "cpv" | "text" | "unknown";
+}
+
+export interface TenderMatchDocument {
+  text: string;
+  scope: string;
+  description: string;
+  cpvCodes: string[];
+}
+
+const uniqueNonEmpty = (values: string[]): string[] => [...new Set(values.filter(Boolean))];
+
+export const buildTenderMatchDocument = (
+  tenderTitle: string,
+  structured: StructuredData,
+  input: TenderScoringInput = {},
+): TenderMatchDocument => {
+  const scope = uniqueNonEmpty((structured.decision_relevant.scope ?? []).map(sanitizeTenderText));
+  const requirements = uniqueNonEmpty([
+    ...(structured.decision_relevant.requirements ?? []),
+    ...(structured.decision_relevant.mandatory_documents ?? []),
+    ...(structured.procurement?.participation_requirements ?? []),
+  ].map(sanitizeTenderText));
+  const description = uniqueNonEmpty([
+    sanitizeTenderText(input.metadataDescription),
+    sanitizeTenderText(structured.summary),
+  ]).join(" ");
+
+  return {
+    text: uniqueNonEmpty([sanitizeTenderText(tenderTitle), description, ...scope, ...requirements]).join(" ").slice(0, 5_000),
+    scope: uniqueNonEmpty([...scope, ...requirements]).join(" ").slice(0, 2_000),
+    description: description.slice(0, 2_000),
+    cpvCodes: Array.isArray(structured.procurement?.cpv_codes) ? structured.procurement.cpv_codes : [],
+  };
+};
+
+export const getDomainEligibility = (
+  company: CompanyRow,
+  tenderTitle: string,
+  structured: StructuredData,
+  input: TenderScoringInput = {},
+): DomainEligibility => {
+  const capabilities = parseList(company.capabilities_json);
+  const profileGroups = groupsForText(`${capabilities.join(" ")} ${company.industry ?? ""}`);
+  const document = buildTenderMatchDocument(tenderTitle, structured, input);
+  const textGroups = groupsForText(document.text);
+  const cpvGroups = groupsForCpvCodes(document.cpvCodes);
+  const tenderGroups = new Set<CapabilityGroup>([...textGroups, ...cpvGroups]);
+  const directMatch = keywordMatchRatio(capabilities, document.text);
+
+  if ([...profileGroups].some((group) => cpvGroups.has(group))) {
+    return { status: "match", reason: "Passende CPV-Leistungsfamilie erkannt.", source: "cpv" };
+  }
+  if ([...profileGroups].some((group) => textGroups.has(group)) || directMatch >= 0.2) {
+    return { status: "match", reason: "Passende fachliche Leistungsbegriffe erkannt.", source: "text" };
+  }
+  if (profileGroups.size > 0 && tenderGroups.size > 0) {
+    return { status: "mismatch", reason: "Die Leistungsart der Ausschreibung passt nicht zu den hinterlegten Kernleistungen.", source: cpvGroups.size > 0 ? "cpv" : "text" };
+  }
+  return { status: "domain_unknown", reason: "Es wurde kein belastbarer fachlicher Leistungsbeleg für dieses Unternehmen erkannt.", source: "unknown" };
+};
+
 export interface ScoreResult {
   fit: number;
   win_probability: number;
@@ -192,7 +283,19 @@ export interface ScoreResult {
     region_match: number;
     size_match: number;
     complexity: number;
+    location_status: LocationEligibilityStatus;
+    location_reason: string;
+    tender_bundesland: string | null;
+    tender_city: string | null;
+    location_source: string;
+    domain_status: DomainEligibilityStatus;
+    domain_reason: string;
+    domain_source: DomainEligibility["source"];
   };
+}
+
+export function getLocationEligibility(company: CompanyRow, tenderLocation: TenderLocationInput): LocationEligibility {
+  return assessLocationEligibility(parseList(company.regions_json), tenderLocation);
 }
 
 export const computeScores = (
@@ -200,53 +303,66 @@ export const computeScores = (
   structured: StructuredData,
   company: CompanyRow,
   llmDomainScore?: number,
+  tenderInput: TenderScoringInput = {},
 ): ScoreResult => {
   const capabilities = parseList(company.capabilities_json);
   const certifications = parseList(company.certifications_json);
-  const regions = parseList(company.regions_json);
-
-  const scopeText = structured.decision_relevant.scope.join(" ");
+  const matchDocument = buildTenderMatchDocument(tenderTitle, structured, tenderInput);
   const requirementLines = [
     ...structured.decision_relevant.requirements,
     ...structured.decision_relevant.mandatory_documents
-  ].join(" ");
+  ].map(sanitizeTenderText).filter(Boolean).join(" ");
 
   // Also include LLM-extracted participation_requirements for richer coverage assessment
   const participationReqs = structured.procurement?.participation_requirements ?? [];
-  const allRequirementText = [requirementLines, ...participationReqs].join(" ");
-
-  // Portal pages often append navigation and unrelated tender titles to summary.
-  // Keep deterministic domain matching focused on the tender itself.
-  const matchText = `${tenderTitle} ${scopeText}`;
-  const deterministicDomain = capabilityMatch(capabilities, company.industry ?? null, matchText);
+  const allRequirementText = [requirementLines, ...participationReqs.map(sanitizeTenderText).filter(Boolean)].join(" ");
+  const domainEligibility = getDomainEligibility(company, tenderTitle, structured, tenderInput);
+  const domainBlocked = domainEligibility.status !== "match";
+  const deterministicDomain = domainBlocked
+    ? 0
+    : Math.max(
+        capabilityMatch(capabilities, company.industry ?? null, matchDocument.text),
+        domainEligibility.source === "cpv" ? 0.58 : 0,
+      );
   const semanticDomain = llmDomainScore;
   // LLM output is useful for synonyms, but it must not override a clear
   // deterministic mismatch (e.g. IT or medicine for a landscaping company).
-  const domain = semanticDomain === undefined
+  const domain = domainBlocked
+    ? 0
+    : semanticDomain === undefined
     ? deterministicDomain
     : deterministicDomain < 0.1
       ? Math.min(0.2, semanticDomain * 0.35)
       : deterministicDomain * 0.45 + semanticDomain * 0.55;
   const deterministicReq = allRequirementText
     ? keywordMatchRatio([...capabilities, ...certifications], allRequirementText)
-    : Math.min(1, domain * 0.75);
+    : 0;
   const reqCoverage = allRequirementText
     ? Math.max(deterministicReq, domain * 0.5)
     : deterministicReq;
-  const regional = regionMatch(regions, structured.hard_facts.location);
-  const size = sizeMatch(company.team_size, scopeText);
+  const locationEligibility = getLocationEligibility(company, {
+    ...tenderInput,
+    structuredLocation: tenderInput.structuredLocation ?? structured.hard_facts.location,
+  });
+  const regional = locationEligibility.status === "match" ? 1 : 0;
+  const size = sizeMatch(company.team_size, matchDocument.scope);
 
-  const fit = clamp((domain * 0.4 + reqCoverage * 0.35 + regional * 0.15 + size * 0.1) * 100);
+  const locationBlocked = locationEligibility.status !== "match";
+  const fit = locationBlocked || domainBlocked
+    ? 0
+    : clamp((domain * 0.4 + reqCoverage * 0.35 + regional * 0.15 + size * 0.1) * 100);
   const complexity = complexityScore(structured);
   const effort = clamp(complexity * 100);
-  const winProbability = clamp(fit * 0.7 + (100 - effort) * 0.2 + reqCoverage * 10);
+  const winProbability = locationBlocked || domainBlocked
+    ? 0
+    : clamp(fit * 0.7 + (100 - effort) * 0.2 + reqCoverage * 10);
 
   // Kill-switch: trigger if mandatory documents exist OR participation requirements exist
   // AND the company doesn't meet the threshold. This catches real Eignungskriterien.
   const hasHardRequirements =
     structured.decision_relevant.mandatory_documents.length > 0 ||
     participationReqs.length > 0;
-  const killSwitch = hasHardRequirements && reqCoverage < 0.45;
+  const killSwitch = locationBlocked || domainBlocked || (hasHardRequirements && reqCoverage < 0.45);
 
   return {
     fit: Number(fit.toFixed(2)),
@@ -259,7 +375,15 @@ export const computeScores = (
       requirement_coverage: Number(reqCoverage.toFixed(2)),
       region_match: Number(regional.toFixed(2)),
       size_match: Number(size.toFixed(2)),
-      complexity: Number(complexity.toFixed(2))
+      complexity: Number(complexity.toFixed(2)),
+      location_status: locationEligibility.status,
+      location_reason: locationEligibility.reason,
+      tender_bundesland: locationEligibility.tender.bundesland,
+      tender_city: locationEligibility.tender.city,
+      location_source: locationEligibility.tender.source,
+      domain_status: domainEligibility.status,
+      domain_reason: domainEligibility.reason,
+      domain_source: domainEligibility.source,
     }
   };
 };
@@ -312,16 +436,15 @@ ${tenderList}
 Antworte NUR mit JSON: {"scores":[{"id":123,"score":45},...]}`;
 
     try {
-      const response = await client.chat.completions.create({
-        model: "poolside/laguna-xs-2.1",
+      const content = await callLLM(client, {
         messages: [
           { role: "system", content: "Du bist ein Experte für das Matching von Unternehmensleistungen mit öffentlichen Ausschreibungen. Antworte nur mit JSON." },
           { role: "user", content: prompt },
         ],
         temperature: 0.1,
+        max_tokens: 2000,
       });
 
-      const content = response.choices[0]?.message?.content ?? "";
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);

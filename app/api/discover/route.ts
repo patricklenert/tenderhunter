@@ -42,6 +42,9 @@ const toRoundedScore = (value: unknown): number => {
   return Number.isFinite(numeric) ? Math.round(numeric) : 0;
 };
 
+const toOptionalString = (value: unknown): string | undefined =>
+  typeof value === "string" && value.trim().length > 0 ? value : undefined;
+
 const normalizeScoreDetails = (value: unknown) => {
   if (!value || typeof value !== "object") {
     return null;
@@ -54,6 +57,14 @@ const normalizeScoreDetails = (value: unknown) => {
     regionMatch: toRoundedPercent(details.region_match),
     sizeMatch: toRoundedPercent(details.size_match),
     complexity: toRoundedPercent(details.complexity),
+    locationStatus: toOptionalString(details.location_status),
+    locationReason: toOptionalString(details.location_reason),
+    tenderBundesland: toOptionalString(details.tender_bundesland),
+    tenderCity: toOptionalString(details.tender_city),
+    locationSource: toOptionalString(details.location_source),
+    domainStatus: toOptionalString(details.domain_status),
+    domainReason: toOptionalString(details.domain_reason),
+    domainSource: toOptionalString(details.domain_source),
   };
 };
 
@@ -80,6 +91,7 @@ const listMatchedTenders = async (companyId: number, since: Date) => {
     .where(
       and(
         eq(scores.companyId, companyId),
+        eq(scores.killSwitch, false),
         gte(scores.updatedAt, since),
         or(eq(tenders.qualityStatus, "qualified"), eq(tenders.qualityStatus, "candidate")),
       ),
@@ -231,6 +243,7 @@ const listCachedTenders = async (companyId: number) => {
     .where(
       and(
         eq(scores.companyId, companyId),
+        eq(scores.killSwitch, false),
         or(eq(tenders.qualityStatus, "qualified"), eq(tenders.qualityStatus, "candidate")),
       ),
     )

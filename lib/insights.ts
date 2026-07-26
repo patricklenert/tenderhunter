@@ -15,6 +15,28 @@ export const generateInsight = (score: ScoreResult, structured: StructuredData):
   const actions: string[] = [];
   const missingItems = firstItems(structured.decision_relevant.mandatory_documents, 6);
 
+  if (score.details.location_status !== "match") {
+    return {
+      explanation: `Kein regulärer Match: ${score.details.location_reason}`,
+      actions: [
+        "Nicht als regulären Match verfolgen, sofern kein zusätzlicher Standort oder Partner vorhanden ist.",
+        "Einsatzgebiet im Firmenprofil und Ausführungsort der Ausschreibung prüfen.",
+      ],
+      missing_items: missingItems,
+    };
+  }
+
+  if (score.details.domain_status !== "match") {
+    return {
+      explanation: `Kein regulärer Match: ${score.details.domain_reason}`,
+      actions: [
+        "Nicht als regulären Match verfolgen, sofern keine passende Leistung oder ein geeigneter Partner vorhanden ist.",
+        "Leistungsbeschreibung und CPV-Code der Ausschreibung fachlich prüfen.",
+      ],
+      missing_items: missingItems,
+    };
+  }
+
   if (score.kill_switch) {
     actions.push("Sofortige Go/No-Go-Pruefung mit Fachbereich und Vertrieb terminieren.");
   }

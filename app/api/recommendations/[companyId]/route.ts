@@ -37,7 +37,11 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
     .from(scores)
     .leftJoin(tenders, eq(scores.tenderId, tenders.id))
     .leftJoin(insights, and(eq(insights.tenderId, scores.tenderId), eq(insights.companyId, scores.companyId)))
-    .where(and(eq(scores.companyId, companyId), or(eq(tenders.qualityStatus, "qualified"), eq(tenders.qualityStatus, "candidate"))))
+    .where(and(
+      eq(scores.companyId, companyId),
+      eq(scores.killSwitch, false),
+      or(eq(tenders.qualityStatus, "qualified"), eq(tenders.qualityStatus, "candidate")),
+    ))
     .orderBy(desc(scores.winProbability), desc(scores.fit))
     .limit(200);
 

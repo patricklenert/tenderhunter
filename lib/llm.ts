@@ -1,14 +1,15 @@
 import OpenAI from "openai";
 
-// Model cascade: try each model in order until one succeeds.
-// Prefer :free models first to keep costs down; fall back to paid poolside/laguna-xs-2.1 last.
-const MODEL_CASCADE = [
+// Try free models first and use paid Laguna only as the final fallback.
+export const MODEL_CASCADE = [
+  "inclusionai/ling-3.0-flash:free",
+  "poolside/laguna-s-2.1:free",
+  "poolside/laguna-xs-2.1:free",
   "nvidia/nemotron-3-ultra-550b-a55b:free",
   "nvidia/nemotron-3-super-120b-a12b:free",
-  "poolside/laguna-xs-2.1:free",
   "google/gemma-4-31b-it:free",
   "poolside/laguna-xs-2.1",
-];
+] as const;
 
 export async function callLLM(
   client: OpenAI,
@@ -31,7 +32,9 @@ export async function callLLM(
         max_tokens: options.max_tokens,
         response_format: options.response_format,
       });
-      return response.choices[0]?.message?.content ?? "";
+      const content = response.choices[0]?.message?.content?.trim() ?? "";
+      if (!content) throw new Error("Leere LLM-Antwort");
+      return content;
     } catch (error) {
       console.warn(`[llm] ${model} fehlgeschlagen:`, error);
       lastError = error;

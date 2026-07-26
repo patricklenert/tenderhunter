@@ -17,6 +17,8 @@
     "test:scoring": "tsx scripts/test-scoring.ts",
     "test:us-market": "tsx scripts/test-us-market.ts",
     "test:billing": "tsx scripts/test-billing.ts",
+    "test:llm": "tsx scripts/test-llm.ts",
+    "backfill:location-scores": "tsx scripts/backfill-location-scores.ts",
     "backfill:us-categories": "tsx scripts/backfill-us-categories.ts",
     "cleanup:blocked-tenders": "tsx scripts/cleanup-blocked-tenders.ts",
     "db:push": "drizzle-kit push"

@@ -297,15 +297,45 @@ export interface StructuredData {
   confidence: number;
 }
 
+const PORTAL_TEXT_MARKERS = [
+  "vergabeplattform",
+  "bekanntmachung",
+  "postanschrift",
+  "impressum",
+  "datenschutzerklarung",
+  "zur seite drucken",
+  "internetadresse",
+];
+
+export const sanitizeTenderText = (value: unknown): string => {
+  if (typeof value !== "string") return "";
+  const text = value.replace(/\s+/g, " ").trim();
+  if (!text || text.length > 1_600) return "";
+
+  const lower = text.toLowerCase();
+  const markerCount = PORTAL_TEXT_MARKERS.filter((marker) => lower.includes(marker)).length;
+  return markerCount >= 2 ? "" : text;
+};
+
 export function normalizeStructured(raw: unknown, fallbackTitle: string): StructuredData {
   const obj = raw as Record<string, unknown>;
   if (obj && typeof obj === "object" && obj.decision_relevant) {
-    return raw as unknown as StructuredData;
+    const structured = raw as unknown as StructuredData;
+    return {
+      ...structured,
+      summary: sanitizeTenderText(structured.summary) || fallbackTitle,
+      decision_relevant: {
+        ...structured.decision_relevant,
+        scope: (structured.decision_relevant.scope ?? []).map(sanitizeTenderText).filter(Boolean),
+        requirements: (structured.decision_relevant.requirements ?? []).map(sanitizeTenderText).filter(Boolean),
+        mandatory_documents: (structured.decision_relevant.mandatory_documents ?? []).map(sanitizeTenderText).filter(Boolean),
+      },
+    };
   }
   const flat = obj as Record<string, unknown>;
-  const scopeStr = typeof flat.scope === "string" ? flat.scope : "";
-  const descStr = typeof flat.description === "string" ? flat.description : "";
-  const reqArr = Array.isArray(flat.requirements) ? (flat.requirements as string[]) : [];
+  const scopeStr = sanitizeTenderText(flat.scope);
+  const descStr = sanitizeTenderText(flat.description);
+  const reqArr = Array.isArray(flat.requirements) ? (flat.requirements as string[]).map(sanitizeTenderText).filter(Boolean) : [];
   const awardArr = Array.isArray(flat.awardCriteria) ? (flat.awardCriteria as string[]) : [];
   const titleStr = typeof flat.title === "string" ? flat.title : fallbackTitle;
 
@@ -461,7 +491,9 @@ export const extractStructuredData = async (
   const contractType = detectContractType(rawText);
 
   const requirements = matchingLines(lines, ["eignung", "mindestanforderung", "fachkunde", "leistungsfaehigkeit"]);
-  const scope = matchingLinesWithContext(lines, ["art und umfang der leistung", "leistungsbeschreibung", "leistungsumfang", "gegenstand der ausschreibung", "art und umfang", "umfang der leistung", "beschreibung der leistung", "auftragsgegenstand"]);
+  const scope = matchingLinesWithContext(lines, ["art und umfang der leistung", "leistungsbeschreibung", "leistungsumfang", "gegenstand der ausschreibung", "art und umfang", "umfang der leistung", "beschreibung der leistung", "auftragsgegenstand"])
+    .map(sanitizeTenderText)
+    .filter(Boolean);
   const awardCriteria = matchingLines(lines, ["zuschlagskriter", "bewertung", "gewichtung"]);
   const mandatoryDocuments = matchingLines(lines, ["nachweis", "zertifikat", "referenz", "pflichtunterlage", "muss"]);
 
@@ -507,7 +539,7 @@ export const extractStructuredData = async (
       mandatory_documents: mandatoryDocuments,
     },
     procurement,
-    summary: buildSummary(lines, rawText),
+    summary: sanitizeTenderText(buildSummary(lines, rawText)) || title,
     confidence,
   };
 };

@@ -13,7 +13,7 @@ import { TenderSectionHeader } from "@/components/profile/TenderSectionHeader";
 import { TenderCard } from "@/components/profile/TenderCard";
 import { PageFooter } from "@/components/profile/PageFooter";
 
-export const revalidate = 3600;
+export const revalidate = 300;
 export const runtime = "nodejs";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
@@ -93,6 +93,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
     .where(and(
       eq(scores.companyId, company.id),
       gt(scores.fit, 10),
+      eq(scores.killSwitch, false),
       or(eq(tenders.qualityStatus, "qualified"), eq(tenders.qualityStatus, "candidate")),
     ))
     .orderBy(desc(scores.winProbability), desc(scores.fit))
