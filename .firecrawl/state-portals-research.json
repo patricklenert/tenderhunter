@@ -1,0 +1,305 @@
+{
+  "research_date": "2026-07-25",
+  "methodology": "Used firecrawl search to locate portals, then firecrawl scrape with markdown+rawHtml formats. Compared rendered markdown against static rawHtml to classify static vs JS-rendered. Verified detail-page public accessibility and field completeness.",
+  "reference_baseline": "Texas ESBD (https://www.txsmartbuy.gov/esbd) \u2014 static HTML table + public detail pages, scrapable with HTTP fetch + cheerio.",
+  "summary_table": {
+    "florida": {
+      "primary_recommendation": "MIXED \u2014 MFMP (rich) needs JS/API; DMS Current Bid Opportunities is static-scrapable but limited fields.",
+      "best_scrapable_url": "https://www.dms.myflorida.com/business_operations/state_purchasing/office_of_supplier_development_osd/vendor_resources/current_bid_opportunities",
+      "static_listing": true,
+      "public_detail": true,
+      "scrapable_simple_http_cheerio": true
+    },
+    "new_york": {
+      "primary_recommendation": "OGS Bid Opportunities \u2014 fully static (listing + detail), like Texas ESBD. Covers centralized contracts only.",
+      "best_scrapable_url": "https://ogs.ny.gov/procurement/bid-opportunities",
+      "static_listing": true,
+      "public_detail": true,
+      "scrapable_simple_http_cheerio": true
+    },
+    "georgia": {
+      "primary_recommendation": "Georgia Procurement Registry (GPR) \u2014 fully static (listing + detail), excellent. Best target.",
+      "best_scrapable_url": "https://ssl.doas.state.ga.us/gpr/index",
+      "static_listing": true,
+      "public_detail": true,
+      "scrapable_simple_http_cheerio": true
+    },
+    "north_carolina": {
+      "primary_recommendation": "NC eVP Solicitations \u2014 listing server-rendered in static HTML; detail values in form-input value attributes. Scrapable but detail parsing is non-trivial.",
+      "best_scrapable_url": "https://evp.nc.gov/solicitations/",
+      "static_listing": true,
+      "public_detail": true,
+      "scrapable_simple_http_cheerio": true
+    }
+  },
+  "states": [
+    {
+      "state": "Florida",
+      "portals": [
+        {
+          "name": "MyFloridaMarketPlace (MFMP) Vendor Information Portal",
+          "url": "https://vendor.myfloridamarketplace.com/search/bids",
+          "listing_url": "https://vendor.myfloridamarketplace.com/search/bids",
+          "detail_url_pattern": "https://vendor.myfloridamarketplace.com/search/bids/detail/{numeric_id}",
+          "detail_url_example": "https://vendor.myfloridamarketplace.com/search/bids/detail/12499",
+          "rendering": "JS-rendered (Angular SPA). Static HTML contains an empty <mfmp-bid-table> component; results load via backend API only after a search is submitted. Even after triggering Search + waiting, no rows appear in static HTML (an empty search returns nothing). main.js bundle is minified with no public REST endpoint string.",
+          "listing_in_static_html": false,
+          "listing_fields_visible_when_rendered": [
+            "Title",
+            "Ad Type",
+            "Ad Status",
+            "Ad Number",
+            "Agency Advertisement Number",
+            "Commodity Codes",
+            "Organization",
+            "Start Date",
+            "End Date",
+            "Maximum Results control (default 25)"
+          ],
+          "detail_in_static_html": true,
+          "detail_fields_available": [
+            "Title",
+            "Solicitation Type (ITN/IFB/RFP)",
+            "Agency",
+            "Advertisement Status",
+            "Last Edit Date/Time",
+            "Advertisement Number",
+            "Agency Advertisement Number",
+            "Version Number",
+            "Published Date/Time",
+            "Start Date/Time",
+            "End Date/Time",
+            "Commodity Codes (table)",
+            "Description",
+            "Attachments (filename + date table)"
+          ],
+          "detail_publicly_accessible": true,
+          "registration_required_to_search": false,
+          "scrapable_with_simple_http_cheerio": false,
+          "scrapable_notes": "Listing requires browser automation or reverse-engineering the private Angular API. Detail pages are public and rich, but there is no crawlable static listing to discover the numeric detail IDs (would require ID enumeration).",
+          "evidence_files": [
+            ".firecrawl/fl-mfm-p-search.json",
+            ".firecrawl/fl-mfm-p-detail.json",
+            ".firecrawl/fl-mfm-p-search-action.json"
+          ]
+        },
+        {
+          "name": "Florida DMS \u2014 Current Bid Opportunities (bulletin notices)",
+          "url": "https://www.dms.myflorida.com/business_operations/state_purchasing/office_of_supplier_development_osd/vendor_resources/current_bid_opportunities",
+          "listing_url": "https://www.dms.myflorida.com/business_operations/state_purchasing/office_of_supplier_development_osd/vendor_resources/current_bid_opportunities",
+          "pagination": "?page=N (1,306 results across 66 pages at time of scrape)",
+          "rendering": "Static HTML (Next.js site, server-rendered). Listing table and pagination links present in rawHtml.",
+          "listing_in_static_html": true,
+          "listing_fields_available": [
+            "Topic (title + detail link)",
+            "First Posted",
+            "Last Edited"
+          ],
+          "detail_publicly_accessible": true,
+          "detail_fields_available": "Links to per-opportunity DMS bulletin pages (titles use en-dashes/ampersands, HTML-entity encoded in source).",
+          "registration_required_to_search": false,
+          "scrapable_with_simple_http_cheerio": true,
+          "scrapable_notes": "Simple static table. Downside: limited listing fields (no due-date or status column; these are curated 'bulletin notices' rather than the full MFMP solicitation list). Best simple-scrape option for Florida.",
+          "evidence_files": [
+            ".firecrawl/fl-dms-bids.json"
+          ]
+        }
+      ]
+    },
+    {
+      "state": "New York",
+      "portals": [
+        {
+          "name": "NYS OGS \u2014 Procurement Services Bid Calendar (centralized contracts)",
+          "url": "https://ogs.ny.gov/procurement/bid-opportunities",
+          "listing_url": "https://ogs.ny.gov/procurement/bid-opportunities",
+          "detail_url_pattern": "https://ogs.ny.gov/procurement/biddocuments/{bid_number}bid  (also https://ogs.ny.gov/ifb-XXXX, /rfp-XXXX, /bid-XXXX)",
+          "detail_url_example": "https://ogs.ny.gov/procurement/biddocuments/23451bid",
+          "rendering": "Static HTML. Bid table verified present in rawHtml (titles appear HTML-entity encoded, e.g. 'Snow &amp; Ice').",
+          "listing_in_static_html": true,
+          "listing_fields_available": [
+            "Description (title + detail link)",
+            "Bid Opening Date (due date)",
+            "Bid #",
+            "Group #"
+          ],
+          "detail_in_static_html": true,
+          "detail_fields_available": [
+            "Title",
+            "Group name/number",
+            "Solicitation number",
+            "Bid Opening date / submission deadline",
+            "Submitting-address block",
+            "Attachments table (Solicitation, Appendices, Attachments) with file type (PDF/EXCEL) and revision dates"
+          ],
+          "detail_publicly_accessible": true,
+          "registration_required_to_search": false,
+          "scrapable_with_simple_http_cheerio": true,
+          "scrapable_notes": "Excellent static target \u2014 closest analogue to Texas ESBD among these four states. Caveat: this is OGS centralized contracting only, a subset of all NY opportunities (the comprehensive source is NYSCR, which is not simple-scrapable).",
+          "evidence_files": [
+            ".firecrawl/ny-ogs-bids.json",
+            ".firecrawl/ny-ogs-detail.json"
+          ]
+        },
+        {
+          "name": "NYS Contract Reporter (NYSCR) \u2014 comprehensive statewide portal",
+          "url": "https://www.nyscr.ny.gov/Ads/Search",
+          "listing_url": "https://www.nyscr.ny.gov/Ads/Search",
+          "rendering": "JS/POST-rendered (ASP.NET MVC). Static HTML exposes only the filter sidebar (agency, classification, category, location, date range). No result rows and no /Ads/Detail links appear without submitting a search. Homepage advertises ~826 total opportunities.",
+          "listing_in_static_html": false,
+          "detail_publicly_accessible": "Likely yes (individual ads viewable) but not reachable from a static listing fetch.",
+          "registration_required_to_search": false,
+          "scrapable_with_simple_http_cheerio": false,
+          "scrapable_notes": "Would require reverse-engineering the ASP.NET search form POST (viewstate etc.) or browser automation. Skip for simple-scrape; prefer OGS for NY.",
+          "evidence_files": [
+            ".firecrawl/ny-nyscr.json",
+            ".firecrawl/ny-nyscr-search.json"
+          ]
+        }
+      ]
+    },
+    {
+      "state": "Georgia",
+      "portals": [
+        {
+          "name": "Georgia Procurement Registry (GPR)",
+          "url": "https://ssl.doas.state.ga.us/gpr/index",
+          "listing_url": "https://ssl.doas.state.ga.us/gpr/index",
+          "detail_url_pattern": "https://ssl.doas.state.ga.us/gpr/eventDetails?eSourceNumber={event_id}&sourceSystemType=gpr20",
+          "detail_url_example": "https://ssl.doas.state.ga.us/gpr/eventDetails?eSourceNumber=PE-91000-RFP-2026-000000006&sourceSystemType=gpr20",
+          "pagination": "Server-side, 11 pages; 'Show 10/25/50/100 entries' control; Previous/Next with page numbers.",
+          "rendering": "Static HTML. Full opportunity table (Event IDs, titles, links) verified present in rawHtml.",
+          "listing_in_static_html": true,
+          "listing_fields_available": [
+            "Event ID",
+            "Event Title",
+            "Government Entity",
+            "Start Date (ET)",
+            "End Date (ET)",
+            "Ends In",
+            "Status"
+          ],
+          "search_filters_available": [
+            "Type of Response",
+            "Event Status (AWARDED/CANCELLED/CLOSED/COMPLETED/NOTICE OF INTENT TO AWARD/OPEN/UNDER EVALUATION)",
+            "Government Type",
+            "Government Entity",
+            "Category Type (Construction/Design Professional/Goods/IT/Services)",
+            "Event Process Type (RFI/RFP/RFQ/Notice/Sole Source/etc.)",
+            "Event Date Range",
+            "Search Keyword"
+          ],
+          "detail_in_static_html": true,
+          "detail_fields_available": [
+            "Title",
+            "Start Date / End Date / Ends In",
+            "Event ID",
+            "Event Type",
+            "Event Status",
+            "Purchase Type",
+            "Category Type",
+            "Government Type",
+            "Fiscal Year",
+            "Agency Site (code + name)",
+            "Buyer Contact (name, email, phone)",
+            "Description",
+            "NIGP Codes (table)",
+            "Documents tab"
+          ],
+          "detail_publicly_accessible": true,
+          "registration_required_to_search": false,
+          "scrapable_with_simple_http_cheerio": true,
+          "scrapable_notes": "Best Georgia target. Fully public, fully static, rich detail pages. Equivalent quality to Texas ESBD. (Registration only needed to SUBMIT bids.)",
+          "evidence_files": [
+            ".firecrawl/ga-gpr-index.json",
+            ".firecrawl/ga-gpr-detail.json"
+          ]
+        },
+        {
+          "name": "Team Georgia Marketplace (TGM) / GA@WORK",
+          "url": "https://doas.ga.gov/state-purchasing/team-georgia-marketplace",
+          "rendering": "doas.ga.gov pages are informational landing pages only (no listings). The actual TGM app (fscm.teamworks.georgia.gov) is PeopleSoft and requires supplier login.",
+          "listing_in_static_html": false,
+          "registration_required_to_search": true,
+          "scrapable_with_simple_http_cheerio": false,
+          "scrapable_notes": "Login-gated PeopleSoft. Not public. Use GPR instead.",
+          "evidence_files": [
+            ".firecrawl/ga-doas-bids.json",
+            ".firecrawl/ga-tgm.json"
+          ]
+        }
+      ]
+    },
+    {
+      "state": "North Carolina",
+      "portals": [
+        {
+          "name": "NC electronic Vendor Portal (eVP) \u2014 Solicitations",
+          "url": "https://evp.nc.gov/solicitations/",
+          "listing_url": "https://evp.nc.gov/solicitations/?status=0",
+          "detail_url_pattern": "https://evp.nc.gov/solicitations/details/?id={GUID}",
+          "detail_url_example": "https://evp.nc.gov/solicitations/details/?id=b70d4b4c-ba86-f111-ab0e-001dd812e0a9",
+          "pagination": "21 pages of results; filter UI (status/department/category/posted-date/bid-opening-date) drives query params.",
+          "rendering": "Power Apps (Dynamics) portal. However the listing table IS server-rendered in the static HTML (verified: opportunity titles, solicitation numbers, and detail links all present in rawHtml). Detail pages also server-render field values, but into form-input value attributes rather than plain text.",
+          "listing_in_static_html": true,
+          "listing_fields_available": [
+            "Solicitation Number",
+            "Project Title",
+            "Department",
+            "Status",
+            "Posted/Opening dates",
+            "Category",
+            "Detail link (GUID)"
+          ],
+          "search_filters_available": [
+            "Department Type (State Agency/Community College/Public Schools/University/Local Government)",
+            "Department",
+            "Posted Date",
+            "Solicitation Status (Open/Pending Selection/Awarded/Canceled/RFI Complete)",
+            "Category",
+            "Last Modified Date",
+            "NCEP Sourcing",
+            "Bid Opening Date"
+          ],
+          "detail_in_static_html": true,
+          "detail_fields_available": [
+            "Title",
+            "Solicitation Number",
+            "Department",
+            "Status Reason",
+            "Opening Date",
+            "Posted Date",
+            "Primary Commodity Code",
+            "Solicitation Type (RFP/IFB/RFI)",
+            "Owner",
+            "Description",
+            "Attachments",
+            "Additional Commodity Codes"
+          ],
+          "detail_extraction_caveat": "Detail values live in ASP.NET form input value attributes (e.g. name=\"...evp_posteddate\" value=\"2026-07-23T...\") rather than plain HTML text. Parseable, but requires reading input values/selects, not just text nodes.",
+          "detail_publicly_accessible": true,
+          "registration_required_to_search": false,
+          "scrapable_with_simple_http_cheerio": true,
+          "scrapable_notes": "Listing is straightforward static scraping. Detail is public and server-rendered but needs form-control value extraction. 'Sign in' is only required to RESPOND to a solicitation, not to view. Overall scrapable with HTTP+cheerio.",
+          "evidence_files": [
+            ".firecrawl/nc-evp-solicitations.json",
+            ".firecrawl/nc-evp-detail.json"
+          ]
+        }
+      ]
+    }
+  ],
+  "recommendations": {
+    "tier_1_scrapable_now_like_texas_esbd": [
+      "Georgia \u2014 GPR: https://ssl.doas.state.ga.us/gpr/index  (richest, fully static)",
+      "New York \u2014 OGS: https://ogs.ny.gov/procurement/bid-opportunities  (fully static, centralized contracts)",
+      "North Carolina \u2014 eVP: https://evp.nc.gov/solicitations/  (static listing; detail needs input-value parsing)",
+      "Florida \u2014 DMS: https://www.dms.myflorida.com/.../current_bid_opportunities  (static but limited fields)"
+    ],
+    "tier_2_needs_js_or_api_or_login": [
+      "Florida \u2014 MFMP: https://vendor.myfloridamarketplace.com/search/bids  (Angular SPA listing; public detail pages)",
+      "New York \u2014 NYSCR: https://www.nyscr.ny.gov/Ads/Search  (ASP.NET POST-back; comprehensive but not simple-scrapable)",
+      "Georgia \u2014 Team Georgia Marketplace / PeopleSoft  (login required)"
+    ]
+  }
+}

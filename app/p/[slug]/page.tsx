@@ -22,22 +22,6 @@ interface PageProps {
   params: Promise<{ slug: string }>;
 }
 
-async function hasMatchingTenders(companyId: number): Promise<boolean> {
-  const rows = await db
-    .select({ tenderId: scores.tenderId })
-    .from(scores)
-    .leftJoin(tenders, eq(scores.tenderId, tenders.id))
-    .where(
-      and(
-        eq(scores.companyId, companyId),
-        gt(scores.fit, 10),
-        or(eq(tenders.qualityStatus, "qualified"), eq(tenders.qualityStatus, "candidate")),
-      ),
-    )
-    .limit(1);
-  return rows.length > 0;
-}
-
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
   const rows = await db
@@ -50,14 +34,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   const title = `${rows[0].name} – Passende Ausschreibungen`;
   const description = rows[0].description ?? `Aktuelle passende Ausschreibungen für ${rows[0].name}`;
-  const hasTenders = await hasMatchingTenders(rows[0].id);
-  const noDescription = !rows[0].description || rows[0].description.trim().length === 0;
-  const shouldNoindex = !hasTenders || noDescription;
 
   return {
     title,
     description,
-    ...(shouldNoindex ? { robots: { index: false, follow: true } } : {}),
     alternates: { canonical: `/p/${slug}`, languages: { "de-DE": `/p/${slug}` } },
     openGraph: {
       title,
@@ -105,6 +85,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
       url: tenders.url,
       rawText: tenders.rawText,
       jsonBlob: structuredData.jsonBlob,
+      slug: tenders.slug,
     })
     .from(scores)
     .leftJoin(tenders, eq(scores.tenderId, tenders.id))
@@ -148,7 +129,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
       winProbability: Math.round(row.winProbability ?? 0),
       killSwitch: row.killSwitch,
       url: tenderUrl,
-      slug: generateTenderSlug(row.title ?? "", typeof hardFacts.location === "string" ? hardFacts.location : ""),
+      slug: row.slug ?? generateTenderSlug(row.title ?? "", typeof hardFacts.location === "string" ? hardFacts.location : ""),
     };
   });
 
@@ -244,7 +225,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
           {tendersList.length === 0 ? (
             <Box
               sx={{
-                py: 6,
+                p: { xs: 3, md: 4 },
                 textAlign: "center",
                 bgcolor: "white",
                 borderRadius: "10px",
@@ -252,9 +233,24 @@ export default async function PublicProfilePage({ params }: PageProps) {
                 borderColor: "divider",
               }}
             >
-              <Typography sx={{ color: "text.secondary", fontSize: "0.875rem" }}>
-                Noch keine passenden Ausschreibungen gefunden.
+              <Typography variant="h6" component="h2" sx={{ mb: 1, fontWeight: 700 }}>
+                Aktuell keine passenden Ausschreibungen
               </Typography>
+              <Typography sx={{ color: "text.secondary", fontSize: "0.875rem", maxWidth: 620, mx: "auto", lineHeight: 1.7 }}>
+                Für dieses Firmenprofil wurden derzeit keine passenden aktiven Vergaben gefunden. Neue Ausschreibungen
+                werden laufend ergänzt. Nutzen Sie bis dahin unsere aktuellen Vergaben, Tools und Vorlagen.
+              </Typography>
+              <Stack direction="row" spacing={1} justifyContent="center" flexWrap="wrap" useFlexGap sx={{ mt: 2 }}>
+                <Link href="/ausschreibungen" style={{ color: "#e9644d", fontWeight: 600, textDecoration: "none" }}>
+                  Alle Ausschreibungen
+                </Link>
+                <Link href="/tools" style={{ color: "#e9644d", fontWeight: 600, textDecoration: "none" }}>
+                  Vergabe-Tools
+                </Link>
+                <Link href="/vorlagen" style={{ color: "#e9644d", fontWeight: 600, textDecoration: "none" }}>
+                  Vorlagen &amp; Muster
+                </Link>
+              </Stack>
             </Box>
           ) : (
             <Stack spacing={1.5}>

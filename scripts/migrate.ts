@@ -42,6 +42,69 @@ async function main() {
     await client`ALTER TABLE tenders ADD COLUMN IF NOT EXISTS duplicate_of_tender_id INTEGER`;
     await client`ALTER TABLE tenders ADD COLUMN IF NOT EXISTS deadline_at TIMESTAMPTZ`;
     await client`ALTER TABLE tenders ADD COLUMN IF NOT EXISTS category TEXT`;
+    await client`ALTER TABLE tenders ADD COLUMN IF NOT EXISTS slug TEXT`;
+
+    await client`
+      CREATE TABLE IF NOT EXISTS us_tenders (
+        id SERIAL PRIMARY KEY,
+        source TEXT NOT NULL,
+        source_key TEXT,
+        url TEXT NOT NULL,
+        title TEXT NOT NULL,
+        external_id TEXT,
+        description TEXT,
+        buyer TEXT,
+        location TEXT,
+        state TEXT,
+        solicitation_number TEXT,
+        naics_codes_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+        psc_codes_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+        set_aside TEXT,
+        contract_type TEXT,
+        currency TEXT NOT NULL DEFAULT 'USD',
+        deadline_at TIMESTAMPTZ,
+        metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        quality_status TEXT NOT NULL DEFAULT 'qualified',
+        quality_reason TEXT,
+        version INTEGER NOT NULL DEFAULT 1,
+        first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE(source, url)
+      )
+    `;
+
+    await client`
+      CREATE TABLE IF NOT EXISTS us_source_runs (
+        id SERIAL PRIMARY KEY,
+        source TEXT NOT NULL,
+        status TEXT NOT NULL,
+        discovered_count INTEGER NOT NULL DEFAULT 0,
+        accepted_count INTEGER NOT NULL DEFAULT 0,
+        inserted_count INTEGER NOT NULL DEFAULT 0,
+        updated_count INTEGER NOT NULL DEFAULT 0,
+        error_message TEXT,
+        started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        finished_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+
+    await client`ALTER TABLE us_tenders ADD COLUMN IF NOT EXISTS category TEXT`;
+
+    await client`
+      CREATE TABLE IF NOT EXISTS us_alert_subscriptions (
+        id SERIAL PRIMARY KEY,
+        email TEXT NOT NULL,
+        filters_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        confirm_token TEXT NOT NULL,
+        confirmed BOOLEAN NOT NULL DEFAULT FALSE,
+        last_notified_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE(email, filters_json)
+      )
+    `;
 
     await client`
       CREATE TABLE IF NOT EXISTS documents (
@@ -85,6 +148,12 @@ async function main() {
     `;
 
     await client`ALTER TABLE company_profiles ADD COLUMN IF NOT EXISTS website_url TEXT`;
+    await client`ALTER TABLE company_profiles ADD COLUMN IF NOT EXISTS markets_json JSONB NOT NULL DEFAULT '[]'::jsonb`;
+    await client`ALTER TABLE company_profiles ADD COLUMN IF NOT EXISTS naics_codes_json JSONB NOT NULL DEFAULT '[]'::jsonb`;
+    await client`ALTER TABLE company_profiles ADD COLUMN IF NOT EXISTS psc_codes_json JSONB NOT NULL DEFAULT '[]'::jsonb`;
+    await client`ALTER TABLE company_profiles ADD COLUMN IF NOT EXISTS uei TEXT`;
+    await client`ALTER TABLE company_profiles ADD COLUMN IF NOT EXISTS cage_code TEXT`;
+    await client`ALTER TABLE company_profiles ADD COLUMN IF NOT EXISTS socio_economic_json JSONB NOT NULL DEFAULT '[]'::jsonb`;
 
     await client`
       CREATE TABLE IF NOT EXISTS scores (
@@ -188,6 +257,14 @@ async function main() {
     await client`CREATE INDEX IF NOT EXISTS idx_tenders_quality_status ON tenders(quality_status)`;
     await client`CREATE INDEX IF NOT EXISTS idx_tenders_deadline ON tenders(deadline_at)`;
     await client`CREATE INDEX IF NOT EXISTS idx_tenders_content_fingerprint ON tenders(content_fingerprint)`;
+    await client`CREATE INDEX IF NOT EXISTS idx_tenders_slug ON tenders(slug)`;
+    await client`CREATE INDEX IF NOT EXISTS idx_us_tenders_source_url ON us_tenders(source, url)`;
+    await client`CREATE INDEX IF NOT EXISTS idx_us_tenders_source_external ON us_tenders(source, external_id)`;
+    await client`CREATE INDEX IF NOT EXISTS idx_us_tenders_deadline ON us_tenders(deadline_at)`;
+    await client`CREATE INDEX IF NOT EXISTS idx_us_tenders_state ON us_tenders(state)`;
+    await client`CREATE INDEX IF NOT EXISTS idx_us_tenders_quality_status ON us_tenders(quality_status)`;
+    await client`CREATE INDEX IF NOT EXISTS idx_us_tenders_category ON us_tenders(category)`;
+    await client`CREATE INDEX IF NOT EXISTS idx_us_source_runs_source_finished ON us_source_runs(source, finished_at)`;
     await client`CREATE INDEX IF NOT EXISTS idx_documents_tender ON documents(tender_id)`;
     await client`CREATE INDEX IF NOT EXISTS idx_events_company ON attribution_events(company_id, event_type)`;
     await client`CREATE INDEX IF NOT EXISTS idx_tracked_tenders_status_updated ON tracked_tenders(status, updated_at)`;

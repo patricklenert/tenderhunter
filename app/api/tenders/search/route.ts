@@ -35,6 +35,7 @@ export async function GET(request: Request): Promise<Response> {
       deadlineISO: hit.deadlineAt ? new Date(hit.deadlineAt * 1000).toISOString() : null,
       source: hit.source,
       sourceUrl: hit.sourceUrl,
+      slug: hit.slug ?? null,
       pdfCount: hit.pdfCount,
       contractValueMax: hit.contractValueMax,
     }));

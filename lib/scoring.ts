@@ -18,8 +18,34 @@ const STOP_WORDS = new Set([
 ]);
 
 const tokenize = (text: string): Set<string> => {
-  const tokens = (text.match(WORD_PATTERN) ?? []).map((item) => item.toLowerCase());
+  const normalized = text.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
+  const tokens = (normalized.match(WORD_PATTERN) ?? []).map((item) => item.toLowerCase());
   return new Set(tokens.filter((t) => !STOP_WORDS.has(t) && t.length >= 4));
+};
+
+const CAPABILITY_GROUPS: Record<string, string[]> = {
+  green_outdoor: ["garten", "galabau", "landschaft", "gruen", "grunanlage", "aussenanlage", "pflege", "winterdienst", "pflaster", "zaun", "einfriedung", "teich", "spielplatz"],
+  construction: ["bau", "hochbau", "tiefbau", "strassenbau", "sanierung", "rohbau", "abbruch", "fassade", "dach", "beton", "erdarbeiten"],
+  cleaning: ["reinigung", "glasreinigung", "unterhaltsreinigung", "gebaeudereinigung"],
+  transport: ["transport", "logistik", "fuhrpark", "abfall", "entsorgung"],
+  wood: ["brennholz", "mischholz", "forst", "holzhandel"],
+  it: ["software", "it", "digital", "programmierung", "webentwicklung", "datenbank", "cyber", "antivirus"],
+  medical: ["medizin", "arznei", "pharma", "krankenhaus", "pflegeleistung"],
+};
+
+const groupsForText = (text: string): Set<string> => {
+  const tokens = tokenize(text);
+  const groups = new Set<string>();
+  for (const [group, terms] of Object.entries(CAPABILITY_GROUPS)) {
+    if (terms.some((term) => [...tokens].some((token) =>
+      token === term ||
+      (term.length >= 4 && token.includes(term)) ||
+      (term.length >= 4 && term.includes(token))
+    ))) {
+      groups.add(group);
+    }
+  }
+  return groups;
 };
 
 const parseList = (value: string): string[] => {
@@ -69,7 +95,20 @@ const keywordMatchRatio = (keywords: string[], text: string): number => {
       matched += 0.5;
     }
   }
-  return matched / Math.max(1, keywords.length);
+  return Math.min(1, matched / Math.max(1, Math.min(keywords.length, 6)));
+};
+
+const capabilityMatch = (keywords: string[], industry: string | null, text: string): number => {
+  const profileGroups = groupsForText(`${keywords.join(" ")} ${industry ?? ""}`);
+  if (profileGroups.size === 0) return keywordMatchRatio(keywords, text);
+
+  const tenderGroups = groupsForText(text);
+  const matchedGroups = [...profileGroups].filter((group) => tenderGroups.has(group)).length;
+  if (matchedGroups === 0) return 0.03;
+
+  const directMatch = keywordMatchRatio(keywords, text);
+  const base = matchedGroups >= 2 ? 0.82 : 0.58;
+  return Math.min(1, base + directMatch * 0.15);
 };
 
 const COUNTRY_NAMES = new Set(["deutschland", "germany", "germania", "deutsche", "german"]);
@@ -176,13 +215,28 @@ export const computeScores = (
   const participationReqs = structured.procurement?.participation_requirements ?? [];
   const allRequirementText = [requirementLines, ...participationReqs].join(" ");
 
-  // LLM score overrides deterministic matching when available
-  const domain = llmDomainScore ?? keywordMatchRatio(capabilities, `${tenderTitle} ${scopeText} ${structured.summary ?? ""}`);
-  const reqCoverage = llmDomainScore ?? keywordMatchRatio([...capabilities, ...certifications], allRequirementText);
+  // Portal pages often append navigation and unrelated tender titles to summary.
+  // Keep deterministic domain matching focused on the tender itself.
+  const matchText = `${tenderTitle} ${scopeText}`;
+  const deterministicDomain = capabilityMatch(capabilities, company.industry ?? null, matchText);
+  const semanticDomain = llmDomainScore;
+  // LLM output is useful for synonyms, but it must not override a clear
+  // deterministic mismatch (e.g. IT or medicine for a landscaping company).
+  const domain = semanticDomain === undefined
+    ? deterministicDomain
+    : deterministicDomain < 0.1
+      ? Math.min(0.2, semanticDomain * 0.35)
+      : deterministicDomain * 0.45 + semanticDomain * 0.55;
+  const deterministicReq = allRequirementText
+    ? keywordMatchRatio([...capabilities, ...certifications], allRequirementText)
+    : Math.min(1, domain * 0.75);
+  const reqCoverage = allRequirementText
+    ? Math.max(deterministicReq, domain * 0.5)
+    : deterministicReq;
   const regional = regionMatch(regions, structured.hard_facts.location);
   const size = sizeMatch(company.team_size, scopeText);
 
-  const fit = clamp((domain * 0.35 + reqCoverage * 0.4 + regional * 0.15 + size * 0.1) * 100);
+  const fit = clamp((domain * 0.4 + reqCoverage * 0.35 + regional * 0.15 + size * 0.1) * 100);
   const complexity = complexityScore(structured);
   const effort = clamp(complexity * 100);
   const winProbability = clamp(fit * 0.7 + (100 - effort) * 0.2 + reqCoverage * 10);

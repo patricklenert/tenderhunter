@@ -8,6 +8,9 @@ import { CITY_SLUG_MAP, ALL_CITY_SLUGS } from "@/lib/cities";
 import { normalizeAgencySlug } from "@/lib/agencies";
 import { ALL_PORTAL_SLUGS } from "@/lib/portal-content";
 import { ALL_ARTICLE_SLUGS, ARTICLES } from "@/lib/articles";
+import { ALL_GLOSSARY_SLUGS } from "@/lib/glossary";
+import { ALL_TEMPLATE_SLUGS } from "@/lib/templates";
+import { ALL_BRANCHE_SLUGS } from "@/lib/branchen";
 import { ALL_CPV_CODES } from "@/lib/cpv-codes";
 import { ALL_PROCEDURE_TYPE_SLUGS } from "@/lib/procedure-types";
 import { generateTenderSlug } from "@/lib/tender-slug";
@@ -15,6 +18,10 @@ import { generateTenderSlug } from "@/lib/tender-slug";
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
 
 export const revalidate = 3600;
+// The DB-backed tender URLs must be generated at request time. A static build
+// can run before PostgreSQL is available and would otherwise cache only the
+// fallback static entries in the image.
+export const dynamic = "force-dynamic";
 
 /**
  * Single sitemap covering all indexable URLs.
@@ -119,6 +126,71 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     });
   }
 
+  // SEO: Vergabelexikon — hub + glossary entries
+  entries.push({
+    url: `${siteUrl}/lexikon`,
+    lastModified: now,
+    changeFrequency: "monthly",
+    priority: 0.7,
+  });
+  for (const glossarySlug of ALL_GLOSSARY_SLUGS) {
+    entries.push({
+      url: `${siteUrl}/lexikon/${glossarySlug}`,
+      lastModified: now,
+      changeFrequency: "monthly",
+      priority: 0.6,
+    });
+  }
+
+  // SEO: Vorlagen Hub — hub + template entries targeting commercial download-intent keywords
+  entries.push({
+    url: `${siteUrl}/vorlagen`,
+    lastModified: now,
+    changeFrequency: "monthly",
+    priority: 0.7,
+  });
+  for (const templateSlug of ALL_TEMPLATE_SLUGS) {
+    entries.push({
+      url: `${siteUrl}/vorlagen/${templateSlug}`,
+      lastModified: now,
+      changeFrequency: "monthly",
+      priority: 0.6,
+    });
+  }
+
+  // SEO: Vergabe-Tools — hub + interactive tool pages (high engagement, bookmark-worthy)
+  const TOOL_SLUGS = ["schwellenwert-rechner", "fristenrechner", "ruegefrist-rechner"];
+  entries.push({
+    url: `${siteUrl}/tools`,
+    lastModified: now,
+    changeFrequency: "monthly",
+    priority: 0.8,
+  });
+  for (const toolSlug of TOOL_SLUGS) {
+    entries.push({
+      url: `${siteUrl}/tools/${toolSlug}`,
+      lastModified: now,
+      changeFrequency: "monthly",
+      priority: 0.8,
+    });
+  }
+
+  // SEO: Branchen — hub + deep industry profiles (CPV codes, Eignungskriterien, Besonderheiten)
+  entries.push({
+    url: `${siteUrl}/branchen`,
+    lastModified: now,
+    changeFrequency: "monthly",
+    priority: 0.7,
+  });
+  for (const brancheSlug of ALL_BRANCHE_SLUGS) {
+    entries.push({
+      url: `${siteUrl}/branchen/${brancheSlug}`,
+      lastModified: now,
+      changeFrequency: "monthly",
+      priority: 0.7,
+    });
+  }
+
   // SEO: Always include all Bundesland region pages — they have editorial content and generateStaticParams
   for (const [, blSlug] of Object.entries(BUNDESLAND_SLUGS)) {
     entries.push({
@@ -165,16 +237,66 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
   }
 
+  // SEO: Portal×Region cross pages (4 portals × 16 Bundesländer = 64 pages)
+  for (const portalSlug of ALL_PORTAL_SLUGS) {
+    for (const blSlug of Object.values(BUNDESLAND_SLUGS)) {
+      entries.push({
+        url: `${siteUrl}/ausschreibungen/${portalSlug}/region/${blSlug}`,
+        lastModified: now,
+        changeFrequency: "weekly",
+        priority: 0.5,
+      });
+    }
+  }
+
+  // SEO: Portal×City cross pages (4 portals × 56 cities = 224 pages)
+  for (const portalSlug of ALL_PORTAL_SLUGS) {
+    for (const citySlug of ALL_CITY_SLUGS) {
+      entries.push({
+        url: `${siteUrl}/ausschreibungen/${portalSlug}/stadt/${citySlug}`,
+        lastModified: now,
+        changeFrequency: "weekly",
+        priority: 0.5,
+      });
+    }
+  }
+
+  // SEO: Verfahren×Kategorie cross pages (5 procedure types × 13 categories = 65 pages)
+  for (const procSlug of ALL_PROCEDURE_TYPE_SLUGS) {
+    for (const [, catSlug] of Object.entries(CATEGORY_SLUGS)) {
+      if (!catSlug) continue;
+      entries.push({
+        url: `${siteUrl}/ausschreibungen/verfahren/${procSlug}/${catSlug}`,
+        lastModified: now,
+        changeFrequency: "weekly",
+        priority: 0.5,
+      });
+    }
+  }
+
+  // SEO: CPV×Kategorie cross pages (25 CPV codes × 13 categories = 325 pages)
+  for (const cpvCode of ALL_CPV_CODES) {
+    for (const [, catSlug] of Object.entries(CATEGORY_SLUGS)) {
+      if (!catSlug) continue;
+      entries.push({
+        url: `${siteUrl}/ausschreibungen/cpv/${cpvCode}/${catSlug}`,
+        lastModified: now,
+        changeFrequency: "weekly",
+        priority: 0.4,
+      });
+    }
+  }
+
   // --- Dynamic URLs below: gracefully degrade on DB/Meilisearch errors ---
 
-  let tenderRows: { id: number; title: string | null; updatedAt: Date | null; metadataJson: unknown }[] = [];
+  let tenderRows: { id: number; title: string | null; updatedAt: Date | null; metadataJson: unknown; slug: string | null }[] = [];
   let categoryRows: { category: string | null; updatedAt: Date | null }[] = [];
   let companyRows: { slug: string | null; updatedAt: Date | null; logoUrl: string | null }[] = [];
 
   try {
     [tenderRows, categoryRows, companyRows] = await Promise.all([
       db
-        .select({ id: tenders.id, title: tenders.title, updatedAt: tenders.updatedAt, metadataJson: tenders.metadataJson })
+        .select({ id: tenders.id, slug: tenders.slug, title: tenders.title, updatedAt: tenders.updatedAt, metadataJson: tenders.metadataJson })
         .from(tenders)
         .where(
           and(
@@ -237,7 +359,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       ? row.metadataJson as Record<string, unknown>
       : {}) as Record<string, unknown>;
     const location = typeof meta.location === "string" ? meta.location : "";
-    const slug = generateTenderSlug(row.title ?? "", location);
+    // Prefer persisted DB slug (stable), fall back to live computation for legacy rows
+    const slug = row.slug ?? generateTenderSlug(row.title ?? "", location);
     entries.push({
       url: `${siteUrl}/ausschreibung/${row.id}/${slug}`,
       lastModified: row.updatedAt ?? new Date(),

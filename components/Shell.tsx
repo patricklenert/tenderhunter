@@ -17,6 +17,7 @@ import {
 import {
   Menu as MenuIcon,
   BriefcaseBusiness,
+  Globe2,
   // Crosshair,  // Ursprüngliches Analyse-Icon (Lucide) — auskommentiert für Rollback
   // Building2,  // Ursprüngliches Ausschreibungen-Icon (Lucide) — auskommentiert für Rollback
 } from "lucide-react";
@@ -155,7 +156,7 @@ export function Shell({ children }: ShellProps) {
         </Typography>
       </Box>
 
-      <Box component="nav" sx={{ flex: 1, px: 2, pt: 2 }}>
+      <Box id="main-navigation" component="nav" aria-label="Hauptnavigation" sx={{ flex: 1, px: 2, pt: 2 }}>
         {visibleNavItems.map((item) => {
           const Icon = item.icon;
           const active = currentView === item.key;
@@ -189,6 +190,24 @@ export function Shell({ children }: ShellProps) {
             </ListItemButton>
           );
         })}
+        <ListItemButton
+          component="a"
+          href="/us"
+          onClick={() => setMobileOpen(false)}
+          aria-label="U.S. Opportunities"
+          sx={{
+            borderRadius: 2,
+            mb: 1,
+            py: 1.5,
+            color: "text.primary",
+            "&:hover": { bgcolor: "action.hover" },
+          }}
+        >
+          <ListItemIcon sx={{ minWidth: 48 }}>
+            <Globe2 size={24} color={theme.palette.text.secondary} />
+          </ListItemIcon>
+          <ListItemText primary="U.S. Opportunities" primaryTypographyProps={{ fontWeight: 600, fontSize: 16 }} />
+        </ListItemButton>
       </Box>
     </Box>
   );
@@ -248,6 +267,9 @@ export function Shell({ children }: ShellProps) {
               <IconButton
                 edge="start"
                 onClick={() => setMobileOpen(true)}
+                aria-label="Open navigation"
+                aria-controls="main-navigation"
+                aria-expanded={mobileOpen}
                 sx={{ ml: -0.5, mr: 1, color: "text.primary" }}
               >
                 <MenuIcon size={20} />

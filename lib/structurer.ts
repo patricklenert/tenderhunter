@@ -24,26 +24,63 @@ const compactSpaces = (value: string): string => value.split(/\s+/).join(" ").tr
 const normalizeUmlauts = (value: string): string =>
   value.replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss").replace(/Ä/g, "Ae").replace(/Ö/g, "Oe").replace(/Ü/g, "Ue");
 
+// Detect "glued words" — text where HTML→text conversion lost whitespace between
+// block elements (Cheerio's .text() concatenates child text nodes without separators).
+// Symptoms: lowercase→uppercase transitions inside a phrase ("HüpstedtVergabeart") and/or
+// multiple known label keywords packed into one value.
+const MANGLED_KEYWORDS = [
+  "auftraggeber", "vergabestelle", "beschaffer", "frist", "deadline",
+  "ort der ausf", "ort der leistung", "ausfuehrungsort", "erfuellungsort",
+  "vergabeart", "auftragswert", "auftragsgegenstand", "leistungsbeschreibung",
+];
+
+export const looksMangled = (text: string): boolean => {
+  if (!text || text.trim().length === 0) return true;
+  // Count lowercase→Uppercase transitions inside the text.
+  // Proper nouns allow up to 1; 2+ almost always means glued elements.
+  const glueMatches = text.match(/[a-zäöüß][A-ZÄÖÜ]/g);
+  if (glueMatches && glueMatches.length >= 2) return true;
+  // Multiple distinct label keywords in a single value is a strong mangle signal.
+  const lower = normalizeUmlauts(text.toLowerCase());
+  const keywordHits = MANGLED_KEYWORDS.filter(kw => lower.includes(kw)).length;
+  if (keywordHits >= 2) return true;
+  // Excessive length for a label value (buyer / location are short phrases).
+  if (text.length > 300) return true;
+  return false;
+};
+
 const firstMatchingLine = (lines: string[], keywords: string[]): string | null => {
   for (let i = 0; i < lines.length; i++) {
     const lower = normalizeUmlauts(lines[i].toLowerCase());
-    if (keywords.some((keyword) => lower.includes(keyword))) {
-      // Skip same-line extraction — for label-style lines like "e)Ort der Ausführung"
-      // the value is almost always on the next line. Check next lines directly.
-      for (let j = i + 1; j < Math.min(i + 4, lines.length); j++) {
-        const nextLine = lines[j].trim();
-        if (nextLine.length === 0) continue;
-        // Skip section headers like "g)", "h)" etc.
-        if (/^[a-z]\)\s*[A-ZÄÖÜ]/.test(nextLine)) break;
-        // Skip lines that look like more label text (contain keywords for other fields)
-        const nextLower = normalizeUmlauts(nextLine.toLowerCase());
-        if (["auftraggeber", "vergabestelle", "beschaffer", "frist", "deadline"].some(kw => nextLower.includes(kw))) break;
-        // Clean up common prefixes from the next line
-        const cleaned = nextLine.replace(/^(Name|Stra[ßs]e|Plz,?\s*Ort|Telefon|Fax|E-Mail|Internet|Bezeichnung|Haupterf[üu]llungsort|Auftragsgegenstand)\s*/i, "").trim();
-        return (cleaned.length > 2 ? cleaned : nextLine).slice(0, 400);
-      }
-      return lines[i].slice(0, 400);
+    if (!keywords.some((keyword) => lower.includes(keyword))) continue;
+
+    // Try the next 1-3 lines (label-on-own-line format like "e) Ort der Ausführung")
+    for (let j = i + 1; j < Math.min(i + 4, lines.length); j++) {
+      const nextLine = lines[j].trim();
+      if (nextLine.length === 0) continue;
+      // Skip section headers like "g)", "h)" etc.
+      if (/^[a-z]\)\s*[A-ZÄÖÜ]/.test(nextLine)) break;
+      // Skip lines that look like more label text (contain keywords for other fields)
+      const nextLower = normalizeUmlauts(nextLine.toLowerCase());
+      if (["auftraggeber", "vergabestelle", "beschaffer", "frist", "deadline"].some(kw => nextLower.includes(kw))) break;
+      // Clean up common prefixes from the next line
+      const cleaned = nextLine.replace(/^(Name|Stra[ßs]e|Plz,?\s*Ort|Telefon|Fax|E-Mail|Internet|Bezeichnung|Haupterf[üu]llungsort|Auftragsgegenstand)\s*/i, "").trim();
+      const candidate = cleaned.length > 2 ? cleaned : nextLine;
+      // Reject obviously mangled candidates (whitespace lost between HTML elements)
+      if (looksMangled(candidate)) break;
+      return candidate.slice(0, 400);
     }
+
+    // Try extracting value from the same line (label: value format)
+    const sameLineValue = extractValueFromLine(lines[i], keywords);
+    if (sameLineValue && !looksMangled(sameLineValue)) {
+      return sameLineValue.slice(0, 400);
+    }
+
+    // IMPORTANT: do NOT fall back to returning the raw label line.
+    // Previously this returned `lines[i].slice(0, 400)`, which — on single-line/mangled
+    // input — propagated the entire caption (labels glued to values) into buyer/location.
+    // Continue searching the remaining lines instead.
   }
   return null;
 };
@@ -385,7 +422,33 @@ async function extractWithLLM(title: string, rawText: string): Promise<LLMExtrac
   }
 }
 
-export const extractStructuredData = async (title: string, rawText: string): Promise<StructuredData> => {
+// Build a clean, human-readable summary from the structured text.
+// Avoids the previous bug where `rawText.slice(0, 3000)` dumped mangled
+// single-line captions (labels glued to values) into the summary field.
+// Picks up to 8 well-formed lines (>=40 chars, not mangled) up to 1500 chars total.
+const buildSummary = (lines: string[], rawText: string): string => {
+  const picked: string[] = [];
+  let total = 0;
+  for (const line of lines) {
+    if (line.length < 40) continue;
+    if (looksMangled(line)) continue;
+    picked.push(line);
+    total += line.length + 1;
+    if (picked.length >= 8 || total >= 1500) break;
+  }
+  if (picked.length === 0) {
+    // Last resort: keep the old behaviour but only if the input does not look mangled.
+    const head = rawText.slice(0, 600).trim();
+    return looksMangled(head) ? "" : head;
+  }
+  return picked.join("\n").slice(0, 1_500);
+};
+
+export const extractStructuredData = async (
+  title: string,
+  rawText: string,
+  options: { useLLM?: boolean } = {},
+): Promise<StructuredData> => {
   const lines = rawText
     .split("\n")
     .map((line) => line.trim())
@@ -409,7 +472,7 @@ export const extractStructuredData = async (title: string, rawText: string): Pro
   const procedureTypeRegex = detectProcedureType(rawText);
 
   // LLM-based extraction for enhanced data
-  const llmResult = await extractWithLLM(title, rawText);
+  const llmResult = options.useLLM === false ? null : await extractWithLLM(title, rawText);
 
   // Merge regex and LLM results (LLM takes precedence if available)
   const procurement = {
@@ -444,7 +507,7 @@ export const extractStructuredData = async (title: string, rawText: string): Pro
       mandatory_documents: mandatoryDocuments,
     },
     procurement,
-    summary: rawText.slice(0, 3_000),
+    summary: buildSummary(lines, rawText),
     confidence,
   };
 };

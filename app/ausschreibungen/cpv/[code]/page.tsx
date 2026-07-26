@@ -111,6 +111,7 @@ export default async function CpvPage({ params, searchParams }: PageProps) {
         source: tenders.source,
         deadlineAt: tenders.deadlineAt,
         metadataJson: tenders.metadataJson,
+        slug: tenders.slug,
       })
       .from(tenders)
       .innerJoin(structuredData, eq(structuredData.tenderId, tenders.id))
@@ -140,7 +141,7 @@ export default async function CpvPage({ params, searchParams }: PageProps) {
           : null,
         location: typeof meta.location === "string" ? meta.location.split(",")[0].trim().slice(0, 60) : null,
         client: typeof meta.client === "string" ? meta.client.slice(0, 80) : null,
-        slug: generateTenderSlug(row.title ?? "", rawLocation),
+        slug: row.slug ?? generateTenderSlug(row.title ?? "", rawLocation),
       };
     });
   } catch {

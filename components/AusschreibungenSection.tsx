@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
   Card,
@@ -79,7 +79,10 @@ interface ApiTender {
   contractDurationMonths?: number | null;
   procedureType?: string | null;
   createdAt?: string;
+  slug?: string | null;
 }
+
+const PAGE_SIZE = 30;
 
 export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: ViewKey) => void }) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -89,10 +92,16 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
   const [tenders, setTenders] = useState<ApiTender[]>([]);
   const [totalResults, setTotalResults] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [geoLoading, setGeoLoading] = useState(false);
   const [geoError, setGeoError] = useState<string | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const loadingMoreRef = useRef(false);
+  const requestGenerationRef = useRef(0);
 
   const GEO_RADIUS_KM = 200;
 
@@ -190,27 +199,58 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
 
-  const searchTendersApi = useCallback(async (query: string, location: string, signal?: AbortSignal) => {
-    setLoading(true);
+  const searchTendersApi = useCallback(async (
+    query: string,
+    location: string,
+    signal?: AbortSignal,
+    page = 1,
+    append = false,
+  ) => {
+    const requestGeneration = append
+      ? requestGenerationRef.current
+      : requestGenerationRef.current + 1;
+    if (!append) requestGenerationRef.current = requestGeneration;
+
+    if (append) {
+      if (loadingMoreRef.current) return;
+      loadingMoreRef.current = true;
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+      setHasMore(false);
+      setCurrentPage(1);
+    }
     setError(null);
     try {
       const params = new URLSearchParams();
       if (query.trim()) params.set("q", query.trim());
       if (location.startsWith("bl:")) params.set("bundesland", location.slice(3));
       if (location.startsWith("city:")) params.set("city", location.slice(5));
-      params.set("limit", "24");
+      params.set("limit", String(PAGE_SIZE));
+      params.set("page", String(page));
 
       const res = await fetch(`/api/tenders/search?${params.toString()}`, signal ? { signal } : undefined);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      setTenders(data.items ?? []);
+      if (requestGeneration !== requestGenerationRef.current) return;
+      const nextItems = data.items ?? [];
+      setTenders((previous) => append ? [...previous, ...nextItems] : nextItems);
       setTotalResults(data.total ?? data.items?.length ?? 0);
+      setCurrentPage(page);
+      setHasMore(page * PAGE_SIZE < (data.total ?? nextItems.length) && nextItems.length > 0);
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
       setError(err instanceof Error ? err.message : "Fehler beim Laden");
-      setTenders([]);
+      if (!append) setTenders([]);
     } finally {
-      if (!signal?.aborted) setLoading(false);
+      if (!signal?.aborted) {
+        if (append) {
+          loadingMoreRef.current = false;
+          setLoadingMore(false);
+        } else {
+          setLoading(false);
+        }
+      }
     }
   }, []);
 
@@ -224,6 +264,25 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
       clearTimeout(timer);
     };
   }, [searchQuery, selectedLocation, searchTendersApi]);
+
+  const loadMore = useCallback(() => {
+    if (!hasMore || loading || loadingMoreRef.current) return;
+    void searchTendersApi(searchQuery, selectedLocation, undefined, currentPage + 1, true);
+  }, [currentPage, hasMore, loading, searchQuery, selectedLocation, searchTendersApi]);
+
+  useEffect(() => {
+    const element = loadMoreRef.current;
+    if (!element || !hasMore || loadingMore) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) loadMore();
+      },
+      { rootMargin: "400px 0px" },
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, loadMore]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -251,6 +310,14 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
       });
       const data = await res.json();
       if (!res.ok) {
+        if (res.status === 404 || res.status === 410) {
+          setTenders((previous) => previous.filter((item) => item.id !== tender.id));
+          setTotalResults((previous) => Math.max(0, previous - 1));
+          setDetailLoading(false);
+          setDetailOpen(false);
+          void searchTendersApi(searchQuery, selectedLocation);
+          return;
+        }
         throw new Error(data.error ?? `HTTP ${res.status}`);
       }
       setDetailData(data);
@@ -631,7 +698,10 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                     <Chip label={tender.category} size="small" variant="outlined" sx={{ height: 22, borderRadius: "4px", fontSize: "0.6875rem" }} />
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2" sx={{ color: "#475569", fontSize: "0.8125rem" }}>{tender.location}</Typography>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                      <MapPin size={15} style={{ opacity: 0.55 }} />
+                      <Typography variant="body2" sx={{ color: "#475569", fontSize: "0.8125rem" }}>{tender.location}</Typography>
+                    </Box>
                   </TableCell>
                   {userLocation && (
                     <TableCell>
@@ -643,7 +713,14 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                     </TableCell>
                   )}
                   <TableCell>
-                    <Typography variant="body2" sx={{ color: "#475569", fontSize: "0.8125rem" }}>{tender.deadline ?? "–"}</Typography>
+                    {deadlineLabel(tender.deadlineISO ?? tender.deadline) ? (
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                        <Calendar size={15} style={{ opacity: 0.55 }} />
+                        <Typography variant="body2" sx={{ color: "#475569", fontSize: "0.8125rem" }}>
+                          {deadlineLabel(tender.deadlineISO ?? tender.deadline)}
+                        </Typography>
+                      </Box>
+                    ) : "–"}
                   </TableCell>
                   <TableCell>
                     <Typography variant="caption" sx={{ color: "#475569", fontSize: "0.75rem" }}>{tender.source}</Typography>
@@ -662,6 +739,19 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
             </TableBody>
           </Table>
         </TableContainer>
+      )}
+
+      {!loading && hasMore && (
+        <Box ref={loadMoreRef} sx={{ display: "flex", justifyContent: "center", py: 3 }}>
+          <Button
+            variant="outlined"
+            onClick={loadMore}
+            disabled={loadingMore}
+            startIcon={loadingMore ? <CircularProgress size={16} /> : undefined}
+          >
+            {loadingMore ? "Weitere Ausschreibungen werden geladen..." : "Weitere Ausschreibungen laden"}
+          </Button>
+        </Box>
       )}
 
       {/* No geo results state */}
@@ -715,11 +805,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
             </Stack>
           )}
           {detailError && (
-            <Alert severity={detailError === "Ausschreibung nicht gefunden" ? "warning" : "error"}>
-              {detailError === "Ausschreibung nicht gefunden"
-                ? "Diese Ausschreibung ist nicht mehr verfügbar. Sie wurde entfernt oder ist abgelaufen."
-                : detailError}
-            </Alert>
+            <Alert severity="error">{detailError}</Alert>
           )}
           {detailData && selectedTender && (() => {
             const d = detailData as Record<string, unknown>;
@@ -906,7 +992,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
         <DialogActions>
           {selectedTender && (
             <Button
-              href={`/ausschreibung/${selectedTender.id}/${generateTenderSlug(selectedTender.title, selectedTender.location)}`}
+              href={`/ausschreibung/${selectedTender.id}/${selectedTender.slug ?? generateTenderSlug(selectedTender.title, selectedTender.location)}`}
               target="_blank"
               rel="noopener noreferrer"
               endIcon={<ExternalLink size={20} />}
@@ -1017,7 +1103,7 @@ function TenderCard({ tender, onDetailClick, distance }: { tender: ApiTender; on
         )}
 
         <Stack
-          direction={{ xs: "column", sm: "row" }}
+          direction="row"
           spacing={{ xs: 0.5, sm: 2 }}
           flexWrap="wrap"
           useFlexGap
@@ -1028,7 +1114,7 @@ function TenderCard({ tender, onDetailClick, distance }: { tender: ApiTender; on
             mb: 1.5,
           }}
         >
-           {tender.contractValueMax && tender.contractValueMax > 0 && (
+          {tender.contractValueMax && tender.contractValueMax > 0 && (
             <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
               <Typography variant="body2" fontWeight={600} color="success.main" sx={{ fontSize: "0.8125rem" }}>
                 {new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(tender.contractValueMax)}
@@ -1041,10 +1127,12 @@ function TenderCard({ tender, onDetailClick, distance }: { tender: ApiTender; on
               <Typography variant="body2" sx={{ color: "#475569", fontSize: "0.8125rem" }}>{tender.location}</Typography>
             </Box>
           )}
-          {tender.deadline && formatDeadlineDE(tender.deadline) && (
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+          {(tender.deadlineISO ?? tender.deadline) && formatDeadlineDE(tender.deadlineISO ?? tender.deadline) && (
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, ml: { xs: 1, sm: 2 } }}>
               <Calendar size={18} style={{ opacity: 0.5 }} />
-              <Typography variant="body2" sx={{ color: "#475569", fontSize: "0.8125rem" }}>Frist: {formatDeadlineDE(tender.deadline)}{deadlineLabel(tender.deadlineISO ?? tender.deadline) ? ` (${deadlineLabel(tender.deadlineISO ?? tender.deadline)})` : ""}</Typography>
+              <Typography variant="body2" sx={{ color: "#475569", fontSize: "0.8125rem" }}>
+                {deadlineLabel(tender.deadlineISO ?? tender.deadline)}
+              </Typography>
             </Box>
           )}
           {tender.referenceNumber && (

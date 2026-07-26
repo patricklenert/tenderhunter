@@ -2,7 +2,7 @@ import { Meilisearch, type SearchResponse } from "meilisearch";
 import { db } from "@/lib/db";
 import { tenders } from "@/lib/schema";
 import { and, eq, gt, isNull, or } from "drizzle-orm";
-import { cleanDescription } from "@/lib/public-tender-scraper";
+import { cleanPublicDescription } from "@/lib/public-tender-scraper";
 import { deriveBundesland, deriveCity } from "@/lib/bundesland";
 
 const MEILI_HOST = process.env.MEILI_HOST ?? "http://localhost:7700";
@@ -37,6 +37,7 @@ interface TenderDocument {
   hasDeadline: boolean;
   pdfCount: number;
   contractValueMax: number | null;
+  slug: string | null;
 }
 
 export function configureMeiliIndex(): Promise<void> {
@@ -60,7 +61,7 @@ async function configureMeiliIndexOnce(): Promise<void> {
   ]);
 
   await index.updateFilterableAttributes([
-    "bundesland", "city", "category", "source", "hasDeadline",
+    "bundesland", "city", "category", "source", "hasDeadline", "deadlineAt",
   ]);
 
   await index.updateSortableAttributes([
@@ -137,6 +138,7 @@ export async function syncTendersToMeili(): Promise<{ indexed: number; skipped: 
         category: tenders.category,
         metadataJson: tenders.metadataJson,
         contractValueMax: tenders.contractValueMax,
+        slug: tenders.slug,
       })
       .from(tenders)
       .where(
@@ -160,7 +162,7 @@ export async function syncTendersToMeili(): Promise<{ indexed: number; skipped: 
       return {
         id: item.id,
         title: item.title ?? `Ausschreibung #${item.id}`,
-        description: cleanDescription(String(meta.description ?? "")).slice(0, 5000),
+        description: cleanPublicDescription(String(meta.description ?? "")).slice(0, 5000),
         client: String(meta.client ?? "Unbekannt"),
         category: item.category ?? "Sonstiges",
         bundesland: deriveBundesland(location),
@@ -172,6 +174,7 @@ export async function syncTendersToMeili(): Promise<{ indexed: number; skipped: 
         hasDeadline: item.deadlineAt !== null,
         pdfCount: pdfUrls.length,
         contractValueMax: item.contractValueMax,
+        slug: item.slug ?? null,
       };
     });
     await index.addDocuments(docs);
@@ -221,6 +224,10 @@ export async function searchTenders(
       filters.push(`(${orParts})`);
     }
   }
+
+  // Keep stale index entries from reaching the UI between full syncs.
+  const nowUnix = Math.floor(Date.now() / 1000);
+  filters.push(`(deadlineAt IS NULL OR deadlineAt > ${nowUnix})`);
 
   const filterStr = filters.length > 0 ? filters.join(" AND ") : undefined;
 

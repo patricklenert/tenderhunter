@@ -10,6 +10,8 @@ const parseIntEnv = (name: string, fallback: number): number => {
   return Number.isNaN(parsed) ? fallback : parsed;
 };
 
+const positiveIntEnv = (name: string, fallback: number): number => Math.max(1, parseIntEnv(name, fallback));
+
 const defaultSources = parseConfiguredTenderSources(process.env.DEFAULT_SOURCES);
 
 export const settings = {
@@ -17,7 +19,12 @@ export const settings = {
   defaultSources,
   maxPdfLinksPerTender: parseIntEnv("MAX_PDF_LINKS_PER_TENDER", 5),
   maxJobRetries: parseIntEnv("MAX_JOB_RETRIES", 3),
-  workerPollSeconds: parseIntEnv("WORKER_POLL_SECONDS", 3)
+  workerPollSeconds: parseIntEnv("WORKER_POLL_SECONDS", 3),
+  usScrapeIntervalHours: positiveIntEnv("US_SCRAPE_INTERVAL_HOURS", 24),
+  samLookbackDays: positiveIntEnv("SAM_LOOKBACK_DAYS", 2),
+  samMaxRecords: positiveIntEnv("SAM_MAX_RECORDS", 5_000),
+  samSetAside: process.env.SAM_SET_ASIDE?.trim() || undefined,
+  usPortalMaxPages: positiveIntEnv("US_PORTAL_MAX_PAGES", 2),
 };
 
 export type Settings = typeof settings;

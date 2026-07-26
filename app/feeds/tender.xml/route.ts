@@ -28,6 +28,7 @@ export async function GET() {
     deadlineAt: Date | null;
     createdAt: Date | null;
     metadataJson: unknown;
+    slug: string | null;
   }> = [];
 
   try {
@@ -40,6 +41,7 @@ export async function GET() {
         deadlineAt: tenders.deadlineAt,
         createdAt: tenders.createdAt,
         metadataJson: tenders.metadataJson,
+        slug: tenders.slug,
       })
       .from(tenders)
       .where(
@@ -86,7 +88,7 @@ export async function GET() {
         ? new Date(item.createdAt).toUTCString()
         : now.toUTCString();
 
-      const slug = generateTenderSlug(item.title ?? "", typeof meta.location === "string" ? meta.location : "");
+      const slug = item.slug ?? generateTenderSlug(item.title ?? "", typeof meta.location === "string" ? meta.location : "");
 
       return `    <item>
       <title>${escapeXml(item.title ?? `Ausschreibung #${item.id}`)}</title>

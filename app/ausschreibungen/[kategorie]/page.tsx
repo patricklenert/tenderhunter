@@ -152,6 +152,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
         source: tenders.source,
         deadlineAt: tenders.deadlineAt,
         metadataJson: tenders.metadataJson,
+        slug: tenders.slug,
       })
       .from(tenders)
       .where(
@@ -190,7 +191,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
           typeof meta.client === "string"
             ? meta.client.slice(0, 80)
             : null,
-        slug: generateTenderSlug(row.title ?? "", rawLocation),
+        slug: row.slug ?? generateTenderSlug(row.title ?? "", rawLocation),
       };
     });
 

@@ -30,6 +30,7 @@ export async function GET() {
       deadlineAt: tenders.deadlineAt,
       updatedAt: tenders.updatedAt,
       createdAt: tenders.createdAt,
+      slug: tenders.slug,
     })
     .from(tenders)
     .where(
@@ -49,7 +50,7 @@ export async function GET() {
     const location = typeof meta.location === "string" ? meta.location : "";
     const client = typeof meta.client === "string" ? meta.client : "";
     const description = typeof meta.description === "string" ? meta.description : "";
-    const slug = generateTenderSlug(row.title ?? "", location);
+    const slug = row.slug ?? generateTenderSlug(row.title ?? "", location);
     const link = `${SITE_URL}/ausschreibung/${row.id}/${slug}`;
     const pubDate = (row.createdAt ?? row.updatedAt ?? now).toUTCString();
 

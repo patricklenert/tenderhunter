@@ -110,7 +110,7 @@ export default async function CityPage({ params, searchParams }: PageProps) {
       deadline: hit.deadlineAt
         ? new Date(hit.deadlineAt).toLocaleDateString("de-DE", { day: "2-digit", month: "short", year: "numeric" })
         : null,
-      slug: generateTenderSlug(hit.title || "", hit.location || ""),
+      slug: hit.slug ?? generateTenderSlug(hit.title || "", hit.location || ""),
     }));
   } catch {
     // Meilisearch unavailable — page renders empty with noindex

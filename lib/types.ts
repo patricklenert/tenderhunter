@@ -13,6 +13,7 @@ export const JOB_NOTIFY = "notify_company";
 export const JOB_CACHE_DETAIL = "cache_detail";
 export const JOB_SYNC_MEILI = "sync_meilisearch";
 export const JOB_DISCOVER_COMPANY = "discover_company";
+export const JOB_SCRAPE_US = "scrape_us_tenders";
 
 export type JobType =
   | typeof JOB_CRAWL
@@ -25,7 +26,8 @@ export type JobType =
   | typeof JOB_NOTIFY
   | typeof JOB_CACHE_DETAIL
   | typeof JOB_SYNC_MEILI
-  | typeof JOB_DISCOVER_COMPANY;
+  | typeof JOB_DISCOVER_COMPANY
+  | typeof JOB_SCRAPE_US;
 
 export type JsonValue =
   | string
@@ -72,6 +74,12 @@ export interface CompanyProfileCreate {
   certifications: string[];
   team_size?: number;
   regions: string[];
+  markets?: string[];
+  naics_codes?: string[];
+  psc_codes?: string[];
+  uei?: string;
+  cage_code?: string;
+  socio_economic?: string[];
 }
 
 export interface TrackEventCreate {

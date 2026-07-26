@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { tenders } from "@/lib/schema";
 import { json, errorResponse } from "@/lib/http";
 import { desc, and, eq, or, like, gt, isNull, inArray } from "drizzle-orm";
-import { cleanDescription } from "@/lib/public-tender-scraper";
+import { cleanPublicDescription } from "@/lib/public-tender-scraper";
 import { formatDeadlineDE, sanitizeTenderUrl } from "@/lib/date-utils";
 
 export const runtime = "nodejs";
@@ -84,7 +84,7 @@ export async function GET(request: Request): Promise<Response> {
           deadline: item.deadlineAt ? formatDeadlineDE(item.deadlineAt) : null,
           deadlineISO: item.deadlineAt ? new Date(item.deadlineAt).toISOString() : null,
           category: item.category ?? "Sonstiges",
-          description: cleanDescription(String(meta.description ?? "")),
+          description: cleanPublicDescription(String(meta.description ?? "")),
           referenceNumber: meta.reference_number ? String(meta.reference_number) : null,
           source: item.source,
           sourceUrl: sanitizeTenderUrl(item.url) ?? "",

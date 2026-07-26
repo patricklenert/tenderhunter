@@ -7,6 +7,8 @@ import { discoverTendersFromSource } from "@/lib/crawler";
 import { db } from "@/lib/db";
 import {
   tenders,
+  usTenders,
+  usSourceRuns,
   documents,
   structuredData,
   companyProfiles,
@@ -28,13 +30,17 @@ import { extractStructuredData, normalizeStructured, type StructuredData } from 
 import { assessTenderQuality } from "@/lib/tender-quality";
 import { resolveSourceItem } from "@/lib/tender-sources";
 import { scrapeAllPublicTenders, type ExtractedTender } from "@/lib/public-tender-scraper";
-import { enrichFromOeffentlicheVergabe, type OeffentlicheVergabeDetails } from "@/lib/public-tender-scraper";
+import { scrapeAllUsTenders, type UsExtractedTender } from "@/lib/us-tender-scraper";
+import { categorizeUsTender } from "@/lib/us/categorize";
+import { processUsAlerts } from "@/lib/us/alerts";
+import { enrichFromOeffentlicheVergabe, cleanPublicDescription, type OeffentlicheVergabeDetails } from "@/lib/public-tender-scraper";
 import { generateTenderSlug } from "@/lib/tender-slug";
 import { scoreKnownTenders } from "@/lib/discovery";
 import { configureMeiliIndex, syncTendersToMeili } from "@/lib/meilisearch";
 import { scrapeWebsite } from "@/lib/firecrawl";
 import OpenAI from "openai";
 import { callLLM } from "@/lib/llm";
+import { detectAccessPage, type AccessPageDetection } from "@/lib/access-page-detector";
 import {
   JOB_CRAWL,
   JOB_FETCH_DOCUMENTS,
@@ -47,6 +53,7 @@ import {
   JOB_CACHE_DETAIL,
   JOB_SYNC_MEILI,
   JOB_DISCOVER_COMPANY,
+  JOB_SCRAPE_US,
   type JobProcessResult,
   type JobType,
   type JsonValue,
@@ -239,6 +246,118 @@ const upsertTender = async ({ source, sourceKey, url, title, externalId, metadat
   return { id: result[0].id, changed: true, inserted: true };
 };
 
+const upsertUsTender = async (tender: UsExtractedTender): Promise<UpsertTenderResult> => {
+  const metadata: Record<string, JsonValue> = {
+    ...tender.metadata as Record<string, JsonValue>,
+    contacts: tender.contacts.map((contact) => ({
+      ...(contact.name ? { name: contact.name } : {}),
+      ...(contact.email ? { email: contact.email } : {}),
+      ...(contact.phone ? { phone: contact.phone } : {}),
+    })),
+    attachments: tender.attachments.map((attachment) => ({ name: attachment.name, url: attachment.url })),
+    discovered_at: new Date().toISOString(),
+  };
+  const existingByExternalId = await db
+    .select({
+      id: usTenders.id,
+      url: usTenders.url,
+      title: usTenders.title,
+      description: usTenders.description,
+      buyer: usTenders.buyer,
+      location: usTenders.location,
+      state: usTenders.state,
+      solicitationNumber: usTenders.solicitationNumber,
+      naicsCodesJson: usTenders.naicsCodesJson,
+      pscCodesJson: usTenders.pscCodesJson,
+      setAside: usTenders.setAside,
+      contractType: usTenders.contractType,
+      category: usTenders.category,
+      deadlineAt: usTenders.deadlineAt,
+      metadataJson: usTenders.metadataJson,
+    })
+    .from(usTenders)
+    .where(and(eq(usTenders.source, tender.source), eq(usTenders.externalId, tender.externalId)))
+    .limit(1);
+  const existing = existingByExternalId.length > 0
+    ? existingByExternalId
+    : await db
+      .select({
+        id: usTenders.id,
+        url: usTenders.url,
+        title: usTenders.title,
+        description: usTenders.description,
+        buyer: usTenders.buyer,
+        location: usTenders.location,
+        state: usTenders.state,
+        solicitationNumber: usTenders.solicitationNumber,
+        naicsCodesJson: usTenders.naicsCodesJson,
+        pscCodesJson: usTenders.pscCodesJson,
+        setAside: usTenders.setAside,
+        contractType: usTenders.contractType,
+        category: usTenders.category,
+        deadlineAt: usTenders.deadlineAt,
+        metadataJson: usTenders.metadataJson,
+      })
+      .from(usTenders)
+      .where(and(eq(usTenders.source, tender.source), eq(usTenders.url, tender.url)))
+      .limit(1);
+
+  const values = {
+    sourceKey: tender.sourceKey,
+    url: tender.url,
+    title: tender.title,
+    externalId: tender.externalId,
+    description: tender.description,
+    buyer: tender.buyer,
+    location: tender.location,
+    state: tender.state,
+    solicitationNumber: tender.solicitationNumber,
+    naicsCodesJson: tender.naicsCodes,
+    pscCodesJson: tender.pscCodes,
+    setAside: tender.setAside,
+    contractType: tender.contractType,
+    category: categorizeUsTender({ naicsCodesJson: tender.naicsCodes, title: tender.title, description: tender.description }),
+    deadlineAt: tender.deadlineAt,
+    metadataJson: metadata,
+    qualityStatus: "qualified",
+    qualityReason: null,
+    lastSeenAt: new Date(),
+  };
+
+  if (existing.length === 0) {
+    const inserted = await db.insert(usTenders).values({
+      source: tender.source,
+      ...values,
+      firstSeenAt: new Date(),
+      version: 1,
+    }).returning({ id: usTenders.id });
+    return { id: inserted[0].id, changed: true, inserted: true };
+  }
+
+  const current = existing[0];
+  const changed =
+    current.url !== values.url ||
+    current.title !== values.title ||
+    current.description !== values.description ||
+    current.buyer !== values.buyer ||
+    current.location !== values.location ||
+    current.state !== values.state ||
+    current.solicitationNumber !== values.solicitationNumber ||
+    !sameValue(current.naicsCodesJson, values.naicsCodesJson) ||
+    !sameValue(current.pscCodesJson, values.pscCodesJson) ||
+    current.setAside !== values.setAside ||
+    current.contractType !== values.contractType ||
+    current.category !== values.category ||
+    !sameDate(current.deadlineAt, values.deadlineAt) ||
+    !sameValue(current.metadataJson, values.metadataJson);
+
+  await db.update(usTenders).set({
+    ...values,
+    ...(changed ? { version: sql`${usTenders.version} + 1`, updatedAt: new Date() } : {}),
+  }).where(eq(usTenders.id, current.id));
+  return { id: current.id, changed, inserted: false };
+};
+
 const queueTenderStage = async (
   jobType: JobType,
   tenderId: number,
@@ -378,6 +497,30 @@ const parseStructured = (value: string | Record<string, unknown>, fallbackTitle 
 const clearTenderScoring = async (tenderId: number): Promise<void> => {
   await db.delete(insights).where(eq(insights.tenderId, tenderId));
   await db.delete(scores).where(eq(scores.tenderId, tenderId));
+};
+
+const rejectBlockedTender = async (tenderId: number, detection: AccessPageDetection): Promise<void> => {
+  await db.delete(structuredData).where(eq(structuredData.tenderId, tenderId));
+  await clearTenderScoring(tenderId);
+  await db
+    .update(tenders)
+    .set({
+      qualityStatus: "rejected",
+      qualityReason: `Zugriffsschutz erkannt: ${detection.reason ?? "unbekannt"}`,
+      rawText: null,
+      contentFingerprint: null,
+      duplicateOfTenderId: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(tenders.id, tenderId));
+};
+
+const retryBlockedDetail = async (tender: Tender, detection: AccessPageDetection): Promise<never> => {
+  if (!tender.deadlineAt || tender.deadlineAt.getTime() > Date.now()) {
+    throw new Error(`Detailseite vorübergehend nicht verfügbar (${detection.reason ?? "unbekannt"})`);
+  }
+  await rejectBlockedTender(tender.id, detection);
+  throw new Error(`Detailseite abgelaufen oder entfernt (${detection.reason ?? "unbekannt"})`);
 };
 
 const evaluateTenderQuality = async (tender: Tender, structured: StructuredData) => {
@@ -627,6 +770,13 @@ const runStructureTender = async (payload: Record<string, JsonValue>): Promise<R
     throw new Error("kein Rohtext vorhanden");
   }
 
+  const accessPage = detectAccessPage(tender.rawText, { title: tender.title ?? undefined, url: tender.url });
+  if (accessPage.blocked) {
+    console.warn(`[pipeline] Tender ${tenderId} blockierte Zugriffsseite (${accessPage.reason})`);
+    await rejectBlockedTender(tenderId, accessPage);
+    return { blocked: true, blocked_reason: accessPage.reason ?? "unknown" };
+  }
+
   const structured = await extractStructuredData(tender.title ?? "Unbenannte Ausschreibung", tender.rawText);
 
   // If the LLM didn't extract a deadline but the DB already has one, use it
@@ -670,15 +820,24 @@ const runStructureTender = async (payload: Record<string, JsonValue>): Promise<R
     .where(eq(tenders.id, tenderId));
 
   const quality = await evaluateTenderQuality(tender, structured);
+  const qualityUpdate: Record<string, unknown> = {
+    qualityStatus: quality.status,
+    qualityReason: quality.reason,
+    contentFingerprint: quality.fingerprint,
+    duplicateOfTenderId: quality.duplicateOfTenderId,
+    updatedAt: new Date(),
+  };
+  if (quality.status === "qualified" && !tender.slug) {
+    const metadata = parseRecord(tender.metadataJson as string);
+    const location = metadata.location;
+    qualityUpdate.slug = generateTenderSlug(
+      tender.title ?? "",
+      typeof location === "string" ? location : undefined,
+    );
+  }
   await db
     .update(tenders)
-    .set({
-      qualityStatus: quality.status,
-      qualityReason: quality.reason,
-      contentFingerprint: quality.fingerprint,
-      duplicateOfTenderId: quality.duplicateOfTenderId,
-      updatedAt: new Date(),
-    })
+    .set(qualityUpdate)
     .where(eq(tenders.id, tenderId));
 
   if (quality.status !== "qualified") {
@@ -746,9 +905,15 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
   const existing = await db.select().from(structuredData).where(eq(structuredData.tenderId, tenderId)).limit(1);
   if (existing.length > 0) {
     const blob = existing[0].jsonBlob as Record<string, unknown>;
+    const cachedAccessPage = detectAccessPage(JSON.stringify(blob), { title: tender.title ?? undefined, url: sourceUrl });
+    if (cachedAccessPage.blocked) {
+      console.warn(`[cache-detail] Entferne blockierten Cache fuer Tender ${tenderId} (${cachedAccessPage.reason})`);
+      await db.delete(structuredData).where(eq(structuredData.tenderId, tenderId));
+      await retryBlockedDetail(tender, cachedAccessPage);
+    }
 
     // Check flat format (from cache_detail)
-    const hasFlatDescription = blob.description && typeof blob.description === "string" && blob.description.length > 200;
+    const hasFlatDescription = typeof blob.description === "string" && cleanPublicDescription(blob.description).length > 200;
     const hasKeyFields = blob.estimatedValue && blob.procedure && blob.duration;
 
     // Check nested format (from structure_tender) — look at summary and hard_facts
@@ -768,7 +933,7 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
     : {};
 
   // Build detail from existing metadata (instant, no API calls)
-  const description = String(meta.description ?? "");
+  const description = cleanPublicDescription(String(meta.description ?? ""));
   const client = String(meta.client ?? "Unbekannt");
 
   // Only use LLM if we have substantial page content to extract from
@@ -809,6 +974,12 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
     fullContent = rawText.slice(0, 30000);
   }
 
+  const scrapedAccessPage = detectAccessPage(fullContent, { title: tender.title ?? undefined, url: sourceUrl });
+  if (scrapedAccessPage.blocked) {
+    console.warn(`[cache-detail] Blockierte Detailseite fuer Tender ${tenderId} (${scrapedAccessPage.reason})`);
+    await retryBlockedDetail(tender, scrapedAccessPage);
+  }
+
   if (fullContent.length > 200 && openrouterKey) {
     // We have good content — use LLM to structure it
     const llmClient = new OpenAI({ apiKey: openrouterKey, baseURL: "https://openrouter.ai/api/v1" });
@@ -829,7 +1000,7 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
           title: String(extracted.title ?? tender.title ?? ""),
           client: String(extracted.client ?? client),
           deadline: extracted.deadline ? String(extracted.deadline) : (tender.deadlineAt ? new Date(tender.deadlineAt).toISOString().split("T")[0] : null),
-          description: String(extracted.description ?? description),
+          description: cleanPublicDescription(String(extracted.description ?? description)),
           requirements: Array.isArray(extracted.requirements) ? extracted.requirements : [],
           scope: String(extracted.scope ?? ""),
           contact: String(extracted.contact ?? ""),
@@ -870,7 +1041,7 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
             title: String(tender.title ?? ""),
             client: oeffDetails.buyer ?? client,
             deadline: tender.deadlineAt ? new Date(tender.deadlineAt).toISOString().split("T")[0] : null,
-            description: oeffDetails.description ?? description,
+            description: cleanPublicDescription(oeffDetails.description ?? description),
             requirements: [],
             scope: oeffDetails.lotDescription ?? "",
             contact: oeffDetails.contact ?? "",
@@ -904,7 +1075,7 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
           }
           // Enrich thin description from oeffentlichevergabe.de
           if (oeffDetails.description && oeffDetails.description.length > 50 && (!result.description || (typeof result.description === "string" && result.description.length < 100))) {
-            result.description = oeffDetails.description;
+            result.description = cleanPublicDescription(oeffDetails.description);
           }
           if (oeffDetails.evergabeDocumentUrls.length > 0) {
             const existingUrls = Array.isArray(result.pdfUrls) ? result.pdfUrls as string[] : [];
@@ -1029,7 +1200,7 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
       title: String(tender.title ?? ""),
       client,
       deadline: tender.deadlineAt ? new Date(tender.deadlineAt).toISOString().split("T")[0] : null,
-      description,
+       description,
       requirements: [],
       scope: "",
       contact: "",
@@ -1044,6 +1215,19 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
       cached: false,
       scrapedAt: new Date().toISOString(),
     };
+  }
+
+  if (result && typeof result.description === "string") {
+    result.description = cleanPublicDescription(result.description);
+  }
+
+  const resultAccessPage = detectAccessPage(
+    `${String(result.title ?? "")} ${String(result.description ?? "")} ${String(result.scope ?? "")}`,
+    { title: tender.title ?? undefined, url: sourceUrl },
+  );
+  if (resultAccessPage.blocked) {
+    console.warn(`[cache-detail] Blockiertes Ergebnis fuer Tender ${tenderId} (${resultAccessPage.reason})`);
+    await retryBlockedDetail(tender, resultAccessPage);
   }
 
   // Merge cache_detail result into existing structured_data instead of overwriting.
@@ -1249,8 +1433,12 @@ const runScoreTender = async (payload: Record<string, JsonValue>): Promise<Recor
 
   // IndexNow: Notify search engines about the new qualified tender
   if (scored > 0) {
-    const location = structured.hard_facts?.location ?? undefined;
-    const slug = generateTenderSlug(tender.title ?? "", typeof location === "string" ? location : undefined);
+    const metadata = parseRecord(tender.metadataJson as string);
+    const location = metadata.location;
+    const slug = tender.slug ?? generateTenderSlug(
+      tender.title ?? "",
+      typeof location === "string" ? location : undefined,
+    );
     const tenderUrl = `${SITE_URL}/ausschreibung/${tenderId}/${slug}`;
     await submitToIndexNow([tenderUrl]).catch((err) => {
       console.warn(`[indexnow] Einreichung fuer Tender ${tenderId} fehlgeschlagen:`, err);
@@ -1400,6 +1588,14 @@ const parseDeadline = (value: string | null): Date | null => {
     return Number.isNaN(date.getTime()) ? null : date;
   }
 
+  // Date-only ISO deadlines apply through the end of that local calendar day.
+  const isoDateOnly = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoDateOnly) {
+    const [, year, month, day] = isoDateOnly;
+    const date = new Date(Number(year), Number(month) - 1, Number(day), 23, 59, 59, 999);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
 };
@@ -1460,6 +1656,62 @@ const runScrapePublicTenders = async (_payload: Record<string, JsonValue>): Prom
   };
 };
 
+const runScrapeUsTenders = async (_payload: Record<string, JsonValue>): Promise<Record<string, JsonValue>> => {
+  const startedAt = new Date();
+  const result = await scrapeAllUsTenders();
+  let inserted = 0;
+  let updated = 0;
+  const changesBySource = new Map<string, { inserted: number; updated: number }>();
+
+  for (const tender of result.tenders) {
+    try {
+      const upserted = await upsertUsTender(tender);
+      const changes = changesBySource.get(tender.source) ?? { inserted: 0, updated: 0 };
+      if (upserted.inserted) {
+        inserted += 1;
+        changes.inserted += 1;
+      } else if (upserted.changed) {
+        updated += 1;
+        changes.updated += 1;
+      }
+      changesBySource.set(tender.source, changes);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      console.error(`[us-scraper] Upsert failed for "${tender.title}": ${message}`);
+    }
+  }
+
+  await db.insert(usSourceRuns).values(result.sourceRuns.map((run) => {
+    const changes = changesBySource.get(run.source) ?? { inserted: 0, updated: 0 };
+    return {
+      source: run.source,
+      status: run.status,
+      discoveredCount: run.discoveredCount,
+      acceptedCount: run.acceptedCount,
+      insertedCount: changes.inserted,
+      updatedCount: changes.updated,
+      errorMessage: run.errorMessage,
+      startedAt,
+      finishedAt: new Date(),
+    };
+  }));
+
+  try {
+    const alerts = await processUsAlerts();
+    console.log(`[us-alerts] processed ${alerts.processed} subscriptions, notified ${alerts.notified}.`);
+  } catch (error) {
+    console.warn("[us-alerts] Alert processing failed without failing the scrape:", error);
+  }
+
+  return {
+    total_found: result.tenders.length,
+    inserted,
+    updated,
+    by_source: result.bySource,
+    errors: result.errors,
+  };
+};
+
 const runSyncMeili = async (_payload: Record<string, JsonValue>): Promise<Record<string, JsonValue>> => {
   await configureMeiliIndex().catch((err) => {
     console.warn("[pipeline] Meilisearch Index-Config fehlgeschlagen:", err);
@@ -1512,6 +1764,7 @@ const handlers: Record<JobType, (payload: Record<string, JsonValue>) => Promise<
   [JOB_CACHE_DETAIL]: runCacheDetail,
   [JOB_SYNC_MEILI]: runSyncMeili,
   [JOB_DISCOVER_COMPANY]: runDiscoverCompany,
+  [JOB_SCRAPE_US]: runScrapeUsTenders,
 };
 
 export const processJobById = async (jobId: number): Promise<JobProcessResult> => {
@@ -1628,6 +1881,27 @@ export const cleanupExpiredTenders = async (): Promise<{ deleted: number }> => {
      console.log(`[cleanup] sync_meilisearch Job eingereiht nach ${deleted} Löschungen.`);
   } catch (err) {
     console.warn("[cleanup] Konnte sync_meilisearch nicht einreihen:", err);
+  }
+
+  return { deleted };
+};
+
+export const cleanupExpiredUsTenders = async (): Promise<{ deleted: number }> => {
+  const now = new Date();
+  let deleted = 0;
+
+  while (true) {
+    const expired = await db
+      .select({ id: usTenders.id })
+      .from(usTenders)
+      .where(and(isNotNull(usTenders.deadlineAt), lt(usTenders.deadlineAt, now)))
+      .orderBy(asc(usTenders.id))
+      .limit(CLEANUP_BATCH_SIZE);
+    if (expired.length === 0) break;
+
+    const ids = expired.map((tender) => tender.id);
+    await db.delete(usTenders).where(inArray(usTenders.id, ids));
+    deleted += ids.length;
   }
 
   return { deleted };

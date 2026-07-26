@@ -1,7 +1,8 @@
 import OpenAI from "openai";
 import * as cheerio from "cheerio";
-import { scrapeWebsite, scrapeMultiple, type ScrapedPage } from "@/lib/firecrawl";
+import { scrapeWebsite, scrapeMultiple, htmlToBasicMarkdown, type ScrapedPage } from "@/lib/firecrawl";
 import { callLLM } from "@/lib/llm";
+import { detectAccessPage } from "@/lib/access-page-detector";
 
 const openrouterKey = process.env.OPENROUTER_API_KEY ?? "";
 
@@ -502,6 +503,41 @@ export function cleanDescription(text: string): string {
   return cleaned;
 }
 
+const PORTAL_FORM_MARKERS = [
+  /(?:^|\s)a\)\s*öffentlicher\s+auftraggeber/i,
+  /vergabestelle/i,
+  /(?:^|\s)(?:telefon|fax|e-?mail|internet)\s*[A-ZÄÖÜ]/i,
+  /(?:^|\s)(?:name|straße|strasse)\s*[A-ZÄÖÜ]/i,
+  /angebotsfrist|teilnahmefrist|ausführungsort|erfüllungsort/i,
+];
+
+/** Returns true for portal forms accidentally persisted as tender descriptions. */
+export function isRawPortalDescription(text: string): boolean {
+  if (!text || text.trim().length < 20) return false;
+  const normalized = text.replace(/\s+/g, " ").trim();
+  const hasNoticeHeader = /bekanntmachung\s+öffentliche\s+ausschreibung/i.test(normalized);
+  const markerHits = PORTAL_FORM_MARKERS.filter((pattern) => pattern.test(normalized)).length;
+
+  return (hasNoticeHeader && markerHits >= 1) || markerHits >= 3;
+}
+
+/** Cleans a public description and refuses to expose raw procurement forms. */
+export function cleanPublicDescription(text: string): string {
+  if (isRawPortalDescription(text)) return "";
+  const cleaned = cleanDescription(text);
+  return isRawPortalDescription(cleaned) ? "" : cleaned;
+}
+
+/** Selects the first usable description, preferring structured values over raw fallbacks. */
+export function pickPublicDescription(...values: unknown[]): string {
+  for (const value of values) {
+    if (typeof value !== "string") continue;
+    const cleaned = cleanPublicDescription(value);
+    if (cleaned) return cleaned;
+  }
+  return "";
+}
+
 async function extractTendersFromMarkdown(
   markdown: string,
   sourceUrl: string,
@@ -511,6 +547,11 @@ async function extractTendersFromMarkdown(
     return [];
   }
   if (!isLikelyTender(sourceUrl, sourceUrl)) {
+    return [];
+  }
+  const accessPage = detectAccessPage(markdown, { url: sourceUrl });
+  if (accessPage.blocked) {
+    console.warn(`[public-scraper] Ueberspringe blockierte Seite (${accessPage.reason}) ${sourceUrl}`);
     return [];
   }
 
@@ -543,7 +584,7 @@ async function extractTendersFromMarkdown(
         title: t.title.slice(0, 300),
         client: (t.client && t.client !== "Unbekannt" && t.client.length > 1) ? t.client : extractClientFromUrl(sourceUrl),
         deadline: t.deadline ?? null,
-        description: cleanDescription(t.description ?? ""),
+        description: cleanPublicDescription(t.description ?? ""),
         referenceNumber: t.referenceNumber ?? null,
         location: t.location ?? null,
         category: TENDER_CATEGORIES.includes(t.category) ? t.category : "Facility Management",
@@ -565,6 +606,11 @@ async function extractDetailFromMarkdown(
 ): Promise<ExtractedTender | null> {
   if (!markdown || markdown.trim().length < 30) return null;
   if (!isLikelyTender(sourceUrl, sourceUrl)) return null;
+  const accessPage = detectAccessPage(markdown, { url: sourceUrl });
+  if (accessPage.blocked) {
+    console.warn(`[public-scraper] Ueberspringe blockierte Detailseite (${accessPage.reason}) ${sourceUrl}`);
+    return null;
+  }
 
   const client = getOpenAI();
   const truncated = markdown.substring(0, 10000);
@@ -596,7 +642,7 @@ async function extractDetailFromMarkdown(
       title: cleanTenderTitle(String(parsed.title).slice(0, 300)),
       client: clientName,
       deadline: parsed.deadline ? String(parsed.deadline) : null,
-      description: cleanDescription(String(parsed.description ?? "")),
+      description: cleanPublicDescription(String(parsed.description ?? "")),
       referenceNumber: parsed.referenceNumber ? String(parsed.referenceNumber) : null,
       location: parsed.location ? String(parsed.location) : null,
       category,
@@ -1564,7 +1610,7 @@ async function scrapeNrwPortal(config: NrwPortalConfig): Promise<ExtractedTender
         if (!contentForLLM || contentForLLM.length < 100) {
           const $page = cheerio.load(detailHtml);
           $page("script, style, nav, header, footer").remove();
-          contentForLLM = $page("body").text().replace(/\s+/g, " ").trim();
+          contentForLLM = htmlToBasicMarkdown($page("body").html() ?? "");
         }
 
         if (!contentForLLM || contentForLLM.trim().length < 100) continue;
@@ -2007,7 +2053,7 @@ export async function scrapeNetPortal(config: NetServerConfig): Promise<Extracte
           }
           const $detail = cheerio.load(detailHtml);
           $detail("script, style, nav, header, footer").remove();
-          bodyText = $detail("body").text().replace(/\s+/g, " ").trim();
+          bodyText = htmlToBasicMarkdown($detail("body").html() ?? "");
         }
 
         // If we have rich detail content, use LLM extraction
@@ -2100,7 +2146,7 @@ async function scrapeEVergabeSh(): Promise<ExtractedTender[]> {
         const detailHtml = await detailResp.text();
         const $detail = cheerio.load(detailHtml);
         $detail("script, style, nav, header, footer").remove();
-        const bodyText = $detail("body").text().replace(/\s+/g, " ").trim();
+        const bodyText = htmlToBasicMarkdown($detail("body").html() ?? "");
 
         if (!bodyText || bodyText.length < 100) continue;
 
@@ -2168,7 +2214,7 @@ async function scrapeThueringen(): Promise<ExtractedTender[]> {
         const detailHtml = await detailResp.text();
         const $detail = cheerio.load(detailHtml);
         $detail("script, style, nav, header, footer").remove();
-        const bodyText = $detail("body").text().replace(/\s+/g, " ").trim();
+        const bodyText = htmlToBasicMarkdown($detail("body").html() ?? "");
 
         if (!bodyText || bodyText.length < 100) continue;
 
@@ -2362,7 +2408,7 @@ async function scrapeHamburgDe(): Promise<ExtractedTender[]> {
         const html = await resp.text();
         const $ = cheerio.load(html);
         $("script, style, nav, header, footer, .navigation, .breadcrumb").remove();
-        const bodyText = $("body").text().replace(/\s+/g, " ").trim();
+        const bodyText = htmlToBasicMarkdown($("body").html() ?? "");
         if (bodyText.length < 100) continue;
 
         const extracted = await extractDetailFromMarkdown(bodyText, link.url, "hamburg-de", true);

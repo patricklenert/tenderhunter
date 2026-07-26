@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import * as cheerio from "cheerio";
+import { htmlToBasicMarkdown } from "@/lib/firecrawl";
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_BASE = "https://openrouter.ai/api/v1/chat/completions";
@@ -233,9 +233,7 @@ export const extractTextFromFile = async (filePath: string, contentType?: string
     const encoding = detectHtmlEncoding(raw);
     const decoder = new TextDecoder(encoding);
     const html = decoder.decode(raw);
-    const $ = cheerio.load(html);
-    $("script,style,noscript").remove();
-    return $.text().replace(/\s+/g, " ").trim();
+    return htmlToBasicMarkdown(html);
   }
 
   if (loweredPath.endsWith(".zip") || loweredType.includes("zip") || loweredType.includes("archive")) {

@@ -135,6 +135,7 @@ export default async function AuftraggeberPage({ params, searchParams }: PagePro
         category: tenders.category,
         deadlineAt: tenders.deadlineAt,
         metadataJson: tenders.metadataJson,
+        slug: tenders.slug,
       })
       .from(tenders)
       .where(
@@ -200,7 +201,7 @@ export default async function AuftraggeberPage({ params, searchParams }: PagePro
       deadline: t.deadlineAt
         ? new Date(t.deadlineAt).toLocaleDateString("de-DE", { day: "2-digit", month: "short", year: "numeric" })
         : null,
-      slug: generateTenderSlug(t.title ?? "", rawLocation),
+      slug: t.slug ?? generateTenderSlug(t.title ?? "", rawLocation),
     };
   });
 

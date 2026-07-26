@@ -24,7 +24,13 @@ export const companyProfileSchema = z.object({
   capabilities: z.array(z.string().min(1)),
   certifications: z.array(z.string().min(1)).default([]),
   team_size: z.number().int().positive().optional(),
-  regions: z.array(z.string().min(1)).default([])
+  regions: z.array(z.string().min(1)).default([]),
+  markets: z.array(z.enum(["DE", "US"])).default([]),
+  naics_codes: z.array(z.string().regex(/^\d{6}$/)).default([]),
+  psc_codes: z.array(z.string().min(2).max(4)).default([]),
+  uei: z.string().trim().min(12).max(12).optional(),
+  cage_code: z.string().trim().min(5).max(5).optional(),
+  socio_economic: z.array(z.enum(["small_business", "wosb", "edwosb", "sdvosb", "vosb", "8a", "hubzone"])).default([]),
 });
 
 export const trackEventSchema = z.object({

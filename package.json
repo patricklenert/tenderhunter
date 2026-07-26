@@ -11,6 +11,13 @@
     "worker:once": "tsx scripts/worker.ts --once",
     "migrate": "tsx scripts/migrate.ts",
     "backfill-quality": "tsx scripts/backfill-quality.ts",
+    "migrate:tender-descriptions": "tsx scripts/migrate-tender-descriptions.ts",
+    "test:access-page": "tsx scripts/test-access-page-detector.ts",
+    "test:public-description": "tsx scripts/test-public-description.ts",
+    "test:scoring": "tsx scripts/test-scoring.ts",
+    "test:us-market": "tsx scripts/test-us-market.ts",
+    "backfill:us-categories": "tsx scripts/backfill-us-categories.ts",
+    "cleanup:blocked-tenders": "tsx scripts/cleanup-blocked-tenders.ts",
     "db:push": "drizzle-kit push"
   },
   "dependencies": {
@@ -44,6 +51,7 @@
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "recharts": "^3.8.1",
+    "resend": "^6.18.0",
     "swetrix": "^4.4.0",
     "tailwind-merge": "^3.5.0",
     "tailwindcss": "^4.2.4",

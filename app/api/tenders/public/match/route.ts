@@ -3,7 +3,7 @@ import { tenders, structuredData } from "@/lib/schema";
 import { json, errorResponse } from "@/lib/http";
 import { eq } from "drizzle-orm";
 import { scrapeWebsite } from "@/lib/firecrawl";
-import { cleanDescription } from "@/lib/public-tender-scraper";
+import { cleanPublicDescription, pickPublicDescription } from "@/lib/public-tender-scraper";
 import { formatDeadlineDE } from "@/lib/date-utils";
 import { requireSession } from "@/lib/api-auth";
 import OpenAI from "openai";
@@ -93,7 +93,7 @@ export async function POST(request: Request): Promise<Response> {
       title: tender.title,
       client: metadata.client ?? metadata.auftraggeber ?? "Unbekannt",
       deadline: tender.deadlineAt ? formatDeadlineDE(tender.deadlineAt) : null,
-      description: cleanDescription(String(metadata.description ?? tender.rawText ?? "")),
+      description: pickPublicDescription(metadata.description, tender.rawText),
       category: tender.category,
       location: metadata.location ?? metadata.ort ?? "",
       referenceNumber: metadata.referenceNumber ?? metadata.referenz ?? "",
@@ -107,15 +107,19 @@ export async function POST(request: Request): Promise<Response> {
 
     if (cached.length > 0) {
       const blob = cached[0].jsonBlob as Record<string, unknown>;
-      if (typeof blob.description === "string") {
-        blob.description = cleanDescription(blob.description);
-      }
+      const publicDescription = pickPublicDescription(blob.description, blob.summary);
+      if (publicDescription) blob.description = publicDescription;
+      else delete blob.description;
+      const publicSummary = pickPublicDescription(blob.summary);
+      if (publicSummary) blob.summary = publicSummary;
+      else delete blob.summary;
       tenderDetails = { ...tenderDetails, ...blob };
     } else if (tender.url) {
       // Fallback: quick scrape
       try {
         const page = await scrapeWebsite(tender.url);
-        tenderDetails.description = page.markdown?.substring(0, 5000) ?? tenderDetails.description;
+        const scrapedDescription = cleanPublicDescription(page.markdown?.substring(0, 5000) ?? "");
+        if (scrapedDescription) tenderDetails.description = scrapedDescription;
       } catch {
         // ignore
       }

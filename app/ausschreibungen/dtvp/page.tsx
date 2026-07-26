@@ -23,6 +23,7 @@ export default async function DtvpPage() {
     location: string | null;
     client: string | null;
     source: string;
+    slug: string | null;
   }> = [];
   let estimatedTotal = 0;
 
@@ -47,6 +48,7 @@ export default async function DtvpPage() {
       location: hit.location ? hit.location.split(",")[0].trim().slice(0, 60) : null,
       client: hit.client ? hit.client.slice(0, 80) : null,
       source: hit.source,
+      slug: hit.slug ?? null,
     }));
   } catch {
     // Meilisearch unavailable

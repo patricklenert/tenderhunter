@@ -28,6 +28,7 @@ interface PortalCatTender {
   location: string | null;
   client: string | null;
   source: string;
+  slug?: string | null;
 }
 
 interface PortalCategoryContentProps {
@@ -91,7 +92,7 @@ export function PortalCategoryContent({
     itemListElement: tenders.slice(0, 10).map((t, i) => ({
       "@type": "ListItem",
       position: i + 1,
-      url: `${siteUrl}/ausschreibung/${t.id}/${generateTenderSlug(t.title, t.location ?? "")}`,
+      url: `${siteUrl}/ausschreibung/${t.id}/${t.slug ?? generateTenderSlug(t.title, t.location ?? "")}`,
       name: t.title,
     })),
   };
@@ -135,7 +136,7 @@ export function PortalCategoryContent({
           {tenders.length > 0 ? (
             <Stack spacing={2} sx={{ mb: 5 }}>
               {tenders.map((tender) => (
-                <Link key={tender.id} href={`/ausschreibung/${tender.id}/${generateTenderSlug(tender.title, tender.location ?? "")}`} style={{ textDecoration: "none", color: "inherit" }}>
+                <Link key={tender.id} href={`/ausschreibung/${tender.id}/${tender.slug ?? generateTenderSlug(tender.title, tender.location ?? "")}`} style={{ textDecoration: "none", color: "inherit" }}>
                   <Paper elevation={0} sx={{ p: { xs: 2, md: 2.5 }, border: 1, borderColor: "divider", borderLeft: 4, borderLeftColor: "primary.main", transition: "border-color 0.15s", "&:hover": { borderColor: "primary.main" } }}>
                     <Typography variant="subtitle1" component="h3" fontWeight={600} sx={{ mb: 1, fontSize: { xs: "0.95rem", md: "1.05rem" }, "&:hover": { color: "primary.main" } }}>
                       {tender.title}

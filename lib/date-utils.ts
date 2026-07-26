@@ -25,6 +25,7 @@ export function deadlineLabel(value: string | Date | null | undefined): string |
   if (distance < 0) return `abgelaufen vor ${Math.abs(distance)} Tagen`;
   if (distance === 0) return "heute";
   if (distance === 1) return "morgen";
+  if (distance === 2) return "übermorgen";
   return `in ${distance} Tagen`;
 }
 

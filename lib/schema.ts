@@ -24,6 +24,7 @@ export const tenders = pgTable(
     sourceKey: text("source_key"),
     url: text("url").notNull(),
     title: text("title"),
+    slug: text("slug"),
     externalId: text("external_id"),
     rawText: text("raw_text"),
     metadataJson: jsonb("metadata_json"),
@@ -51,7 +52,84 @@ export const tenders = pgTable(
     index("idx_tenders_deadline").on(table.deadlineAt),
     index("idx_tenders_content_fingerprint").on(table.contentFingerprint),
     index("idx_tenders_contract_value").on(table.contractValueMax),
+    index("idx_tenders_slug").on(table.slug),
   ]
+);
+
+// US opportunities intentionally use a separate table so the established German
+// procurement, SEO, and scoring flows remain isolated.
+export const usTenders = pgTable(
+  "us_tenders",
+  {
+    id: serial("id").primaryKey(),
+    source: text("source").notNull(),
+    sourceKey: text("source_key"),
+    url: text("url").notNull(),
+    title: text("title").notNull(),
+    externalId: text("external_id"),
+    description: text("description"),
+    buyer: text("buyer"),
+    location: text("location"),
+    state: text("state"),
+    solicitationNumber: text("solicitation_number"),
+    naicsCodesJson: jsonb("naics_codes_json").notNull().default([]),
+    pscCodesJson: jsonb("psc_codes_json").notNull().default([]),
+    setAside: text("set_aside"),
+    contractType: text("contract_type"),
+    currency: text("currency").notNull().default("USD"),
+    category: text("category"),
+    deadlineAt: timestamp("deadline_at", { withTimezone: true }),
+    metadataJson: jsonb("metadata_json").notNull().default({}),
+    qualityStatus: text("quality_status").notNull().default("qualified"),
+    qualityReason: text("quality_reason"),
+    version: integer("version").notNull().default(1),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull().defaultNow(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("idx_us_tenders_source_url").on(table.source, table.url),
+    index("idx_us_tenders_source_external").on(table.source, table.externalId),
+    index("idx_us_tenders_deadline").on(table.deadlineAt),
+    index("idx_us_tenders_state").on(table.state),
+    index("idx_us_tenders_quality_status").on(table.qualityStatus),
+    index("idx_us_tenders_category").on(table.category),
+  ]
+);
+
+export const usAlertSubscriptions = pgTable(
+  "us_alert_subscriptions",
+  {
+    id: serial("id").primaryKey(),
+    email: text("email").notNull(),
+    filtersJson: jsonb("filters_json").notNull().default({}),
+    confirmToken: text("confirm_token").notNull(),
+    confirmed: boolean("confirmed").notNull().default(false),
+    lastNotifiedAt: timestamp("last_notified_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("idx_us_alert_subscriptions_email_filters").on(table.email, table.filtersJson),
+  ]
+);
+
+export const usSourceRuns = pgTable(
+  "us_source_runs",
+  {
+    id: serial("id").primaryKey(),
+    source: text("source").notNull(),
+    status: text("status").notNull(),
+    discoveredCount: integer("discovered_count").notNull().default(0),
+    acceptedCount: integer("accepted_count").notNull().default(0),
+    insertedCount: integer("inserted_count").notNull().default(0),
+    updatedCount: integer("updated_count").notNull().default(0),
+    errorMessage: text("error_message"),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("idx_us_source_runs_source_finished").on(table.source, table.finishedAt)]
 );
 
 export const documents = pgTable(
@@ -108,6 +186,12 @@ export const companyProfiles = pgTable(
     certificationsJson: jsonb("certifications_json").notNull(),
     teamSize: integer("team_size"),
     regionsJson: jsonb("regions_json").notNull(),
+    marketsJson: jsonb("markets_json").notNull().default([]),
+    naicsCodesJson: jsonb("naics_codes_json").notNull().default([]),
+    pscCodesJson: jsonb("psc_codes_json").notNull().default([]),
+    uei: text("uei"),
+    cageCode: text("cage_code"),
+    socioEconomicJson: jsonb("socio_economic_json").notNull().default([]),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -280,6 +364,10 @@ export const apiJobs = pgTable(
 
 export type Tender = typeof tenders.$inferSelect;
 export type NewTender = typeof tenders.$inferInsert;
+export type UsTender = typeof usTenders.$inferSelect;
+export type NewUsTender = typeof usTenders.$inferInsert;
+export type UsSourceRun = typeof usSourceRuns.$inferSelect;
+export type UsAlertSubscription = typeof usAlertSubscriptions.$inferSelect;
 export type Document = typeof documents.$inferSelect;
 export type NewDocument = typeof documents.$inferInsert;
 export type StructuredData = typeof structuredData.$inferSelect;

@@ -106,6 +106,7 @@ export default async function ProcedureTypePage({ params, searchParams }: PagePr
         source: tenders.source,
         deadlineAt: tenders.deadlineAt,
         metadataJson: tenders.metadataJson,
+        slug: tenders.slug,
       })
       .from(tenders)
       .where(
@@ -134,7 +135,7 @@ export default async function ProcedureTypePage({ params, searchParams }: PagePr
           : null,
         location: typeof meta.location === "string" ? meta.location.split(",")[0].trim().slice(0, 60) : null,
         client: typeof meta.client === "string" ? meta.client.slice(0, 80) : null,
-        slug: generateTenderSlug(row.title ?? "", rawLocation),
+        slug: row.slug ?? generateTenderSlug(row.title ?? "", rawLocation),
       };
     });
   } catch {

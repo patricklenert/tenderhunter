@@ -27,6 +27,87 @@ const normalizeUrl = (url: string): string => {
   }
 };
 
+const equivalentSchemeUrl = (url: string): string =>
+  url.startsWith("https://") ? `http://${url.slice("https://".length)}` : `https://${url.slice("http://".length)}`;
+
+interface StoredCompanyProfile {
+  id: number;
+  name: string;
+  slug: string | null;
+  websiteUrl: string | null;
+  description: string | null;
+  industry: string | null;
+  logoUrl: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  address: string | null;
+  capabilitiesJson: unknown;
+  certificationsJson: unknown;
+  teamSize: number | null;
+  regionsJson: unknown;
+  updatedAt: Date;
+}
+
+const stringArray = (value: unknown): string[] =>
+  Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0) : [];
+
+const profileNeedsRefresh = (profile: StoredCompanyProfile): boolean => {
+  const hasCapabilities = stringArray(profile.capabilitiesJson).length > 0;
+  const hasRegions = stringArray(profile.regionsJson).length > 0;
+  const isStale = Date.now() - new Date(profile.updatedAt).getTime() > 30 * 24 * 60 * 60 * 1000;
+  return !hasCapabilities || !hasRegions || !profile.industry || isStale;
+};
+
+const toCompanyRow = (profile: StoredCompanyProfile): CompanyRow => ({
+  capabilities_json: JSON.stringify(stringArray(profile.capabilitiesJson)),
+  certifications_json: JSON.stringify(stringArray(profile.certificationsJson)),
+  regions_json: JSON.stringify(stringArray(profile.regionsJson)),
+  team_size: profile.teamSize,
+  industry: profile.industry,
+});
+
+async function refreshCompanyProfile(
+  current: StoredCompanyProfile,
+  websiteUrl: string,
+): Promise<StoredCompanyProfile> {
+  const scraped = await scrapeWebsite(websiteUrl);
+  if (!scraped.markdown || scraped.markdown.trim().length < 50) {
+    throw new Error("Website lieferte zu wenig Inhalt für die Profilaktualisierung.");
+  }
+
+  const canonicalUrl = normalizeUrl(scraped.url);
+  const extracted = await extractCompanyProfile(`${scraped.html}\n${scraped.markdown}`, canonicalUrl);
+  const capabilities = extracted.capabilities.length > 0 ? extracted.capabilities : stringArray(current.capabilitiesJson);
+  const certifications = extracted.certifications.length > 0 ? extracted.certifications : stringArray(current.certificationsJson);
+  const regions = extracted.regions.length > 0 ? extracted.regions : stringArray(current.regionsJson);
+  const merged = {
+    websiteUrl: canonicalUrl,
+    description: extracted.description || current.description,
+    industry: extracted.industry || current.industry,
+    logoUrl: extracted.logo_url || current.logoUrl,
+    contactEmail: extracted.contact_email || current.contactEmail,
+    contactPhone: extracted.contact_phone || current.contactPhone,
+    address: extracted.address || current.address,
+    capabilitiesJson: capabilities,
+    certificationsJson: certifications,
+    teamSize: extracted.team_size ?? current.teamSize,
+    regionsJson: regions,
+    updatedAt: new Date(),
+  };
+
+  await db.update(companyProfiles).set(merged).where(eq(companyProfiles.id, current.id));
+  return { ...current, ...merged };
+}
+
+const findCompanyProfileByUrl = async (url: string) => {
+  const alternateUrl = equivalentSchemeUrl(url);
+  return db
+    .select()
+    .from(companyProfiles)
+    .where(or(eq(companyProfiles.websiteUrl, url), eq(companyProfiles.websiteUrl, alternateUrl)))
+    .limit(1);
+};
+
 interface TenderResult {
   id: number;
   title: string;
@@ -43,23 +124,29 @@ async function runAnalysis(jobId: number, url: string) {
   try {
     const normalizedUrl = normalizeUrl(url);
 
-    const existingProfile = await db
-      .select({ id: companyProfiles.id, name: companyProfiles.name, slug: companyProfiles.slug })
-      .from(companyProfiles)
-      .where(eq(companyProfiles.websiteUrl, normalizedUrl))
-      .limit(1);
+    const existingProfile = await findCompanyProfileByUrl(normalizedUrl);
 
     let companyId: number;
     let companyName: string;
     let companySlug: string;
 
     if (existingProfile.length > 0) {
-      companyId = existingProfile[0].id;
-      companyName = existingProfile[0].name;
-      companySlug = existingProfile[0].slug ?? generateSlug(companyName);
-      if (!existingProfile[0].slug) {
+      let profile = existingProfile[0] as StoredCompanyProfile;
+      companyId = profile.id;
+      companyName = profile.name;
+      companySlug = profile.slug ?? generateSlug(companyName);
+      if (!profile.slug) {
         await db.update(companyProfiles).set({ slug: companySlug }).where(eq(companyProfiles.id, companyId));
       }
+      if (profileNeedsRefresh(profile)) {
+        try {
+          profile = await refreshCompanyProfile(profile, normalizedUrl);
+          console.log(`[api/v1/analyze] Profil aktualisiert: ${profile.name}`);
+        } catch (refreshError) {
+          console.warn(`[api/v1/analyze] Profilaktualisierung fehlgeschlagen, verwende bestehenden Stand:`, refreshError);
+        }
+      }
+      await scoreAllTenders(companyId, toCompanyRow(profile));
     } else {
       const scraped = await scrapeWebsite(normalizedUrl);
       if (!scraped.markdown || scraped.markdown.trim().length < 50) {
@@ -92,7 +179,7 @@ async function runAnalysis(jobId: number, url: string) {
         }
       }
 
-      const profile = await extractCompanyProfile(scraped.markdown, canonicalUrl);
+      const profile = await extractCompanyProfile(`${scraped.html}\n${scraped.markdown}`, canonicalUrl);
       const slug = generateSlug(profile.name);
 
       const existingByName = await db
@@ -314,11 +401,7 @@ export async function POST(request: Request): Promise<Response> {
 
   const normalizedUrl = normalizeUrl(parsedUrl.toString());
 
-  const existingProfile = await db
-    .select({ id: companyProfiles.id, name: companyProfiles.name, slug: companyProfiles.slug })
-    .from(companyProfiles)
-    .where(eq(companyProfiles.websiteUrl, normalizedUrl))
-    .limit(1);
+  const existingProfile = await findCompanyProfileByUrl(normalizedUrl);
 
   if (existingProfile.length > 0) {
     const existing = existingProfile[0];
@@ -328,7 +411,17 @@ export async function POST(request: Request): Promise<Response> {
       await db.update(companyProfiles).set({ slug }).where(eq(companyProfiles.id, existing.id));
     }
 
-    let topTenders = await getTopTenders(existing.id);
+    if (profileNeedsRefresh(existing as StoredCompanyProfile)) {
+      const jobResult = await db.insert(apiJobs).values({
+        companyUrl: normalizedUrl, status: "processing", companyId: existing.id,
+      }).returning({ id: apiJobs.id });
+
+      const jobId = jobResult[0].id;
+      setTimeout(() => runAnalysis(jobId, normalizedUrl), 0);
+      return Response.json({ jobId, status: "processing" });
+    }
+
+    const topTenders = await getTopTenders(existing.id);
 
     if (topTenders.length === 0) {
       const jobResult = await db.insert(apiJobs).values({

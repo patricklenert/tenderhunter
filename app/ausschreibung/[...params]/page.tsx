@@ -23,8 +23,11 @@ import {
   Clock,
   Briefcase,
   ChevronRight,
+  AlertCircle,
+  CheckCircle2,
 } from "lucide-react";
 import { cleanDescription } from "@/lib/public-tender-scraper";
+import { looksMangled } from "@/lib/structurer";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 import { deriveBundesland, deriveCity, BUNDESLAND_SLUGS } from "@/lib/bundesland";
 import { CITY_SLUG_MAP } from "@/lib/cities";
@@ -56,7 +59,7 @@ export async function generateStaticParams() {
   try {
     const now = new Date();
     const rows = await db
-      .select({ id: tenders.id, title: tenders.title, metadataJson: tenders.metadataJson })
+      .select({ id: tenders.id, slug: tenders.slug, title: tenders.title, metadataJson: tenders.metadataJson })
       .from(tenders)
       .where(
         and(
@@ -69,7 +72,8 @@ export async function generateStaticParams() {
         ? row.metadataJson
         : {}) as Record<string, unknown>;
       const location = typeof meta.location === "string" ? meta.location : "";
-      const slug = generateTenderSlug(row.title ?? "", location);
+      // Prefer persisted DB slug, fall back to live computation (covers legacy rows during rollout)
+      const slug = row.slug ?? generateTenderSlug(row.title ?? "", location);
       return { params: [String(row.id), slug] };
     });
   } catch {
@@ -85,15 +89,17 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const rows = await db
     .select({
       title: tenders.title,
+      slug: tenders.slug,
       category: tenders.category,
       source: tenders.source,
       deadlineAt: tenders.deadlineAt,
       createdAt: tenders.createdAt,
       updatedAt: tenders.updatedAt,
       metadataJson: tenders.metadataJson,
+      qualityStatus: tenders.qualityStatus,
     })
     .from(tenders)
-    .where(and(eq(tenders.id, numericId), inArray(tenders.qualityStatus, ["qualified", "candidate"])))
+    .where(eq(tenders.id, numericId))
     .limit(1);
 
   if (rows.length === 0) return { title: "Ausschreibung nicht gefunden", robots: { index: false, follow: true } };
@@ -117,15 +123,14 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const descParts = [client, location, deadline].filter(Boolean).join(", ");
   const description = `${rawTitle}. ${descParts ? descParts + ". " : ""}Öffentliche Ausschreibung aus ${row.source}. Alle Details, Anforderungen und Fristen.`;
 
-  const isExpired = row.deadlineAt && new Date(row.deadlineAt) < new Date();
-  const expectedSlug = generateTenderSlug(rawTitle, location);
+  // Canonical slug: prefer persisted DB slug, fall back to live computation for legacy rows
+  const expectedSlug = row.slug ?? generateTenderSlug(rawTitle, location);
   const canonicalSlug = slug || expectedSlug;
 
   return {
     title,
     description,
     alternates: { canonical: `/ausschreibung/${id}/${canonicalSlug}`, languages: { "de-DE": `/ausschreibung/${id}/${canonicalSlug}` } },
-    robots: isExpired ? { index: false, follow: true } : undefined,
     openGraph: {
       title,
       description,
@@ -147,7 +152,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
     .select()
     .from(tenders)
     .leftJoin(structuredData, eq(structuredData.tenderId, tenders.id))
-    .where(and(eq(tenders.id, numericId), inArray(tenders.qualityStatus, ["qualified", "candidate"])))
+    .where(eq(tenders.id, numericId))
     .limit(1);
 
   if (rows.length === 0) notFound();
@@ -156,12 +161,10 @@ export default async function TenderDetailPage({ params }: PageProps) {
   const tender = row.tenders;
   const sd = row.structured_data;
 
-  // SEO: Redirect expired tenders to category page to free crawl budget
-  const isExpired = tender.deadlineAt && new Date(tender.deadlineAt) < new Date();
-  if (isExpired) {
-    const catSlug = CATEGORY_SLUGS[tender.category ?? "Sonstiges"] ?? "diverse";
-    redirect(`/ausschreibungen/${catSlug}`);
-  }
+  // Status-Page statt Redirect: expired/rejected Tenders bleiben indexable,
+  // erhalten aber einen prominenten Status-Banner und Cross-Links zu aktiven Tenders.
+  const isExpired = Boolean(tender.deadlineAt && new Date(tender.deadlineAt) < new Date());
+  const isRejected = tender.qualityStatus === "rejected" || tender.qualityStatus === "duplicate";
 
   const meta = (typeof tender.metadataJson === "object" && tender.metadataJson !== null
     ? tender.metadataJson
@@ -173,23 +176,50 @@ export default async function TenderDetailPage({ params }: PageProps) {
   const categoryLabel = CATEGORY_LABELS[tender.category ?? "Sonstiges"] ?? tender.category ?? "Diverse Leistungen";
   const categorySlug = CATEGORY_SLUGS[tender.category ?? "Sonstiges"] ?? "diverse";
 
+  // Pick the first non-empty candidate that does not look like mangled text
+  // (HTML→text conversion that lost whitespace between block elements produces
+  // labels glued to values, e.g. "HüpstedtVergabeartBeschränkte..."). This guard
+  // prevents the duplicate mangled caption that previously appeared in Key Facts
+  // and Beschreibung.
+  const pickFirstClean = (...candidates: Array<unknown>): string => {
+    for (const c of candidates) {
+      const v = String(c ?? "").trim();
+      if (v.length === 0) continue;
+      if (looksMangled(v)) continue;
+      return v;
+    }
+    return "";
+  };
+
+  // Description: prefer the LLM-extracted `meta.description` (clean prose) over
+  // `blob.summary` (which historically echoed `rawText.slice(0, 3000)`).
   const description = cleanDescription(
-    String(blob?.description ?? blob?.summary ?? meta.description ?? tender.rawText ?? "").trim(),
+    pickFirstClean(blob?.description, meta.description, blob?.summary, tender.rawText),
   );
   const scope = String(blob?.scope ?? "").trim();
   const hardFacts = (blob?.hard_facts ?? {}) as Record<string, unknown>;
-  const client = String(
-    blob?.client ?? (typeof hardFacts.buyer === "string" ? hardFacts.buyer : null) ?? meta.client ?? ""
-  ).replace(/^\/\s*/, "").replace(/Ausschreibende[rn]?\s*Stelle\s*/i, "").replace(/\s+Ausschreibungs-?\s*$/, "").trim();
-  const location = String(blob?.location ?? (typeof hardFacts.location === "string" ? hardFacts.location : null) ?? meta.location ?? "").trim();
+  const client = pickFirstClean(
+    blob?.client,
+    typeof hardFacts.buyer === "string" ? hardFacts.buyer : null,
+    meta.client,
+  )
+    .replace(/^\/\s*/, "")
+    .replace(/Ausschreibende[rn]?\s*Stelle\s*/i, "")
+    .replace(/\s+Ausschreibungs-?\s*$/, "")
+    .trim();
+  const location = pickFirstClean(
+    blob?.location,
+    typeof hardFacts.location === "string" ? hardFacts.location : null,
+    meta.location,
+  );
   const contactInfo = String(blob?.contact ?? "").trim();
   const estimatedValue = String(blob?.estimatedValue ?? "").trim();
   const referenceNumber = String(blob?.referenceNumber ?? "").trim();
   const procedure = String(blob?.procedure ?? tender.procedureType ?? "").trim();
   const duration = String(blob?.duration ?? "").trim();
 
-  // SEO: Generate slug and redirect if URL lacks slug or has wrong slug
-  const expectedSlug = generateTenderSlug(title, location);
+  // SEO: Canonical slug from DB (stable, never drifts). Fallback to live computation for legacy rows.
+  const expectedSlug = tender.slug ?? generateTenderSlug(title, typeof meta.location === "string" ? meta.location.split(",")[0] : "");
   if (!slug || slug !== expectedSlug) {
     redirect(`/ausschreibung/${tender.id}/${expectedSlug}`);
   }
@@ -224,6 +254,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
   const similarRows = await db
     .select({
       id: tenders.id,
+      slug: tenders.slug,
       title: tenders.title,
       category: tenders.category,
       source: tenders.source,
@@ -247,7 +278,8 @@ export default async function TenderDetailPage({ params }: PageProps) {
       ? t.metadataJson
       : {}) as Record<string, unknown>;
     const tLocation = typeof m.location === "string" ? m.location : "";
-    const tSlug = generateTenderSlug(t.title ?? "", tLocation);
+    // Use DB slug with fallback for similar tenders cross-links
+    const tSlug = t.slug ?? generateTenderSlug(t.title ?? "", tLocation);
     return {
       id: t.id,
       slug: tSlug,
@@ -450,6 +482,59 @@ export default async function TenderDetailPage({ params }: PageProps) {
           >
             {title}
           </Typography>
+
+          {/* Status Banner — replaces redirect/noindex for expired or rejected tenders */}
+          {(isExpired || isRejected) && (
+            <Box
+              sx={{
+                mb: 3,
+                p: 2,
+                borderRadius: 2,
+                bgcolor: isRejected ? "#fef2f2" : "#fffbeb",
+                border: 1,
+                borderColor: isRejected ? "#fecaca" : "#fde68a",
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 1.5,
+              }}
+            >
+              <AlertCircle
+                size={20}
+                color={isRejected ? "#dc2626" : "#d97706"}
+                style={{ flexShrink: 0, marginTop: 2 }}
+              />
+              <Box sx={{ flex: 1 }}>
+                <Typography sx={{ fontWeight: 600, color: isRejected ? "#991b1b" : "#92400e", mb: 0.5 }}>
+                  {isRejected
+                    ? "Verfahrensinformation nicht abschließend bewertet"
+                    : "Angebotsfrist abgelaufen"}
+                </Typography>
+                <Typography variant="body2" sx={{ color: isRejected ? "#7f1d1d" : "#78350f", lineHeight: 1.6 }}>
+                  {isRejected
+                    ? "Diese Ausschreibung wurde aus dem qualifizierten Bestand entfernt. Die Originaldaten sind aus Gründen der Transparenz weiterhin verfügbar."
+                    : `Diese Ausschreibung endete am ${deadline ?? "unbekanntem Datum"}. Die nachstehenden Angaben dienen als Archiv — aktuelle Vergaben finden Sie unten auf dieser Seite.`}
+                </Typography>
+                {categorySlug && (
+                  <Link
+                    href={`/ausschreibungen/${categorySlug}`}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                      marginTop: 8,
+                      color: isRejected ? "#dc2626" : "#d97706",
+                      textDecoration: "none",
+                      fontWeight: 600,
+                      fontSize: "0.875rem",
+                    }}
+                  >
+                    Aktuelle {categoryLabel}-Ausschreibungen ansehen
+                    <ArrowRight size={14} />
+                  </Link>
+                )}
+              </Box>
+            </Box>
+          )}
 
           {/* Key Facts - compact metadata line */}
           <Box sx={{ mb: 1.5 }}>

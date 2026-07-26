@@ -35,6 +35,7 @@ export async function HomeSeoContent() {
       category: tenders.category,
       deadlineAt: tenders.deadlineAt,
       metadataJson: tenders.metadataJson,
+      slug: tenders.slug,
     })
     .from(tenders)
     .where(
@@ -60,7 +61,7 @@ export async function HomeSeoContent() {
         ? new Date(row.deadlineAt).toLocaleDateString("de-DE", { day: "2-digit", month: "short", year: "numeric" })
         : null,
       location: typeof meta.location === "string" ? meta.location.split(",")[0].trim().slice(0, 60) : null,
-      slug: generateTenderSlug(row.title ?? "", typeof meta.location === "string" ? meta.location : ""),
+      slug: row.slug ?? generateTenderSlug(row.title ?? "", typeof meta.location === "string" ? meta.location : ""),
     };
   });
 

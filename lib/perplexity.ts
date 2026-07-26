@@ -11,6 +11,7 @@ function getClient(): OpenAI {
     client = new OpenAI({
       apiKey,
       baseURL: "https://openrouter.ai/api/v1",
+      timeout: 15_000,
     });
   }
   return client;
@@ -56,11 +57,85 @@ function extractLogoUrl(html: string, baseUrl: string): string | null {
   }
 }
 
+const metaContent = (html: string, key: string): string => {
+  const tags = html.match(/<meta\b[^>]*>/gi) ?? [];
+  for (const tag of tags) {
+    const keyMatch = tag.match(/(?:name|property)=["']([^"']+)["']/i);
+    if (keyMatch?.[1].toLowerCase() !== key.toLowerCase()) continue;
+    const contentMatch = tag.match(/content=["']([^"']*)["']/i);
+    if (contentMatch?.[1]) return contentMatch[1];
+  }
+  return "";
+};
+
+const fallbackCompanyProfile = (websiteContent: string, url: string): CompanyProfile => {
+  const title = websiteContent.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]?.trim() ?? "";
+  const description = metaContent(websiteContent, "description");
+  const keywords = metaContent(websiteContent, "keywords");
+  const plainText = `${title} ${description} ${keywords} ${websiteContent.replace(/<[^>]+>/g, " ")}`.toLowerCase();
+  const capabilityRules: Array<[RegExp, string]> = [
+    [/garten|galabau|landschaftsbau/, "Garten- und Landschaftsbau"],
+    [/pflaster/, "Pflasterarbeiten"],
+    [/zaun/, "Zaunbau"],
+    [/mutterboden|sandstein|mauer|teich/, "Außenanlagen und Naturstein"],
+    [/brennholz|mischholz/, "Brennholz und Holzhandel"],
+    [/transport|lkw|logistik/, "Transporte"],
+    [/reinigung|gebäudereinigung/, "Gebäudereinigung"],
+    [/software|it-dienst|programmierung|webentwicklung/, "IT-Dienstleistungen"],
+    [/bauunternehmen|hochbau|tiefbau|bauarbeiten/, "Bauleistungen"],
+  ];
+  const capabilities = capabilityRules
+    .filter(([pattern]) => pattern.test(plainText))
+    .map(([, label]) => label);
+
+  let industry: string | null = null;
+  if (/garten|galabau|landschaftsbau/.test(plainText)) industry = "Garten- und Landschaftsbau";
+  else if (/reinigung/.test(plainText)) industry = "Gebäudereinigung";
+  else if (/software|it-dienst|programmierung|webentwicklung/.test(plainText)) industry = "IT-Dienstleistungen";
+  else if (/bauunternehmen|hochbau|tiefbau|bauarbeiten/.test(plainText)) industry = "Bauleistungen";
+
+  const regions = ["Deutschland"];
+  const stateRules: Array<[RegExp, string]> = [
+    [/rheinland[- ]?pfalz|pirmasens|kaiserslautern/, "Rheinland-Pfalz"],
+    [/bayern|münchen|muenchen|regensburg/, "Bayern"],
+    [/baden[- ]?württemberg|stuttgart|karlsruhe/, "Baden-Württemberg"],
+    [/nordrhein[- ]?westfalen|köln|koeln|düsseldorf|duesseldorf/, "Nordrhein-Westfalen"],
+    [/berlin/, "Berlin"],
+    [/hamburg/, "Hamburg"],
+  ];
+  for (const [pattern, region] of stateRules) {
+    if (pattern.test(plainText)) regions.push(region);
+  }
+
+  let name = title.replace(/\s+/g, " ").trim();
+  if (!name) {
+    try {
+      name = new URL(url).hostname.replace(/^www\./, "").split(".")[0];
+    } catch {
+      name = "Unternehmen";
+    }
+  }
+
+  return {
+    name,
+    description: description || title,
+    capabilities,
+    certifications: [],
+    regions: [...new Set(regions)],
+    team_size: null,
+    industry,
+    contact_email: null,
+    contact_phone: null,
+    address: null,
+    logo_url: extractLogoUrl(websiteContent, url),
+  };
+};
+
 export async function extractCompanyProfile(
   websiteContent: string,
   url: string
 ): Promise<CompanyProfile> {
-  const perplexity = getClient();
+  const fallback = fallbackCompanyProfile(websiteContent, url);
 
   const systemPrompt = `Du bist ein Experte fuer die Analyse von Unternehmenswebsites.
 Extrahiere aus dem folgenden Website-Inhalt ein strukturiertes Firmenprofil.
@@ -87,21 +162,21 @@ ${websiteContent.substring(0, 12000)}
 
 Extrahiere das Firmenprofil als JSON.`;
 
-  const content = await callLLM(perplexity, {
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
-    ],
-    temperature: 0.1,
-    max_tokens: 2000,
-  });
-
-  const jsonMatch = content.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    throw new Error("Perplexity-Antwort enthaelt kein valides JSON.");
+  let parsed: Record<string, unknown> = {};
+  try {
+    const content = await callLLM(getClient(), {
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.1,
+      max_tokens: 2000,
+    });
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) parsed = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+  } catch (error) {
+    console.warn(`[company-profile] LLM fehlgeschlagen, verwende Website-Fallback:`, error);
   }
-
-  const parsed = JSON.parse(jsonMatch[0]);
 
   let logoUrl: string | null = null;
   if (typeof parsed.logo_url === "string" && parsed.logo_url.startsWith("http")) {
@@ -111,13 +186,19 @@ Extrahiere das Firmenprofil als JSON.`;
   }
 
   return {
-    name: typeof parsed.name === "string" ? parsed.name : "",
-    description: typeof parsed.description === "string" ? parsed.description : "",
-    capabilities: Array.isArray(parsed.capabilities) ? parsed.capabilities.filter((c: unknown) => typeof c === "string") : [],
-    certifications: Array.isArray(parsed.certifications) ? parsed.certifications.filter((c: unknown) => typeof c === "string") : [],
-    regions: Array.isArray(parsed.regions) ? parsed.regions.filter((r: unknown) => typeof r === "string") : ["Deutschland"],
-    team_size: typeof parsed.team_size === "number" ? parsed.team_size : null,
-    industry: typeof parsed.industry === "string" ? parsed.industry : null,
+    name: typeof parsed.name === "string" && parsed.name.trim() ? parsed.name : fallback.name,
+    description: typeof parsed.description === "string" && parsed.description.trim() ? parsed.description : fallback.description,
+    capabilities: Array.isArray(parsed.capabilities) && parsed.capabilities.length > 0
+      ? parsed.capabilities.filter((c: unknown) => typeof c === "string")
+      : fallback.capabilities,
+    certifications: Array.isArray(parsed.certifications) && parsed.certifications.length > 0
+      ? parsed.certifications.filter((c: unknown) => typeof c === "string")
+      : fallback.certifications,
+    regions: Array.isArray(parsed.regions) && parsed.regions.length > 0
+      ? parsed.regions.filter((r: unknown) => typeof r === "string")
+      : fallback.regions,
+    team_size: typeof parsed.team_size === "number" ? parsed.team_size : fallback.team_size,
+    industry: typeof parsed.industry === "string" && parsed.industry.trim() ? parsed.industry : fallback.industry,
     contact_email: typeof parsed.contact_email === "string" ? parsed.contact_email : null,
     contact_phone: typeof parsed.contact_phone === "string" ? parsed.contact_phone : null,
     address: typeof parsed.address === "string" ? parsed.address : null,

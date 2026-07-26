@@ -26,6 +26,12 @@ export async function POST(request: Request): Promise<Response> {
         certificationsJson: payload.certifications,
         teamSize: payload.team_size ?? null,
         regionsJson: payload.regions,
+        marketsJson: payload.markets,
+        naicsCodesJson: payload.naics_codes,
+        pscCodesJson: payload.psc_codes,
+        uei: payload.uei ?? null,
+        cageCode: payload.cage_code ?? null,
+        socioEconomicJson: payload.socio_economic,
       })
       .onConflictDoUpdate({
         target: companyProfiles.name,
@@ -34,6 +40,12 @@ export async function POST(request: Request): Promise<Response> {
           certificationsJson: payload.certifications,
           teamSize: payload.team_size ?? null,
           regionsJson: payload.regions,
+          marketsJson: payload.markets,
+          naicsCodesJson: payload.naics_codes,
+          pscCodesJson: payload.psc_codes,
+          uei: payload.uei ?? null,
+          cageCode: payload.cage_code ?? null,
+          socioEconomicJson: payload.socio_economic,
           updatedAt: new Date(),
         },
       })

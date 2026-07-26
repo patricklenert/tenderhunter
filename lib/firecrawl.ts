@@ -67,26 +67,38 @@ function extractWithReadability(html: string, url: string): string {
   return "";
 }
 
-function htmlToBasicMarkdown(html: string): string {
+export function htmlToBasicMarkdown(html: string): string {
   return html
     // Strip script, style, svg, and noscript tags with their content first
     .replace(/<script[\s\S]*?<\/script>/gi, "")
     .replace(/<style[\s\S]*?<\/style>/gi, "")
     .replace(/<svg[\s\S]*?<\/svg>/gi, "")
     .replace(/<noscript[\s\S]*?<\/noscript>/gi, "")
+    // Headings: emit markdown-style prefix so labels and values do not glue together
     .replace(/<h[1-6][^>]*>/gi, "\n## ")
     .replace(/<\/h[1-6]>/gi, "\n")
+    // Paragraphs and breaks
     .replace(/<p[^>]*>/gi, "\n")
     .replace(/<\/p>/gi, "\n")
     .replace(/<br\s*\/?>/gi, "\n")
+    // List items
     .replace(/<li[^>]*>/gi, "\n- ")
+    // Block-level structural tags: ensure a newline at every open/close boundary
+    // (div, tr, dt, dd, ul, ol, table, section, article, header, footer, main, aside, etc.)
+    // Without this, cheerio's .text() glues labels and values together (Bug: mangled captions).
+    .replace(/<\/?(?:div|span|tr|td|th|dt|dd|ul|ol|tbody|thead|table|section|article|header|footer|main|aside|figure|figcaption|blockquote|address|fieldset|form|details|summary|dl|figure)[^>]*>/gi, "\n")
+    // Strip remaining tags
     .replace(/<[^>]+>/g, "")
+    // Decode common HTML entities
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&#\d+;/g, "")
     .replace(/&nbsp;/g, " ")
+    // Collapse runs of spaces/tabs (but preserve newlines) so wrapped lines stay readable
+    .replace(/[^\S\n]+/g, " ")
+    // Collapse 3+ newlines into one blank line
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
