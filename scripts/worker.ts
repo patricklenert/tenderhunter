@@ -4,13 +4,13 @@ import { enqueueJob, reapStaleJobs } from "@/lib/queue";
 import { serializeSourceItems } from "@/lib/tender-sources";
 import { JOB_CRAWL, JOB_SCRAPE_PUBLIC, JOB_SCRAPE_US } from "@/lib/types";
 import { db } from "@/lib/db";
-import { jobs } from "@/lib/schema";
+import { jobs, publicScrapeRuns } from "@/lib/schema";
 import { eq, desc, and, or } from "drizzle-orm";
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
-const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000;
 const US_SCHEDULE_CHECK_MS = 60 * 1000;
+const PUBLIC_SCHEDULE_CHECK_MS = 60 * 1000;
 
 const args = new Set(process.argv.slice(2));
 const runOnce = args.has("--once");
@@ -34,20 +34,20 @@ const shouldEnqueuePublicScrape = async (): Promise<boolean> => {
     return false;
   }
 
-  const lastJob = await db
-    .select({ createdAt: jobs.createdAt })
-    .from(jobs)
-    .where(eq(jobs.type, JOB_SCRAPE_PUBLIC))
-    .orderBy(desc(jobs.createdAt))
+  const lastRun = await db
+    .select({ finishedAt: publicScrapeRuns.finishedAt })
+    .from(publicScrapeRuns)
+    .where(eq(publicScrapeRuns.status, "success"))
+    .orderBy(desc(publicScrapeRuns.finishedAt))
     .limit(1);
 
-  if (lastJob.length === 0) {
+  if (lastRun.length === 0 || !lastRun[0].finishedAt) {
     console.log("[scheduler] Oeffentliche Ausschreibungen: noch kein Job vorhanden, starte ersten Scrape.");
     return true;
   }
 
-  const elapsed = Date.now() - lastJob[0].createdAt.getTime();
-  if (elapsed > TWO_DAYS_MS) {
+  const elapsed = Date.now() - lastRun[0].finishedAt.getTime();
+  if (elapsed > settings.publicScrapeIntervalHours * 60 * 60 * 1000) {
     console.log(`[scheduler] Oeffentliche Ausschreibungen: letzter Scrape vor ${Math.round(elapsed / 3600000)}h, starte neuen.`);
     return true;
   }
@@ -82,6 +82,18 @@ const enqueueUsScrapeIfDue = async (): Promise<void> => {
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown";
     console.error(`[scheduler] US scrape check failed: ${message}`);
+  }
+};
+
+const enqueuePublicScrapeIfDue = async (): Promise<void> => {
+  try {
+    if (await shouldEnqueuePublicScrape()) {
+      await enqueueJob(JOB_SCRAPE_PUBLIC, {}, { jobKey: JOB_SCRAPE_PUBLIC, priority: 150 });
+      console.log("[scheduler] scrape_public_tenders Job eingereiht.");
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "unbekannt";
+    console.error(`[scheduler] Public-Scrape Check fehlgeschlagen: ${message}`);
   }
 };
 
@@ -143,6 +155,7 @@ const run = async (): Promise<void> => {
   console.log(`Worker ${workerId} gestartet. Polling alle ${settings.workerPollSeconds}s.`);
   let reapCounter = 0;
   let lastUsScheduleCheckAt = Date.now();
+  let lastPublicScheduleCheckAt = Date.now();
   while (true) {
     // Reap stale jobs every 10 poll cycles (~30s with default 3s poll)
     if (++reapCounter >= 10) {
@@ -157,6 +170,11 @@ const run = async (): Promise<void> => {
     if (Date.now() - lastUsScheduleCheckAt >= US_SCHEDULE_CHECK_MS) {
       lastUsScheduleCheckAt = Date.now();
       await enqueueUsScrapeIfDue();
+    }
+
+    if (Date.now() - lastPublicScheduleCheckAt >= PUBLIC_SCHEDULE_CHECK_MS) {
+      lastPublicScheduleCheckAt = Date.now();
+      await enqueuePublicScrapeIfDue();
     }
 
     const result = await processNextJob(workerId);

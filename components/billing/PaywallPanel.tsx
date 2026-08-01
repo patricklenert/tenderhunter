@@ -8,7 +8,13 @@ interface PaywallPanelProps {
   description?: string;
 }
 
-export function PaywallPanel({ feature, title = "Mehr aus dieser Ausschreibung machen", description }: PaywallPanelProps) {
+export function PaywallPanel({ feature, title, description }: PaywallPanelProps) {
+  const isBidPack = feature === "Bid Pack";
+  const resolvedTitle = title ?? (isBidPack ? "Nicht nur lesen. Entscheidung vorbereiten." : "Mehr aus dieser Ausschreibung machen");
+  const resolvedDescription = description ?? (isBidPack
+    ? "Erhalte eine persönliche Go-/No-Go-Analyse, erkenne fehlende Anforderungen und erstelle die nächsten Aufgaben für dein Team."
+    : `${feature} ist im aktiven Billing-Plan enthalten. Starte mit $12 pro Woche oder $39 für 3 Monate.`);
+
   return (
     <Paper
       component="section"
@@ -38,10 +44,10 @@ export function PaywallPanel({ feature, title = "Mehr aus dieser Ausschreibung m
         </Box>
         <Box sx={{ flex: 1 }}>
           <Typography variant="subtitle1" fontWeight={700}>
-            {title}
+            {resolvedTitle}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35, maxWidth: 620 }}>
-            {description ?? `${feature} ist im aktiven Billing-Plan enthalten. Starte mit $12 pro Woche oder spare mit $79 pro Jahr.`}
+            {resolvedDescription}
           </Typography>
         </Box>
         <Button
@@ -51,7 +57,7 @@ export function PaywallPanel({ feature, title = "Mehr aus dieser Ausschreibung m
           endIcon={<ArrowRight size={16} />}
           sx={{ flexShrink: 0, alignSelf: { xs: "flex-start", sm: "center" } }}
         >
-          Pläne ansehen
+          {isBidPack ? "Bid Pack freischalten" : "Pläne ansehen"}
         </Button>
       </Stack>
     </Paper>

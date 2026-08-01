@@ -1,6 +1,6 @@
 import { json, errorResponse } from "@/lib/http";
 import { searchTenders } from "@/lib/meilisearch";
-import { formatDeadlineDE } from "@/lib/date-utils";
+import { formatDeadlineDE, getGermanLastThreeDaysUnixRange } from "@/lib/date-utils";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,14 +13,31 @@ export async function GET(request: Request): Promise<Response> {
     const city = url.searchParams.get("city");
     const limit = Math.min(Math.max(Number.parseInt(url.searchParams.get("limit") ?? "24", 10) || 24, 1), 30);
     const page = Math.max(Number.parseInt(url.searchParams.get("page") ?? "1", 10) || 1, 1);
-
-    const result = await searchTenders({
+    const todayNew = ["1", "true"].includes(url.searchParams.get("todayNew") ?? "");
+    const lastThreeDaysRange = getGermanLastThreeDaysUnixRange();
+    const baseSearchParams = {
       query,
       bundesland: bundesland || null,
       city: city || null,
       limit,
       page,
+    };
+
+    const result = await searchTenders({
+      ...baseSearchParams,
+      ...(todayNew
+        ? { firstSeenAtFrom: lastThreeDaysRange.from, firstSeenAtTo: lastThreeDaysRange.to }
+        : {}),
     });
+    const todayNewCount = todayNew
+      ? result.estimatedTotalHits
+      : (await searchTenders({
+          ...baseSearchParams,
+          firstSeenAtFrom: lastThreeDaysRange.from,
+          firstSeenAtTo: lastThreeDaysRange.to,
+          limit: 1,
+          page: 1,
+        })).estimatedTotalHits;
 
     const items = result.hits.map((hit) => ({
       id: hit.id,
@@ -43,6 +60,7 @@ export async function GET(request: Request): Promise<Response> {
     return json({
       items,
       total: result.estimatedTotalHits,
+      todayNewCount,
       processingTimeMs: result.processingTimeMs,
     });
   } catch (error) {

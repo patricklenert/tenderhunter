@@ -2,6 +2,9 @@
 
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Alert,
   Box,
   Button,
@@ -15,7 +18,7 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import { ArrowUpRight, Check, Crosshair, Download, Rocket, SlidersHorizontal } from "lucide-react";
+import { ArrowUpRight, Check, ChevronDown, Crosshair, Download, Rocket, SlidersHorizontal } from "lucide-react";
 import { TenderDetailDrawer, type FollowState, type TenderDetailItem } from "@/components/TenderDetailDrawer";
 import { CompanySelector, type UserCompany } from "@/components/CompanySelector";
 import { useSession } from "@/lib/auth-client";
@@ -87,6 +90,28 @@ interface DiscoverSession {
   sessionStartedAt: string;
   discoveryId?: string;
   cached?: boolean;
+}
+
+interface PreviewMatch {
+  rank: number;
+  tenderId: number;
+  title: string;
+  source: string;
+  url: string | null;
+  deadlineAt: string | null;
+  fit: number;
+  reason: string;
+}
+
+interface PreviewResponse {
+  preview: {
+    id: string;
+    status: "queued" | "processing" | "completed" | "failed" | "expired";
+    company: { name?: string; industry?: string | null; capabilities?: string[]; regions?: string[] } | null;
+    matches: PreviewMatch[];
+    errorCode: string | null;
+    expiresAt: string | null;
+  };
 }
 
 interface ResultData {
@@ -589,6 +614,9 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
   const [followStates, setFollowStates] = useState<Record<number, FollowState>>({});
   const [followErrors, setFollowErrors] = useState<Record<number, string>>({});
   const [showPremiumGate, setShowPremiumGate] = useState(false);
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const [preview, setPreview] = useState<PreviewResponse["preview"] | null>(null);
+  const [previewBusy, setPreviewBusy] = useState(false);
 
   const resultTenders = data?.matched ?? [];
   const filteredResultTenders = filterAndSortTenders(resultTenders, {
@@ -753,6 +781,49 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
   }, [session, state]);
 
   useEffect(() => {
+    const pendingUrl = window.sessionStorage.getItem("tenderhunter:pending-preview-url") ?? window.sessionStorage.getItem("tenderhunter:pending-discovery-url");
+    if (pendingUrl && authSession?.user) {
+      setUrl(pendingUrl);
+      window.sessionStorage.removeItem("tenderhunter:pending-preview-url");
+      window.sessionStorage.removeItem("tenderhunter:pending-discovery-url");
+    }
+  }, [authSession?.user]);
+
+  useEffect(() => {
+    if (!previewId) return;
+    let cancelled = false;
+    let timer: number | null = null;
+    let delay = 1200;
+    const startedAt = Date.now();
+    const poll = async () => {
+      try {
+        const response = await fetch(`/api/discover/preview/${previewId}`, { cache: "no-store" });
+        const payload = await response.json() as PreviewResponse & { error?: string };
+        if (!response.ok) throw new Error(payload.error ?? "Vorschau konnte nicht geladen werden.");
+        if (cancelled) return;
+        setPreview(payload.preview);
+        if (["completed", "failed", "expired"].includes(payload.preview.status)) {
+          setPreviewBusy(false);
+          return;
+        }
+        if (Date.now() - startedAt > 90_000) throw new Error("Die Vorschau dauert zu lange. Bitte später erneut versuchen.");
+        timer = window.setTimeout(poll, delay);
+        delay = Math.min(5000, delay * 1.5);
+      } catch (cause) {
+        if (!cancelled) {
+          setPreviewBusy(false);
+          setError(cause instanceof Error ? cause.message : "Vorschau konnte nicht geladen werden.");
+        }
+      }
+    };
+    void poll();
+    return () => {
+      cancelled = true;
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, [previewId]);
+
+  useEffect(() => {
     if (!selectedTender) return;
 
     const onKeyDown = (event: KeyboardEvent) => {
@@ -866,19 +937,43 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
     [busy],
   );
 
+  const startPreview = useCallback(async (inputUrl: string) => {
+    if (previewBusy || !inputUrl.trim()) return;
+    const normalized = /^https?:\/\//i.test(inputUrl.trim()) ? inputUrl.trim() : `https://${inputUrl.trim()}`;
+    setPreviewBusy(true);
+    setPreview(null);
+    setPreviewId(null);
+    setError(null);
+    try {
+      const response = await fetch("/api/discover/preview", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ url: normalized }),
+      });
+      const payload = await response.json() as { previewId?: string; error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Kostenlose Vorschau konnte nicht gestartet werden.");
+      if (!payload.previewId) throw new Error("Vorschau-ID fehlt.");
+      setPreviewId(payload.previewId);
+    } catch (cause) {
+      setPreviewBusy(false);
+      setError(cause instanceof Error ? cause.message : "Kostenlose Vorschau konnte nicht gestartet werden.");
+    }
+  }, [previewBusy]);
+
   const handleSubmit = useCallback(
     async (e: FormEvent) => {
       e.preventDefault();
       const trimmed = url.trim();
       if (!trimmed) return;
       if (!authSession?.user) {
+        window.sessionStorage.setItem("tenderhunter:pending-preview-url", trimmed);
         openAuth("login");
         return;
       }
       setUrl(trimmed.startsWith("http") ? trimmed : `https://${trimmed}`);
-      await startAnalysis(trimmed);
+      await startPreview(trimmed);
     },
-    [url, startAnalysis],
+    [url, startPreview, openAuth, authSession?.user],
   );
 
   const handleRestart = useCallback(() => {
@@ -894,9 +989,12 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
     setExportingFormat(null);
     setCurrentPage(1);
       setFollowStates({});
-      setFollowErrors({});
-      setShowPremiumGate(false);
-      setSteps(buildSteps());
+    setFollowErrors({});
+    setShowPremiumGate(false);
+    setPreviewId(null);
+    setPreview(null);
+    setPreviewBusy(false);
+    setSteps(buildSteps());
   }, []);
 
   const handleResetFilters = useCallback(() => {
@@ -958,6 +1056,11 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
     },
     [activeCompanyId],
   );
+
+  const handleBidPackCreated = useCallback(() => {
+    window.localStorage.setItem("tenderhunter:hasTrackedTenders", "true");
+    window.dispatchEvent(new CustomEvent("tenderhunter:tracked"));
+  }, []);
 
   const ensurePremiumAccess = useCallback(async (): Promise<boolean> => {
     try {
@@ -1114,109 +1217,219 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
 
   if (state === "setup") {
     return (
-      <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "center", minHeight: "70vh", pt: 4 }}>
-        <Box sx={{ width: "100%", maxWidth: 800 }}>
-          {showPremiumGate && (
-            <Box sx={{ mb: 3 }}>
-              <PaywallPanel
-                feature="KI-Analyse"
-                title="Deine Entscheidungshilfe freischalten"
-                description="Die Ausschreibungssuche bleibt offen. Billing schaltet KI-Analyse, Matching, Exporte und weitere Arbeitsaktionen frei."
-              />
-            </Box>
-          )}
-          <Box sx={{ textAlign: "center", mb: 5 }}>
-            <Box
-              sx={{
-                width: 56,
-                height: 56,
-                borderRadius: 4,
-                bgcolor: "primary.main",
-                opacity: 0.1,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                mx: "auto",
-                mb: 2.5,
-                color: "primary.main",
-              }}
-            >
-              <Crosshair size={28} />
-            </Box>
-            <Typography variant="h4" component="p" fontWeight={700} letterSpacing="-0.025em">
-              Tenderhunter
+      <Box sx={{ display: "flex", flexDirection: "column", gap: { xs: 3, md: 4 }, pb: { xs: 2, md: 4 } }}>
+        {showPremiumGate && (
+          <PaywallPanel
+            feature="KI-Analyse"
+            title="Ihre Entscheidungshilfe freischalten"
+            description="Die Ausschreibungssuche bleibt offen. Billing schaltet KI-Analyse, Matching, Exporte und weitere Arbeitsaktionen frei."
+          />
+        )}
+
+        <Box component="header" sx={{ maxWidth: "72ch" }}>
+          <Typography component="h1" fontWeight={600} letterSpacing="-0.025em" sx={{ fontSize: { xs: "1.875rem", sm: "2.125rem" }, lineHeight: 1.15 }}>
+            Unternehmensprofil analysieren
+          </Typography>
+          <Typography variant="body1" color="text.secondary" sx={{ mt: 1.25, fontSize: { xs: "0.95rem", sm: "1rem" }, lineHeight: 1.6 }}>
+            Geben Sie Ihre Unternehmenswebsite ein oder wählen Sie ein bestehendes Profil aus. Tenderhunter analysiert Ihre Leistungen und findet passende Ausschreibungen.
+          </Typography>
+        </Box>
+
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: "1fr",
+            "@media (min-width: 1350px)": {
+              gridTemplateColumns: "minmax(0, 1.2fr) minmax(24rem, 0.85fr)",
+            },
+            gap: { xs: 3, lg: 3 },
+            alignItems: "stretch",
+          }}
+        >
+          <Paper component="section" aria-labelledby="website-analysis-title" variant="outlined" sx={{ height: "100%", p: { xs: 2, sm: 3 }, borderRadius: 1.5 }}>
+            <Typography id="website-analysis-title" component="h2" fontWeight={600} sx={{ fontSize: { xs: "1.25rem", lg: "1.2rem" }, lineHeight: 1.3 }}>
+              Website analysieren
             </Typography>
-            <Typography variant="body1" color="text.secondary" sx={{ mt: 1 }}>
-              Automatisch passende Ausschreibungen finden.
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, maxWidth: "62ch", lineHeight: 1.55 }}>
+              Starten Sie mit einer kostenlosen Vorschau der drei passendsten Ausschreibungen für Ihr Unternehmen.
             </Typography>
-          </Box>
 
-          <Box component="form" onSubmit={handleSubmit} sx={{ display: "flex", flexDirection: "column", gap: 2.5, maxWidth: 560, mx: "auto" }}>
-            <TextField
-              id="company-url"
-              label="Unternehmens-Webseite"
-              type="text"
-              inputMode="url"
-              required
-              value={url}
-              onChange={(event) => setUrl(event.target.value)}
-              placeholder="https://www.dein-unternehmen.de"
-              disabled={busy}
-              autoFocus
-              fullWidth
-              size="medium"
-              sx={{
-                "& .MuiOutlinedInput-root": {
-                  borderRadius: 2.5,
-                  fontSize: "1.1rem",
-                },
-                "& .MuiInputLabel-root": {
-                  fontSize: "1.05rem",
-                },
-              }}
-            />
-            <Button
-              type="submit"
-              variant="contained"
-              disabled={busy || !url.trim()}
-              fullWidth
-              size="large"
-              startIcon={<Rocket size={22} />}
-              sx={{
-                textTransform: "none",
-                py: 2.25,
-                fontSize: "1.1rem",
-                fontWeight: 700,
-                borderRadius: 2.5,
-              }}
-            >
-              Analyse starten
-            </Button>
-          </Box>
-
-          {error ? (
-            <Alert severity="error" sx={{ mt: 3, maxWidth: 480, mx: "auto" }}>
-              {error}
-            </Alert>
-          ) : null}
-
-          {authSession?.user && (
-            <Box sx={{ mt: 4, maxWidth: 480, mx: "auto" }}>
-              <CompanySelector
-                onSelect={(company) => {
-                  if (company.websiteUrl) {
-                    setUrl(company.websiteUrl);
-                    startAnalysis(company.websiteUrl);
+            <Box component="form" onSubmit={handleSubmit} aria-busy={busy || previewBusy} sx={{ mt: 2.75 }}>
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "minmax(0, 1fr) auto" }, gap: 1.5, alignItems: "stretch" }}>
+                <TextField
+                  id="company-url"
+                  label="Ihre Unternehmenswebsite"
+                  type="text"
+                  inputMode="url"
+                  required
+                  value={url}
+                  onChange={(event) => setUrl(event.target.value)}
+                  placeholder="https://www.ihr-unternehmen.de"
+                  disabled={busy}
+                  autoFocus
+                  fullWidth
+                  size="medium"
+                  sx={{
+                    "& .MuiOutlinedInput-root": {
+                      minHeight: 52,
+                      fontSize: "1rem",
+                    },
+                  }}
+                />
+                <Button
+                  type="submit"
+                  variant="contained"
+                  disabled={busy || previewBusy || !url.trim()}
+                  startIcon={<Rocket size={18} aria-hidden="true" />}
+                  sx={{
+                    minWidth: { sm: 246 },
+                    minHeight: 52,
+                    px: 2.25,
+                    fontWeight: 700,
+                    whiteSpace: "nowrap",
+                    "&.Mui-disabled": {
+                      bgcolor: "primary.main",
+                      color: "primary.contrastText",
+                      opacity: 0.44,
+                    },
+                  }}
+                >
+                  Kostenlose Top-3-Vorschau
+                </Button>
+              </Box>
+              <Button
+                type="button"
+                variant="text"
+                disabled={busy || previewBusy}
+                onClick={() => {
+                  const trimmed = url.trim();
+                  if (!trimmed) {
+                    document.getElementById("company-url")?.focus();
+                    return;
                   }
+                  if (!authSession?.user) {
+                    window.sessionStorage.setItem("tenderhunter:pending-discovery-url", trimmed);
+                    openAuth("login");
+                    return;
+                  }
+                  void startAnalysis(trimmed);
                 }}
-                onNewAnalysis={() => {
-                  const input = document.getElementById("company-url") as HTMLInputElement | null;
-                  input?.focus();
+                sx={{
+                  mt: 1,
+                  px: 0,
+                  minHeight: 32,
+                  fontSize: "0.875rem",
+                  fontWeight: 600,
+                  color: "primary.dark",
+                  textDecoration: "underline",
+                  textUnderlineOffset: "3px",
+                  "&:hover": { bgcolor: "transparent", color: "primary.main", textDecoration: "underline" },
+                  "&.Mui-disabled": { color: "text.disabled" },
                 }}
-                activeCompanyId={activeCompanyId}
-              />
+              >
+                Vollständiges Unternehmensprofil analysieren
+              </Button>
             </Box>
+
+            <Box sx={{ mt: 2.75, p: 1.5, border: 1, borderColor: "divider", borderRadius: 1.5, bgcolor: "background.default" }}>
+              <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}>
+                <Box sx={{ width: 24, height: 24, borderRadius: "50%", display: "grid", placeItems: "center", flexShrink: 0, bgcolor: "rgba(233, 100, 77, 0.08)", color: "primary.dark" }}>
+                  <Check size={14} aria-hidden="true" />
+                </Box>
+                <Box sx={{ minWidth: 0, flex: 1 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.5 }}>
+                    Wir lesen ausschließlich öffentlich erreichbare Inhalte und nehmen keine Änderungen an Ihrer Website vor.
+                  </Typography>
+                  <Accordion disableGutters elevation={0} sx={{ bgcolor: "transparent", "&::before": { display: "none" } }}>
+                    <AccordionSummary expandIcon={<ChevronDown size={16} aria-hidden="true" />} sx={{ minHeight: 30, px: 0, "& .MuiAccordionSummary-content": { my: 0.5 } }}>
+                      <Typography variant="body2" color="primary.dark" sx={{ fontWeight: 600, fontSize: "0.8125rem" }}>
+                        Details anzeigen
+                      </Typography>
+                    </AccordionSummary>
+                    <AccordionDetails sx={{ px: 0, pt: 0, pb: 0.25 }}>
+                      <Typography variant="body2" color="text.secondary" sx={{ display: "block", fontSize: "0.8125rem", lineHeight: 1.6 }}>
+                        Wir greifen ohne Login und ausschließlich lesend auf die angegebene Website zu. Wir senden keine Formulare ab und verändern keine Inhalte. Ein Textauszug wird durch einen externen KI-Dienst verarbeitet; daraus abgeleitete Unternehmensprofil- und Matching-Daten werden gespeichert.
+                      </Typography>
+                    </AccordionDetails>
+                  </Accordion>
+                </Box>
+              </Box>
+            </Box>
+          </Paper>
+
+          {authSession?.user ? (
+            <CompanySelector
+              onSelect={(company) => {
+                if (company.websiteUrl) {
+                  setUrl(company.websiteUrl);
+                  void startPreview(company.websiteUrl);
+                }
+              }}
+              onNewAnalysis={() => {
+                const input = document.getElementById("company-url") as HTMLInputElement | null;
+                input?.focus();
+              }}
+              activeCompanyId={activeCompanyId}
+            />
+          ) : (
+            <Paper component="section" aria-labelledby="existing-profile-title" variant="outlined" sx={{ height: "100%", p: { xs: 2, sm: 3 }, borderRadius: 1.5 }}>
+              <Typography id="existing-profile-title" component="h2" fontWeight={600} sx={{ fontSize: { xs: "1.25rem", lg: "1.05rem" }, lineHeight: 1.3, letterSpacing: "-0.01em", whiteSpace: { lg: "nowrap" } }}>
+                Vorhandenes Unternehmensprofil auswählen
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, lineHeight: 1.55 }}>
+                Melden Sie sich an, um ein gespeichertes Profil für die Vorschau zu verwenden.
+              </Typography>
+            </Paper>
           )}
+        </Box>
+
+        <Box aria-live="polite">
+          {error ? <Alert severity="error">{error}</Alert> : null}
+          {previewBusy ? <Box role="status" sx={{ display: "flex", alignItems: "center", minHeight: 44, px: 1.5, border: 1, borderColor: "divider", borderRadius: 1.5, bgcolor: "background.paper" }}><Typography variant="body2">Wir prüfen Ihre Website und berechnen die drei stärksten Treffer.</Typography></Box> : null}
+          {preview && preview.status === "failed" ? <Alert severity="error">Die Vorschau konnte nicht erstellt werden. Bitte prüfen Sie die Website-URL und versuchen Sie es erneut.</Alert> : null}
+          {preview && preview.status === "expired" ? <Alert severity="info">Diese Vorschau ist abgelaufen. Starten Sie eine neue Prüfung für aktuelle Treffer.</Alert> : null}
+          {preview?.status === "completed" ? (
+            <Paper component="section" aria-labelledby="preview-title" variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
+              <Typography id="preview-title" component="h2" fontWeight={600} sx={{ fontSize: "1.125rem" }}>Ihre kostenlose Top-3-Vorschau</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                {preview.company?.name ?? "Unternehmen"}{preview.company?.industry ? ` · ${preview.company.industry}` : ""}
+              </Typography>
+              {preview.company?.capabilities?.length ? <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>Erkannt: {preview.company.capabilities.slice(0, 5).join(", ")}</Typography> : null}
+              <Box sx={{ mt: 2, border: 1, borderColor: "divider", borderRadius: 1.5, overflow: "hidden" }}>
+                {preview.matches.length === 0 ? <Typography variant="body2" color="text.secondary" sx={{ p: 1.5 }}>Aktuell wurde kein belastbarer Treffer erkannt.</Typography> : preview.matches.slice(0, 3).map((match, index) => (
+                  <Box key={match.tenderId} sx={{ p: 1.5, borderBottom: index < Math.min(preview.matches.length, 3) - 1 ? 1 : 0, borderColor: "divider" }}>
+                    <Typography variant="subtitle2" fontWeight={600}>{match.rank}. {match.title}</Typography>
+                    <Typography variant="caption" color="text.secondary">{match.source} · Passung {match.fit}%{match.deadlineAt ? ` · Frist ${new Date(match.deadlineAt).toLocaleDateString("de-DE")}` : ""}</Typography>
+                    <Typography variant="body2" sx={{ mt: 0.5 }}>{match.reason}</Typography>
+                  </Box>
+                ))}
+              </Box>
+              <Button variant="contained" onClick={() => setShowPremiumGate(true)} sx={{ mt: 2 }}>Alle Treffer und Bid Packs freischalten</Button>
+            </Paper>
+          ) : null}
+        </Box>
+
+        <Box component="section" aria-labelledby="analysis-process-title" sx={{ pt: { xs: 2.5, md: 3 }, borderTop: 1, borderColor: "divider" }}>
+          <Typography id="analysis-process-title" component="h2" variant="subtitle2" color="text.primary" sx={{ fontWeight: 700 }}>
+            Was nach der Eingabe passiert
+          </Typography>
+          <Box component="ol" sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" }, gap: { xs: 1.5, sm: 2.5 }, listStyle: "none", m: 0, mt: 1.25, p: 0 }}>
+            {[
+              ["Website-Inhalte lesen", "Öffentlich erreichbare Inhalte werden ausschließlich lesend erfasst."],
+              ["Unternehmensprofil erstellen", "Leistungen und relevante Merkmale werden strukturiert zusammengefasst."],
+              ["Passende Ausschreibungen ermitteln", "Tenderhunter vergleicht Ihr Profil mit verfügbaren Ausschreibungen."],
+            ].map(([title, description], index) => (
+              <Box component="li" key={title} sx={{ display: "grid", gridTemplateColumns: "28px minmax(0, 1fr)", gap: 1.25, alignItems: "start" }}>
+                <Box sx={{ width: 28, height: 28, borderRadius: "50%", display: "grid", placeItems: "center", bgcolor: "rgba(233, 100, 77, 0.08)", border: "1px solid", borderColor: "rgba(233, 100, 77, 0.22)", color: "primary.dark", fontSize: "0.75rem", fontWeight: 700 }}>
+                  {index + 1}
+                </Box>
+                <Box>
+                  <Typography variant="body2" fontWeight={700}>{title}</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ display: "block", mt: 0.25, fontSize: "0.8125rem", lineHeight: 1.5 }}>{description}</Typography>
+                </Box>
+              </Box>
+            ))}
+          </Box>
         </Box>
       </Box>
     );
@@ -1470,10 +1683,11 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
             tender={selectedTender}
             companyId={activeCompanyId}
             companyName={activeCompanyName}
-            followState={followStates[selectedTender.id] ?? "idle"}
-            followError={followErrors[selectedTender.id] ?? null}
-            onFollow={handlePursueTender}
-            onClose={() => setSelectedTender(null)}
+           followState={followStates[selectedTender.id] ?? "idle"}
+           followError={followErrors[selectedTender.id] ?? null}
+           onFollow={handlePursueTender}
+           onBidPackCreated={handleBidPackCreated}
+           onClose={() => setSelectedTender(null)}
           />
         ) : null}
       </>
@@ -1821,10 +2035,11 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
           tender={selectedTender}
           companyId={activeCompanyId}
           companyName={activeCompanyName}
-          followState={followStates[selectedTender.id] ?? "idle"}
-          followError={followErrors[selectedTender.id] ?? null}
-          onFollow={handlePursueTender}
-          onClose={() => setSelectedTender(null)}
+           followState={followStates[selectedTender.id] ?? "idle"}
+           followError={followErrors[selectedTender.id] ?? null}
+           onFollow={handlePursueTender}
+           onBidPackCreated={handleBidPackCreated}
+           onClose={() => setSelectedTender(null)}
         />
       ) : null}
     </>

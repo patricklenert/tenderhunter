@@ -1,5 +1,5 @@
-import { UsTendersSection } from "@/components/UsTendersSection";
+import { redirect } from "next/navigation";
 
 export default function UsOpportunitiesPage() {
-  return <UsTendersSection />;
+  redirect("/#us");
 }

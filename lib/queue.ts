@@ -14,6 +14,7 @@ type EnqueueOptions = {
   runAfter?: Date;
   jobKey?: string;
   groupKey?: string;
+  priority?: number;
 };
 
 export async function enqueueJob(
@@ -32,6 +33,7 @@ export async function enqueueJob(
       status: "pending",
       retries: 0,
       maxRetries,
+      priority: opts?.priority ?? 100,
       runAfter,
       jobKey: opts?.jobKey,
       groupKey: opts?.groupKey,
@@ -52,6 +54,13 @@ export async function enqueueJob(
     .limit(1);
 
   if (active.length === 0) {
+    const completed = await db
+      .select({ id: jobs.id })
+      .from(jobs)
+      .where(eq(jobs.jobKey, opts.jobKey))
+      .orderBy(sql`${jobs.id} DESC`)
+      .limit(1);
+    if (completed.length > 0) return completed[0].id;
     throw new Error(`Job ${jobType} mit Key ${opts.jobKey} konnte nicht eingereiht werden`);
   }
   return active[0].id;
@@ -68,7 +77,7 @@ export async function claimNextJob(workerId: string): Promise<Job | null> {
           lte(jobs.runAfter, new Date())
         )
       )
-      .orderBy(jobs.createdAt)
+      .orderBy(sql`${jobs.priority} DESC`, jobs.createdAt)
       .limit(1)
       .for("update", { skipLocked: true });
 

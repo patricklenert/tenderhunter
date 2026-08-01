@@ -1,4 +1,4 @@
-import { chromium, type Browser, type Page } from "playwright";
+import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import { Readability } from "@mozilla/readability";
 import { JSDOM } from "jsdom";
 
@@ -10,11 +10,37 @@ const BROWSER_ARGS = [
   "--disable-dev-shm-usage",
   "--disable-gpu",
 ];
+const BROWSER_IDLE_TIMEOUT_MS = 60_000;
 
 let browserInstance: Browser | null = null;
 let browserPromise: Promise<Browser> | null = null;
+let browserIdleTimer: NodeJS.Timeout | null = null;
+let activeContexts = 0;
+
+function clearBrowserIdleTimer(): void {
+  if (browserIdleTimer) {
+    clearTimeout(browserIdleTimer);
+    browserIdleTimer = null;
+  }
+}
+
+function scheduleBrowserShutdown(): void {
+  clearBrowserIdleTimer();
+  if (activeContexts > 0 || !browserInstance) return;
+
+  browserIdleTimer = setTimeout(() => {
+    browserIdleTimer = null;
+    if (activeContexts > 0 || !browserInstance) return;
+
+    const browser = browserInstance;
+    browserInstance = null;
+    void browser.close().catch(() => {});
+  }, BROWSER_IDLE_TIMEOUT_MS);
+  browserIdleTimer.unref();
+}
 
 async function getBrowser(): Promise<Browser> {
+  clearBrowserIdleTimer();
   // If a launch is already in flight, wait for it
   if (browserPromise) return browserPromise;
   // If we have a connected instance, use it
@@ -34,6 +60,7 @@ async function getBrowser(): Promise<Browser> {
         if (browserInstance === b) {
           browserInstance = null;
         }
+        clearBrowserIdleTimer();
       });
       return b;
     })
@@ -105,19 +132,31 @@ export function htmlToBasicMarkdown(html: string): string {
 
 export async function scrapeWebsite(
   url: string,
-  options?: { onlyMainContent?: boolean; waitForSelector?: string; waitMs?: number; waitUntil?: "load" | "domcontentloaded" | "networkidle" | "commit"; useBodyText?: boolean }
+  options?: { onlyMainContent?: boolean; waitForSelector?: string; waitMs?: number; waitUntil?: "load" | "domcontentloaded" | "networkidle" | "commit"; useBodyText?: boolean; requestUrlGuard?: (url: string) => boolean | Promise<boolean> }
 ): Promise<ScrapedPage> {
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const browser = await getBrowser();
-      const context = await browser.newContext({
-        userAgent:
-          "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        viewport: { width: 1280, height: 800 },
-      });
-      const page: Page = await context.newPage();
-
+      let context: BrowserContext | null = null;
       try {
+        context = await browser.newContext({
+          userAgent:
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+          viewport: { width: 1280, height: 800 },
+        });
+        activeContexts += 1;
+        const page: Page = await context.newPage();
+
+        if (options?.requestUrlGuard) {
+          await page.route("**/*", async (route) => {
+            const allowed = await options.requestUrlGuard?.(route.request().url());
+            if (allowed === false) {
+              await route.abort();
+            } else {
+              await route.continue();
+            }
+          });
+        }
         await page.goto(url, { waitUntil: options?.waitUntil ?? "domcontentloaded", timeout: 30000 });
 
         if (options?.waitForSelector) {
@@ -151,7 +190,11 @@ export async function scrapeWebsite(
 
         return { url: finalUrl, markdown, title, html };
       } finally {
-        await context.close().catch(() => {});
+        if (context) {
+          await context.close().catch(() => {});
+          activeContexts = Math.max(0, activeContexts - 1);
+        }
+        scheduleBrowserShutdown();
       }
     } catch (e) {
       if (attempt === 0 && String(e).includes("has been closed")) {

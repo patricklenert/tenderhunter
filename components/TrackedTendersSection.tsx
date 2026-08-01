@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUpRight, BriefcaseBusiness, CalendarClock, CircleAlert, ClipboardList, Search, UserRound } from "lucide-react";
 import { formatDeadlineDE, daysUntil, deadlineLabel } from "@/lib/date-utils";
 import {
@@ -300,8 +300,10 @@ export function TrackedTendersSection() {
   const [selectedTender, setSelectedTender] = useState<TrackedTenderItem | null>(null);
   const [workflowSaveState, setWorkflowSaveState] = useState<WorkflowSaveState>("idle");
   const [workflowError, setWorkflowError] = useState<string | null>(null);
+  const requestSequence = useRef(0);
 
   const loadTrackedTenders = useCallback(async () => {
+    const sequence = ++requestSequence.current;
     setLoading(true);
     setError(null);
 
@@ -322,16 +324,19 @@ export function TrackedTendersSection() {
         throw new Error(payload?.error ?? "Verfolgte Ausschreibungen konnten nicht geladen werden.");
       }
 
+      if (sequence !== requestSequence.current) return;
+
       setItems(Array.isArray(payload.items) ? payload.items : []);
       setSummary(payload.summary ?? null);
       setCompanies(Array.isArray(payload.companies) ? payload.companies : []);
     } catch (err) {
+      if (sequence !== requestSequence.current) return;
       setItems([]);
       setSummary(null);
       setCompanies([]);
       setError(err instanceof Error ? err.message : "Verfolgte Ausschreibungen konnten nicht geladen werden.");
     } finally {
-      setLoading(false);
+      if (sequence === requestSequence.current) setLoading(false);
     }
   }, [companyFilter, search, statusFilter]);
 
@@ -580,13 +585,15 @@ export function TrackedTendersSection() {
             missingItems: selectedTender.missingItems,
             details: selectedTender.details,
           }}
-          companyId={selectedTender.companyId}
-          companyName={selectedTender.companyName}
-          workflow={selectedWorkflow}
+           companyId={selectedTender.companyId}
+           companyName={selectedTender.companyName}
+           trackedTenderId={selectedTender.trackedId}
+           workflow={selectedWorkflow}
           workflowSaveState={workflowSaveState}
           workflowError={workflowError}
-          onSaveWorkflow={handleSaveWorkflow}
-          onClose={() => {
+           onSaveWorkflow={handleSaveWorkflow}
+           onBidPackCreated={() => void loadTrackedTenders()}
+           onClose={() => {
             setSelectedTender(null);
             setWorkflowSaveState("idle");
             setWorkflowError(null);

@@ -74,7 +74,7 @@ export function UsCompanyProfileForm() {
             <Typography component="h1" sx={{ color: "#102a43", fontSize: { xs: "2rem", md: "2.8rem" }, fontWeight: 850, lineHeight: 1.05, letterSpacing: "-0.045em", mt: 0.5 }}>Make every pursuit brief specific to your LLC.</Typography>
             <Typography color="text.secondary" sx={{ lineHeight: 1.7, mt: 1 }}>Save your U.S. eligibility and technical fit once. A UEI is required for direct federal bidding; you can still use the profile for teaming before registration is complete.</Typography>
           </Box>
-          {saved && <Alert severity="success" action={<Button component={Link} href="/us" color="inherit" size="small">Browse opportunities</Button>}>{saved}</Alert>}
+          {saved && <Alert severity="success" action={<Button component={Link} href="/#us" color="inherit" size="small">Browse opportunities</Button>}>{saved}</Alert>}
           {error && <Alert severity="error">{error}</Alert>}
           <TextField label="Company name" value={name} onChange={(event) => setName(event.target.value)} required fullWidth />
           <TextField label="Capabilities" value={capabilities} onChange={(event) => setCapabilities(event.target.value)} fullWidth multiline minRows={2} helperText="Separate capabilities with commas, for example: cloud migration, cybersecurity, data engineering." />

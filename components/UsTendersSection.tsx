@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Alert, Box, Button, Card, CardContent, Chip, Container, LinearProgress, MenuItem, Stack, TextField, Typography } from "@mui/material";
-import { ArrowUpRight, Building2, CalendarClock, Landmark, Search, ShieldCheck } from "lucide-react";
+import { Alert, Box, Button, Card, CardContent, Chip, Collapse, LinearProgress, MenuItem, Paper, Stack, TextField, Typography } from "@mui/material";
+import { ArrowUpRight, Building2, CalendarClock, MapPin, Search } from "lucide-react";
 import { US_CATEGORIES } from "@/lib/us/categorize";
 import { PaywallPanel } from "@/components/billing/PaywallPanel";
 
@@ -38,6 +38,7 @@ export function UsTendersSection({ initialItems, initialTotal }: { initialItems?
   const [state, setState] = useState("");
   const [category, setCategory] = useState("");
   const [subcontracting, setSubcontracting] = useState<"all" | "sub" | "direct">("all");
+  const [alertOpen, setAlertOpen] = useState(false);
   const [alertEmail, setAlertEmail] = useState("");
   const [alertLoading, setAlertLoading] = useState(false);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
@@ -120,108 +121,173 @@ export function UsTendersSection({ initialItems, initialTotal }: { initialItems?
   };
 
   return (
-    <Box sx={{ background: "linear-gradient(180deg, #eff5fb 0, #fff 42rem)", minHeight: "100vh", py: { xs: 4, md: 7 } }}>
-      <Container maxWidth="lg">
-        <Stack spacing={3.5}>
-          <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" alignItems={{ md: "flex-start" }} spacing={2}>
-            <Box sx={{ maxWidth: 760 }}>
-              <Typography variant="overline" sx={{ color: "#0d5c80", fontWeight: 800, letterSpacing: "0.12em" }}>
-                U.S. Procurement Opportunity Desk
-              </Typography>
-              <Typography component="h1" sx={{ color: "#102a43", fontSize: { xs: "2.35rem", md: "4rem" }, fontWeight: 850, lineHeight: 0.98, letterSpacing: "-0.055em", mt: 1 }}>
-                Find the contract. Build the team. Make the move.
-              </Typography>
-              <Typography color="text.secondary" sx={{ fontSize: { xs: "1rem", md: "1.15rem" }, lineHeight: 1.7, mt: 2, maxWidth: 670 }}>
-                Active U.S. federal, state, and subcontracting opportunities from SAM.gov, Texas ESBD, and SBA. Open any opportunity for a direct-bid readiness check, a registration roadmap, and comparable prime contractors.
-              </Typography>
-            </Box>
-            <Button component={Link} href="/us/profile" variant="outlined" sx={{ borderColor: "#0d5c80", color: "#0d5c80", whiteSpace: "nowrap" }}>Set up U.S. profile</Button>
+    <Box component="section" lang="en" sx={{ display: "flex", flexDirection: "column" }}>
+      <Box sx={{ mb: 3 }}>
+        <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" alignItems={{ md: "flex-start" }} spacing={2}>
+          <Box sx={{ maxWidth: 760 }}>
+            <Typography variant="h5" component="h1" fontWeight={600} sx={{ color: "#1e293b", fontSize: { xs: "1.5rem", md: "1.75rem" } }}>
+              U.S. Opportunities
+            </Typography>
+            <Typography variant="body2" sx={{ mt: 1, color: "#475569", fontSize: "0.9375rem", lineHeight: 1.6 }}>
+              Public and private procurement opportunities across the United States, including federal and subcontracting work.
+            </Typography>
+          </Box>
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ sm: "center" }}>
+            <Button component={Link} href="/us/profile" variant="outlined" size="small" sx={{ whiteSpace: "nowrap" }}>
+              Set up U.S. profile
+            </Button>
+            <Button
+              type="button"
+              variant="text"
+              size="small"
+              onClick={() => setAlertOpen((open) => !open)}
+              aria-expanded={alertOpen}
+              sx={{ whiteSpace: "nowrap" }}
+            >
+              {alertOpen ? "Close search alert" : "Set up search alert"}
+            </Button>
           </Stack>
-
-          <Card elevation={0} sx={{ border: "1px solid #cddce8", borderRadius: 3, bgcolor: "rgba(255,255,255,.92)" }}>
-            <CardContent sx={{ p: { xs: 2, md: 2.5 } }}>
-              <Stack direction={{ xs: "column", md: "row" }} spacing={1.5} alignItems={{ md: "center" }}>
-                <TextField
-                  fullWidth
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Search keywords, agency, solicitation..."
-                  slotProps={{ input: { startAdornment: <Search size={19} style={{ marginRight: 10, color: "#50758a" }} /> } }}
-                />
-                <TextField select label="Category" value={category} onChange={(event) => setCategory(event.target.value)} sx={{ minWidth: { md: 180 } }}>
-                  <MenuItem value="">All categories</MenuItem>
-                  {US_CATEGORIES.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}
-                </TextField>
-                <TextField select label="State" value={state} onChange={(event) => setState(event.target.value)} sx={{ minWidth: { md: 138 } }}>
-                  {US_STATES.map((item) => <MenuItem key={item || "all"} value={item}>{item || "All states"}</MenuItem>)}
-                </TextField>
-                <TextField select label="Type" value={subcontracting} onChange={(event) => setSubcontracting(event.target.value as "all" | "sub" | "direct")} sx={{ minWidth: { md: 138 } }}>
-                  <MenuItem value="all">All types</MenuItem>
-                  <MenuItem value="sub">Subcontracting</MenuItem>
-                  <MenuItem value="direct">Direct bid</MenuItem>
-                </TextField>
-              </Stack>
-            </CardContent>
-          </Card>
-
-          {alertPaywall ? (
-            <PaywallPanel feature="U.S. Alerts" title="Such-Alerts für neue Chancen freischalten" description="Deine Filter bleiben frei. Mit einem Billing-Plan erhältst du automatisch neue passende U.S. Opportunities per E-Mail." />
-          ) : (
-            <Card elevation={0} sx={{ border: "1px solid #cddce8", borderRadius: 3, bgcolor: "#f5fbfe" }}>
-              <CardContent component="form" onSubmit={(event) => { event.preventDefault(); void subscribeToAlerts(); }} sx={{ p: { xs: 2, md: 2.5 } }}>
-                <Stack direction={{ xs: "column", md: "row" }} spacing={1.5} alignItems={{ md: "center" }}>
-                  <Box sx={{ flex: 1 }}>
-                    <Typography fontWeight={800} sx={{ color: "#102a43" }}>Get alerts for this search</Typography>
-                    <Typography variant="body2" color="text.secondary">We&apos;ll email you when new matching opportunities appear. Double opt-in required.</Typography>
-                  </Box>
-                  <TextField type="email" required size="small" label="Your email" value={alertEmail} onChange={(event) => setAlertEmail(event.target.value)} sx={{ minWidth: { md: 240 } }} />
-                  <Button type="submit" variant="contained" disabled={alertLoading} sx={{ bgcolor: "#0d5c80", whiteSpace: "nowrap" }}>{alertLoading ? "Saving..." : "Subscribe"}</Button>
-                </Stack>
-                {alertMessage && <Typography variant="body2" sx={{ mt: 1.5, color: "#0d5c80" }}>{alertMessage}</Typography>}
-              </CardContent>
-            </Card>
-          )}
-
-          {error && <Alert severity="error">{error}</Alert>}
-          <Stack direction="row" justifyContent="space-between" alignItems="baseline">
-            <Typography variant="subtitle2" color="text.secondary">{loading ? "Refreshing opportunities" : `${total.toLocaleString("en-US")} active opportunities`}</Typography>
-            <Chip icon={<ShieldCheck size={15} />} label="Subcontractor-ready research" size="small" sx={{ bgcolor: "#e2f0ec", color: "#135f4d" }} />
-          </Stack>
-          {loading && <LinearProgress aria-label="Refreshing opportunities" sx={{ borderRadius: 1 }} />}
-
-          {items.length === 0 && !loading ? (
-            <Alert severity="info">No active opportunities match these filters. Broaden your terms or check again after the next source refresh.</Alert>
-          ) : items.length > 0 ? (
-            <Stack spacing={1.25}>
-              {items.map((item) => (
-                <Card key={item.id} elevation={0} sx={{ border: "1px solid #d6e0e9", borderRadius: 2.5, transition: "transform .16s ease, box-shadow .16s ease", "&:hover": { transform: "translateY(-2px)", boxShadow: "0 12px 28px rgba(25, 66, 95, .11)" } }}>
-                  <CardContent sx={{ p: { xs: 2, md: 2.5 } }}>
-                    <Stack direction={{ xs: "column", md: "row" }} spacing={2} justifyContent="space-between">
-                      <Box sx={{ minWidth: 0 }}>
-                        <Stack direction="row" spacing={0.75} sx={{ mb: 1, flexWrap: "wrap", rowGap: 0.75 }}>
-                          <Chip label={item.subcontracting ? "Subcontracting" : "Federal opportunity"} size="small" color={item.subcontracting ? "secondary" : "primary"} />
-                          {item.setAside && <Chip label={item.setAside} size="small" variant="outlined" />}
-                          {item.category && <Chip label={item.category} size="small" variant="outlined" sx={{ borderColor: "#b9d2e3", color: "#36607a" }} />}
-                          {item.naicsCodes.slice(0, 2).map((code) => <Chip key={code} label={`NAICS ${code}`} size="small" variant="outlined" />)}
-                        </Stack>
-                        <Typography variant="h6" component="h2" sx={{ color: "#102a43", fontWeight: 760, lineHeight: 1.25 }}>{item.title}</Typography>
-                        <Stack direction="row" spacing={1.7} sx={{ mt: 1.25, color: "text.secondary", flexWrap: "wrap", rowGap: 0.7 }}>
-                          {item.buyer && <Typography variant="body2" sx={{ display: "flex", gap: 0.55, alignItems: "center" }}><Building2 size={15} />{item.buyer}</Typography>}
-                          {item.location && <Typography variant="body2" sx={{ display: "flex", gap: 0.55, alignItems: "center" }}><Landmark size={15} />{item.location}</Typography>}
-                          {item.deadline && <Typography variant="body2" sx={{ display: "flex", gap: 0.55, alignItems: "center", color: "#984e16", fontWeight: 700 }}><CalendarClock size={15} />Due {item.deadline}</Typography>}
-                        </Stack>
-                      </Box>
-                      <Button component={Link} href={`/us/tender/${item.id}`} endIcon={<ArrowUpRight size={17} />} variant="contained" sx={{ alignSelf: { md: "center" }, whiteSpace: "nowrap", bgcolor: "#0d5c80", "&:hover": { bgcolor: "#074664" } }}>
-                        Pursuit brief
-                      </Button>
-                    </Stack>
-                  </CardContent>
-                </Card>
-              ))}
-            </Stack>
-          ) : null}
         </Stack>
-      </Container>
+      </Box>
+
+      <Box sx={{ mb: 3 }}>
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr", lg: "minmax(0, 1fr) repeat(3, minmax(140px, 0.38fr))" },
+            gap: 2,
+            mb: 2,
+          }}
+        >
+          <TextField
+            fullWidth
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search keywords, agency, solicitation..."
+            slotProps={{ input: { startAdornment: <Search size={22} style={{ marginRight: 10 }} /> } }}
+          />
+          <TextField select fullWidth label="Category" value={category} onChange={(event) => setCategory(event.target.value)}>
+            <MenuItem value="">All categories</MenuItem>
+            {US_CATEGORIES.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}
+          </TextField>
+          <TextField select fullWidth label="State" value={state} onChange={(event) => setState(event.target.value)}>
+            {US_STATES.map((item) => <MenuItem key={item || "all"} value={item}>{item || "All states"}</MenuItem>)}
+          </TextField>
+          <TextField select fullWidth label="Opportunity type" value={subcontracting} onChange={(event) => setSubcontracting(event.target.value as "all" | "sub" | "direct")}>
+            <MenuItem value="all">All opportunity types</MenuItem>
+            <MenuItem value="direct">Federal</MenuItem>
+            <MenuItem value="sub">Subcontracting</MenuItem>
+          </TextField>
+        </Box>
+        <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ sm: "center" }} spacing={1}>
+          <Typography variant="body2" sx={{ color: "#475569", fontSize: "0.8125rem" }}>
+            {loading ? "Refreshing opportunities" : `${total.toLocaleString("en-US")} active opportunities`}
+          </Typography>
+          <Typography variant="caption" sx={{ color: "#64748b" }}>
+            Federal and subcontracting opportunities
+          </Typography>
+        </Stack>
+      </Box>
+
+      <Collapse in={alertOpen} unmountOnExit>
+        {alertPaywall ? (
+          <Box sx={{ mb: 3 }}>
+            <PaywallPanel feature="U.S. Alerts" title="Such-Alerts für neue Chancen freischalten" description="Deine Filter bleiben frei. Mit einem Billing-Plan erhältst du automatisch neue passende U.S. Opportunities per E-Mail." />
+          </Box>
+        ) : (
+          <Paper
+            component="form"
+            variant="outlined"
+            onSubmit={(event) => { event.preventDefault(); void subscribeToAlerts(); }}
+            sx={{ mb: 3, borderRadius: "6px", p: { xs: 2, md: 2.25 } }}
+          >
+            <Stack direction={{ xs: "column", md: "row" }} spacing={1.5} alignItems={{ md: "center" }}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography variant="body2" fontWeight={700} sx={{ color: "#1e293b" }}>Get alerts for this search</Typography>
+                <Typography variant="caption" color="text.secondary">We&apos;ll email you when new matching opportunities appear. Double opt-in required.</Typography>
+              </Box>
+              <TextField type="email" required size="small" label="Your email" value={alertEmail} onChange={(event) => setAlertEmail(event.target.value)} sx={{ minWidth: { md: 240 } }} />
+              <Button type="submit" variant="outlined" size="small" disabled={alertLoading} sx={{ whiteSpace: "nowrap" }}>
+                {alertLoading ? "Saving..." : "Subscribe"}
+              </Button>
+            </Stack>
+            {alertMessage && <Typography variant="body2" sx={{ mt: 1.5, color: "primary.dark" }}>{alertMessage}</Typography>}
+          </Paper>
+        )}
+      </Collapse>
+
+      {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
+      {loading && <LinearProgress aria-label="Refreshing opportunities" sx={{ mb: 2, borderRadius: 1 }} />}
+
+      {items.length === 0 && !loading ? (
+        <Paper elevation={0} variant="outlined" sx={{ borderRadius: "6px", py: 6, px: 3, textAlign: "center" }}>
+          <Typography variant="h6" component="p" fontWeight={600} sx={{ mb: 1, color: "#1e293b" }}>
+            No active opportunities match these filters
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Broaden your terms or check again after the next source refresh.
+          </Typography>
+        </Paper>
+      ) : items.length > 0 ? (
+        <Stack spacing={2}>
+          {items.map((item) => {
+            const location = [item.location, item.state]
+              .filter((value, index, values) => Boolean(value) && values.indexOf(value) === index)
+              .join(", ");
+            const typeChipSx = item.subcontracting
+              ? { borderColor: "rgba(25, 118, 210, 0.35)", color: "#1d4f72", bgcolor: "rgba(25, 118, 210, 0.05)" }
+              : { borderColor: "rgba(233, 100, 77, 0.4)", color: "primary.dark", bgcolor: "rgba(233, 100, 77, 0.06)" };
+
+            return (
+              <Card
+                key={item.id}
+                variant="outlined"
+                sx={{
+                  borderRadius: "6px",
+                  transition: "border-color 0.2s, box-shadow 0.2s",
+                  "&:hover": { borderColor: "primary.light", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" },
+                }}
+              >
+                <CardContent sx={{ p: { xs: 1.5, md: 2 }, "&:last-child": { pb: { xs: 1.5, md: 2 } } }}>
+                  <Stack spacing={1.5}>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Stack direction="row" spacing={0.75} sx={{ mb: 1, flexWrap: "wrap", rowGap: 0.75 }}>
+                        <Chip label={item.subcontracting ? "Subcontracting" : "Federal"} size="small" variant="outlined" sx={typeChipSx} />
+                        {item.category && <Chip label={item.category} size="small" variant="outlined" />}
+                        {item.setAside && <Chip label={item.setAside} size="small" variant="outlined" />}
+                        {item.naicsCodes.slice(0, 2).map((code) => <Chip key={code} label={`NAICS ${code}`} size="small" variant="outlined" />)}
+                      </Stack>
+                      <Typography variant="subtitle1" component="h2" fontWeight={600} sx={{ color: "#1e293b", lineHeight: 1.35, overflowWrap: "anywhere" }}>
+                        {item.title}
+                      </Typography>
+                    </Box>
+
+                    <Stack direction="row" spacing={{ xs: 1, sm: 2 }} sx={{ color: "#475569", flexWrap: "wrap", rowGap: 0.75 }}>
+                      {item.buyer && <Typography variant="body2" sx={{ display: "flex", gap: 0.55, alignItems: "center", fontSize: "0.8125rem" }}><Building2 size={15} />{item.buyer}</Typography>}
+                      {location && <Typography variant="body2" sx={{ display: "flex", gap: 0.55, alignItems: "center", fontSize: "0.8125rem" }}><MapPin size={15} />{location}</Typography>}
+                      {item.deadline && <Typography variant="body2" sx={{ display: "flex", gap: 0.55, alignItems: "center", color: "#984e16", fontWeight: 700, fontSize: "0.8125rem" }}><CalendarClock size={15} />Due {item.deadline}</Typography>}
+                    </Stack>
+
+                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1} justifyContent="space-between" alignItems={{ sm: "center" }} sx={{ pt: 1.5, borderTop: 1, borderColor: "divider" }}>
+                      <Typography variant="caption" sx={{ color: "#475569", fontSize: "0.75rem" }}>
+                        Source: {item.source}
+                      </Typography>
+                      <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="flex-end">
+                        <Button component={Link} href={`/us/tender/${item.id}`} size="small" variant="text" endIcon={<ArrowUpRight size={16} />}>
+                          Details
+                        </Button>
+                        <Button component={Link} href={`/us/tender/${item.id}`} size="small" variant="outlined" sx={{ borderColor: "divider", color: "text.secondary" }}>
+                          Pursuit brief
+                        </Button>
+                      </Stack>
+                    </Stack>
+                  </Stack>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </Stack>
+      ) : null}
     </Box>
   );
 }

@@ -1,17 +1,20 @@
 import { Meilisearch, type SearchResponse } from "meilisearch";
 import { db } from "@/lib/db";
-import { tenders } from "@/lib/schema";
+import { structuredData, tenders } from "@/lib/schema";
 import { and, eq, gt, isNull, or } from "drizzle-orm";
 import { cleanPublicDescription } from "@/lib/public-tender-scraper";
 import { deriveBundesland, deriveCity } from "@/lib/bundesland";
+import { acquireCatalogSync, finishCatalogSync, getCatalogState, releaseCatalogSync } from "@/lib/catalog";
 
 const MEILI_HOST = process.env.MEILI_HOST ?? "http://localhost:7700";
 const MEILI_KEY = process.env.MEILI_MASTER_KEY ?? "";
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY ?? "";
+const MEILI_EMBEDDINGS_ENABLED = process.env.MEILI_EMBEDDINGS_ENABLED === "true";
 const INDEX_NAME = "tenders";
 
 let clientInstance: Meilisearch | null = null;
 let configurePromise: Promise<void> | null = null;
+let embeddingsUnavailable = false;
 
 export function getMeiliClient(): Meilisearch {
   if (clientInstance) return clientInstance;
@@ -34,10 +37,22 @@ interface TenderDocument {
   source: string;
   sourceUrl: string;
   deadlineAt: number | null;
+  firstSeenAt: number | null;
   hasDeadline: boolean;
   pdfCount: number;
   contractValueMax: number | null;
   slug: string | null;
+}
+
+async function waitForMeiliTask(task: { taskUid: number }, operation: string): Promise<void> {
+  const result = await getMeiliClient().tasks.waitForTask(task.taskUid, {
+    timeout: 10 * 60 * 1_000,
+    interval: 1_000,
+  });
+  if (result.status === "succeeded") return;
+
+  const failed = result as { status: string; error?: { message?: string } };
+  throw new Error(`${operation} fehlgeschlagen: ${failed.error?.message ?? failed.status}`);
 }
 
 export function configureMeiliIndex(): Promise<void> {
@@ -61,7 +76,7 @@ async function configureMeiliIndexOnce(): Promise<void> {
   ]);
 
   await index.updateFilterableAttributes([
-    "bundesland", "city", "category", "source", "hasDeadline", "deadlineAt",
+    "bundesland", "city", "category", "source", "hasDeadline", "deadlineAt", "firstSeenAt",
   ]);
 
   await index.updateSortableAttributes([
@@ -72,7 +87,7 @@ async function configureMeiliIndexOnce(): Promise<void> {
     { locales: ["deu"], attributePatterns: ["*"] },
   ]);
 
-  if (OPENROUTER_API_KEY) {
+  if (MEILI_EMBEDDINGS_ENABLED && OPENROUTER_API_KEY) {
     console.log("[meilisearch] Konfiguriere REST Embedder (OpenRouter gemini-embedding-2)...");
     await index
       .updateEmbedders({
@@ -94,7 +109,10 @@ async function configureMeiliIndexOnce(): Promise<void> {
         console.warn("[meilisearch] Embedder-Setup fehlgeschlagen:", err);
       });
   } else {
-    console.warn("[meilisearch] Kein OPENROUTER_API_KEY — nur Keyword-Suche verfügbar");
+    if (!MEILI_EMBEDDINGS_ENABLED) {
+      await waitForMeiliTask(await index.resetEmbedders(), "Embedder-Reset");
+    }
+    console.warn("[meilisearch] Embeddings deaktiviert — nur Keyword-Suche verfügbar");
   }
 
   await index.updateRankingRules([
@@ -115,75 +133,127 @@ async function configureMeiliIndexOnce(): Promise<void> {
   console.log("[meilisearch] Index konfiguriert");
 }
 
+const isEmbeddingFailure = (error: unknown): boolean => {
+  const message = error instanceof Error ? error.message : String(error);
+  return /embed|embedding|authenticate|401|user not found/i.test(message);
+};
+
+async function disableEmbeddingsForProcess(index: ReturnType<Meilisearch["index"]>): Promise<void> {
+  if (embeddingsUnavailable) return;
+  embeddingsUnavailable = true;
+  try {
+    await waitForMeiliTask(await index.resetEmbedders(), "Embedder-Deaktivierung");
+    console.warn("[meilisearch] Embeddings nicht verfügbar — Sync und Suche wechseln auf Keyword-Modus");
+  } catch (error) {
+    console.warn("[meilisearch] Embeddings konnten nicht deaktiviert werden:", error);
+  }
+}
+
 export async function syncTendersToMeili(): Promise<{ indexed: number; skipped: number }> {
   const client = getMeiliClient();
   const index = client.index(INDEX_NAME);
-
-  const batchSize = 250;
-  const now = new Date();
-  let lastId = 0;
-  let indexed = 0;
-
-  // Clear first so deleted, expired, and disqualified tenders cannot remain searchable.
-  await index.deleteAllDocuments();
-
-  while (true) {
-    const items = await db
-      .select({
-        id: tenders.id,
-        title: tenders.title,
-        source: tenders.source,
-        url: tenders.url,
-        deadlineAt: tenders.deadlineAt,
-        category: tenders.category,
-        metadataJson: tenders.metadataJson,
-        contractValueMax: tenders.contractValueMax,
-        slug: tenders.slug,
-      })
-      .from(tenders)
-      .where(
-        and(
-          eq(tenders.qualityStatus, "qualified"),
-          gt(tenders.id, lastId),
-          or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
-        ),
-      )
-      .orderBy(tenders.id)
-      .limit(batchSize);
-
-    if (items.length === 0) break;
-    const docs: TenderDocument[] = items.map((item) => {
-      const meta =
-        typeof item.metadataJson === "object" && item.metadataJson !== null
-          ? (item.metadataJson as Record<string, unknown>)
-          : {};
-      const location = String(meta.location ?? "");
-      const pdfUrls = Array.isArray(meta.pdf_urls) ? meta.pdf_urls : [];
-      return {
-        id: item.id,
-        title: item.title ?? `Ausschreibung #${item.id}`,
-        description: cleanPublicDescription(String(meta.description ?? "")).slice(0, 5000),
-        client: String(meta.client ?? "Unbekannt"),
-        category: item.category ?? "Sonstiges",
-        bundesland: deriveBundesland(location),
-        city: deriveCity(location),
-        location,
-        source: item.source,
-        sourceUrl: item.url,
-        deadlineAt: item.deadlineAt ? new Date(item.deadlineAt).getTime() / 1000 : null,
-        hasDeadline: item.deadlineAt !== null,
-        pdfCount: pdfUrls.length,
-        contractValueMax: item.contractValueMax,
-        slug: item.slug ?? null,
-      };
-    });
-    await index.addDocuments(docs);
-    indexed += docs.length;
-    lastId = items[items.length - 1].id;
+  const syncRevision = await acquireCatalogSync();
+  if (syncRevision === null) {
+    throw new Error("Meilisearch-Sync läuft bereits; erneuter Versuch erforderlich.");
   }
 
-  console.log(`[meilisearch] Sync abgeschlossen: ${indexed} Dokumente in Batches indiziert`);
-  return { indexed, skipped: 0 };
+  try {
+    const batchSize = 250;
+    let targetRevision = syncRevision;
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      const now = new Date();
+      let lastId = 0;
+      let indexed = 0;
+
+      // Clear first so deleted, expired, and disqualified tenders cannot remain searchable.
+      await waitForMeiliTask(await index.deleteAllDocuments(), "Löschen des alten Index");
+
+      while (true) {
+        const items = await db
+          .select({
+            id: tenders.id,
+            title: tenders.title,
+            source: tenders.source,
+            url: tenders.url,
+            deadlineAt: tenders.deadlineAt,
+            firstSeenAt: tenders.firstSeenAt,
+            category: tenders.category,
+            metadataJson: tenders.metadataJson,
+            structuredJson: structuredData.jsonBlob,
+            contractValueMax: tenders.contractValueMax,
+            slug: tenders.slug,
+          })
+          .from(tenders)
+          .leftJoin(structuredData, eq(structuredData.tenderId, tenders.id))
+          .where(
+            and(
+              eq(tenders.qualityStatus, "qualified"),
+              gt(tenders.id, lastId),
+              or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
+            ),
+          )
+          .orderBy(tenders.id)
+          .limit(batchSize);
+
+        if (items.length === 0) break;
+        const docs: TenderDocument[] = items.map((item) => {
+          const meta =
+            typeof item.metadataJson === "object" && item.metadataJson !== null
+              ? (item.metadataJson as Record<string, unknown>)
+              : {};
+          const structured = item.structuredJson && typeof item.structuredJson === "object"
+            ? item.structuredJson as Record<string, unknown>
+            : {};
+          const hardFacts = structured.hard_facts && typeof structured.hard_facts === "object"
+            ? structured.hard_facts as Record<string, unknown>
+            : {};
+          const location = String(meta.location ?? hardFacts.location ?? "");
+          const pdfUrls = Array.isArray(meta.pdf_urls) ? meta.pdf_urls : [];
+          return {
+            id: item.id,
+            title: item.title ?? `Ausschreibung #${item.id}`,
+            description: cleanPublicDescription(String(meta.description ?? structured.summary ?? "")).slice(0, 5000),
+            client: String(meta.client ?? "Unbekannt"),
+            category: item.category ?? "Sonstiges",
+            bundesland: deriveBundesland(location),
+            city: deriveCity(location),
+            location,
+            source: item.source,
+            sourceUrl: item.url,
+            deadlineAt: item.deadlineAt ? new Date(item.deadlineAt).getTime() / 1000 : null,
+            firstSeenAt: item.firstSeenAt ? Math.floor(item.firstSeenAt.getTime() / 1000) : null,
+            hasDeadline: item.deadlineAt !== null,
+            pdfCount: pdfUrls.length,
+            contractValueMax: item.contractValueMax,
+            slug: item.slug ?? null,
+          };
+        });
+        try {
+          await waitForMeiliTask(await index.addDocuments(docs), `Indizieren von Batch ab Tender ${docs[0].id}`);
+        } catch (error) {
+          if (!MEILI_EMBEDDINGS_ENABLED || embeddingsUnavailable || !isEmbeddingFailure(error)) throw error;
+          await disableEmbeddingsForProcess(index);
+          await waitForMeiliTask(await index.addDocuments(docs), `Erneutes Indizieren von Batch ab Tender ${docs[0].id}`);
+        }
+        indexed += docs.length;
+        lastId = items[items.length - 1].id;
+      }
+
+      const state = await getCatalogState();
+      const currentRevision = state?.revision ?? targetRevision;
+      if (currentRevision <= targetRevision) {
+        await finishCatalogSync(currentRevision);
+        console.log(`[meilisearch] Sync abgeschlossen: ${indexed} Dokumente in Batches indiziert (Revision ${currentRevision})`);
+        return { indexed, skipped: 0 };
+      }
+      targetRevision = currentRevision;
+      console.log(`[meilisearch] Katalog während des Syncs geändert (Revision ${currentRevision}), wiederhole.`);
+    }
+    throw new Error("Meilisearch-Sync konnte wegen fortlaufender Katalogänderungen nicht stabil abgeschlossen werden.");
+  } catch (error) {
+    await releaseCatalogSync().catch(() => undefined);
+    throw error;
+  }
 }
 
 export interface MeilisearchParams {
@@ -191,6 +261,8 @@ export interface MeilisearchParams {
   bundesland?: string | null;
   city?: string | null;
   category?: string | null;
+  firstSeenAtFrom?: number;
+  firstSeenAtTo?: number;
   // SEO: source filter for portal landing pages (supports OR via array)
   source?: string | string[] | null;
   limit?: number;
@@ -213,6 +285,12 @@ export async function searchTenders(
   }
   if (params.category) {
     filters.push(`category = "${params.category}"`);
+  }
+  if (params.firstSeenAtFrom !== undefined) {
+    filters.push(`firstSeenAt >= ${params.firstSeenAtFrom}`);
+  }
+  if (params.firstSeenAtTo !== undefined) {
+    filters.push(`firstSeenAt < ${params.firstSeenAtTo}`);
   }
   // SEO: source filter supports single string or OR-array for portal pages
   if (params.source) {
@@ -245,7 +323,7 @@ export async function searchTenders(
     searchParams.filter = filterStr;
   }
 
-  if (hasQuery && OPENROUTER_API_KEY) {
+  if (hasQuery && MEILI_EMBEDDINGS_ENABLED && OPENROUTER_API_KEY && !embeddingsUnavailable) {
     searchParams.hybrid = { embedder: "default", semanticRatio: 0.5 };
   }
 

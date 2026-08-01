@@ -61,9 +61,10 @@ services:
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       STRIPE_PRICE_WEEKLY: ${STRIPE_PRICE_WEEKLY:-}
-      STRIPE_PRICE_YEARLY: ${STRIPE_PRICE_YEARLY:-}
+      STRIPE_PRICE_QUARTERLY: ${STRIPE_PRICE_QUARTERLY:-}
       SBA_SUBNET_URL: ${SBA_SUBNET_URL:-https://subnet.sba.gov/client/dsp_Landing.cfm}
       US_SCRAPE_INTERVAL_HOURS: ${US_SCRAPE_INTERVAL_HOURS:-24}
+      PUBLIC_SCRAPE_INTERVAL_HOURS: ${PUBLIC_SCRAPE_INTERVAL_HOURS:-48}
       SAM_LOOKBACK_DAYS: ${SAM_LOOKBACK_DAYS:-2}
       SAM_MAX_RECORDS: ${SAM_MAX_RECORDS:-5000}
       SAM_SET_ASIDE: ${SAM_SET_ASIDE:-}
@@ -77,6 +78,7 @@ services:
       NEXT_PUBLIC_SITE_URL: https://palemaz.com
       MEILI_HOST: http://meilisearch:7700
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-meili-default-dev-key-change-me}
+      MEILI_EMBEDDINGS_ENABLED: ${MEILI_EMBEDDINGS_ENABLED:-false}
     depends_on:
       postgres:
         condition: service_healthy
@@ -91,6 +93,10 @@ services:
     build: .
     container_name: tenderhunter-worker
     restart: always
+    init: true
+    mem_limit: 1g
+    memswap_limit: 1g
+    pids_limit: 256
     command: ["worker"]
     environment:
       DATABASE_URL: postgresql://tenderhunter:tenderhunter@postgres:5432/tenderhunter
@@ -100,6 +106,7 @@ services:
       RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-alerts@tenderhunter.us}
       SBA_SUBNET_URL: ${SBA_SUBNET_URL:-https://subnet.sba.gov/client/dsp_Landing.cfm}
       US_SCRAPE_INTERVAL_HOURS: ${US_SCRAPE_INTERVAL_HOURS:-24}
+      PUBLIC_SCRAPE_INTERVAL_HOURS: ${PUBLIC_SCRAPE_INTERVAL_HOURS:-48}
       SAM_LOOKBACK_DAYS: ${SAM_LOOKBACK_DAYS:-2}
       SAM_MAX_RECORDS: ${SAM_MAX_RECORDS:-5000}
       SAM_SET_ASIDE: ${SAM_SET_ASIDE:-}
@@ -107,6 +114,7 @@ services:
       SEARXNG_URL: http://searxng:8080
       MEILI_HOST: http://meilisearch:7700
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-meili-default-dev-key-change-me}
+      MEILI_EMBEDDINGS_ENABLED: ${MEILI_EMBEDDINGS_ENABLED:-false}
     depends_on:
       postgres:
         condition: service_healthy

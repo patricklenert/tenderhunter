@@ -200,7 +200,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
   const duration = String(blob?.duration ?? "").trim();
 
   // SEO: Canonical slug from DB (stable, never drifts). Fallback to live computation for legacy rows.
-  const expectedSlug = tender.slug ?? generateTenderSlug(title, typeof meta.location === "string" ? meta.location.split(",")[0] : "");
+  const expectedSlug = tender.slug ?? generateTenderSlug(title, location);
   if (!slug || slug !== expectedSlug) {
     redirect(`/ausschreibung/${tender.id}/${expectedSlug}`);
   }
@@ -743,7 +743,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
                 <PaywallPanel
                   feature="Dokumente"
                   title="Vergabeunterlagen freischalten"
-                  description="Titel, Frist und Anforderungen bleiben frei. Mit einem Billing-Plan kannst du die Originalunterlagen direkt öffnen und teilen."
+                  description="Die Originalunterlagen sind nur die Quelle. Pro prüft die Ausschreibung gegen dein Unternehmen und macht Go-/No-Go, offene Anforderungen und nächste Schritte sichtbar."
                 />
               )}
             </Box>

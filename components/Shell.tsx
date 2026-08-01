@@ -29,7 +29,8 @@ import Link from "next/link";
 export type ViewKey =
   | "discovery"
   | "trackedTenders"
-  | "publicTenders";
+  | "publicTenders"
+  | "usOpportunities";
 
 export interface NavItem {
   key: ViewKey;
@@ -43,18 +44,21 @@ export const NAV_ITEMS: NavItem[] = [
   { key: "trackedTenders", label: "Verfolgte Ausschreibungen", icon: BriefcaseBusiness },
   // { key: "publicTenders", label: "Ausschreibungen", icon: Building2 },  // Ursprüngliches Lucide-Icon — auskommentiert für Rollback
   { key: "publicTenders", label: "Ausschreibungen", icon: SearchLocationIcon },
+  { key: "usOpportunities", label: "U.S. Opportunities", icon: Globe2 },
 ];
 
 const HASH_TO_VIEW: Record<string, ViewKey> = {
   "ausschreibungen": "publicTenders",
   "analyse": "discovery",
   "verfolgt": "trackedTenders",
+  "us": "usOpportunities",
 };
 
 const VIEW_TO_HASH: Record<ViewKey, string> = {
   discovery: "analyse",
   trackedTenders: "verfolgt",
   publicTenders: "ausschreibungen",
+  usOpportunities: "us",
 };
 
 function getViewFromHash(): ViewKey | null {
@@ -162,52 +166,40 @@ export function Shell({ children }: ShellProps) {
           const active = currentView === item.key;
 
           return (
-            <ListItemButton
-              key={item.key}
-              selected={active}
-              onClick={() => {
-                setCurrentView(item.key);
-                setMobileOpen(false);
-              }}
-              sx={{
-                borderRadius: 2,
-                mb: 1,
-                py: 1.5,
-                color: "text.primary",
-                "&.Mui-selected": {
-                  bgcolor: "action.selected",
-                  "&:hover": { bgcolor: "action.selected" },
-                },
-                "&:not(.Mui-selected):hover": {
-                  bgcolor: "action.hover",
-                },
-              }}
-            >
-              <ListItemIcon sx={{ minWidth: 48 }}>
-                <Icon size={24} color={theme.palette.text.secondary} />
-              </ListItemIcon>
-              <ListItemText primary={item.label} primaryTypographyProps={{ fontWeight: 600, fontSize: 16 }} />
+              <ListItemButton
+                key={item.key}
+                selected={active}
+                aria-current={active ? "page" : undefined}
+                onClick={() => {
+                  setCurrentView(item.key);
+                  setMobileOpen(false);
+                }}
+                sx={{
+                  minHeight: 44,
+                  border: "1px solid transparent",
+                  borderRadius: 1.5,
+                  mb: 0.5,
+                  px: 1.25,
+                  py: 1,
+                  color: "text.primary",
+                  "&.Mui-selected": {
+                    bgcolor: "rgba(233, 100, 77, 0.08)",
+                    borderColor: "rgba(233, 100, 77, 0.42)",
+                    color: "primary.dark",
+                    "&:hover": { bgcolor: "rgba(233, 100, 77, 0.1)" },
+                  },
+                  "&:not(.Mui-selected):hover": {
+                    bgcolor: "action.hover",
+                  },
+                }}
+              >
+                <ListItemIcon sx={{ minWidth: 36, color: "inherit" }}>
+                  <Icon size={20} color={active ? theme.palette.primary.dark : theme.palette.text.secondary} />
+                </ListItemIcon>
+                <ListItemText primary={item.label} primaryTypographyProps={{ fontWeight: active ? 700 : 600, fontSize: 15 }} />
             </ListItemButton>
           );
         })}
-        <ListItemButton
-          component="a"
-          href="/us"
-          onClick={() => setMobileOpen(false)}
-          aria-label="U.S. Opportunities"
-          sx={{
-            borderRadius: 2,
-            mb: 1,
-            py: 1.5,
-            color: "text.primary",
-            "&:hover": { bgcolor: "action.hover" },
-          }}
-        >
-          <ListItemIcon sx={{ minWidth: 48 }}>
-            <Globe2 size={24} color={theme.palette.text.secondary} />
-          </ListItemIcon>
-          <ListItemText primary="U.S. Opportunities" primaryTypographyProps={{ fontWeight: 600, fontSize: 16 }} />
-        </ListItemButton>
       </Box>
     </Box>
   );

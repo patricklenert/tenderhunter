@@ -1,10 +1,11 @@
 import { db } from "@/lib/db";
-import { jobs, tenders } from "@/lib/schema";
+import { jobs, publicScrapeRuns, publicSourceRuns, tenders } from "@/lib/schema";
 import { enqueueJob } from "@/lib/queue";
 import { json, errorResponse } from "@/lib/http";
 import { JOB_SCRAPE_PUBLIC } from "@/lib/types";
 import { eq, desc, and, count, gte } from "drizzle-orm";
 import { requireSession } from "@/lib/api-auth";
+import { getPublicCatalogQualitySummary, getPublicScrapeMonitoring } from "@/lib/public-monitoring";
 
 export const runtime = "nodejs";
 
@@ -24,6 +25,10 @@ export async function GET(request: Request): Promise<Response> {
       .where(eq(jobs.type, JOB_SCRAPE_PUBLIC))
       .orderBy(desc(jobs.createdAt))
       .limit(1);
+    const lastRun = await db.select().from(publicScrapeRuns).orderBy(desc(publicScrapeRuns.startedAt)).limit(1);
+    const sourceRuns = lastRun[0]
+      ? await db.select().from(publicSourceRuns).where(eq(publicSourceRuns.runId, lastRun[0].id)).orderBy(publicSourceRuns.sourceKey)
+      : [];
 
     const pendingJobs = await db
       .select({ id: jobs.id })
@@ -41,8 +46,29 @@ export async function GET(request: Request): Promise<Response> {
         )
       );
 
+    const [quality, monitoring] = await Promise.all([
+      getPublicCatalogQualitySummary(),
+      getPublicScrapeMonitoring(),
+    ]);
+
     return json({
-      lastRun: lastJob[0]
+      lastRun: lastRun[0]
+        ? {
+            id: lastRun[0].id,
+            jobId: lastRun[0].jobId,
+            status: lastRun[0].status,
+            startedAt: lastRun[0].startedAt,
+            finishedAt: lastRun[0].finishedAt,
+             totalFound: lastRun[0].totalFound,
+             afterDedup: lastRun[0].afterDedup,
+             acceptedCount: lastRun[0].acceptedCount,
+             insertedCount: lastRun[0].insertedCount,
+             updatedCount: lastRun[0].updatedCount,
+             skippedExpired: lastRun[0].skippedExpired,
+             errorMessage: lastRun[0].errorMessage,
+             sources: sourceRuns,
+          }
+        : lastJob[0]
         ? {
             id: lastJob[0].id,
             status: lastJob[0].status,
@@ -52,6 +78,8 @@ export async function GET(request: Request): Promise<Response> {
         : null,
       pendingJobs: pendingJobs.length,
       tendersLast7Days: recentTenders[0]?.total ?? 0,
+      quality,
+      monitoring,
     });
   } catch (error) {
     return errorResponse(error);
@@ -75,7 +103,7 @@ export async function POST(request: Request): Promise<Response> {
       });
     }
 
-    const jobId = await enqueueJob(JOB_SCRAPE_PUBLIC, {}, { jobKey: JOB_SCRAPE_PUBLIC });
+    const jobId = await enqueueJob(JOB_SCRAPE_PUBLIC, {}, { jobKey: JOB_SCRAPE_PUBLIC, priority: 150 });
 
     return json({
       message: "Oeffentliche Ausschreibungen Scrape gestartet.",

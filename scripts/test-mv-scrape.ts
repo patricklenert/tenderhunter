@@ -23,7 +23,7 @@ async function main() {
     "https://vergabe.mv-regierung.de/NetServer/PublicationSearchControllerServlet?Start=0",
   );
 
-  if (paginationUrls.length !== 1 || !paginationUrls[0].includes("Start=100")) {
+  if (paginationUrls.length !== 1 || !paginationUrls[0].includes("/NetServer/PublicationSearchControllerServlet") || !paginationUrls[0].includes("Start=100")) {
     throw new Error("Die M-V-Pagination wurde nicht korrekt erkannt.");
   }
 

@@ -1,6 +1,6 @@
-import { and, asc, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, exists, ilike, inArray, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { attributionEvents, companyProfiles, insights, scores, tenders, trackedTenders } from "@/lib/schema";
+import { attributionEvents, companyProfiles, insights, scores, tenders, trackedTenders, userCompanies } from "@/lib/schema";
 import {
   ACTIVE_TRACKED_TENDER_STATUSES,
   mapTrackedStatusToTrackingEvent,
@@ -105,6 +105,7 @@ export interface ListTrackedTendersResult {
 }
 
 interface ListTrackedTendersOptions {
+  userId: string;
   companyId?: number;
   status?: "all" | "active" | TrackedTenderStatus;
   search?: string;
@@ -181,7 +182,7 @@ const buildSummary = (items: TrackedTenderListItem[]): TrackedTenderSummary => {
         return false;
       }
       const deadline = new Date(item.deadlineAt).getTime();
-      return Number.isFinite(deadline) && deadline <= dueSoonLimit;
+      return Number.isFinite(deadline) && deadline >= now && deadline <= dueSoonLimit;
     }).length,
   };
 };
@@ -201,7 +202,7 @@ const buildCompanyOptions = (items: TrackedTenderListItem[]): TrackedTenderCompa
     .map(([, value]) => value)
     .sort((left, right) => left.name.localeCompare(right.name, "de"));
 
-const baseTrackedTenderQuery = () =>
+const baseTrackedTenderQuery = (userId: string) =>
   db
     .select({
       trackedId: trackedTenders.id,
@@ -231,6 +232,10 @@ const baseTrackedTenderQuery = () =>
       qualityReason: tenders.qualityReason,
     })
     .from(trackedTenders)
+    .innerJoin(
+      userCompanies,
+      and(eq(userCompanies.companyId, trackedTenders.companyId), eq(userCompanies.userId, userId)),
+    )
     .leftJoin(tenders, eq(trackedTenders.tenderId, tenders.id))
     .leftJoin(companyProfiles, eq(trackedTenders.companyId, companyProfiles.id))
     .leftJoin(scores, and(eq(scores.tenderId, trackedTenders.tenderId), eq(scores.companyId, trackedTenders.companyId)))
@@ -287,7 +292,7 @@ const parseDeadline = (value: string | null | undefined): Date | null | undefine
   return new Date(value);
 };
 
-export const listTrackedTenders = async (options: ListTrackedTendersOptions = {}): Promise<ListTrackedTendersResult> => {
+export const listTrackedTenders = async (options: ListTrackedTendersOptions): Promise<ListTrackedTendersResult> => {
   const filters = [];
 
   if (options.companyId) {
@@ -314,7 +319,7 @@ export const listTrackedTenders = async (options: ListTrackedTendersOptions = {}
     );
   }
 
-  const rows = await baseTrackedTenderQuery()
+  const rows = await baseTrackedTenderQuery(options.userId)
     .where(filters.length > 0 ? and(...filters) : undefined)
     .orderBy(
       STATUS_ORDER,
@@ -333,8 +338,8 @@ export const listTrackedTenders = async (options: ListTrackedTendersOptions = {}
   };
 };
 
-export const getTrackedTender = async (companyId: number, tenderId: number): Promise<TrackedTenderListItem | null> => {
-  const rows = await baseTrackedTenderQuery()
+export const getTrackedTender = async (userId: string, companyId: number, tenderId: number): Promise<TrackedTenderListItem | null> => {
+  const rows = await baseTrackedTenderQuery(userId)
     .where(and(eq(trackedTenders.companyId, companyId), eq(trackedTenders.tenderId, tenderId)))
     .limit(1);
 
@@ -360,6 +365,7 @@ export const recordTrackedTenderEvent = async (
 };
 
 export const createOrUpdateTrackedTender = async (input: {
+  userId: string;
   companyId: number;
   tenderId: number;
   status: TrackedTenderStatus;
@@ -395,7 +401,7 @@ export const createOrUpdateTrackedTender = async (input: {
 
   await recordTrackedTenderEvent(input.companyId, input.tenderId, input.status, input.metadata);
 
-  const item = await getTrackedTender(input.companyId, input.tenderId);
+  const item = await getTrackedTender(input.userId, input.companyId, input.tenderId);
   if (!item) {
     throw new Error("Verfolgte Ausschreibung konnte nicht geladen werden.");
   }
@@ -403,6 +409,7 @@ export const createOrUpdateTrackedTender = async (input: {
 };
 
 export const updateTrackedTender = async (
+  userId: string,
   companyId: number,
   tenderId: number,
   patch: {
@@ -412,7 +419,7 @@ export const updateTrackedTender = async (
     notes?: string;
   },
 ) => {
-  const current = await getTrackedTender(companyId, tenderId);
+  const current = await getTrackedTender(userId, companyId, tenderId);
   if (!current) {
     return null;
   }
@@ -422,16 +429,32 @@ export const updateTrackedTender = async (
   const nextDeadline = patch.deadlineAt === undefined ? current.deadlineAt : patch.deadlineAt;
   const nextNotes = patch.notes === undefined ? current.notes : normalizeNotes(patch.notes) ?? "";
 
-  await db
+  const updates: {
+    status?: TrackedTenderStatus;
+    owner?: string | null;
+    deadlineAt?: Date | null;
+    notes?: string;
+    updatedAt: Date;
+  } = { updatedAt: new Date() };
+  if (patch.status !== undefined) updates.status = patch.status;
+  if (patch.owner !== undefined) updates.owner = nextOwner;
+  if (patch.deadlineAt !== undefined) updates.deadlineAt = nextDeadline ? new Date(nextDeadline) : null;
+  if (patch.notes !== undefined) updates.notes = nextNotes;
+
+  const membership = db
+    .select({ id: userCompanies.id })
+    .from(userCompanies)
+    .where(and(eq(userCompanies.userId, userId), eq(userCompanies.companyId, companyId)));
+
+  const updated = await db
     .update(trackedTenders)
-    .set({
-      status: nextStatus,
-      owner: nextOwner,
-      deadlineAt: nextDeadline ? new Date(nextDeadline) : null,
-      notes: nextNotes,
-      updatedAt: new Date(),
-    })
-    .where(and(eq(trackedTenders.companyId, companyId), eq(trackedTenders.tenderId, tenderId)));
+    .set(updates)
+    .where(and(eq(trackedTenders.companyId, companyId), eq(trackedTenders.tenderId, tenderId), exists(membership)))
+    .returning({ id: trackedTenders.id });
+
+  if (!updated[0]) {
+    return null;
+  }
 
   await recordTrackedTenderEvent(companyId, tenderId, nextStatus, {
     previous_status: current.status,
@@ -439,5 +462,5 @@ export const updateTrackedTender = async (
     deadline_at: nextDeadline,
   });
 
-  return getTrackedTender(companyId, tenderId);
+  return getTrackedTender(userId, companyId, tenderId);
 };

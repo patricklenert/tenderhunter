@@ -21,6 +21,7 @@ export const settings = {
   maxJobRetries: parseIntEnv("MAX_JOB_RETRIES", 3),
   workerPollSeconds: parseIntEnv("WORKER_POLL_SECONDS", 3),
   usScrapeIntervalHours: positiveIntEnv("US_SCRAPE_INTERVAL_HOURS", 24),
+  publicScrapeIntervalHours: positiveIntEnv("PUBLIC_SCRAPE_INTERVAL_HOURS", 48),
   samLookbackDays: positiveIntEnv("SAM_LOOKBACK_DAYS", 2),
   samMaxRecords: positiveIntEnv("SAM_MAX_RECORDS", 5_000),
   samSetAside: process.env.SAM_SET_ASIDE?.trim() || undefined,

@@ -1,7 +1,7 @@
 import * as cheerio from "cheerio";
 import fs from "node:fs";
 import path from "node:path";
-import { and, asc, eq, ne, isNotNull, lt, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, ne, isNotNull, lt, inArray, or, sql } from "drizzle-orm";
 import { settings } from "@/lib/config";
 import { discoverTendersFromSource } from "@/lib/crawler";
 import { db } from "@/lib/db";
@@ -16,6 +16,8 @@ import {
   insights,
   attributionEvents,
   jobs,
+  publicScrapeRuns,
+  publicSourceRuns,
   type Tender,
   type Document as DocumentType,
   type StructuredData as StructuredDataType,
@@ -29,7 +31,7 @@ import { ensureExtension, fetchAndStore, objectAbsolutePath, suggestedFilename }
 import { extractStructuredData, normalizeStructured, type StructuredData } from "@/lib/structurer";
 import { assessTenderQuality } from "@/lib/tender-quality";
 import { resolveSourceItem } from "@/lib/tender-sources";
-import { scrapeAllPublicTenders, type ExtractedTender } from "@/lib/public-tender-scraper";
+import { canonicalPublicSourceKey, scrapeAllPublicTenders, type ExtractedTender } from "@/lib/public-tender-scraper";
 import { scrapeAllUsTenders, type UsExtractedTender } from "@/lib/us-tender-scraper";
 import { categorizeUsTender } from "@/lib/us/categorize";
 import { processUsAlerts } from "@/lib/us/alerts";
@@ -41,6 +43,8 @@ import { scrapeWebsite } from "@/lib/firecrawl";
 import OpenAI from "openai";
 import { callLLM } from "@/lib/llm";
 import { detectAccessPage, type AccessPageDetection } from "@/lib/access-page-detector";
+import { processCompanyUrlPreview } from "@/lib/preview";
+import { markCatalogDirty } from "@/lib/catalog";
 import {
   JOB_CRAWL,
   JOB_FETCH_DOCUMENTS,
@@ -54,6 +58,7 @@ import {
   JOB_SYNC_MEILI,
   JOB_DISCOVER_COMPANY,
   JOB_SCRAPE_US,
+  JOB_PREVIEW_COMPANY_URL,
   type JobProcessResult,
   type JobType,
   type JsonValue,
@@ -174,7 +179,25 @@ const upsertTender = async ({ source, sourceKey, url, title, externalId, metadat
   const boundedRawText = rawText === undefined || rawText === null
     ? rawText
     : rawText.slice(0, MAX_TENDER_TEXT_CHARS);
-  const byExternalId = externalId
+  const bySourceKeyExternalId = externalId && sourceKey
+    ? await db
+        .select({
+          id: tenders.id,
+          sourceKey: tenders.sourceKey,
+          url: tenders.url,
+          title: tenders.title,
+          externalId: tenders.externalId,
+          metadataJson: tenders.metadataJson,
+          deadlineAt: tenders.deadlineAt,
+          category: tenders.category,
+          rawText: tenders.rawText,
+        })
+        .from(tenders)
+        .where(and(eq(tenders.sourceKey, sourceKey), eq(tenders.externalId, externalId)))
+        .limit(1)
+    : [];
+
+  const byExternalId = externalId && bySourceKeyExternalId.length === 0
     ? await db
         .select({
           id: tenders.id,
@@ -192,24 +215,53 @@ const upsertTender = async ({ source, sourceKey, url, title, externalId, metadat
         .limit(1)
     : [];
 
+  const byPortalIdentity = externalId && byExternalId.length === 0
+    ? await db
+        .select({
+          id: tenders.id,
+          sourceKey: tenders.sourceKey,
+          url: tenders.url,
+          title: tenders.title,
+          externalId: tenders.externalId,
+          metadataJson: tenders.metadataJson,
+          deadlineAt: tenders.deadlineAt,
+          category: tenders.category,
+          rawText: tenders.rawText,
+        })
+        .from(tenders)
+        .where(and(
+          eq(tenders.source, source),
+          or(
+            sql`${tenders.metadataJson} ->> 'reference_number' = ${externalId}`,
+            sql`substring(${tenders.url} from '/project/([^/;?]+)') = ${externalId}`,
+          ),
+        ))
+        .orderBy(asc(tenders.id))
+        .limit(1)
+    : [];
+
   const existing =
-    byExternalId.length > 0
-      ? byExternalId
-      : await db
-          .select({
-            id: tenders.id,
-            sourceKey: tenders.sourceKey,
-            url: tenders.url,
-            title: tenders.title,
-            externalId: tenders.externalId,
-            metadataJson: tenders.metadataJson,
-            deadlineAt: tenders.deadlineAt,
-            category: tenders.category,
-            rawText: tenders.rawText,
-          })
-          .from(tenders)
-          .where(and(eq(tenders.source, source), eq(tenders.url, url)))
-          .limit(1);
+    bySourceKeyExternalId.length > 0
+      ? bySourceKeyExternalId
+      : byExternalId.length > 0
+        ? byExternalId
+      : byPortalIdentity.length > 0
+        ? byPortalIdentity
+        : await db
+            .select({
+              id: tenders.id,
+              sourceKey: tenders.sourceKey,
+              url: tenders.url,
+              title: tenders.title,
+              externalId: tenders.externalId,
+              metadataJson: tenders.metadataJson,
+              deadlineAt: tenders.deadlineAt,
+              category: tenders.category,
+              rawText: tenders.rawText,
+            })
+            .from(tenders)
+            .where(and(eq(tenders.source, source), eq(tenders.url, url)))
+            .limit(1);
 
   if (existing.length > 0) {
     const current = existing[0];
@@ -240,6 +292,7 @@ const upsertTender = async ({ source, sourceKey, url, title, externalId, metadat
       .update(tenders)
       .set(updateData)
       .where(eq(tenders.id, current.id));
+    if (changed) await markCatalogDirty();
     return { id: current.id, changed, inserted: false };
   }
 
@@ -258,6 +311,7 @@ const upsertTender = async ({ source, sourceKey, url, title, externalId, metadat
     })
     .returning({ id: tenders.id });
 
+  await markCatalogDirty();
   return { id: result[0].id, changed: true, inserted: true };
 };
 
@@ -528,6 +582,7 @@ const rejectBlockedTender = async (tenderId: number, detection: AccessPageDetect
       updatedAt: new Date(),
     })
     .where(eq(tenders.id, tenderId));
+  await markCatalogDirty();
 };
 
 const retryBlockedDetail = async (tender: Tender, detection: AccessPageDetection): Promise<never> => {
@@ -770,6 +825,7 @@ const runParseDocuments = async (payload: Record<string, JsonValue>): Promise<Re
     .update(tenders)
     .set({ rawText: merged, updatedAt: new Date() })
     .where(eq(tenders.id, tenderId));
+  await markCatalogDirty();
   await queueTenderStage(JOB_STRUCTURE, tenderId);
   return { parsed_documents: docs.length, text_length: merged.length };
 };
@@ -854,6 +910,8 @@ const runStructureTender = async (payload: Record<string, JsonValue>): Promise<R
     .update(tenders)
     .set(qualityUpdate)
     .where(eq(tenders.id, tenderId));
+  await markCatalogDirty();
+  await enqueueJob(JOB_SYNC_MEILI, {}, { jobKey: JOB_SYNC_MEILI });
 
   if (quality.status !== "qualified") {
     await clearTenderScoring(tenderId);
@@ -1658,11 +1716,19 @@ const parseDeadline = (value: string | null): Date | null => {
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
-const runScrapePublicTenders = async (_payload: Record<string, JsonValue>): Promise<Record<string, JsonValue>> => {
+const runScrapePublicTenders = async (payload: Record<string, JsonValue>): Promise<Record<string, JsonValue>> => {
+  const jobId = Number(payload.__job_id ?? 0) || null;
+  const scrapeRun = await db.insert(publicScrapeRuns).values({ jobId, status: "running" }).returning({ id: publicScrapeRuns.id });
+  const runId = scrapeRun[0].id;
   let inserted = 0;
+  let updated = 0;
   let skipped = 0;
+  let upsertPersistenceError: string | null = null;
+  const changesBySource = new Map<string, { accepted: number; inserted: number; updated: number }>();
 
-  const result = await scrapeAllPublicTenders(async (_source, tenders) => {
+  try {
+    const result = await scrapeAllPublicTenders(async (sourceKey, tenders) => {
+      const changes = changesBySource.get(sourceKey) ?? { accepted: 0, inserted: 0, updated: 0 };
     for (const tender of tenders) {
       const deadline = parseDeadline(tender.deadline);
       if (deadline && deadline.getTime() < Date.now()) {
@@ -1673,6 +1739,7 @@ const runScrapePublicTenders = async (_payload: Record<string, JsonValue>): Prom
       try {
         const upserted = await upsertTender({
           source: tender.source,
+          sourceKey: canonicalPublicSourceKey(tender.sourceKey ?? sourceKey),
           url: tender.sourceUrl,
           title: tender.title,
           metadata: {
@@ -1684,34 +1751,67 @@ const runScrapePublicTenders = async (_payload: Record<string, JsonValue>): Prom
             discovered_at: new Date().toISOString(),
             scraper: "public_tender_scraper",
           },
+          externalId: tender.externalId ?? undefined,
           deadlineAt: deadline,
           category: tender.category,
           rawText: tender.description || undefined,
         });
         if (upserted.changed) {
           await queueTenderProcessing(upserted.id);
-          inserted += 1;
+          if (upserted.inserted) {
+            inserted += 1;
+            changes.inserted += 1;
+          } else {
+            updated += 1;
+            changes.updated += 1;
+          }
         }
+        changes.accepted += 1;
       } catch (error) {
         const message = error instanceof Error ? error.message : "unbekannt";
+        upsertPersistenceError ??= message;
         console.error(`[public-scraper] Upsert fehlgeschlagen fuer "${tender.title}": ${message}`);
       }
     }
-  });
-
-  if (inserted > 0) {
-    await enqueueJob(JOB_SYNC_MEILI, {}, { jobKey: JOB_SYNC_MEILI }).catch((err) => {
-      console.warn("[pipeline] Meilisearch-Sync konnte nicht eingereiht werden:", err);
+    changesBySource.set(sourceKey, changes);
     });
-  }
 
-  return {
-    total_found: result.totalFound,
-    after_dedup: result.afterDedup,
-    inserted,
-    skipped_expired: skipped,
-    by_source: result.bySource,
-  };
+    await db.insert(publicSourceRuns).values(result.sourceRuns.map((sourceRun) => {
+      const changes = changesBySource.get(sourceRun.sourceKey) ?? { accepted: sourceRun.acceptedCount, inserted: 0, updated: 0 };
+      return {
+        runId,
+        sourceKey: sourceRun.sourceKey,
+        status: sourceRun.status,
+        discoveredCount: sourceRun.discoveredCount,
+        acceptedCount: changes.accepted || sourceRun.acceptedCount,
+        insertedCount: changes.inserted,
+        updatedCount: changes.updated,
+        errorMessage: sourceRun.errorMessage,
+        startedAt: new Date(Date.now() - sourceRun.durationMs),
+        finishedAt: new Date(),
+      };
+    }));
+
+    if (result.persistenceError) throw new Error(result.persistenceError);
+    if (upsertPersistenceError) throw new Error(upsertPersistenceError);
+    await enqueueJob(JOB_SYNC_MEILI, {}, { jobKey: JOB_SYNC_MEILI, priority: 130 });
+    const hasFailures = result.sourceRuns.some((sourceRun) => ["failed", "timed_out", "partial"].includes(sourceRun.status));
+    await db.update(publicScrapeRuns).set({
+      status: hasFailures ? "partial" : "success",
+      totalFound: result.totalFound,
+      afterDedup: result.afterDedup,
+      acceptedCount: result.sourceRuns.reduce((sum, sourceRun) => sum + sourceRun.acceptedCount, 0),
+      insertedCount: inserted,
+      updatedCount: updated,
+      skippedExpired: skipped,
+      finishedAt: new Date(),
+      updatedAt: new Date(),
+    }).where(eq(publicScrapeRuns.id, runId));
+    return { total_found: result.totalFound, after_dedup: result.afterDedup, inserted, updated, skipped_expired: skipped, by_source: result.bySource };
+  } catch (error) {
+    await db.update(publicScrapeRuns).set({ status: "failed", errorMessage: error instanceof Error ? error.message : "Public-Scrape fehlgeschlagen", insertedCount: inserted, updatedCount: updated, skippedExpired: skipped, finishedAt: new Date(), updatedAt: new Date() }).where(eq(publicScrapeRuns.id, runId));
+    throw error;
+  }
 };
 
 const runScrapeUsTenders = async (_payload: Record<string, JsonValue>): Promise<Record<string, JsonValue>> => {
@@ -1810,6 +1910,13 @@ const runDiscoverCompany = async (payload: Record<string, JsonValue>): Promise<R
   return { company_id: companyId, scored };
 };
 
+const runPreviewCompanyUrl = async (payload: Record<string, JsonValue>): Promise<Record<string, JsonValue>> => {
+  const cacheId = Number(payload.cache_id ?? 0);
+  if (!Number.isFinite(cacheId) || cacheId <= 0) throw new Error("ungueltige preview cache_id");
+  await processCompanyUrlPreview(cacheId);
+  return { cache_id: cacheId };
+};
+
 const handlers: Record<JobType, (payload: Record<string, JsonValue>) => Promise<Record<string, JsonValue>>> = {
   [JOB_CRAWL]: runCrawl,
   [JOB_SCRAPE_PUBLIC]: runScrapePublicTenders,
@@ -1823,6 +1930,7 @@ const handlers: Record<JobType, (payload: Record<string, JsonValue>) => Promise<
   [JOB_SYNC_MEILI]: runSyncMeili,
   [JOB_DISCOVER_COMPANY]: runDiscoverCompany,
   [JOB_SCRAPE_US]: runScrapeUsTenders,
+  [JOB_PREVIEW_COMPANY_URL]: runPreviewCompanyUrl,
 };
 
 export const processJobById = async (jobId: number): Promise<JobProcessResult> => {
@@ -1842,7 +1950,7 @@ export const processJobById = async (jobId: number): Promise<JobProcessResult> =
     throw new Error(`Kein Handler fuer Job-Typ ${row.type}`);
   }
 
-  const payload = parseRecord(row.payload as string);
+  const payload = { ...parseRecord(row.payload as string), __job_id: row.id };
   const result = await handler(payload);
   return { job_id: row.id, job_type: row.type as JobType, status: "done", result };
 };
@@ -1867,7 +1975,7 @@ export const processNextJob = async (workerId: string): Promise<JobProcessResult
       throw new Error(`Kein Handler fuer Job-Typ ${jobType}`);
     }
 
-    const payload = parseRecord(job.payload as string);
+    const payload = { ...parseRecord(job.payload as string), __job_id: job.id };
     const result = await handler(payload);
     clearInterval(heartbeat);
     await markDone(job.id, workerId);
@@ -1932,10 +2040,11 @@ export const cleanupExpiredTenders = async (): Promise<{ deleted: number }> => {
   }
 
   if (deleted === 0) return { deleted: 0 };
+  await markCatalogDirty();
 
   // Enqueue a full Meilisearch sync to ensure orphaned documents are removed
   try {
-     await enqueueJob(JOB_SYNC_MEILI, {}, { jobKey: JOB_SYNC_MEILI });
+     await enqueueJob(JOB_SYNC_MEILI, {}, { jobKey: JOB_SYNC_MEILI, priority: 130 });
      console.log(`[cleanup] sync_meilisearch Job eingereiht nach ${deleted} Löschungen.`);
   } catch (err) {
     console.warn("[cleanup] Konnte sync_meilisearch nicht einreihen:", err);

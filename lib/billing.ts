@@ -1,9 +1,10 @@
 import Stripe from "stripe";
 
-export type BillingPlan = "weekly" | "yearly";
+export type CheckoutBillingPlan = "weekly" | "quarterly";
+export type BillingPlan = CheckoutBillingPlan | "yearly";
 
 export const BILLING_PLANS: Record<
-  BillingPlan,
+  CheckoutBillingPlan,
   {
     label: string;
     price: string;
@@ -17,11 +18,11 @@ export const BILLING_PLANS: Record<
     cadence: "pro Woche",
     description: "Flexibel starten und jederzeit über Stripe verwalten.",
   },
-  yearly: {
-    label: "Jährlich",
-    price: "$79",
-    cadence: "pro Jahr",
-    description: "Der beste Wert für Teams, die regelmäßig Ausschreibungen verfolgen.",
+  quarterly: {
+    label: "3 Monate",
+    price: "$39",
+    cadence: "pro 3 Monate",
+    description: "Mehr Zeit für die Recherche, ohne dich langfristig zu binden.",
   },
 };
 
@@ -40,22 +41,28 @@ export function getStripe(): Stripe {
   return stripeClient;
 }
 
-export function getStripePriceId(plan: BillingPlan): string {
-  const priceId = plan === "weekly" ? process.env.STRIPE_PRICE_WEEKLY : process.env.STRIPE_PRICE_YEARLY;
+export function getStripePriceId(plan: CheckoutBillingPlan): string {
+  const priceId = plan === "weekly" ? process.env.STRIPE_PRICE_WEEKLY : process.env.STRIPE_PRICE_QUARTERLY;
   if (!priceId) {
-    throw new Error(`STRIPE_PRICE_${plan === "weekly" ? "WEEKLY" : "YEARLY"} ist nicht gesetzt.`);
+    throw new Error(`STRIPE_PRICE_${plan === "weekly" ? "WEEKLY" : "QUARTERLY"} ist nicht gesetzt.`);
   }
   return priceId;
 }
 
-export function parseBillingPlan(value: unknown): BillingPlan | null {
-  return value === "weekly" || value === "yearly" ? value : null;
+export function parseBillingPlan(value: unknown): CheckoutBillingPlan | null {
+  return value === "weekly" || value === "quarterly" ? value : null;
+}
+
+export function parseStoredBillingPlan(value: unknown): BillingPlan | null {
+  return parseBillingPlan(value) ?? (value === "yearly" ? "yearly" : null);
 }
 
 export function billingPlanFromPriceId(priceId: string | null | undefined): BillingPlan | null {
   if (!priceId) return null;
   if (priceId === process.env.STRIPE_PRICE_WEEKLY) return "weekly";
-  if (priceId === process.env.STRIPE_PRICE_YEARLY) return "yearly";
+  if (priceId === process.env.STRIPE_PRICE_QUARTERLY) return "quarterly";
+  // Keep recognizing existing annual subscriptions without offering them again.
+  if (process.env.STRIPE_PRICE_YEARLY && priceId === process.env.STRIPE_PRICE_YEARLY) return "yearly";
   return null;
 }
 

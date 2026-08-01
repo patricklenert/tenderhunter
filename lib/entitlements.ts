@@ -9,6 +9,7 @@ const ENTITLED_STATUSES = new Set(["active", "trialing"]);
 export const PREMIUM_FEATURES = [
   "documents",
   "ai_analysis",
+  "bid_pack",
   "alerts",
   "exports",
   "us_pursuit",
@@ -25,7 +26,7 @@ export interface BillingStatus {
 }
 
 export function isSubscriptionEntitled(subscription: Pick<BillingSubscription, "plan" | "status" | "currentPeriodEnd"> | null): boolean {
-  if (!subscription || !["weekly", "yearly"].includes(subscription.plan) || !ENTITLED_STATUSES.has(subscription.status)) return false;
+  if (!subscription || !["weekly", "quarterly", "yearly"].includes(subscription.plan) || !ENTITLED_STATUSES.has(subscription.status)) return false;
   return !subscription.currentPeriodEnd || subscription.currentPeriodEnd.getTime() > Date.now();
 }
 

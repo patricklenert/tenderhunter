@@ -41,6 +41,10 @@ const BUNDESLAND_ALIASES: Record<string, Bundesland> = {
   nrw: "Nordrhein-Westfalen",
   ruhrgebiet: "Nordrhein-Westfalen",
   "rheinland pfalz": "Rheinland-Pfalz",
+  rlp: "Rheinland-Pfalz",
+  rp: "Rheinland-Pfalz",
+  "r l p": "Rheinland-Pfalz",
+  "r p": "Rheinland-Pfalz",
   saarland: "Saarland",
   sachsen: "Sachsen",
   "sachsen anhalt": "Sachsen-Anhalt",
@@ -176,8 +180,55 @@ const CITY_TO_BUNDESLAND: Record<string, Bundesland> = {
 
   Mainz: "Rheinland-Pfalz",
   Ludwigshafen: "Rheinland-Pfalz",
+  "Ludwigshafen am Rhein": "Rheinland-Pfalz",
   Trier: "Rheinland-Pfalz",
   Kaiserslautern: "Rheinland-Pfalz",
+  Worms: "Rheinland-Pfalz",
+  Neuwied: "Rheinland-Pfalz",
+  Speyer: "Rheinland-Pfalz",
+  Landau: "Rheinland-Pfalz",
+  "Landau in der Pfalz": "Rheinland-Pfalz",
+  "Landau (Pfalz)": "Rheinland-Pfalz",
+  Frankenthal: "Rheinland-Pfalz",
+  "Frankenthal (Pfalz)": "Rheinland-Pfalz",
+  "Bad Kreuznach": "Rheinland-Pfalz",
+  Bingen: "Rheinland-Pfalz",
+  "Bingen am Rhein": "Rheinland-Pfalz",
+  "Neustadt an der Weinstraße": "Rheinland-Pfalz",
+  "Neustadt an der Weinstrasse": "Rheinland-Pfalz",
+  "Neustadt a. d. Weinstraße": "Rheinland-Pfalz",
+  "Neustadt a. d. Weinstrasse": "Rheinland-Pfalz",
+  "Neustadt (Weinstraße)": "Rheinland-Pfalz",
+  Pirmasens: "Rheinland-Pfalz",
+  Zweibrücken: "Rheinland-Pfalz",
+  Zweibruecken: "Rheinland-Pfalz",
+  Germersheim: "Rheinland-Pfalz",
+  "Idar-Oberstein": "Rheinland-Pfalz",
+  "Bad Dürkheim": "Rheinland-Pfalz",
+  "Bad Duerkheim": "Rheinland-Pfalz",
+  Ingelheim: "Rheinland-Pfalz",
+  "Ingelheim am Rhein": "Rheinland-Pfalz",
+  Andernach: "Rheinland-Pfalz",
+  Mayen: "Rheinland-Pfalz",
+  Bitburg: "Rheinland-Pfalz",
+  Wittlich: "Rheinland-Pfalz",
+  Cochem: "Rheinland-Pfalz",
+  Alzey: "Rheinland-Pfalz",
+  "Bad Neuenahr-Ahrweiler": "Rheinland-Pfalz",
+  "Bad Neuenahr": "Rheinland-Pfalz",
+  Ahrweiler: "Rheinland-Pfalz",
+  Montabaur: "Rheinland-Pfalz",
+  Boppard: "Rheinland-Pfalz",
+  Lahnstein: "Rheinland-Pfalz",
+  Remagen: "Rheinland-Pfalz",
+  Schifferstadt: "Rheinland-Pfalz",
+  "Wörth am Rhein": "Rheinland-Pfalz",
+  "Woerth am Rhein": "Rheinland-Pfalz",
+  Kandel: "Rheinland-Pfalz",
+  Grünstadt: "Rheinland-Pfalz",
+  Gruenstadt: "Rheinland-Pfalz",
+  Haßloch: "Rheinland-Pfalz",
+  Hassloch: "Rheinland-Pfalz",
 
   Saarbrücken: "Saarland",
 
@@ -245,7 +296,7 @@ const PLZ_PREFIX_TO_BUNDESLAND: Array<{ prefix: number; bundesland: Bundesland }
   { prefix: 51, bundesland: "Nordrhein-Westfalen" },
   { prefix: 52, bundesland: "Nordrhein-Westfalen" },
   { prefix: 53, bundesland: "Nordrhein-Westfalen" },
-  { prefix: 54, bundesland: "Nordrhein-Westfalen" },
+  { prefix: 54, bundesland: "Rheinland-Pfalz" },
   { prefix: 55, bundesland: "Rheinland-Pfalz" },
   { prefix: 56, bundesland: "Rheinland-Pfalz" },
   { prefix: 57, bundesland: "Nordrhein-Westfalen" },
@@ -302,6 +353,44 @@ const PLZ_PREFIX_TO_BUNDESLAND: Array<{ prefix: number; bundesland: Bundesland }
   { prefix: 9, bundesland: "Bayern" },
 ];
 
+const RHEINLAND_PFALZ_POSTAL_CODE_RANGES: Array<{
+  min: number;
+  max: number;
+  bundesland: Bundesland;
+}> = [
+  { min: 54000, max: 54999, bundesland: "Rheinland-Pfalz" },
+  { min: 66482, max: 66482, bundesland: "Rheinland-Pfalz" },
+  { min: 66900, max: 66999, bundesland: "Rheinland-Pfalz" },
+  { min: 76726, max: 76726, bundesland: "Rheinland-Pfalz" },
+  { min: 76744, max: 76744, bundesland: "Rheinland-Pfalz" },
+  { min: 76751, max: 76751, bundesland: "Rheinland-Pfalz" },
+  { min: 76756, max: 76756, bundesland: "Rheinland-Pfalz" },
+  { min: 76761, max: 76761, bundesland: "Rheinland-Pfalz" },
+  { min: 76764, max: 76764, bundesland: "Rheinland-Pfalz" },
+  { min: 76767, max: 76768, bundesland: "Rheinland-Pfalz" },
+  { min: 76770, max: 76771, bundesland: "Rheinland-Pfalz" },
+  { min: 76773, max: 76774, bundesland: "Rheinland-Pfalz" },
+  { min: 76776, max: 76777, bundesland: "Rheinland-Pfalz" },
+  { min: 76779, max: 76779, bundesland: "Rheinland-Pfalz" },
+  { min: 76800, max: 76899, bundesland: "Rheinland-Pfalz" },
+];
+
+function deriveBundeslandFromPostalCode(location: string): Bundesland | null {
+  for (const match of location.matchAll(/(?:^|[^\d])(\d{2})\s?(\d{3})(?!\d)/g)) {
+    const postalCode = Number(`${match[1]}${match[2]}`);
+    const range = RHEINLAND_PFALZ_POSTAL_CODE_RANGES.find(
+      ({ min, max }) => postalCode >= min && postalCode <= max,
+    );
+    if (range) return range.bundesland;
+
+    const prefix = Number(match[1]);
+    const bundesland = PLZ_PREFIX_TO_BUNDESLAND.find((entry) => entry.prefix === prefix);
+    if (bundesland) return bundesland.bundesland;
+  }
+
+  return null;
+}
+
 const CITY_ALIASES: Record<string, string> = {
   "München": "München",
   "Muenchen": "München",
@@ -320,6 +409,21 @@ const CITY_ALIASES: Record<string, string> = {
   "Würzburg": "Würzburg",
   "Wuerzburg": "Würzburg",
   "Göttingen": "Göttingen",
+  "Ludwigshafen am Rhein": "Ludwigshafen",
+  "Frankenthal (Pfalz)": "Frankenthal",
+  "Landau in der Pfalz": "Landau",
+  "Landau (Pfalz)": "Landau",
+  "Bingen am Rhein": "Bingen",
+  "Neustadt an der Weinstrasse": "Neustadt an der Weinstraße",
+  "Neustadt a. d. Weinstraße": "Neustadt an der Weinstraße",
+  "Neustadt a. d. Weinstrasse": "Neustadt an der Weinstraße",
+  "Neustadt (Weinstraße)": "Neustadt an der Weinstraße",
+  Zweibruecken: "Zweibrücken",
+  "Bad Duerkheim": "Bad Dürkheim",
+  "Ingelheim am Rhein": "Ingelheim",
+  "Woerth am Rhein": "Wörth am Rhein",
+  Gruenstadt: "Grünstadt",
+  Hassloch: "Haßloch",
 };
 
 export function deriveBundesland(location: string | null | undefined): Bundesland | null {
@@ -364,17 +468,7 @@ export function deriveBundesland(location: string | null | undefined): Bundeslan
     }
   }
 
-  for (const part of parts) {
-    const plzMatch = part.match(/^(\d{2})\d{0,3}/);
-    if (plzMatch) {
-      const prefix = parseInt(plzMatch[1], 10);
-      for (const entry of PLZ_PREFIX_TO_BUNDESLAND) {
-        if (entry.prefix === prefix) return entry.bundesland;
-      }
-    }
-  }
-
-  return null;
+  return deriveBundeslandFromPostalCode(location);
 }
 
 export function deriveCity(location: string | null | undefined): string | null {

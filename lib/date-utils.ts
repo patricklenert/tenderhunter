@@ -9,6 +9,72 @@ export function formatDeadlineDE(value: string | Date | null | undefined): strin
   });
 }
 
+const BERLIN_TIME_ZONE = "Europe/Berlin";
+const berlinDateTimeFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: BERLIN_TIME_ZONE,
+  calendar: "gregory",
+  numberingSystem: "latn",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hourCycle: "h23",
+});
+
+function getBerlinDateTimeParts(value: Date): {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+} {
+  const parts = new Map(
+    berlinDateTimeFormatter.formatToParts(value).map(({ type, value: partValue }) => [type, partValue]),
+  );
+  return {
+    year: Number(parts.get("year")),
+    month: Number(parts.get("month")),
+    day: Number(parts.get("day")),
+    hour: Number(parts.get("hour")),
+    minute: Number(parts.get("minute")),
+    second: Number(parts.get("second")),
+  };
+}
+
+function getBerlinOffsetMilliseconds(utcMilliseconds: number): number {
+  const local = getBerlinDateTimeParts(new Date(utcMilliseconds));
+  const localAsUtc = Date.UTC(local.year, local.month - 1, local.day, local.hour, local.minute, local.second);
+  return localAsUtc - utcMilliseconds;
+}
+
+function getBerlinMidnightUnixSeconds(year: number, month: number, day: number): number {
+  const localMidnightAsUtc = Date.UTC(year, month - 1, day);
+  let utcMilliseconds = localMidnightAsUtc;
+
+  // Recalculate with the offset at the candidate instant so DST transitions are handled correctly.
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const nextUtcMilliseconds = localMidnightAsUtc - getBerlinOffsetMilliseconds(utcMilliseconds);
+    if (nextUtcMilliseconds === utcMilliseconds) break;
+    utcMilliseconds = nextUtcMilliseconds;
+  }
+
+  return Math.floor(utcMilliseconds / 1000);
+}
+
+export function getGermanLastThreeDaysUnixRange(now: Date = new Date()): { from: number; to: number } {
+  const current = getBerlinDateTimeParts(now);
+  const start = new Date(Date.UTC(current.year, current.month - 1, current.day - 2));
+  const next = new Date(Date.UTC(current.year, current.month - 1, current.day + 1));
+
+  return {
+    from: getBerlinMidnightUnixSeconds(start.getUTCFullYear(), start.getUTCMonth() + 1, start.getUTCDate()),
+    to: getBerlinMidnightUnixSeconds(next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate()),
+  };
+}
+
 export function daysUntil(value: string | Date | null | undefined): number | null {
   if (!value) return null;
   const date = typeof value === "string" ? new Date(value) : value;

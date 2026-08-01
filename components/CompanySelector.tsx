@@ -4,12 +4,15 @@ import { useCallback, useEffect, useState } from "react";
 import {
   Box,
   Button,
-  Chip,
   CircularProgress,
+  List,
+  ListItem,
+  ListItemButton,
   Paper,
+  Skeleton,
   Typography,
 } from "@mui/material";
-import { Building2, Check, Globe, Plus } from "lucide-react";
+import { Check, Globe, Plus } from "lucide-react";
 
 export interface UserCompany {
   id: number;
@@ -74,129 +77,161 @@ export function CompanySelector({ onSelect, onNewAnalysis, activeCompanyId }: Co
     }
   };
 
-  if (loading) {
-    return (
-      <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
-        <CircularProgress size={28} />
-      </Box>
-    );
-  }
-
-  if (companies.length === 0) {
-    return (
-      <Paper variant="outlined" sx={{ p: 4, textAlign: "center", borderRadius: 3 }}>
-        <Building2 size={40} strokeWidth={1.5} style={{ opacity: 0.4 }} />
-        <Typography variant="h6" fontWeight={600} sx={{ mt: 2 }}>
-          Kein Unternehmensprofil gefunden
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 1, mb: 3 }}>
-          Führen Sie zuerst eine Analyse durch, um Ihr Unternehmen anzulegen.
-        </Typography>
-        <Button variant="contained" startIcon={<Plus size={18} />} onClick={onNewAnalysis}>
-          Neue Analyse starten
-        </Button>
-      </Paper>
-    );
-  }
-
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
-        <Typography variant="caption" fontWeight={600} textTransform="uppercase" letterSpacing="0.05em" color="text.secondary">
-          Unternehmensprofil auswählen
-        </Typography>
-        <Button size="small" startIcon={<Plus size={14} />} onClick={onNewAnalysis} sx={{ textTransform: "none", fontSize: "0.75rem" }}>
-          Neu
-        </Button>
-      </Box>
-      {companies.map((company) => {
-        const isActive = company.isActive || company.id === activeCompanyId;
-        return (
-          <Paper
-            key={company.id}
-            variant="outlined"
-            onClick={() => handleSetActive(company)}
+    <Paper
+      component="section"
+      aria-labelledby="company-selector-title"
+      variant="outlined"
+      sx={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 1.5,
+        height: "100%",
+        p: { xs: 2, sm: 3 },
+        borderRadius: 1.5,
+      }}
+    >
+      <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 1.25 }}>
+        <Box sx={{ minWidth: 0 }}>
+          <Typography
+            id="company-selector-title"
+            component="h2"
+            fontWeight={600}
             sx={{
-              p: 2,
-              borderRadius: 2,
-              cursor: "pointer",
-              borderColor: isActive ? "primary.main" : "divider",
-              borderWidth: isActive ? 2 : 1,
-              bgcolor: isActive ? "action.hover" : "transparent",
-              transition: "all 0.15s",
-              "&:hover": isActive ? {} : { borderColor: "text.secondary", bgcolor: "action.hover" },
-              position: "relative",
+              fontSize: { xs: "1.25rem", lg: "1.05rem" },
+              lineHeight: 1.3,
+              letterSpacing: "-0.01em",
+              whiteSpace: { lg: "nowrap" },
             }}
           >
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-              {company.logoUrl ? (
-                <Box
-                  component="img"
-                  src={company.logoUrl}
-                  alt={company.companyName}
+            Vorhandenes Unternehmensprofil auswählen
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, lineHeight: 1.55 }}>
+            Nutzen Sie ein gespeichertes Profil für Ihre Vorschau.
+          </Typography>
+        </Box>
+        <Button size="small" variant="outlined" startIcon={<Plus size={15} aria-hidden="true" />} onClick={onNewAnalysis} sx={{ minHeight: 36, px: 1.25 }}>
+          Neues Profil
+        </Button>
+      </Box>
+
+      {loading ? (
+        <Box sx={{ display: "grid", gap: 1, pt: 0.5 }} aria-label="Unternehmensprofile werden geladen">
+          {[0, 1, 2].map((index) => <Skeleton key={index} variant="rounded" height={104} animation="wave" />)}
+        </Box>
+      ) : companies.length === 0 ? (
+        <Box sx={{ p: 2, border: 1, borderColor: "divider", borderRadius: 1.5, bgcolor: "background.paper" }}>
+          <Typography variant="body2" fontWeight={600}>
+            Noch kein Unternehmensprofil vorhanden
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, lineHeight: 1.55 }}>
+            Analysieren Sie Ihre Website, um ein Unternehmensprofil anzulegen.
+          </Typography>
+          <Button variant="outlined" size="small" startIcon={<Plus size={15} aria-hidden="true" />} onClick={onNewAnalysis} sx={{ mt: 1.5 }}>
+            Neues Profil anlegen
+          </Button>
+        </Box>
+      ) : (
+        <List disablePadding sx={{ border: 1, borderColor: "divider", borderRadius: 1.5, overflow: "hidden", bgcolor: "background.paper" }}>
+          {companies.map((company, index) => {
+            const isActive = company.isActive || company.id === activeCompanyId;
+            const initials = (company.label || company.companyName)
+              .split(/\s+/)
+              .filter(Boolean)
+              .slice(0, 2)
+              .map((part) => part[0])
+              .join("")
+              .toUpperCase();
+            const visibleCapabilities = company.capabilities.slice(0, 3);
+            const remainingCapabilities = company.capabilities.length - visibleCapabilities.length;
+
+            return (
+              <ListItem key={company.id} disablePadding divider={index < companies.length - 1}>
+                <ListItemButton
+                  selected={isActive}
+                  onClick={() => handleSetActive(company)}
+                  aria-current={isActive ? "true" : undefined}
+                  aria-label={`${company.label || company.companyName} für die Vorschau verwenden`}
                   sx={{
-                    width: 36,
-                    height: 36,
+                    alignItems: "flex-start",
+                    gap: 1.5,
+                    px: 1.75,
+                    py: 1.75,
+                    border: "1px solid transparent",
                     borderRadius: 1,
-                    objectFit: "contain",
-                    bgcolor: "background.paper",
-                    border: "1px solid",
-                    borderColor: "divider",
-                    p: 0.5,
-                  }}
-                  onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
-                    (e.target as HTMLImageElement).style.display = "none";
-                  }}
-                />
-              ) : (
-                <Box
-                  sx={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 1,
-                    bgcolor: "action.selected",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
+                    transition: "background-color 180ms ease-out, border-color 180ms ease-out",
+                    "&.Mui-selected": {
+                      bgcolor: "rgba(233, 100, 77, 0.06)",
+                      borderColor: "primary.main",
+                      "&:hover": { bgcolor: "rgba(233, 100, 77, 0.08)" },
+                    },
+                    "&:not(.Mui-selected):hover": { bgcolor: "action.hover" },
+                    "&.Mui-focusVisible": {
+                      outline: "2px solid",
+                      outlineColor: "primary.main",
+                      outlineOffset: -2,
+                    },
                   }}
                 >
-                  <Building2 size={18} color="text.secondary" />
-                </Box>
-              )}
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <Typography variant="body2" fontWeight={600} noWrap>
-                    {company.label}
-                  </Typography>
-                  {isActive && (
-                    <Chip label="Aktiv" size="small" color="primary" variant="filled" sx={{ height: 20, fontSize: "0.65rem" }} />
+                  {company.logoUrl ? (
+                    <Box
+                      component="img"
+                      src={company.logoUrl}
+                      alt=""
+                      sx={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 1,
+                        objectFit: "contain",
+                        bgcolor: "background.paper",
+                        border: "1px solid",
+                        borderColor: "divider",
+                        p: 0.5,
+                        flexShrink: 0,
+                      }}
+                      onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
+                        (e.target as HTMLImageElement).style.display = "none";
+                      }}
+                    />
+                  ) : (
+                    <Box sx={{ width: 40, height: 40, borderRadius: 1, bgcolor: "action.selected", display: "grid", placeItems: "center", flexShrink: 0 }}>
+                      <Typography variant="caption" fontWeight={700} color="text.secondary">{initials || "U"}</Typography>
+                    </Box>
                   )}
-                </Box>
-                {company.websiteUrl && (
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mt: 0.25 }}>
-                    <Globe size={12} color="text.secondary" />
-                    <Typography variant="caption" color="text.secondary" noWrap>
-                      {company.websiteUrl.replace(/^https?:\/\//, "")}
-                    </Typography>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 1 }}>
+                      <Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.95rem", lineHeight: 1.35, overflowWrap: "anywhere" }}>
+                        {company.label || company.companyName}
+                      </Typography>
+                      {switching === company.id ? <CircularProgress size={17} aria-label="Profil wird ausgewählt" /> : isActive ? (
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, color: "text.secondary", flexShrink: 0, pt: 0.125 }}>
+                          <Box sx={{ width: 20, height: 20, borderRadius: "50%", display: "grid", placeItems: "center", border: "1px solid", borderColor: "primary.main", bgcolor: "rgba(233, 100, 77, 0.06)", color: "primary.dark" }}>
+                            <Check size={13} aria-hidden="true" />
+                          </Box>
+                          <Typography variant="caption" fontWeight={600}>Ausgewählt</Typography>
+                        </Box>
+                      ) : null}
+                    </Box>
+                    {company.websiteUrl && (
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mt: 0.5, minWidth: 0 }}>
+                        <Globe size={13} aria-hidden="true" color="currentColor" />
+                        <Typography variant="caption" color="text.secondary" noWrap>
+                          {company.websiteUrl.replace(/^https?:\/\//, "")}
+                        </Typography>
+                      </Box>
+                    )}
+                    {visibleCapabilities.length > 0 && (
+                      <Typography variant="body2" color="text.secondary" sx={{ display: "block", mt: 0.9, fontSize: "0.8125rem", lineHeight: 1.5 }}>
+                        Leistungen: {visibleCapabilities.join(", ")}{remainingCapabilities > 0 ? ` und ${remainingCapabilities} weitere` : ""}
+                      </Typography>
+                    )}
                   </Box>
-                )}
-              </Box>
-              {switching === company.id && <CircularProgress size={18} />}
-              {isActive && switching !== company.id && <Check size={18} color="primary" />}
-            </Box>
-            {company.capabilities.length > 0 && (
-              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 1 }}>
-                {company.capabilities.slice(0, 4).map((cap) => (
-                  <Chip key={cap} label={cap} size="small" variant="outlined" sx={{ height: 20, fontSize: "0.65rem" }} />
-                ))}
-                {company.capabilities.length > 4 && (
-                  <Chip label={`+${company.capabilities.length - 4}`} size="small" variant="outlined" sx={{ height: 20, fontSize: "0.65rem" }} />
-                )}
-              </Box>
-            )}
-          </Paper>
-        );
-      })}
-    </Box>
+                </ListItemButton>
+              </ListItem>
+            );
+          })}
+        </List>
+      )}
+    </Paper>
   );
 }

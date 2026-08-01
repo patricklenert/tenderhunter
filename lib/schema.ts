@@ -13,8 +13,16 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { user } from "./auth-schema";
+import {
+  BID_PACK_DECISION_STATUSES,
+  BID_PACK_REQUIREMENT_STATUSES,
+  BID_PACK_TASK_STATUSES,
+} from "./bid-pack-types";
 
 export const jobStatusEnum = pgEnum("job_status", ["pending", "running", "done", "failed"]);
+export const bidPackDecisionStatusEnum = pgEnum("bid_pack_decision_status", BID_PACK_DECISION_STATUSES);
+export const bidPackRequirementStatusEnum = pgEnum("bid_pack_requirement_status", BID_PACK_REQUIREMENT_STATUSES);
+export const bidPackTaskStatusEnum = pgEnum("bid_pack_task_status", BID_PACK_TASK_STATUSES);
 
 export const tenders = pgTable(
   "tenders",
@@ -48,6 +56,9 @@ export const tenders = pgTable(
   (table) => [
     uniqueIndex("idx_tenders_source_url").on(table.source, table.url),
     index("idx_tenders_source_external").on(table.source, table.externalId),
+    uniqueIndex("idx_tenders_source_external_unique")
+      .on(table.source, table.externalId)
+      .where(sql`${table.externalId} IS NOT NULL`),
     index("idx_tenders_quality_status").on(table.qualityStatus),
     index("idx_tenders_deadline").on(table.deadlineAt),
     index("idx_tenders_content_fingerprint").on(table.contentFingerprint),
@@ -257,6 +268,82 @@ export const userCompanies = pgTable(
   ]
 );
 
+export const companyEvidence = pgTable(
+  "company_evidence",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("company_id")
+      .notNull()
+      .references(() => companyProfiles.id, { onDelete: "cascade" }),
+    evidenceType: text("evidence_type").notNull().default("other"),
+    title: text("title").notNull(),
+    description: text("description"),
+    issuer: text("issuer"),
+    issuedAt: timestamp("issued_at", { withTimezone: true }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    sourceUrl: text("source_url"),
+    tagsJson: jsonb("tags_json").notNull().default([]),
+    status: text("status").notNull().default("active"),
+    sourceType: text("source_type").notNull().default("manual"),
+    createdByUserId: text("created_by_user_id").references(() => user.id, { onDelete: "set null" }),
+    verificationStatus: text("verification_status").notNull().default("unverified"),
+    verifiedByUserId: text("verified_by_user_id").references(() => user.id, { onDelete: "set null" }),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    verificationNote: text("verification_note"),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("idx_company_evidence_company_status").on(table.companyId, table.status),
+    index("idx_company_evidence_expires_at").on(table.expiresAt),
+  ],
+);
+
+export const companyEvidenceFiles = pgTable(
+  "company_evidence_files",
+  {
+    id: serial("id").primaryKey(),
+    evidenceId: integer("evidence_id")
+      .notNull()
+      .references(() => companyEvidence.id, { onDelete: "cascade" }),
+    storagePath: text("storage_path").notNull(),
+    originalFilename: text("original_filename").notNull(),
+    contentType: text("content_type").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    sha256: text("sha256").notNull(),
+    uploadStatus: text("upload_status").notNull().default("available"),
+    scanStatus: text("scan_status").notNull().default("clean"),
+    uploadedByUserId: text("uploaded_by_user_id").references(() => user.id, { onDelete: "set null" }),
+    uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
+    availableAt: timestamp("available_at", { withTimezone: true }),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    failureReason: text("failure_reason"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("idx_company_evidence_files_evidence_status").on(table.evidenceId, table.uploadStatus),
+    index("idx_company_evidence_files_scan_created").on(table.scanStatus, table.createdAt),
+  ],
+);
+
+export const companyEvidenceEvents = pgTable(
+  "company_evidence_events",
+  {
+    id: serial("id").primaryKey(),
+    evidenceId: integer("evidence_id")
+      .notNull()
+      .references(() => companyEvidence.id, { onDelete: "cascade" }),
+    fileId: integer("file_id").references(() => companyEvidenceFiles.id, { onDelete: "set null" }),
+    actorUserId: text("actor_user_id").references(() => user.id, { onDelete: "set null" }),
+    eventType: text("event_type").notNull(),
+    metadataJson: jsonb("metadata_json").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("idx_company_evidence_events_evidence_created").on(table.evidenceId, table.createdAt)],
+);
+
 export const scores = pgTable(
   "scores",
   {
@@ -347,6 +434,99 @@ export const trackedTenders = pgTable(
   ]
 );
 
+export const bidPacks = pgTable(
+  "bid_packs",
+  {
+    id: serial("id").primaryKey(),
+    trackedTenderId: integer("tracked_tender_id")
+      .notNull()
+      .references(() => trackedTenders.id, { onDelete: "cascade" }),
+    decisionStatus: bidPackDecisionStatusEnum("decision_status")
+      .notNull()
+      .default("undecided"),
+    decisionNote: text("decision_note"),
+    snapshotJson: jsonb("snapshot_json").notNull().default({}),
+    snapshotVersion: integer("snapshot_version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("idx_bid_packs_tracked_tender").on(table.trackedTenderId),
+    index("idx_bid_packs_decision_updated").on(table.decisionStatus, table.updatedAt),
+  ],
+);
+
+export const bidPackRequirements = pgTable(
+  "bid_pack_requirements",
+  {
+    id: serial("id").primaryKey(),
+    bidPackId: integer("bid_pack_id")
+      .notNull()
+      .references(() => bidPacks.id, { onDelete: "cascade" }),
+    source: text("source").notNull(),
+    title: text("title").notNull(),
+    sourceQuote: text("source_quote"),
+    isMandatory: boolean("is_mandatory").notNull().default(false),
+    status: bidPackRequirementStatusEnum("status").notNull().default("open"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("idx_bid_pack_requirements_pack_status").on(table.bidPackId, table.status),
+  ],
+);
+
+export const bidPackTasks = pgTable(
+  "bid_pack_tasks",
+  {
+    id: serial("id").primaryKey(),
+    bidPackId: integer("bid_pack_id")
+      .notNull()
+      .references(() => bidPacks.id, { onDelete: "cascade" }),
+    requirementId: integer("requirement_id").references(() => bidPackRequirements.id, {
+      onDelete: "set null",
+    }),
+    source: text("source").notNull().default("manual"),
+    title: text("title").notNull(),
+    status: bidPackTaskStatusEnum("status").notNull().default("todo"),
+    assignee: text("assignee"),
+    dueAt: timestamp("due_at", { withTimezone: true }),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("idx_bid_pack_tasks_pack_status").on(table.bidPackId, table.status),
+    index("idx_bid_pack_tasks_due_at").on(table.dueAt),
+  ],
+);
+
+export const requirementEvidenceMatches = pgTable(
+  "requirement_evidence_matches",
+  {
+    id: serial("id").primaryKey(),
+    requirementId: integer("requirement_id")
+      .notNull()
+      .references(() => bidPackRequirements.id, { onDelete: "cascade" }),
+    evidenceId: integer("evidence_id")
+      .notNull()
+      .references(() => companyEvidence.id, { onDelete: "cascade" }),
+    matchStatus: text("match_status").notNull().default("suggested"),
+    rationale: text("rationale"),
+    evidenceFileId: integer("evidence_file_id").references(() => companyEvidenceFiles.id, { onDelete: "set null" }),
+    linkedByUserId: text("linked_by_user_id").references(() => user.id, { onDelete: "set null" }),
+    evidenceSnapshotJson: jsonb("evidence_snapshot_json").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("idx_requirement_evidence_unique").on(table.requirementId, table.evidenceId),
+    index("idx_requirement_evidence_requirement").on(table.requirementId),
+    index("idx_requirement_evidence_evidence").on(table.evidenceId),
+  ],
+);
+
 export const jobs = pgTable(
   "jobs",
   {
@@ -354,6 +534,7 @@ export const jobs = pgTable(
     type: text("type").notNull(),
     payload: jsonb("payload").notNull(),
     status: jobStatusEnum("status").notNull().default("pending"),
+    priority: integer("priority").notNull().default(100),
     retries: integer("retries").notNull().default(0),
      maxRetries: integer("max_retries").notNull().default(3),
      runAfter: timestamp("run_after", { withTimezone: true }).notNull().defaultNow(),
@@ -371,14 +552,68 @@ export const jobs = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
    (table) => [
-     index("idx_jobs_status_run_after").on(table.status, table.runAfter),
+      index("idx_jobs_status_priority_run_after").on(table.status, table.priority, table.runAfter),
      index("idx_jobs_type_status_created").on(table.type, table.status, table.createdAt),
      index("idx_jobs_running_heartbeat").on(table.status, table.heartbeatAt),
      uniqueIndex("idx_jobs_active_job_key")
        .on(table.jobKey)
        .where(sql`${table.jobKey} IS NOT NULL AND ${table.status} IN ('pending', 'running')`),
    ]
- );
+  );
+
+export const catalogState = pgTable("catalog_state", {
+  id: integer("id").primaryKey().default(1),
+  revision: integer("revision").notNull().default(0),
+  syncedRevision: integer("synced_revision").notNull().default(0),
+  syncRunning: boolean("sync_running").notNull().default(false),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const publicScrapeRuns = pgTable(
+  "public_scrape_runs",
+  {
+    id: serial("id").primaryKey(),
+    jobId: integer("job_id").references(() => jobs.id, { onDelete: "set null" }),
+    status: text("status").notNull().default("running"),
+    totalFound: integer("total_found").notNull().default(0),
+    afterDedup: integer("after_dedup").notNull().default(0),
+    acceptedCount: integer("accepted_count").notNull().default(0),
+    insertedCount: integer("inserted_count").notNull().default(0),
+    updatedCount: integer("updated_count").notNull().default(0),
+    skippedExpired: integer("skipped_expired").notNull().default(0),
+    errorMessage: text("error_message"),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("idx_public_scrape_runs_status_finished").on(table.status, table.finishedAt),
+    index("idx_public_scrape_runs_job").on(table.jobId),
+  ],
+);
+
+export const publicSourceRuns = pgTable(
+  "public_source_runs",
+  {
+    id: serial("id").primaryKey(),
+    runId: integer("run_id")
+      .notNull()
+      .references(() => publicScrapeRuns.id, { onDelete: "cascade" }),
+    sourceKey: text("source_key").notNull(),
+    status: text("status").notNull(),
+    discoveredCount: integer("discovered_count").notNull().default(0),
+    acceptedCount: integer("accepted_count").notNull().default(0),
+    insertedCount: integer("inserted_count").notNull().default(0),
+    updatedCount: integer("updated_count").notNull().default(0),
+    errorMessage: text("error_message"),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("idx_public_source_runs_run_source").on(table.runId, table.sourceKey),
+    index("idx_public_source_runs_source_finished").on(table.sourceKey, table.finishedAt),
+  ],
+);
 
 export const apiJobs = pgTable(
   "api_jobs",
@@ -398,6 +633,90 @@ export const apiJobs = pgTable(
   ]
 );
 
+export const companyUrlCache = pgTable(
+  "company_url_cache",
+  {
+    id: serial("id").primaryKey(),
+    canonicalUrl: text("canonical_url").notNull().unique(),
+    urlHash: text("url_hash").notNull().unique(),
+    finalUrl: text("final_url"),
+    profileJson: jsonb("profile_json"),
+    profileFingerprint: text("profile_fingerprint"),
+    extractorVersion: text("extractor_version").notNull().default("v1"),
+    status: text("status").notNull().default("pending"),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    failureCode: text("failure_code"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("idx_company_url_cache_status_expires").on(table.status, table.expiresAt)],
+);
+
+export const companyUrlMatchCache = pgTable(
+  "company_url_match_cache",
+  {
+    id: serial("id").primaryKey(),
+    cacheId: integer("cache_id")
+      .notNull()
+      .references(() => companyUrlCache.id, { onDelete: "cascade" }),
+    rank: integer("rank").notNull(),
+    tenderId: integer("tender_id")
+      .notNull()
+      .references(() => tenders.id, { onDelete: "cascade" }),
+    titleSnapshot: text("title_snapshot").notNull(),
+    sourceSnapshot: text("source_snapshot").notNull(),
+    urlSnapshot: text("url_snapshot"),
+    deadlineAtSnapshot: timestamp("deadline_at_snapshot", { withTimezone: true }),
+    fit: real("fit").notNull(),
+    winProbability: real("win_probability").notNull(),
+    reason: text("reason").notNull(),
+    detailsJson: jsonb("details_json").notNull().default({}),
+    scoringVersion: text("scoring_version").notNull().default("v1"),
+    computedAt: timestamp("computed_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("idx_company_url_match_cache_rank").on(table.cacheId, table.rank),
+    index("idx_company_url_match_cache_cache").on(table.cacheId),
+  ],
+);
+
+export const companyMatchPreviews = pgTable(
+  "company_match_previews",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    cacheId: integer("cache_id").references(() => companyUrlCache.id, { onDelete: "set null" }),
+    status: text("status").notNull().default("queued"),
+    jobId: integer("job_id").references(() => jobs.id, { onDelete: "set null" }),
+    idempotencyKey: text("idempotency_key"),
+    errorCode: text("error_code"),
+    requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("idx_company_match_previews_user_created").on(table.userId, table.createdAt),
+    index("idx_company_match_previews_status").on(table.status),
+  ],
+);
+
+export const apiRateLimitBuckets = pgTable(
+  "api_rate_limit_buckets",
+  {
+    bucketKey: text("bucket_key").primaryKey(),
+    windowStartedAt: timestamp("window_started_at", { withTimezone: true }).notNull(),
+    count: integer("count").notNull().default(0),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [index("idx_api_rate_limit_buckets_expires").on(table.expiresAt)],
+);
+
 export type Tender = typeof tenders.$inferSelect;
 export type NewTender = typeof tenders.$inferInsert;
 export type UsTender = typeof usTenders.$inferSelect;
@@ -414,6 +733,11 @@ export type CompanyProfile = typeof companyProfiles.$inferSelect;
 export type NewCompanyProfile = typeof companyProfiles.$inferInsert;
 export type UserCompany = typeof userCompanies.$inferSelect;
 export type NewUserCompany = typeof userCompanies.$inferInsert;
+export type CompanyEvidence = typeof companyEvidence.$inferSelect;
+export type NewCompanyEvidence = typeof companyEvidence.$inferInsert;
+export type CompanyEvidenceFile = typeof companyEvidenceFiles.$inferSelect;
+export type NewCompanyEvidenceFile = typeof companyEvidenceFiles.$inferInsert;
+export type CompanyEvidenceEvent = typeof companyEvidenceEvents.$inferSelect;
 export type Score = typeof scores.$inferSelect;
 export type NewScore = typeof scores.$inferInsert;
 export type Insight = typeof insights.$inferSelect;
@@ -422,6 +746,20 @@ export type AttributionEvent = typeof attributionEvents.$inferSelect;
 export type NewAttributionEvent = typeof attributionEvents.$inferInsert;
 export type TrackedTender = typeof trackedTenders.$inferSelect;
 export type NewTrackedTender = typeof trackedTenders.$inferInsert;
+export type BidPack = typeof bidPacks.$inferSelect;
+export type NewBidPack = typeof bidPacks.$inferInsert;
+export type BidPackRequirement = typeof bidPackRequirements.$inferSelect;
+export type NewBidPackRequirement = typeof bidPackRequirements.$inferInsert;
+export type BidPackTask = typeof bidPackTasks.$inferSelect;
+export type NewBidPackTask = typeof bidPackTasks.$inferInsert;
+export type RequirementEvidenceMatch = typeof requirementEvidenceMatches.$inferSelect;
+export type NewRequirementEvidenceMatch = typeof requirementEvidenceMatches.$inferInsert;
+export type CompanyUrlCache = typeof companyUrlCache.$inferSelect;
+export type CompanyUrlMatchCache = typeof companyUrlMatchCache.$inferSelect;
+export type CompanyMatchPreview = typeof companyMatchPreviews.$inferSelect;
+export type CatalogState = typeof catalogState.$inferSelect;
+export type PublicScrapeRun = typeof publicScrapeRuns.$inferSelect;
+export type PublicSourceRun = typeof publicSourceRuns.$inferSelect;
 export type Job = typeof jobs.$inferSelect;
 export type NewJob = typeof jobs.$inferInsert;
 export type ApiJob = typeof apiJobs.$inferSelect;

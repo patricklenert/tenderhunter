@@ -92,6 +92,8 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
   const [showBanner, setShowBanner] = useState(false);
   const [tenders, setTenders] = useState<ApiTender[]>([]);
   const [totalResults, setTotalResults] = useState(0);
+  const [todayNewOnly, setTodayNewOnly] = useState(false);
+  const [todayNewCount, setTodayNewCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -206,6 +208,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
     signal?: AbortSignal,
     page = 1,
     append = false,
+    todayNew = false,
   ) => {
     const requestGeneration = append
       ? requestGenerationRef.current
@@ -227,6 +230,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
       if (query.trim()) params.set("q", query.trim());
       if (location.startsWith("bl:")) params.set("bundesland", location.slice(3));
       if (location.startsWith("city:")) params.set("city", location.slice(5));
+      if (todayNew) params.set("todayNew", "1");
       params.set("limit", String(PAGE_SIZE));
       params.set("page", String(page));
 
@@ -237,12 +241,16 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
       const nextItems = data.items ?? [];
       setTenders((previous) => append ? [...previous, ...nextItems] : nextItems);
       setTotalResults(data.total ?? data.items?.length ?? 0);
+      setTodayNewCount(data.todayNewCount ?? 0);
       setCurrentPage(page);
       setHasMore(page * PAGE_SIZE < (data.total ?? nextItems.length) && nextItems.length > 0);
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
       setError(err instanceof Error ? err.message : "Fehler beim Laden");
-      if (!append) setTenders([]);
+      if (!append) {
+        setTenders([]);
+        setTodayNewCount(0);
+      }
     } finally {
       if (!signal?.aborted) {
         if (append) {
@@ -258,18 +266,18 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
   useEffect(() => {
     const controller = new AbortController();
     const timer = setTimeout(() => {
-      searchTendersApi(searchQuery, selectedLocation, controller.signal);
+      searchTendersApi(searchQuery, selectedLocation, controller.signal, 1, false, todayNewOnly);
     }, searchQuery ? 350 : 0);
     return () => {
       controller.abort();
       clearTimeout(timer);
     };
-  }, [searchQuery, selectedLocation, searchTendersApi]);
+  }, [searchQuery, selectedLocation, searchTendersApi, todayNewOnly]);
 
   const loadMore = useCallback(() => {
     if (!hasMore || loading || loadingMoreRef.current) return;
-    void searchTendersApi(searchQuery, selectedLocation, undefined, currentPage + 1, true);
-  }, [currentPage, hasMore, loading, searchQuery, selectedLocation, searchTendersApi]);
+    void searchTendersApi(searchQuery, selectedLocation, undefined, currentPage + 1, true, todayNewOnly);
+  }, [currentPage, hasMore, loading, searchQuery, selectedLocation, searchTendersApi, todayNewOnly]);
 
   useEffect(() => {
     const element = loadMoreRef.current;
@@ -316,7 +324,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
           setTotalResults((previous) => Math.max(0, previous - 1));
           setDetailLoading(false);
           setDetailOpen(false);
-          void searchTendersApi(searchQuery, selectedLocation);
+          void searchTendersApi(searchQuery, selectedLocation, undefined, 1, false, todayNewOnly);
           return;
         }
         throw new Error(data.error ?? `HTTP ${res.status}`);
@@ -345,7 +353,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
       setDetailError(err instanceof Error ? err.message : "Fehler beim Laden");
       setDetailLoading(false);
     }
-  }, []);
+  }, [searchTendersApi, searchQuery, selectedLocation, todayNewOnly]);
 
   const locationOptions = useMemo(() => getAllLocationOptions(), []);
 
@@ -357,6 +365,8 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
       return distance <= GEO_RADIUS_KM;
     });
   }, [tenders, userLocation, tenderDistances]);
+
+  const hasActiveFilters = Boolean(searchQuery || selectedLocation || todayNewOnly);
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 0 }}>
@@ -493,7 +503,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
               <ToggleButton value="table"><List size={22} /></ToggleButton>
             </ToggleButtonGroup>
             <IconButton
-              onClick={() => searchTendersApi(searchQuery, selectedLocation)}
+              onClick={() => searchTendersApi(searchQuery, selectedLocation, undefined, 1, false, todayNewOnly)}
               disabled={loading}
               size="medium"
               sx={{ height: 48, width: 48 }}
@@ -503,13 +513,41 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
           </Box>
         </Stack>
 
-        <Typography variant="body2" sx={{ color: "#475569", fontSize: "0.8125rem" }}>
-          {loading
-            ? "Lade Ausschreibungen..."
-            : userLocation
-            ? `${displayedTenders.length} von ${tenders.length} Ausschreibungen im Umkreis von ${GEO_RADIUS_KM}km`
-            : `${totalResults} Ausschreibungen gefunden`}
-        </Typography>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+          <Typography variant="body2" sx={{ color: "#475569", fontSize: "0.8125rem" }}>
+            {loading
+              ? "Lade Ausschreibungen..."
+              : userLocation
+              ? `${displayedTenders.length} von ${tenders.length} Ausschreibungen im Umkreis von ${GEO_RADIUS_KM}km`
+              : `${totalResults} Ausschreibungen gefunden`}
+          </Typography>
+          <Button
+            type="button"
+            size="small"
+            variant="text"
+            onClick={() => setTodayNewOnly((active) => !active)}
+            aria-pressed={todayNewOnly}
+            sx={{
+              minWidth: 0,
+              px: 0.75,
+              py: 0.25,
+              border: "1px solid",
+              borderColor: todayNewOnly ? "#166534" : "transparent",
+              borderRadius: 1,
+              color: "#166534",
+              backgroundColor: todayNewOnly ? "rgba(22, 101, 52, 0.1)" : "transparent",
+              fontSize: "0.8125rem",
+              fontWeight: todayNewOnly ? 700 : 500,
+              lineHeight: 1.5,
+              textTransform: "none",
+              "&:hover": {
+                backgroundColor: "rgba(22, 101, 52, 0.1)",
+              },
+            }}
+          >
+            {todayNewCount} in den letzten 3 Tagen neu gefunden
+          </Button>
+        </Box>
         {geoError && (
           <Typography variant="caption" color="error" sx={{ mt: 0.5, display: "block" }}>
             {geoError}
@@ -602,7 +640,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
           <Button
             variant="contained"
             startIcon={<RefreshCw size={20} />}
-            onClick={() => searchTendersApi(searchQuery, selectedLocation)}
+            onClick={() => searchTendersApi(searchQuery, selectedLocation, undefined, 1, false, todayNewOnly)}
             sx={{
               bgcolor: "#1E3A5F",
               color: "#fff",
@@ -623,20 +661,27 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
         >
           <FileText size={48} color="currentColor" style={{ opacity: 0.3, marginBottom: 16 }} />
           <Typography variant="h6" component="p" fontWeight={600} sx={{ mb: 1 }}>
-            {searchQuery || selectedLocation ? "Keine Ausschreibungen gefunden" : "Noch keine Ausschreibungen vorhanden"}
+            {todayNewOnly
+              ? "Keine Ausschreibungen in den letzten 3 Tagen gefunden"
+              : hasActiveFilters
+              ? "Keine Ausschreibungen gefunden"
+              : "Noch keine Ausschreibungen vorhanden"}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3, maxWidth: 500, mx: "auto" }}>
-            {searchQuery || selectedLocation
+            {todayNewOnly
+              ? "Versuchen Sie andere Suchbegriffe oder Standortfilter oder setzen Sie den Filter zurück."
+              : hasActiveFilters
               ? "Versuchen Sie andere Suchbegriffe oder Standortfilter."
               : "Der Hintergrund-Job sucht automatisch nach neuen Ausschreibungen."}
           </Typography>
-          {(searchQuery || selectedLocation) ? (
+          {hasActiveFilters ? (
             <Button
               variant="outlined"
               startIcon={<RefreshCw size={20} />}
               onClick={() => {
                 setSearchQuery("");
                 setSelectedLocation("");
+                setTodayNewOnly(false);
                 clearGeolocation();
               }}
             >
@@ -646,7 +691,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
             <Button
               variant="outlined"
               startIcon={<RefreshCw size={20} />}
-              onClick={() => searchTendersApi("", "")}
+              onClick={() => searchTendersApi("", "", undefined, 1, false, todayNewOnly)}
             >
               Jetzt laden
             </Button>
@@ -984,7 +1029,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                       <PaywallPanel
                         feature="Dokumente"
                         title="Vergabeunterlagen freischalten"
-                        description="Die wichtigsten Ausschreibungsdetails bleiben frei. Mit einem Billing-Plan kannst du Originalunterlagen öffnen und teilen."
+                        description="Die Originalunterlagen sind nur die Quelle. Pro prüft die Ausschreibung gegen dein Unternehmen und macht Go-/No-Go, offene Anforderungen und nächste Schritte sichtbar."
                       />
                     ) : (
                       <Stack spacing={1}>

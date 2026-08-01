@@ -1,5 +1,10 @@
 import { z } from "zod";
 import { TRACKED_TENDER_STATUSES, TRACKING_EVENT_TYPES } from "@/lib/tracked-tender-types";
+import {
+  BID_PACK_DECISION_STATUSES,
+  BID_PACK_REQUIREMENT_STATUSES,
+  BID_PACK_TASK_STATUSES,
+} from "@/lib/bid-pack-types";
 
 export const sourceItemSchema = z.object({
   key: z.string().min(1).optional(),
@@ -62,3 +67,64 @@ export const trackedTenderUpdateSchema = z
   .refine((value) => Object.values(value).some((entry) => entry !== undefined), {
     message: "mindestens ein Feld ist erforderlich",
   });
+
+export const bidPackCreateSchema = z.object({
+  tracked_tender_id: z.number().int().positive(),
+  decision_status: z.enum(BID_PACK_DECISION_STATUSES).optional(),
+  decision_note: z.string().trim().max(2000).nullable().optional(),
+});
+
+export const bidPackDecisionUpdateSchema = z
+  .object({
+    decision_status: z.enum(BID_PACK_DECISION_STATUSES).optional(),
+    decision_note: z.string().trim().max(2000).nullable().optional(),
+  })
+  .refine((value) => Object.values(value).some((entry) => entry !== undefined), {
+    message: "mindestens ein Feld ist erforderlich",
+  });
+
+export const bidPackRequirementUpdateSchema = z.object({
+  status: z.enum(BID_PACK_REQUIREMENT_STATUSES),
+});
+
+export const bidPackTaskCreateSchema = z.object({
+  title: z.string().trim().min(1).max(500),
+  requirement_id: z.number().int().positive().nullable().optional(),
+  assignee: z.string().trim().max(120).nullable().optional(),
+  due_at: z.string().datetime({ offset: true }).nullable().optional(),
+});
+
+export const bidPackTaskUpdateSchema = z
+  .object({
+    title: z.string().trim().min(1).max(500).optional(),
+    status: z.enum(BID_PACK_TASK_STATUSES).optional(),
+    requirement_id: z.number().int().positive().nullable().optional(),
+    assignee: z.string().trim().max(120).nullable().optional(),
+    due_at: z.string().datetime({ offset: true }).nullable().optional(),
+  })
+  .refine((value) => Object.values(value).some((entry) => entry !== undefined), {
+    message: "mindestens ein Feld ist erforderlich",
+  });
+
+export const companyEvidenceCreateSchema = z.object({
+  evidence_type: z.string().trim().min(1).max(80).default("other"),
+  title: z.string().trim().min(1).max(240),
+  description: z.string().trim().max(2000).nullable().optional(),
+  issuer: z.string().trim().max(240).nullable().optional(),
+  issued_at: z.string().datetime({ offset: true }).nullable().optional(),
+  expires_at: z.string().datetime({ offset: true }).nullable().optional(),
+  source_url: z.string().url().nullable().optional(),
+  tags: z.array(z.string().trim().min(1).max(80)).max(20).optional(),
+});
+
+export const companyEvidenceUpdateSchema = companyEvidenceCreateSchema.partial();
+
+export const companyEvidenceVerificationSchema = z.object({
+  status: z.enum(["unverified", "verified", "rejected"]),
+  note: z.string().trim().max(1000).nullable().optional(),
+});
+
+export const requirementEvidenceLinkSchema = z.object({
+  evidence_id: z.number().int().positive(),
+  rationale: z.string().trim().max(1000).nullable().optional(),
+});

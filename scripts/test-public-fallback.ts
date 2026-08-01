@@ -1,0 +1,35 @@
+import assert from "node:assert/strict";
+import { extractBasicDetailFromHtml } from "@/lib/public-tender-scraper";
+
+const item = extractBasicDetailFromHtml(
+  "<html><head><title>Vergabe</title></head><body><h1>Softwareentwicklung für die Stadtverwaltung</h1><p>Auftraggeber: Stadt Mainz</p><p>Frist: 31.12.2026</p><p>55116 Mainz</p><a href='/docs/unterlagen.pdf'>PDF</a></body></html>",
+  "https://example.vergabe.rlp.de/project/123",
+  "rlp",
+  ["https://example.vergabe.rlp.de/docs/unterlagen.pdf"],
+);
+
+assert.ok(item);
+assert.equal(item.title, "Softwareentwicklung für die Stadtverwaltung");
+assert.equal(item.deadline, "31.12.2026");
+assert.equal(item.client, "Stadt Mainz");
+assert.equal(item.location, "55116 Mainz");
+assert.deepEqual(item.pdfUrls, ["https://example.vergabe.rlp.de/docs/unterlagen.pdf"]);
+
+const rlpItem = extractBasicDetailFromHtml(
+  `<html><head><title>CXCPEYDYYYRM0 | 26F0047 (LBB NL Mainz) Bauendreinigung | www.vergabe.rlp.de</title></head><body>
+    <h1>Bekanntmachung</h1>
+    <section><h2>Ausschreibende Stelle</h2><p>Bezeichnung:</p><p>LBB Niederlassung Mainz</p></section>
+    <section><h2>Beschreibung der Leistung</h2><p>Bezeichnung:</p><p>26F0047 (LBB NL Mainz) Bauendreinigung</p></section>
+    <p>Hauptleistungsort</p><p>55128 Mainz</p><p>Bekanntmachungs-ID:</p><p>CXCPEYDYYYRM0</p>
+  </body></html>`,
+  "https://vergabe.rlp.de/VMPCenter/public/company/projectForwarding.do?pid=58739",
+  "rlp",
+  [],
+);
+
+assert.ok(rlpItem);
+assert.equal(rlpItem.title, "26F0047 (LBB NL Mainz) Bauendreinigung");
+assert.equal(rlpItem.client, "LBB Niederlassung Mainz");
+assert.equal(rlpItem.location, "55128 Mainz");
+assert.equal(rlpItem.referenceNumber, "CXCPEYDYYYRM0");
+console.log("Public detail fallback tests passed.");

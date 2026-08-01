@@ -15,6 +15,10 @@ const AusschreibungenSection = dynamic(
   () => import("@/components/AusschreibungenSection").then((module) => module.AusschreibungenSection),
   { loading: () => null },
 );
+const UsTendersSection = dynamic(
+  () => import("@/components/UsTendersSection").then((module) => module.UsTendersSection),
+  { loading: () => null },
+);
 
 export function InteractiveApp() {
   return (
@@ -27,6 +31,8 @@ export function InteractiveApp() {
             return <TrackedTendersSection />;
           case "publicTenders":
             return <AusschreibungenSection onNavigate={setView} />;
+          case "usOpportunities":
+            return <UsTendersSection />;
           default:
             return <DashboardSection openAuth={openAuth} />;
         }

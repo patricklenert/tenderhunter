@@ -14,6 +14,7 @@ export const JOB_CACHE_DETAIL = "cache_detail";
 export const JOB_SYNC_MEILI = "sync_meilisearch";
 export const JOB_DISCOVER_COMPANY = "discover_company";
 export const JOB_SCRAPE_US = "scrape_us_tenders";
+export const JOB_PREVIEW_COMPANY_URL = "preview_company_url";
 
 export type JobType =
   | typeof JOB_CRAWL
@@ -27,7 +28,9 @@ export type JobType =
   | typeof JOB_CACHE_DETAIL
   | typeof JOB_SYNC_MEILI
   | typeof JOB_DISCOVER_COMPANY
-  | typeof JOB_SCRAPE_US;
+  | typeof JOB_SCRAPE_US
+  | typeof JOB_PREVIEW_COMPANY_URL;
+
 
 export type JsonValue =
   | string

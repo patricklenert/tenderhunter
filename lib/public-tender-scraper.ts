@@ -3,6 +3,7 @@ import * as cheerio from "cheerio";
 import { scrapeWebsite, scrapeMultiple, htmlToBasicMarkdown, type ScrapedPage } from "@/lib/firecrawl";
 import { callLLM } from "@/lib/llm";
 import { detectAccessPage } from "@/lib/access-page-detector";
+import { extractPortalProjectId, stripSessionId } from "@/lib/tender-identity";
 
 const openrouterKey = process.env.OPENROUTER_API_KEY ?? "";
 
@@ -114,6 +115,8 @@ export interface ExtractedTender {
   category: TenderCategory;
   sourceUrl: string;
   source: string;
+  sourceKey?: string;
+  externalId?: string | null;
   pdfUrls: string[];
   url?: string;
 }
@@ -232,6 +235,7 @@ Antworte NUR mit validem JSON:
 // --- Non-tender filter ---
 
 const NON_TENDER_TITLE_PATTERNS = [
+  /^(?:bekanntmachung|uebersicht|übersicht|ausschreibung|detail|vergabe)$/i,
   /statist/i, /dashboard/i, /legal\s*notice/i, /impressum/i, /agb/i,
   /datenschutz/i, /cookie/i, /kontakt/i, /hilfe/i, /faq/i, /newsletter/i,
   /twitter\.com/i, /linkedin\.com/i, /facebook\.com/i, /instagram\.com/i,
@@ -654,6 +658,74 @@ async function extractDetailFromMarkdown(
     console.error(`[public-scraper] Detail-Extraktionsfehler fuer ${sourceUrl}:`, error);
     return null;
   }
+}
+
+export function extractBasicDetailFromHtml(
+  html: string,
+  sourceUrl: string,
+  source: string,
+  pdfUrls: string[],
+): ExtractedTender | null {
+  const $ = cheerio.load(html);
+  $("script, style, nav, header, footer").remove();
+  const text = htmlToBasicMarkdown($("body").html() ?? "").trim();
+  const lines = text.split("\n")
+    .map((line) => line.trim().replace(/^#+\s*/, ""))
+    .filter(Boolean);
+
+  const valueAfterSection = (sectionPattern: RegExp, fieldPattern: RegExp): string | null => {
+    const sectionIndex = lines.findIndex((line) => sectionPattern.test(line));
+    if (sectionIndex < 0) return null;
+    for (let index = sectionIndex + 1; index < Math.min(lines.length, sectionIndex + 20); index += 1) {
+      const fieldMatch = lines[index].match(fieldPattern);
+      if (!fieldMatch) continue;
+      const inlineValue = fieldMatch[1]?.trim();
+      if (inlineValue) return inlineValue;
+      return lines[index + 1] ?? null;
+    }
+    return null;
+  };
+
+  const titleFromDescription = valueAfterSection(
+    /^Beschreibung der Leistung$/i,
+    /^Bezeichnung:\s*(.*)$/i,
+  );
+  const titleFromPage = $("title").text().split("|")
+    .map((part) => cleanTenderTitle(part))
+    .find((part) => part.length >= 5 && !NON_TENDER_TITLE_PATTERNS.some((pattern) => pattern.test(part))) ?? "";
+  const title = [
+    titleFromDescription,
+    titleFromPage,
+    $("h1").first().text().trim(),
+    $("h2").first().text().trim(),
+  ]
+    .map((candidate) => cleanTenderTitle(candidate ?? ""))
+    .find((candidate) => candidate.length >= 5 && !NON_TENDER_TITLE_PATTERNS.some((pattern) => pattern.test(candidate))) ?? "";
+  if (title.length < 5) return null;
+
+  const deadline = text.match(/(?:Angebotsfrist|Abgabefrist|Ablauf der Angebotsfrist|Einreichungsfrist)[^\n]*\n?[^\n]*?(\d{1,2}\.\d{1,2}\.\d{4})/i)?.[1]
+    ?? text.match(/\b\d{1,2}\.\d{1,2}\.\d{4}\b/)?.[0]
+    ?? null;
+  const client = valueAfterSection(
+    /^Ausschreibende Stelle$/i,
+    /^Bezeichnung:\s*(.*)$/i,
+  )
+    || text.match(/(?:Auftraggeber|Vergabestelle)\s*:?\s*([^\n|]{3,120})/i)?.[1]?.trim()
+    || extractClientFromUrl(sourceUrl);
+  const location = text.match(/\b\d{5}\s+[A-ZÄÖÜ][\wÄÖÜäöüß .-]{2,80}/)?.[0] ?? null;
+  const referenceNumber = text.match(/(?:Bekanntmachungs-ID|Vergabe-Nr\.)\s*:?\s*\n?\s*([A-Z0-9][A-Z0-9._/-]{2,})/i)?.[1] ?? null;
+  return {
+    title: title.slice(0, 300),
+    client,
+    deadline,
+    description: cleanPublicDescription(text.slice(0, 2000)),
+    referenceNumber,
+    location,
+    category: "Facility Management",
+    sourceUrl,
+    source,
+    pdfUrls,
+  };
 }
 
 function extractClientFromUrl(url: string): string {
@@ -1292,6 +1364,8 @@ interface NrwPortalConfig {
   overviewPath: string;
   limit: number;
   manualCpvCodes?: string[];
+  pathPrefix?: string;
+  maxPages?: number;
 }
 
 const GALA_BAU_CPV: string[] = [
@@ -1349,6 +1423,15 @@ const NRW_PORTALS: NrwPortalConfig[] = [
     baseUrl: "https://landesverwaltung.vergabe.rlp.de",
     overviewPath: "/VMPSatellite/company/announcements/categoryOverview.do?method=showCategoryOverview",
     limit: 50,
+    manualCpvCodes: LOCAL_BIZ_CPV,
+  },
+  {
+    name: "rlp-central",
+    baseUrl: "https://vergabe.rlp.de",
+    overviewPath: "/VMPCenter/company/announcements/categoryOverview.do?method=showCategoryOverview",
+    pathPrefix: "/VMPCenter",
+    limit: 100,
+    maxPages: 10,
     manualCpvCodes: LOCAL_BIZ_CPV,
   },
   {
@@ -1493,10 +1576,25 @@ async function scrapeNrwPortal(config: NrwPortalConfig): Promise<ExtractedTender
     }
 
     // Compute path prefix once for all URLs
-    const pathPrefix = config.baseUrl.includes("blb.nrw.de") ? "/Vergabe"
+    const pathPrefix = config.pathPrefix ?? (config.baseUrl.includes("blb.nrw.de") ? "/Vergabe"
       : config.overviewPath.includes("/Satellite/") ? "/Satellite"
       : config.overviewPath.includes("/VMPCenter/") ? "/VMPCenter"
-      : "/VMPSatellite";
+      : "/VMPSatellite");
+
+    const maxPages = config.maxPages ?? 10;
+    const parsePaginationUrls = (html: string, currentUrl: string): string[] => {
+      const $ = cheerio.load(html);
+      const urls = new Set<string>();
+      $("a[href]").each((_, el) => {
+        const href = $(el).attr("href");
+        if (!href || (!href.includes("selectedTablePagePROJECT_RESULT") && !href.includes("TablePage") && !href.includes("page="))) return;
+        try {
+          const url = new URL(href, currentUrl);
+          if (url.href !== currentUrl) urls.add(url.href);
+        } catch { /* ignore malformed portal links */ }
+      });
+      return Array.from(urls);
+    };
 
     // Step 2: Collect PIDs from all CPV codes
     const forwardingLinks: { pid: string; cpvCode: string }[] = [];
@@ -1505,15 +1603,25 @@ async function scrapeNrwPortal(config: NrwPortalConfig): Promise<ExtractedTender
     for (const cpvCode of cpvCodes) {
       try {
         const tableUrl = `${config.baseUrl}${pathPrefix}/company/announcements/categoryOverview.do?method=showTable&cpvCode=${cpvCode}`;
-        const tableHtml = await fetchHtml(tableUrl);
+        const pendingPages = [tableUrl];
+        const visitedPages = new Set<string>();
+        while (pendingPages.length > 0 && visitedPages.size < maxPages) {
+          const currentUrl = pendingPages.shift()!;
+          if (visitedPages.has(currentUrl)) continue;
+          visitedPages.add(currentUrl);
+          const tableHtml = await fetchHtml(currentUrl);
 
-        // PID regex works for both /VMPSatellite/ and /Vergabe/ paths
-        const pidRegex = /projectForwarding\.do\?pid=(\d+)/g;
-        let pidMatch;
-        while ((pidMatch = pidRegex.exec(tableHtml)) !== null) {
-          if (!seenPids.has(pidMatch[1])) {
-            seenPids.add(pidMatch[1]);
-            forwardingLinks.push({ pid: pidMatch[1], cpvCode });
+          // PID regex works for both /VMPSatellite/ and /Vergabe/ paths
+          const pidRegex = /projectForwarding\.do\?pid=(\d+)/g;
+          let pidMatch;
+          while ((pidMatch = pidRegex.exec(tableHtml)) !== null) {
+            if (!seenPids.has(pidMatch[1])) {
+              seenPids.add(pidMatch[1]);
+              forwardingLinks.push({ pid: pidMatch[1], cpvCode });
+            }
+          }
+          for (const nextUrl of parsePaginationUrls(tableHtml, currentUrl)) {
+            if (!visitedPages.has(nextUrl) && !pendingPages.includes(nextUrl)) pendingPages.push(nextUrl);
           }
         }
       } catch (err) {
@@ -1615,13 +1723,16 @@ async function scrapeNrwPortal(config: NrwPortalConfig): Promise<ExtractedTender
 
         if (!contentForLLM || contentForLLM.trim().length < 100) continue;
 
-        const extracted = await extractDetailFromMarkdown(contentForLLM, detailUrl, config.name, true);
+        const extracted = await extractDetailFromMarkdown(contentForLLM, detailUrl, config.name, true)
+          ?? extractBasicDetailFromHtml(detailHtml, detailUrl, config.name, pdfUrls);
         if (extracted) {
           const allPdfs = new Set([...pdfUrls, ...extracted.pdfUrls]);
           extracted.pdfUrls = Array.from(allPdfs);
-          if (!extracted.sourceUrl || extracted.sourceUrl.includes("projectForwarding")) {
-            extracted.sourceUrl = detailUrl;
-          }
+          // The redirect target contains a transient JSESSIONID. Keep the
+          // stable forwarding URL for users and use the portal project ID as
+          // the identity across scrape sessions.
+          extracted.sourceUrl = forwardingUrl;
+          extracted.externalId = extractPortalProjectId(detailUrl) ?? `pid:${pid}`;
           tenders.push(extracted);
         }
       } catch (err) {
@@ -1863,11 +1974,13 @@ export function parseNetServerPaginationUrls(html: string, baseUrl: string, curr
     const href = $(el).attr("href");
     if (!href) return;
 
-    const url = new URL(href, baseUrl);
-    const start = Number(url.searchParams.get("Start"));
-    if (Number.isFinite(start) && start > currentStart) {
-      urls.add(url.href);
-    }
+    try {
+      const url = new URL(href, currentUrl || baseUrl);
+      const start = Number(url.searchParams.get("Start"));
+      if (Number.isFinite(start) && start > currentStart) {
+        urls.add(url.href);
+      }
+    } catch { /* ignore malformed pagination links */ }
   });
 
   return Array.from(urls).sort((left, right) => {
@@ -1883,7 +1996,7 @@ async function resolveNetServerDetailUrl(
   userAgent: string,
 ): Promise<string> {
   if (row.detailPath) {
-    return new URL(row.detailPath, config.baseUrl).href;
+    return new URL(row.detailPath, `${config.baseUrl}/NetServer/`).href;
   }
 
   if (config.detailMode === "data-provider-redirect") {
@@ -1962,6 +2075,14 @@ const NET_SERVER_PORTALS: NetServerConfig[] = [
     detailMode: "data-provider-redirect",
     followPagination: true,
   },
+  {
+    name: "rhein-neckar",
+    baseUrl: "https://vergabe.vmstart.de",
+    searchPath: "/NetServer/PublicationSearchControllerServlet?function=SearchPublications&Gesetzesgrundlage=All&Category=InvitationToTender&thContext=publications&Max=100",
+    limit: 100,
+    detailMode: "data-provider-redirect",
+    followPagination: true,
+  },
 ];
 
 export async function scrapeNetPortal(config: NetServerConfig): Promise<ExtractedTender[]> {
@@ -1991,15 +2112,27 @@ export async function scrapeNetPortal(config: NetServerConfig): Promise<Extracte
       }).toString();
     };
 
-    const pageHtmls = [await fetchHtml(searchUrl)];
-    if (config.followPagination) {
-      const pageUrls = parseNetServerPaginationUrls(pageHtmls[0], config.baseUrl, searchUrl);
-      for (const pageUrl of pageUrls.slice(0, 9)) {
-        pageHtmls.push(await fetchHtml(pageUrl));
+    const pageHtmls: Array<{ url: string; html: string }> = [];
+    const pendingPages = [searchUrl];
+    const visitedPages = new Set<string>();
+    while (pendingPages.length > 0 && visitedPages.size < 10) {
+      const currentUrl = pendingPages.shift()!;
+      if (visitedPages.has(currentUrl)) continue;
+      visitedPages.add(currentUrl);
+      const html = await fetchHtml(currentUrl);
+      pageHtmls.push({ url: currentUrl, html });
+      if (config.followPagination) {
+        for (const pageUrl of parseNetServerPaginationUrls(html, config.baseUrl, currentUrl)) {
+          if (!visitedPages.has(pageUrl) && !pendingPages.includes(pageUrl)) pendingPages.push(pageUrl);
+        }
       }
     }
 
-    const rows = pageHtmls.flatMap((html) => parseNetServerRows(html));
+    const rowsByOid = new Map<string, NetServerRow>();
+    for (const page of pageHtmls) {
+      for (const row of parseNetServerRows(page.html)) rowsByOid.set(row.oid, row);
+    }
+    const rows = Array.from(rowsByOid.values());
 
     console.log(`[public-scraper] ${config.name}: ${rows.length} Zeilen in Tabelle`);
 
@@ -2069,6 +2202,7 @@ export async function scrapeNetPortal(config: NetServerConfig): Promise<Extracte
             if (!extracted.client || extracted.client.length < 3) extracted.client = row.client;
             if (!extracted.deadline) extracted.deadline = row.deadline;
             if (!extracted.sourceUrl) extracted.sourceUrl = detailUrl;
+            extracted.externalId = row.oid;
             // If description is too short, use table procedure info
             if (!extracted.description || extracted.description.length < 30) {
               extracted.description = row.procedure ? `Verfahrensart: ${row.procedure}` : "";
@@ -2086,6 +2220,7 @@ export async function scrapeNetPortal(config: NetServerConfig): Promise<Extracte
             deadline: row.deadline || null,
             description: row.procedure ? `Verfahrensart: ${row.procedure}` : "",
             referenceNumber: row.oid,
+            externalId: row.oid,
             location: null,
             category: "Sonstiges",
             sourceUrl: detailUrl,
@@ -2528,11 +2663,19 @@ async function scrapeBundRss(): Promise<ExtractedTender[]> {
 
 // --- Deduplication ---
 
+export function canonicalPublicSourceKey(sourceKey: string): string {
+  return /(?:^|[-:])rlp-(?:land|lbb|lbm|central)$/.test(sourceKey) ? "rlp" : sourceKey;
+}
+
 function deduplicateTenders(tenders: ExtractedTender[]): ExtractedTender[] {
   const seen = new Map<string, ExtractedTender>();
 
   for (const tender of tenders) {
-    const key = `${tender.sourceUrl}:${tender.title}`.toLowerCase().trim();
+    const sourceKey = tender.sourceKey ?? tender.source;
+    const identitySource = canonicalPublicSourceKey(sourceKey);
+    const key = tender.externalId
+      ? `${identitySource}:id:${tender.externalId}`.toLowerCase().trim()
+      : `${identitySource}:url:${stripSessionId(tender.sourceUrl)}:${tender.title}`.toLowerCase().trim();
     if (!seen.has(key)) {
       seen.set(key, tender);
     }
@@ -2548,9 +2691,18 @@ export interface ScrapeResult {
   afterDedup: number;
   bySource: Record<string, number>;
   tenders: ExtractedTender[];
+  sourceRuns: Array<{
+    sourceKey: string;
+    status: "success" | "empty" | "failed" | "timed_out" | "partial";
+    discoveredCount: number;
+    acceptedCount: number;
+    errorMessage: string | null;
+    durationMs: number;
+  }>;
+  persistenceError?: string | null;
 }
 
-export type OnSourceBatch = (source: string, tenders: ExtractedTender[]) => Promise<void>;
+export type OnSourceBatch = (sourceKey: string, tenders: ExtractedTender[]) => Promise<void>;
 
 export async function scrapeAllPublicTenders(onBatch?: OnSourceBatch): Promise<ScrapeResult> {
   console.log("[public-scraper] Starte vollstaendigen Scrape aller Quellen...");
@@ -2575,42 +2727,80 @@ export async function scrapeAllPublicTenders(onBatch?: OnSourceBatch): Promise<S
 
   const allTenders: ExtractedTender[] = [];
   const bySource: Record<string, number> = {};
+  const sourceRuns: ScrapeResult["sourceRuns"] = [];
+  let persistenceError: string | null = null;
 
   const PORTAL_TIMEOUT_MS = 7 * 60 * 1000; // 7 Minuten pro Portal
 
   for (const scraper of scrapers) {
     const startTime = Date.now();
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
     try {
       const result = await Promise.race([
         scraper.fn(),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error(`Portal-Timeout nach ${PORTAL_TIMEOUT_MS / 1000}s`)), PORTAL_TIMEOUT_MS)
-        ),
+        new Promise<never>((_, reject) => {
+          timeoutHandle = setTimeout(() => reject(new Error(`Portal-Timeout nach ${PORTAL_TIMEOUT_MS / 1000}s`)), PORTAL_TIMEOUT_MS);
+        }),
       ]);
-      bySource[scraper.name] = result.length;
-      allTenders.push(...result);
+      const normalized = result.map((tender) => ({ ...tender, sourceKey: tender.sourceKey ?? scraper.name }));
+      bySource[scraper.name] = normalized.length;
+      allTenders.push(...normalized);
       const duration = Date.now() - startTime;
-      if (result.length === 0) {
+      sourceRuns.push({
+        sourceKey: scraper.name,
+        status: normalized.length > 0 ? "success" : "empty",
+        discoveredCount: normalized.length,
+        acceptedCount: normalized.length,
+        errorMessage: null,
+        durationMs: duration,
+      });
+      if (normalized.length === 0) {
         console.warn(`[public-scraper] ${scraper.name}: 0 Ausschreibungen nach ${duration}ms (keine Extraktion oder keine Treffer)`);
       } else {
-        console.log(`[public-scraper] ${scraper.name}: ${result.length} Ausschreibungen in ${duration}ms`);
-      }
-      // Save results incrementally after each source
-      if (onBatch && result.length > 0) {
-        try {
-          await onBatch(scraper.name, result);
-        } catch (batchErr) {
-          console.error(`[public-scraper] ${scraper.name} onBatch Fehler:`, batchErr);
-        }
+        console.log(`[public-scraper] ${scraper.name}: ${normalized.length} Ausschreibungen in ${duration}ms`);
       }
     } catch (error) {
       const duration = Date.now() - startTime;
+      const message = error instanceof Error ? error.message : "Unbekannter Scraperfehler";
+      const timedOut = message.includes("Portal-Timeout");
+      sourceRuns.push({
+        sourceKey: scraper.name,
+        status: timedOut ? "timed_out" : "failed",
+        discoveredCount: 0,
+        acceptedCount: 0,
+        errorMessage: message,
+        durationMs: duration,
+      });
       console.error(`[public-scraper] ${scraper.name} fehlgeschlagen nach ${duration}ms:`, error);
       bySource[scraper.name] = 0;
+    } finally {
+      if (timeoutHandle) clearTimeout(timeoutHandle);
     }
   }
 
   const deduplicated = deduplicateTenders(allTenders);
+  const tendersBySource = new Map<string, ExtractedTender[]>();
+  for (const tender of deduplicated) {
+    const sourceKey = tender.sourceKey ?? tender.source;
+    const sourceTenders = tendersBySource.get(sourceKey) ?? [];
+    sourceTenders.push(tender);
+    tendersBySource.set(sourceKey, sourceTenders);
+  }
+
+  for (const sourceRun of sourceRuns) {
+    const sourceTenders = tendersBySource.get(sourceRun.sourceKey) ?? [];
+    sourceRun.acceptedCount = sourceTenders.length;
+    if (sourceRun.status === "success" && sourceRun.discoveredCount === 0) sourceRun.status = "empty";
+    if (onBatch && sourceTenders.length > 0) {
+      try {
+        await onBatch(sourceRun.sourceKey, sourceTenders);
+      } catch (error) {
+        sourceRun.status = "partial";
+        sourceRun.errorMessage = error instanceof Error ? error.message : "Persistenzfehler";
+        persistenceError = sourceRun.errorMessage;
+      }
+    }
+  }
 
   console.log(
     `[public-scraper] Fertig. Gesamt: ${allTenders.length}, nach Dedup: ${deduplicated.length}`
@@ -2621,6 +2811,8 @@ export async function scrapeAllPublicTenders(onBatch?: OnSourceBatch): Promise<S
     afterDedup: deduplicated.length,
     bySource,
     tenders: deduplicated,
+    sourceRuns,
+    persistenceError,
   };
 }
 

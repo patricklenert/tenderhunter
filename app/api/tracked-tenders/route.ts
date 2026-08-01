@@ -3,6 +3,7 @@ import { createOrUpdateTrackedTender, listTrackedTenders } from "@/lib/tracked-t
 import { TRACKED_TENDER_STATUSES, type TrackedTenderStatus } from "@/lib/tracked-tender-types";
 import { trackedTenderCreateSchema } from "@/lib/validation";
 import { requireSession } from "@/lib/api-auth";
+import { hasCompanyMembership } from "@/lib/company-access";
 
 export const runtime = "nodejs";
 
@@ -16,9 +17,13 @@ export async function GET(request: Request): Promise<Response> {
   try {
     const url = new URL(request.url);
     const companyIdRaw = url.searchParams.get("companyId");
-    const companyId = companyIdRaw ? Number.parseInt(companyIdRaw, 10) : undefined;
+    const companyId = companyIdRaw && /^\d+$/.test(companyIdRaw) ? Number(companyIdRaw) : undefined;
     if (companyIdRaw && (!Number.isFinite(companyId) || (companyId ?? 0) <= 0)) {
       return json({ error: "ungueltige companyId" }, { status: 400 });
+    }
+
+    if (companyId && !(await hasCompanyMembership(sessionOrResponse.session.user.id, companyId))) {
+      return json({ error: "Kein Zugriff auf dieses Unternehmen." }, { status: 403 });
     }
 
     const statusRaw = (url.searchParams.get("status") ?? "all").trim();
@@ -27,6 +32,7 @@ export async function GET(request: Request): Promise<Response> {
     }
 
     const result = await listTrackedTenders({
+      userId: sessionOrResponse.session.user.id,
       companyId,
       status: statusRaw as "all" | "active" | TrackedTenderStatus,
       search: url.searchParams.get("search") ?? "",
@@ -44,7 +50,11 @@ export async function POST(request: Request): Promise<Response> {
 
   try {
     const body = trackedTenderCreateSchema.parse(await parseJsonBody<unknown>(request));
+    if (!(await hasCompanyMembership(sessionOrResponse.session.user.id, body.company_id))) {
+      return json({ error: "Kein Zugriff auf dieses Unternehmen." }, { status: 403 });
+    }
     const item = await createOrUpdateTrackedTender({
+      userId: sessionOrResponse.session.user.id,
       companyId: body.company_id,
       tenderId: body.tender_id,
       status: body.status,

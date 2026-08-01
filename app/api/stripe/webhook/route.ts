@@ -1,6 +1,6 @@
 import Stripe from "stripe";
 import { eq } from "drizzle-orm";
-import { billingPlanFromPriceId, parseBillingPlan, getStripe } from "@/lib/billing";
+import { billingPlanFromPriceId, parseStoredBillingPlan, getStripe } from "@/lib/billing";
 import { db } from "@/lib/db";
 import { billingSubscriptions, stripeEvents } from "@/lib/schema";
 
@@ -24,7 +24,7 @@ async function syncSubscription(subscription: Stripe.Subscription, fallbackUserI
   const customerId = typeof subscription.customer === "string" ? subscription.customer : null;
   const priceId = subscription.items.data[0]?.price.id ?? "unknown";
   const currentPeriod = subscription.items.data[0];
-  const plan = billingPlanFromPriceId(priceId) ?? parseBillingPlan(subscription.metadata.plan) ?? "unknown";
+  const plan = billingPlanFromPriceId(priceId) ?? parseStoredBillingPlan(subscription.metadata.plan) ?? "unknown";
   const userId = subscription.metadata.userId ?? fallbackUserId ?? await findUserIdByCustomer(customerId);
   if (!userId) {
     console.warn(`[stripe/webhook] Keine User-ID für Subscription ${subscription.id} gefunden.`);

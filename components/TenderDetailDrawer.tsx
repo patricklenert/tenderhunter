@@ -25,6 +25,7 @@ import {
   Save,
 } from "@mui/icons-material";
 import { TRACKED_TENDER_STATUSES, TRACKED_TENDER_STATUS_LABELS, type TrackedTenderStatus } from "@/lib/tracked-tender-types";
+import { BidPackPanel } from "@/components/BidPackPanel";
 
 export interface TenderDetailItem {
   id: number;
@@ -79,6 +80,8 @@ interface TenderDetailDrawerProps {
   tender: TenderDetailItem;
   companyId: number | null;
   companyName: string;
+  trackedTenderId?: number;
+  onBidPackCreated?: (packId: number, trackedTenderId: number) => void;
   followState?: FollowState;
   followError?: string | null;
   onFollow?: (tender: TenderDetailItem) => void;
@@ -259,6 +262,8 @@ export function TenderDetailDrawer({
   tender,
   companyId,
   companyName,
+  trackedTenderId,
+  onBidPackCreated,
   followState = "idle",
   followError = null,
   onFollow,
@@ -580,6 +585,13 @@ export function TenderDetailDrawer({
                 ) : null}
               </Box>
             ) : null}
+
+            <BidPackPanel
+              companyId={companyId}
+              tenderId={tender.id}
+              trackedTenderId={trackedTenderId}
+              onCreated={onBidPackCreated}
+            />
 
             <Box
               sx={{
