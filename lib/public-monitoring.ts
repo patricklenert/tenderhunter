@@ -144,6 +144,7 @@ export async function getPublicScrapeMonitoring() {
   const issues: string[] = [];
   if (stale) issues.push(`Public-Scrape ist älter als ${PUBLIC_SCRAPE_INTERVAL_HOURS} Stunden.`);
   if (failedSources.length > 0) issues.push(`${failedSources.length} Public-Quelle(n) fehlgeschlagen oder unvollständig.`);
+  if (emptySources.length > 0) issues.push(`${emptySources.length} Public-Quelle(n) ohne Treffer — möglicher Portal-Ausfall (wird als leerer Erfolg gespeichert).`);
   if (syncStale) issues.push("Meilisearch-Sync ist ausstehend oder läuft noch.");
   if (lastSyncJob?.status === "failed") issues.push("Der letzte Meilisearch-Sync ist fehlgeschlagen.");
 

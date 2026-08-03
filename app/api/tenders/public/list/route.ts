@@ -62,8 +62,10 @@ export async function GET(request: Request): Promise<Response> {
         contractValueMin: tenders.contractValueMin,
         contractValueMax: tenders.contractValueMax,
         contractDurationMonths: tenders.contractDurationMonths,
-        procedureType: tenders.procedureType,
-        createdAt: tenders.createdAt,
+         procedureType: tenders.procedureType,
+         readinessStatus: tenders.readinessStatus,
+         readinessReason: tenders.readinessReason,
+         createdAt: tenders.createdAt,
       })
       .from(tenders)
       .where(where)
@@ -91,8 +93,10 @@ export async function GET(request: Request): Promise<Response> {
           contractValueMin: item.contractValueMin,
           contractValueMax: item.contractValueMax,
           contractDurationMonths: item.contractDurationMonths,
-          procedureType: item.procedureType,
-          createdAt: item.createdAt,
+           procedureType: item.procedureType,
+           readinessStatus: item.readinessStatus,
+           readinessReason: item.readinessReason,
+           createdAt: item.createdAt,
         };
       })
       .filter((item) => {

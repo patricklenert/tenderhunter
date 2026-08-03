@@ -2,8 +2,9 @@ import OpenAI from "openai";
 import * as cheerio from "cheerio";
 import { scrapeWebsite, scrapeMultiple, htmlToBasicMarkdown, type ScrapedPage } from "@/lib/firecrawl";
 import { callLLM } from "@/lib/llm";
-import { detectAccessPage } from "@/lib/access-page-detector";
+import { detectAccessPage, isParticipationWallText } from "@/lib/access-page-detector";
 import { extractPortalProjectId, stripSessionId } from "@/lib/tender-identity";
+import { settings } from "@/lib/config";
 
 const openrouterKey = process.env.OPENROUTER_API_KEY ?? "";
 
@@ -522,7 +523,7 @@ export function isRawPortalDescription(text: string): boolean {
   const hasNoticeHeader = /bekanntmachung\s+öffentliche\s+ausschreibung/i.test(normalized);
   const markerHits = PORTAL_FORM_MARKERS.filter((pattern) => pattern.test(normalized)).length;
 
-  return (hasNoticeHeader && markerHits >= 1) || markerHits >= 3;
+  return (hasNoticeHeader && markerHits >= 1) || markerHits >= 3 || isParticipationWallText(normalized);
 }
 
 /** Cleans a public description and refuses to expose raw procurement forms. */
@@ -666,6 +667,8 @@ export function extractBasicDetailFromHtml(
   source: string,
   pdfUrls: string[],
 ): ExtractedTender | null {
+  const accessPage = detectAccessPage(html, { url: sourceUrl });
+  if (accessPage.blocked) return null;
   const $ = cheerio.load(html);
   $("script, style, nav, header, footer").remove();
   const text = htmlToBasicMarkdown($("body").html() ?? "").trim();
@@ -808,7 +811,7 @@ async function scrapeDtvp(): Promise<ExtractedTender[]> {
 
     const tenders: ExtractedTender[] = [];
 
-    for (const detailUrl of detailLinks.slice(0, 10)) {
+    for (const detailUrl of detailLinks.slice(0, settings.publicDetailLimit)) {
       try {
         const page = await scrapeWebsite(detailUrl, { onlyMainContent: false });
         if (!page.markdown || page.markdown.trim().length < 100) continue;
@@ -888,7 +891,7 @@ async function scrapeTed(): Promise<ExtractedTender[]> {
 
     const tenders: ExtractedTender[] = [];
 
-    for (const noticeId of noticeIds.slice(0, 10)) {
+    for (const noticeId of noticeIds.slice(0, settings.publicNoticeLimit)) {
       const detailUrl = `https://ted.europa.eu/en/notice/-/detail/${noticeId}`;
       const pdfUrl = `https://ted.europa.eu/de/notice/${noticeId}/pdf`;
 
@@ -956,7 +959,7 @@ async function scrapeBauportal(): Promise<ExtractedTender[]> {
         continue;
       }
 
-      const detailPages = await scrapeMultiple(detailUrls.slice(0, 15));
+      const detailPages = await scrapeMultiple(detailUrls.slice(0, settings.publicDetailLimit));
       for (const detailPage of detailPages) {
         const extracted = await extractDetailFromMarkdown(detailPage.markdown, detailPage.url, "bauportal-deutschland.de");
         if (extracted) allTenders.push(extracted);
@@ -1078,7 +1081,7 @@ async function scrapeEvergabe(): Promise<ExtractedTender[]> {
     }
 
     const tenders: ExtractedTender[] = [];
-    for (const path of detailPaths.slice(0, 10)) {
+    for (const path of detailPaths.slice(0, settings.publicDetailLimit)) {
       try {
         const detailUrl = `https://www.evergabe.de${path}`;
         const page = await scrapeWebsite(detailUrl, { onlyMainContent: false });
@@ -1170,7 +1173,7 @@ async function scrapeVergabeNiedersachsen(): Promise<ExtractedTender[]> {
     }
 
     const tenders: ExtractedTender[] = [];
-    for (const detailUrl of detailLinks.slice(0, 10)) {
+    for (const detailUrl of detailLinks.slice(0, settings.publicDetailLimit)) {
       try {
         const page = await scrapeWebsite(detailUrl, { onlyMainContent: false });
         if (!page.markdown || page.markdown.trim().length < 100) continue;
@@ -1321,7 +1324,7 @@ async function scrapeEvergabeNrw(): Promise<ExtractedTender[]> {
             const { writeFileSync } = await import("fs");
             writeFileSync(tmpPath, Buffer.from(buf));
             const { extractTextFromFile } = await import("@/lib/parser");
-            contentForLLM = await extractTextFromFile(tmpPath, "application/pdf");
+            contentForLLM = (await extractTextFromFile(tmpPath, "application/pdf")).text;
             if (contentForLLM && contentForLLM.length > 100) break;
           } catch { /* try next PDF */ }
         }
@@ -1709,7 +1712,7 @@ async function scrapeNrwPortal(config: NrwPortalConfig): Promise<ExtractedTender
             const { writeFileSync } = await import("fs");
             writeFileSync(tmpPath, Buffer.from(buf));
             const { extractTextFromFile } = await import("@/lib/parser");
-            contentForLLM = await extractTextFromFile(tmpPath, "application/pdf");
+            contentForLLM = (await extractTextFromFile(tmpPath, "application/pdf")).text;
             if (contentForLLM && contentForLLM.length > 100) break;
           } catch { /* try next PDF */ }
         }
@@ -1860,7 +1863,8 @@ export async function scrapeBerlinHtml(): Promise<ExtractedTender[]> {
         useBodyText: true,
       });
       const md = page.markdown ?? "";
-      if (md.length > 200 && !md.includes("Nutzungsbedingungen für Bieter")) {
+      const berlinEnrichAccess = detectAccessPage(md, { url: tender.sourceUrl });
+      if (md.length > 200 && !berlinEnrichAccess.blocked) {
         // Use detail page content as description
         tender.description = md.substring(0, 30000);
         enriched++;
@@ -2162,8 +2166,9 @@ export async function scrapeNetPortal(config: NetServerConfig): Promise<Extracte
               useBodyText: true,
             });
             bodyText = page.markdown ?? "";
-            if (bodyText.length < 200 || bodyText.includes("Nutzungsbedingungen")) {
-              bodyText = ""; // SPA returned T&C, fall back to table data
+            const berlinAccess = detectAccessPage(bodyText, { url: detailUrl });
+            if (bodyText.length < 200 || berlinAccess.blocked) {
+              bodyText = ""; // SPA returned T&C/access wall, fall back to table data
             }
           } catch (e) {
             console.warn(`[public-scraper] ${config.name} Playwright Fehler (OID ${row.oid}):`, e);
@@ -2270,7 +2275,7 @@ async function scrapeEVergabeSh(): Promise<ExtractedTender[]> {
 
     console.log(`[public-scraper] e-vergabe-sh: ${links.length} Bekanntmachungen gefunden`);
 
-    for (const link of links.slice(0, 15)) {
+    for (const link of links.slice(0, settings.publicDetailLimit)) {
       try {
         // The links point to external platforms — try to scrape them
         const detailResp = await fetch(link.url, {
@@ -2340,7 +2345,7 @@ async function scrapeThueringen(): Promise<ExtractedTender[]> {
 
     console.log(`[public-scraper] thueringen: ${rows.length} Zeilen in Tabelle`);
 
-    for (const row of rows.slice(0, 15)) {
+    for (const row of rows.slice(0, settings.publicDetailLimit)) {
       try {
         const detailResp = await fetch(row.url, {
           headers: { "User-Agent": UA },
@@ -2533,7 +2538,7 @@ async function scrapeHamburgDe(): Promise<ExtractedTender[]> {
     console.log(`[public-scraper] hamburg-de: ${allLinks.length} Links gefunden`);
 
     const tenders: ExtractedTender[] = [];
-    for (const link of allLinks.slice(0, 30)) {
+    for (const link of allLinks.slice(0, settings.publicSearchLimit)) {
       try {
         const resp = await fetch(link.url, {
           headers: { "User-Agent": UA },
@@ -2704,7 +2709,7 @@ export interface ScrapeResult {
 
 export type OnSourceBatch = (sourceKey: string, tenders: ExtractedTender[]) => Promise<void>;
 
-export async function scrapeAllPublicTenders(onBatch?: OnSourceBatch): Promise<ScrapeResult> {
+export async function scrapeAllPublicTenders(onBatch?: OnSourceBatch, sourceFilter?: string): Promise<ScrapeResult> {
   console.log("[public-scraper] Starte vollstaendigen Scrape aller Quellen...");
 
   const scrapers = [
@@ -2725,6 +2730,13 @@ export async function scrapeAllPublicTenders(onBatch?: OnSourceBatch): Promise<S
     { name: "evergabe-nrw", fn: scrapeEvergabeNrw },
   ];
 
+  const selectedScrapers = sourceFilter
+    ? scrapers.filter((scraper) => scraper.name === sourceFilter)
+    : scrapers;
+  if (sourceFilter && selectedScrapers.length === 0) {
+    throw new Error(`Unbekannte Public-Quelle: ${sourceFilter}`);
+  }
+
   const allTenders: ExtractedTender[] = [];
   const bySource: Record<string, number> = {};
   const sourceRuns: ScrapeResult["sourceRuns"] = [];
@@ -2732,7 +2744,7 @@ export async function scrapeAllPublicTenders(onBatch?: OnSourceBatch): Promise<S
 
   const PORTAL_TIMEOUT_MS = 7 * 60 * 1000; // 7 Minuten pro Portal
 
-  for (const scraper of scrapers) {
+  for (const scraper of selectedScrapers) {
     const startTime = Date.now();
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
     try {

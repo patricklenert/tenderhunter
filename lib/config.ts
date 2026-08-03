@@ -17,7 +17,10 @@ const defaultSources = parseConfiguredTenderSources(process.env.DEFAULT_SOURCES)
 export const settings = {
   objectStorePath: path.resolve(process.env.OBJECT_STORE_PATH ?? "data/object_store"),
   defaultSources,
-  maxPdfLinksPerTender: parseIntEnv("MAX_PDF_LINKS_PER_TENDER", 5),
+  maxPdfLinksPerTender: parseIntEnv("MAX_PDF_LINKS_PER_TENDER", 20),
+  publicDetailLimit: positiveIntEnv("PUBLIC_DETAIL_LIMIT", 15),
+  publicNoticeLimit: positiveIntEnv("PUBLIC_NOTICE_LIMIT", 15),
+  publicSearchLimit: positiveIntEnv("PUBLIC_SEARCH_LIMIT", 30),
   maxJobRetries: parseIntEnv("MAX_JOB_RETRIES", 3),
   workerPollSeconds: parseIntEnv("WORKER_POLL_SECONDS", 3),
   usScrapeIntervalHours: positiveIntEnv("US_SCRAPE_INTERVAL_HOURS", 24),

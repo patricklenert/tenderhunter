@@ -18,6 +18,17 @@ const cases = [
     blocked: true,
   },
   {
+    name: "RLP participation wall with tender signals",
+    text: "Um Zugriff auf dieses Modul zu erhalten müssen Sie am Vergabeverfahren teilnehmen. Teilnahme am Verfahren. Bestätigen Sie die Teilnahme am Verfahren um folgende Vorteile nutzen zu können. Vergabeart: Offenes Verfahren. Abgabefrist 03.08.2026.",
+    blocked: true,
+    reason: "participation_required",
+  },
+  {
+    name: "legit tender mentioning Teilnahmeunterlagen",
+    text: "Offenes Verfahren. Die Teilnahmeunterlagen können heruntergeladen werden. Teilnahmefrist: 30.06.2026. Auftraggeber: Stadt Musterstadt.",
+    blocked: false,
+  },
+  {
     name: "normal tender with cookie policy",
     text: "Offenes Verfahren. Auftraggeber: Stadt Musterstadt. Angebotsfrist: 30.06.2026. Cookie Policy und Datenschutzerklärung.",
     blocked: false,
@@ -28,6 +39,9 @@ for (const testCase of cases) {
   const result = detectAccessPage(testCase.text, { url: testCase.url });
   if (result.blocked !== testCase.blocked) {
     throw new Error(`${testCase.name}: erwartet blocked=${testCase.blocked}, erhalten ${JSON.stringify(result)}`);
+  }
+  if (testCase.reason && result.reason !== testCase.reason) {
+    throw new Error(`${testCase.name}: erwartet reason=${testCase.reason}, erhalten ${result.reason}`);
   }
 }
 

@@ -1,4 +1,5 @@
 import * as cheerio from "cheerio";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { and, asc, eq, ne, isNotNull, lt, inArray, or, sql } from "drizzle-orm";
@@ -45,6 +46,10 @@ import { callLLM } from "@/lib/llm";
 import { detectAccessPage, type AccessPageDetection } from "@/lib/access-page-detector";
 import { processCompanyUrlPreview } from "@/lib/preview";
 import { markCatalogDirty } from "@/lib/catalog";
+import { classifyDocumentRole, rolePriority } from "@/lib/document-classifier";
+import { buildDocumentAnalysis, withEvidenceValues, type AnalyzedDocument } from "@/lib/document-analysis";
+import { evaluateTenderReadiness } from "@/lib/tender-readiness";
+import { runApiAnalysisJob } from "@/app/api/v1/analyze/route";
 import {
   JOB_CRAWL,
   JOB_FETCH_DOCUMENTS,
@@ -59,6 +64,7 @@ import {
   JOB_DISCOVER_COMPANY,
   JOB_SCRAPE_US,
   JOB_PREVIEW_COMPANY_URL,
+  JOB_API_ANALYZE,
   type JobProcessResult,
   type JobType,
   type JsonValue,
@@ -175,6 +181,26 @@ const sameValue = (left: unknown, right: unknown): boolean =>
 const sameDate = (left: Date | null | undefined, right: Date | null | undefined): boolean =>
   (left?.getTime() ?? null) === (right?.getTime() ?? null);
 
+// Merge incoming metadata without losing existing non-empty values to empty new ones.
+// A later scrape that returns thinner data must not erase previously captured fields.
+const mergeMetadata = (
+  existing: unknown,
+  incoming: Record<string, JsonValue> | undefined,
+): Record<string, JsonValue> | undefined => {
+  if (!incoming) return undefined;
+  const existingRecord = (existing && typeof existing === "object")
+    ? existing as Record<string, unknown>
+    : {};
+  const merged: Record<string, unknown> = { ...existingRecord };
+  for (const [key, value] of Object.entries(incoming)) {
+    const isEmpty = value === null || value === undefined || value === ""
+      || (Array.isArray(value) && value.length === 0);
+    if (isEmpty) continue;
+    merged[key] = value;
+  }
+  return merged as Record<string, JsonValue>;
+};
+
 const upsertTender = async ({ source, sourceKey, url, title, externalId, metadata, deadlineAt, category, rawText }: UpsertTenderInput): Promise<UpsertTenderResult> => {
   const boundedRawText = rawText === undefined || rawText === null
     ? rawText
@@ -265,15 +291,21 @@ const upsertTender = async ({ source, sourceKey, url, title, externalId, metadat
 
   if (existing.length > 0) {
     const current = existing[0];
+
+    // Non-destructive merge: don't let empty new values erase non-empty existing ones.
+    const mergedMeta = mergeMetadata(current.metadataJson, metadata);
+    const effectiveDeadline = deadlineAt !== undefined ? (deadlineAt ?? current.deadlineAt ?? null) : undefined;
+    const effectiveRawText = boundedRawText !== undefined ? (boundedRawText || current.rawText || null) : undefined;
+
     const changed =
       (sourceKey !== undefined && current.sourceKey !== sourceKey) ||
       current.url !== url ||
       current.title !== title ||
       (externalId !== undefined && current.externalId !== externalId) ||
-      (metadata !== undefined && !sameValue(current.metadataJson, metadata)) ||
-      (deadlineAt !== undefined && !sameDate(current.deadlineAt, deadlineAt)) ||
+      (mergedMeta !== undefined && !sameValue(current.metadataJson, mergedMeta)) ||
+      (effectiveDeadline !== undefined && !sameDate(current.deadlineAt, effectiveDeadline)) ||
       (category !== undefined && current.category !== category) ||
-      (boundedRawText !== undefined && current.rawText !== boundedRawText);
+      (effectiveRawText !== undefined && current.rawText !== effectiveRawText);
 
     const updateData: Record<string, unknown> = { lastSeenAt: new Date() };
     if (changed) {
@@ -283,10 +315,10 @@ const upsertTender = async ({ source, sourceKey, url, title, externalId, metadat
       updateData.url = url;
       updateData.title = title;
       if (externalId !== undefined) updateData.externalId = externalId;
-      if (metadata !== undefined) updateData.metadataJson = metadata;
-      if (deadlineAt !== undefined) updateData.deadlineAt = deadlineAt;
+      if (mergedMeta !== undefined) updateData.metadataJson = mergedMeta;
+      if (effectiveDeadline !== undefined) updateData.deadlineAt = effectiveDeadline;
       if (category !== undefined) updateData.category = category;
-      if (boundedRawText !== undefined) updateData.rawText = boundedRawText;
+      if (effectiveRawText !== undefined) updateData.rawText = effectiveRawText;
     }
     await db
       .update(tenders)
@@ -455,7 +487,12 @@ const cleanUrl = (url: string): string => {
   }
 };
 
-const findPdfLinks = async (baseUrl: string): Promise<string[]> => {
+export interface DiscoveredLink {
+  url: string;
+  linkText: string;
+}
+
+const findPdfLinks = async (baseUrl: string): Promise<DiscoveredLink[]> => {
   const response = await fetch(baseUrl, { redirect: "follow" });
   if (!response.ok) {
     return [];
@@ -463,17 +500,34 @@ const findPdfLinks = async (baseUrl: string): Promise<string[]> => {
   const html = await response.text();
   const $ = cheerio.load(html);
 
-  const links: string[] = [];
+  const links: DiscoveredLink[] = [];
   const seen = new Set<string>();
+
+  const DOCUMENT_KEYWORDS = /\b(bekanntmachung|leistungsbeschreibung|vergabeunterlagen|leistungsverzeichnis|lv\b|eignung|zuschlag|vertragsbedingungen|formblatt|anlage|nachtrag|dokument|unterlage)\b/i;
+  const DOCUMENT_EXTENSIONS = /\.(pdf|zip|xlsx|xls|docx?)(\?|$)/i;
+
+  const addLink = (absoluteUrl: string, text: string) => {
+    if (seen.has(absoluteUrl)) return;
+    seen.add(absoluteUrl);
+    links.push({ url: absoluteUrl, linkText: text.trim() });
+  };
 
   $("a[href]").each((_, element) => {
     const href = $(element).attr("href");
     if (!href) return;
-    const absolute = cleanUrl(new URL(href, baseUrl).toString());
-    if (!absolute.toLowerCase().includes(".pdf")) return;
-    if (seen.has(absolute)) return;
-    seen.add(absolute);
-    links.push(absolute);
+    let absolute: string;
+    try {
+      absolute = cleanUrl(new URL(href, baseUrl).toString());
+    } catch {
+      return;
+    }
+    const lowerUrl = absolute.toLowerCase();
+    // Match .pdf/.zip/.xlsx extensions OR /download/ endpoints with document-keyword link text
+    const linkText = $(element).text().trim();
+    const isDocumentUrl = lowerUrl.includes(".pdf") || DOCUMENT_EXTENSIONS.test(lowerUrl);
+    const isDownloadWithKeyword = (lowerUrl.includes("/download/") || lowerUrl.includes("/document/")) && DOCUMENT_KEYWORDS.test(linkText);
+    if (!isDocumentUrl && !isDownloadWithKeyword) return;
+    addLink(absolute, linkText);
   });
 
   // Evergabe: Vergabe-ID extrahieren und Documents-Seite direkt laden
@@ -489,12 +543,15 @@ const findPdfLinks = async (baseUrl: string): Promise<string[]> => {
           const docsHtml = await docsResp.text();
           const $docs = cheerio.load(docsHtml);
           $docs("a[href*='/download/']").each((_, element) => {
-            const href = $docs(element).attr("href");
-            if (!href) return;
-            const absolute = cleanUrl(new URL(href, "https://www.evergabe.de").toString());
-            if (seen.has(absolute)) return;
-            seen.add(absolute);
-            links.push(absolute);
+           const href = $docs(element).attr("href");
+           if (!href) return;
+            let absolute: string;
+            try {
+              absolute = cleanUrl(new URL(href, "https://www.evergabe.de").toString());
+            } catch {
+              return;
+            }
+            addLink(absolute, $docs(element).text().trim());
           });
           console.log(`[pipeline] evergabe: ${links.length} PDFs von Documents-Seite geladen`);
         }
@@ -509,10 +566,15 @@ const findPdfLinks = async (baseUrl: string): Promise<string[]> => {
     const detailPaths: string[] = [];
     $("a[href]").each((_, element) => {
       const href = $(element).attr("href");
-      if (!href) return;
-      const text = $(element).text().toLowerCase();
-      if (text.includes("vergabeunterlagen") || text.includes("documents") || text.includes("bekanntmachung")) {
-        const absolute = cleanUrl(new URL(href, baseUrl).toString());
+       if (!href) return;
+       const text = $(element).text().toLowerCase();
+       if (text.includes("vergabeunterlagen") || text.includes("documents") || text.includes("bekanntmachung")) {
+         let absolute: string;
+         try {
+           absolute = cleanUrl(new URL(href, baseUrl).toString());
+         } catch {
+           return;
+         }
         if (!detailPaths.includes(absolute)) {
           detailPaths.push(absolute);
         }
@@ -522,9 +584,14 @@ const findPdfLinks = async (baseUrl: string): Promise<string[]> => {
     // Evergabe: /unterlagen/ Links zur Documents-Seite folgen
     if (baseUrl.includes("evergabe.de")) {
       $("a[href]").each((_, element) => {
-        const href = $(element).attr("href");
-        if (!href || !href.includes("/unterlagen/")) return;
-        const absolute = cleanUrl(new URL(href, baseUrl).toString());
+         const href = $(element).attr("href");
+         if (!href || !href.includes("/unterlagen/")) return;
+         let absolute: string;
+         try {
+           absolute = cleanUrl(new URL(href, baseUrl).toString());
+         } catch {
+           return;
+         }
         if (!detailPaths.includes(absolute)) {
           detailPaths.push(absolute);
         }
@@ -540,13 +607,16 @@ const findPdfLinks = async (baseUrl: string): Promise<string[]> => {
         const subHtml = await subResponse.text();
         const $sub = cheerio.load(subHtml);
         $sub("a[href]").each((_, element) => {
-          const href = $sub(element).attr("href");
-          if (!href) return;
-          const absolute = cleanUrl(new URL(href, docsUrl).toString());
+           const href = $sub(element).attr("href");
+           if (!href) return;
+           let absolute: string;
+           try {
+             absolute = cleanUrl(new URL(href, docsUrl).toString());
+           } catch {
+             return;
+           }
           if (!absolute.toLowerCase().includes(".pdf") && !absolute.includes("/download/")) return;
-          if (seen.has(absolute)) return;
-          seen.add(absolute);
-          links.push(absolute);
+          addLink(absolute, $sub(element).text().trim());
         });
       } catch {
         // ignore fetch errors on subpages
@@ -554,7 +624,7 @@ const findPdfLinks = async (baseUrl: string): Promise<string[]> => {
     }
   }
 
-  return links.slice(0, settings.maxPdfLinksPerTender);
+  return links;
 };
 
 const parseStructured = (value: string | Record<string, unknown>, fallbackTitle = ""): StructuredData => {
@@ -568,6 +638,45 @@ const clearTenderScoring = async (tenderId: number): Promise<void> => {
   await db.delete(scores).where(eq(scores.tenderId, tenderId));
 };
 
+const refreshTenderReadiness = async (tenderId: number, accessBlocked = false) => {
+  const tender = await getTender(tenderId);
+  const structuredRows = await db
+    .select({ jsonBlob: structuredData.jsonBlob, confidence: structuredData.confidence })
+    .from(structuredData)
+    .where(eq(structuredData.tenderId, tenderId))
+    .limit(1);
+  const documentRows = await db
+    .select({
+      id: documents.id,
+      role: documents.role,
+      parseStatus: documents.parseStatus,
+      downloadStatus: documents.downloadStatus,
+      errorMessage: documents.errorMessage,
+      extractedText: documents.extractedText,
+      pageCount: documents.pageCount,
+      roleConfidence: documents.roleConfidence,
+    })
+    .from(documents)
+    .where(eq(documents.tenderId, tenderId));
+  const analysis = buildDocumentAnalysis(documentRows as AnalyzedDocument[]);
+  const readiness = evaluateTenderReadiness({
+    qualityStatus: tender.qualityStatus,
+    rawText: tender.rawText,
+    structuredExists: structuredRows.length > 0,
+    structuredConfidence: structuredRows[0]?.confidence ?? null,
+    documentAnalysis: analysis,
+    accessBlocked,
+  });
+  await db.update(tenders).set({
+    readinessStatus: readiness.status,
+    readinessReason: readiness.reason,
+    readinessUpdatedAt: new Date(),
+    updatedAt: new Date(),
+  }).where(eq(tenders.id, tenderId));
+  if (readiness.status !== "ready") await clearTenderScoring(tenderId);
+  return { readiness, analysis };
+};
+
 const rejectBlockedTender = async (tenderId: number, detection: AccessPageDetection): Promise<void> => {
   await db.delete(structuredData).where(eq(structuredData.tenderId, tenderId));
   await clearTenderScoring(tenderId);
@@ -576,6 +685,9 @@ const rejectBlockedTender = async (tenderId: number, detection: AccessPageDetect
     .set({
       qualityStatus: "rejected",
       qualityReason: `Zugriffsschutz erkannt: ${detection.reason ?? "unbekannt"}`,
+      readinessStatus: "blocked",
+      readinessReason: `Zugriffsschutz erkannt: ${detection.reason ?? "unbekannt"}`,
+      readinessUpdatedAt: new Date(),
       rawText: null,
       contentFingerprint: null,
       duplicateOfTenderId: null,
@@ -711,59 +823,119 @@ const runFetchDocuments = async (payload: Record<string, JsonValue>): Promise<Re
 
   // 1. Use PDF URLs from scraper metadata (set by public-tender-scraper)
   const meta = parseRecord(tender.metadataJson as string);
-  const scrapedPdfUrls: string[] = [];
+  const scrapedPdfUrls: DiscoveredLink[] = [];
   if (Array.isArray(meta.pdf_urls)) {
     for (const u of meta.pdf_urls) {
       if (typeof u === "string" && u.startsWith("http")) {
-        scrapedPdfUrls.push(u);
+        scrapedPdfUrls.push({ url: u, linkText: "" });
       }
     }
   }
 
-  // 2. Fall back to finding PDF links on the page (skip for SPA pages)
+  // 2. Discover page links as well. Metadata URLs and page links are merged
+  // because either source can contain a document role missing from the other.
   const isSPA = /meinauftrag\.rib\.de|auftraege\.bayern/.test(tender.url ?? "");
-  const pageLinks = (scrapedPdfUrls.length > 0 || isSPA) ? [] : await findPdfLinks(tender.url);
+  const pageLinks = isSPA ? [] : await findPdfLinks(tender.url);
 
-  // 3. If still nothing, store the page itself
-  const urls = [...scrapedPdfUrls, ...pageLinks];
+  const allLinks: DiscoveredLink[] = [];
+  const seenUrls = new Set<string>();
+  for (const link of [...scrapedPdfUrls, ...pageLinks]) {
+    if (!link.url || seenUrls.has(link.url)) continue;
+    seenUrls.add(link.url);
+    allLinks.push(link);
+  }
 
   // If no PDFs found and URL is an SPA, skip storing the page (SPA shell has no useful content)
-  if (urls.length === 0 && isSPA) {
+  if (allLinks.length === 0 && isSPA) {
     await queueTenderStage(JOB_PARSE, tenderId);
     return { documents_saved: 0, skipped: "SPA-URL ohne PDFs" };
   }
 
-  const finalUrls = [...new Set(urls.length > 0 ? urls : [tender.url])]
+  const candidates = allLinks.length > 0 ? allLinks : [{ url: tender.url ?? "", linkText: "" }];
+  const classifiedCandidates = candidates.map((link) => ({
+    ...link,
+    role: classifyDocumentRole({ url: link.url, linkText: link.linkText }),
+  }));
+  const reservedRoles = new Set<string>();
+  const sortedCandidates = [...classifiedCandidates].sort(
+    (a, b) => rolePriority(a.role.role) - rolePriority(b.role.role),
+  );
+  const prioritizedLinks = sortedCandidates.filter((candidate) => {
+    if (candidate.role.role === "other" || reservedRoles.has(candidate.role.role)) return false;
+    reservedRoles.add(candidate.role.role);
+    return true;
+  });
+  const remainingLinks = sortedCandidates.filter((candidate) => !prioritizedLinks.includes(candidate));
+  const finalLinks = [...prioritizedLinks, ...remainingLinks]
     .slice(0, settings.maxPdfLinksPerTender);
 
   let saved = 0;
-  for (const url of finalUrls) {
+  for (const link of finalLinks) {
+    const url = link.url;
+    if (!url) continue;
     const baseName = suggestedFilename(url, `tender-${tenderId}-${saved + 1}`);
-    const relative = `tenders/${tenderId}/${baseName}`;
-    const stored = await fetchAndStore(url, relative);
-    const normalizedPath = ensureExtension(stored.storagePath, stored.contentType);
+    const cleanFilename = baseName.replace(/^[0-9a-f]{12}-/, "");
+    const roleResult = classifyDocumentRole({
+      filename: cleanFilename,
+      url,
+      linkText: link.linkText,
+    });
 
-    if (normalizedPath !== stored.storagePath) {
-      const original = objectAbsolutePath(stored.storagePath);
-      const target = objectAbsolutePath(normalizedPath);
-      fs.mkdirSync(path.dirname(target), { recursive: true });
-      fs.copyFileSync(original, target);
-      fs.unlinkSync(original);
+    try {
+      const relative = `tenders/${tenderId}/${baseName}`;
+      const stored = await fetchAndStore(url, relative);
+      const normalizedPath = ensureExtension(stored.storagePath, stored.contentType);
+
+      if (normalizedPath !== stored.storagePath) {
+        const original = objectAbsolutePath(stored.storagePath);
+        const target = objectAbsolutePath(normalizedPath);
+        fs.mkdirSync(path.dirname(target), { recursive: true });
+        fs.copyFileSync(original, target);
+        fs.unlinkSync(original);
+      }
+
+      const inserted = await db
+        .insert(documents)
+        .values({
+          tenderId,
+          url,
+          storagePath: normalizedPath,
+          sha256: stored.sha256,
+          contentType: stored.contentType,
+          filename: cleanFilename,
+          downloadStatus: "downloaded",
+          parseStatus: "pending",
+          role: roleResult.role,
+          roleSource: roleResult.source,
+          roleConfidence: roleResult.confidence,
+        })
+        .onConflictDoNothing()
+        .returning({ id: documents.id });
+      if (inserted.length > 0) saved += 1;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "unbekannter Downloadfehler";
+      const urlHash = createHash("sha256").update(url).digest("hex");
+      await db
+        .insert(documents)
+        .values({
+          tenderId,
+          url,
+          storagePath: `tenders/${tenderId}/failed-${urlHash}.download`,
+          sha256: `failed:${urlHash}`,
+          filename: cleanFilename,
+          downloadStatus: "failed",
+          parseStatus: "pending",
+          errorMessage: message.slice(0, 500),
+          role: roleResult.role,
+          roleSource: roleResult.source,
+          roleConfidence: roleResult.confidence,
+        })
+        .onConflictDoNothing();
+      console.warn(`[pipeline] Dokument-Download fehlgeschlagen: ${url}`, error);
     }
-
-    await db
-      .insert(documents)
-      .values({
-        tenderId,
-        url,
-        storagePath: normalizedPath,
-        sha256: stored.sha256,
-        contentType: stored.contentType,
-      })
-      .onConflictDoNothing();
-    saved += 1;
   }
 
+  await refreshTenderReadiness(tenderId);
   await queueTenderStage(JOB_PARSE, tenderId);
   return { documents_saved: saved };
 };
@@ -774,60 +946,144 @@ const runParseDocuments = async (payload: Record<string, JsonValue>): Promise<Re
     throw new Error("ungueltige tender_id");
   }
 
+  const tender = await getTender(tenderId);
   const docs = await db
-    .select({ id: documents.id, storagePath: documents.storagePath, contentType: documents.contentType })
+    .select({
+      id: documents.id,
+      storagePath: documents.storagePath,
+      contentType: documents.contentType,
+      filename: documents.filename,
+      url: documents.url,
+      role: documents.role,
+      roleSource: documents.roleSource,
+      roleConfidence: documents.roleConfidence,
+      extractedText: documents.extractedText,
+    })
     .from(documents)
     .where(eq(documents.tenderId, tenderId))
     .orderBy(documents.id);
 
   if (docs.length === 0) {
     // No documents to parse — raw_text may already be set (e.g. from RSS description)
+    await refreshTenderReadiness(tenderId);
     await queueTenderStage(JOB_STRUCTURE, tenderId);
     return { chunks: 0, skipped: "keine Dokumente, raw_text bereits vorhanden" };
   }
 
-  const mergedParts: string[] = [];
-  let mergedLength = 0;
+  // Parse every document before applying the aggregate text budget. Otherwise
+  // an early, unclassified attachment could hide a later Leistungsbeschreibung.
+  const parsedDocs: Array<{ id: number; role: string; text: string }> = [];
+  let partial = false;
+
   for (const doc of docs) {
     const absPath = objectAbsolutePath(doc.storagePath);
     try {
       const extracted = await extractTextFromFile(absPath, doc.contentType);
-      const bounded = extracted.length > MAX_DOCUMENT_TEXT_CHARS
-        ? `${extracted.slice(0, MAX_DOCUMENT_TEXT_CHARS)}\n[Text wegen Größenlimit gekürzt]`
-        : extracted;
-      const remaining = Math.max(0, MAX_TENDER_TEXT_CHARS - mergedLength);
-      if (remaining > 0) {
-        const part = bounded.slice(0, remaining);
-        mergedParts.push(part);
-        mergedLength += part.length;
+      const pageText = extracted.pages.length > 0
+        ? extracted.pages
+          .map((page, index) => `[Seite ${index + 1}]\n${page}`)
+          .join("\n\n")
+        : extracted.text;
+      const bounded = pageText.length > MAX_DOCUMENT_TEXT_CHARS
+        ? `${pageText.slice(0, MAX_DOCUMENT_TEXT_CHARS)}\n[Text wegen Größenlimit gekürzt]`
+        : pageText;
+
+      // Refine weak filename/URL classifications with document content.
+      let effectiveRole = doc.role ?? "other";
+      let effectiveRoleSource = doc.roleSource ?? null;
+      let effectiveRoleConfidence = doc.roleConfidence ?? 0;
+      if (!doc.role || doc.role === "other" || effectiveRoleConfidence < 0.75) {
+        const refined = classifyDocumentRole({
+          filename: doc.filename,
+          url: doc.url,
+          textSample: bounded.slice(0, 3000),
+        });
+        if (refined.role !== "other" && (!doc.role || doc.role === "other" || refined.confidence >= effectiveRoleConfidence)) {
+          effectiveRole = refined.role;
+          effectiveRoleSource = refined.source;
+          effectiveRoleConfidence = refined.confidence;
+        }
       }
+
+      if (bounded.trim().length >= 20) {
+        parsedDocs.push({ id: doc.id, role: effectiveRole, text: bounded });
+      } else {
+        partial = true;
+      }
+
       await db
         .update(documents)
-        .set({ extractedText: bounded, updatedAt: new Date() })
+        .set({
+          extractedText: bounded.trim().length >= 20 ? bounded : doc.extractedText,
+          parseStatus: bounded.trim().length >= 20 ? "parsed" : "empty",
+          errorMessage: null,
+          pageCount: extracted.pageCount,
+          role: effectiveRole,
+          roleSource: effectiveRoleSource,
+          roleConfidence: effectiveRoleConfidence || null,
+          updatedAt: new Date(),
+        })
         .where(eq(documents.id, doc.id));
     } catch (error) {
+      partial = true;
       const message = error instanceof Error ? error.message : "unbekannter Parserfehler";
-      const fallback = `[parse_error] ${message}`;
-      if (mergedLength < MAX_TENDER_TEXT_CHARS) {
-        const part = fallback.slice(0, MAX_TENDER_TEXT_CHARS - mergedLength);
-        mergedParts.push(part);
-        mergedLength += part.length;
-      }
+      // Store the error on the document row for debugging, but do NOT pollute
+      // the tender's analytical rawText with error markers. A failed parse is a
+      // document-level failure, not tender content.
       await db
         .update(documents)
-        .set({ extractedText: fallback, updatedAt: new Date() })
+        .set({ extractedText: doc.extractedText, parseStatus: "failed", errorMessage: message, updatedAt: new Date() })
         .where(eq(documents.id, doc.id));
     }
   }
 
+  // Sort by role priority (Leistungsbeschreibung first) and tag sections so the
+  // structurer knows which document type each text block comes from.
+  parsedDocs.sort((a, b) => rolePriority(a.role) - rolePriority(b.role) || a.id - b.id);
+  let remainingText = MAX_TENDER_TEXT_CHARS;
+  const mergedParts: string[] = [];
+  for (const document of parsedDocs) {
+    if (remainingText <= 0) break;
+    const text = document.text.slice(0, remainingText);
+    if (!text.trim()) continue;
+    mergedParts.push(`[ROLLE: ${document.role}] [DOKUMENT-ID: ${document.id}]\n${text}`);
+    remainingText -= text.length;
+  }
+
+  // Only overwrite rawText when we actually extracted content. An all-failed
+  // parse must not erase the listing-page description that was already stored.
   const merged = mergedParts.join("\n\n").slice(0, MAX_TENDER_TEXT_CHARS).trim();
-  await db
-    .update(tenders)
-    .set({ rawText: merged, updatedAt: new Date() })
-    .where(eq(tenders.id, tenderId));
+  // A partial parse must not replace a previously usable raw text snapshot.
+  // New tenders without a snapshot may still use the successful subset.
+  if (merged && (!partial || !(tender.rawText ?? "").trim())) {
+    await db
+      .update(tenders)
+      .set({ rawText: merged, updatedAt: new Date() })
+      .where(eq(tenders.id, tenderId));
+  }
   await markCatalogDirty();
   await queueTenderStage(JOB_STRUCTURE, tenderId);
-  return { parsed_documents: docs.length, text_length: merged.length };
+  const refreshedDocs = await db
+    .select({
+      id: documents.id,
+      role: documents.role,
+      parseStatus: documents.parseStatus,
+      downloadStatus: documents.downloadStatus,
+      errorMessage: documents.errorMessage,
+      extractedText: documents.extractedText,
+      pageCount: documents.pageCount,
+      roleConfidence: documents.roleConfidence,
+    })
+    .from(documents)
+    .where(eq(documents.tenderId, tenderId));
+  const analysis = buildDocumentAnalysis(refreshedDocs as AnalyzedDocument[]);
+  return {
+    parsed_documents: docs.length,
+    parsed_successfully: parsedDocs.length,
+    text_length: merged.length,
+    partial,
+    missing_roles: analysis.coverage.missingRoles,
+  };
 };
 
 const runStructureTender = async (payload: Record<string, JsonValue>): Promise<Record<string, JsonValue>> => {
@@ -849,6 +1105,27 @@ const runStructureTender = async (payload: Record<string, JsonValue>): Promise<R
   }
 
   const structured = await extractStructuredData(tender.title ?? "Unbenannte Ausschreibung", tender.rawText);
+
+  const documentRows = await db
+    .select({
+      id: documents.id,
+      role: documents.role,
+      parseStatus: documents.parseStatus,
+      downloadStatus: documents.downloadStatus,
+      errorMessage: documents.errorMessage,
+      extractedText: documents.extractedText,
+      pageCount: documents.pageCount,
+      roleConfidence: documents.roleConfidence,
+    })
+    .from(documents)
+    .where(eq(documents.tenderId, tenderId));
+  const baseDocumentAnalysis = buildDocumentAnalysis(documentRows as AnalyzedDocument[]);
+  structured.document_analysis = withEvidenceValues(baseDocumentAnalysis, {
+    deadline: structured.hard_facts.deadline,
+    scope: structured.decision_relevant.scope.join(" ") || structured.summary,
+    requirements: structured.decision_relevant.requirements.join(" ") || null,
+    award_criteria: structured.decision_relevant.award_criteria.join(" ") || null,
+  });
 
   // If the LLM didn't extract a deadline but the DB already has one, use it
   if (!structured.hard_facts.deadline && tender.deadlineAt) {
@@ -910,6 +1187,7 @@ const runStructureTender = async (payload: Record<string, JsonValue>): Promise<R
     .update(tenders)
     .set(qualityUpdate)
     .where(eq(tenders.id, tenderId));
+  const readiness = await refreshTenderReadiness(tenderId);
   await markCatalogDirty();
   await enqueueJob(JOB_SYNC_MEILI, {}, { jobKey: JOB_SYNC_MEILI });
 
@@ -923,12 +1201,15 @@ const runStructureTender = async (payload: Record<string, JsonValue>): Promise<R
     };
   }
 
-  await queueTenderStage(JOB_SCORE, tenderId);
+  if (readiness.readiness.status === "ready") {
+    await queueTenderStage(JOB_SCORE, tenderId);
+  }
   await queueTenderStage(JOB_CACHE_DETAIL, tenderId);
   return {
     confidence: structured.confidence,
     quality_status: quality.status,
     quality_reason: quality.reason,
+    readiness_status: readiness.readiness.status,
   };
 };
 
@@ -1183,14 +1464,20 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
     .slice(0, settings.maxPdfLinksPerTender);
   if (evergabeUrls.length > 0) {
     console.log(`[cache-detail] Lade ${evergabeUrls.length} evergabe.de Dokumente herunter...`);
-    const existingDocs = await db.select({ url: documents.url }).from(documents).where(eq(documents.tenderId, tenderId));
-    const existingUrls = new Set(existingDocs.map(d => d.url));
+    const existingDocs = await db
+      .select({ url: documents.url, downloadStatus: documents.downloadStatus })
+      .from(documents)
+      .where(eq(documents.tenderId, tenderId));
+    const existingUrls = new Set(existingDocs.filter((d) => d.downloadStatus === "downloaded").map((d) => d.url));
     let docIndex = 0;
 
     for (const docUrl of evergabeUrls) {
       if (existingUrls.has(docUrl)) continue;
+      const baseName = suggestedFilename(docUrl, `tender-${tenderId}-evergabe-${docIndex + 1}`);
+      const cleanFilename = baseName.replace(/^[0-9a-f]{12}-/, "");
+      const initialRole = classifyDocumentRole({ filename: cleanFilename, url: docUrl });
       try {
-        const baseName = suggestedFilename(docUrl, `tender-${tenderId}-evergabe-${++docIndex}`);
+        docIndex += 1;
         const relative = `tenders/${tenderId}/${baseName}`;
         const stored = await fetchAndStore(docUrl, relative);
         const normalizedPath = ensureExtension(stored.storagePath, stored.contentType);
@@ -1203,33 +1490,88 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
           fs.unlinkSync(original);
         }
 
-        await db.insert(documents).values({
+        const insertedDocuments = await db.insert(documents).values({
           tenderId,
           url: docUrl,
           storagePath: normalizedPath,
           sha256: stored.sha256,
           contentType: stored.contentType,
-        }).onConflictDoNothing();
+          filename: cleanFilename,
+          downloadStatus: "downloaded",
+          parseStatus: "pending",
+          role: initialRole.role,
+          roleSource: initialRole.source,
+          roleConfidence: initialRole.confidence,
+        }).onConflictDoNothing().returning({ id: documents.id });
+        const documentId = insertedDocuments[0]?.id ?? (
+          await db.select({ id: documents.id })
+            .from(documents)
+            .where(and(eq(documents.tenderId, tenderId), eq(documents.url, docUrl)))
+            .limit(1)
+        )[0]?.id;
 
         // Parse XLSX/PDF and append to rawText
         try {
           const absPath = objectAbsolutePath(normalizedPath);
           const extracted = await extractTextFromFile(absPath, stored.contentType);
-          if (extracted && extracted.length > 20) {
-            await db.update(documents).set({ extractedText: extracted, updatedAt: new Date() }).where(eq(documents.url, docUrl));
+          const documentText = extracted.pages.length > 0
+            ? extracted.pages.map((page, index) => `[Seite ${index + 1}]\n${page}`).join("\n\n")
+            : extracted.text;
+          if (documentText.trim().length > 20) {
+            const contentRole = classifyDocumentRole({
+              filename: cleanFilename,
+              url: docUrl,
+              textSample: documentText.slice(0, 3000),
+            });
+            const effectiveRole = contentRole.role !== "other" && contentRole.confidence >= initialRole.confidence
+              ? contentRole
+              : initialRole;
+            if (documentId) {
+              await db.update(documents).set({
+                extractedText: documentText,
+                parseStatus: "parsed",
+                errorMessage: null,
+                pageCount: extracted.pageCount,
+                role: effectiveRole.role,
+                roleSource: effectiveRole.source,
+                roleConfidence: effectiveRole.confidence,
+                updatedAt: new Date(),
+              }).where(eq(documents.id, documentId));
+            }
             // Re-fetch rawText to avoid lost-update when multiple docs are processed
             const freshTender = await getTender(tenderId);
             const currentRaw = freshTender.rawText ?? "";
             await db.update(tenders).set({
-              rawText: appendBoundedTenderText(currentRaw, extracted.slice(0, MAX_DOCUMENT_TEXT_CHARS)),
+              rawText: appendBoundedTenderText(currentRaw, `[ROLLE: ${effectiveRole.role}] [DOKUMENT-ID: ${documentId ?? "unbekannt"}]\n${documentText.slice(0, MAX_DOCUMENT_TEXT_CHARS)}`),
               updatedAt: new Date(),
             }).where(eq(tenders.id, tenderId));
-            console.log(`[cache-detail] evergabe Dokument geparst: ${normalizedPath} (${extracted.length} Zeichen)`);
+            console.log(`[cache-detail] evergabe Dokument geparst: ${normalizedPath} (${documentText.length} Zeichen)`);
+          } else if (documentId) {
+            await db.update(documents).set({ parseStatus: "empty", pageCount: extracted.pageCount, updatedAt: new Date() }).where(eq(documents.id, documentId));
           }
         } catch (parseError) {
+          const parseMsg = parseError instanceof Error ? parseError.message : "unbekannter Parserfehler";
+          if (documentId) {
+            await db.update(documents).set({ parseStatus: "failed", errorMessage: parseMsg, updatedAt: new Date() }).where(eq(documents.id, documentId));
+          }
           console.warn(`[cache-detail] evergabe Dokument Parsing fehlgeschlagen:`, parseError);
         }
       } catch (fetchError) {
+        const message = fetchError instanceof Error ? fetchError.message : "unbekannter Downloadfehler";
+        const urlHash = createHash("sha256").update(docUrl).digest("hex");
+        await db.insert(documents).values({
+          tenderId,
+          url: docUrl,
+          storagePath: `tenders/${tenderId}/failed-${urlHash}.download`,
+          sha256: `failed:${urlHash}`,
+          filename: cleanFilename,
+          downloadStatus: "failed",
+          parseStatus: "pending",
+          errorMessage: message.slice(0, 500),
+          role: initialRole.role,
+          roleSource: initialRole.source,
+          roleConfidence: initialRole.confidence,
+        }).onConflictDoNothing();
         console.warn(`[cache-detail] evergabe Dokument Download fehlgeschlagen: ${docUrl}`, fetchError);
       }
     }
@@ -1401,12 +1743,36 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
     mergedConfidence = 0.85;
   }
 
+  const latestDocumentRows = await db
+    .select({
+      id: documents.id,
+      role: documents.role,
+      parseStatus: documents.parseStatus,
+      downloadStatus: documents.downloadStatus,
+      errorMessage: documents.errorMessage,
+      extractedText: documents.extractedText,
+      pageCount: documents.pageCount,
+      roleConfidence: documents.roleConfidence,
+    })
+    .from(documents)
+    .where(eq(documents.tenderId, tenderId));
+  mergedBlob.document_analysis = withEvidenceValues(
+    buildDocumentAnalysis(latestDocumentRows as AnalyzedDocument[]),
+    {
+      deadline: typeof result.deadline === "string" ? result.deadline : null,
+      scope: typeof result.scope === "string" ? result.scope : null,
+      requirements: Array.isArray(result.requirements) ? result.requirements.join(" ") : null,
+      award_criteria: Array.isArray(result.awardCriteria) ? result.awardCriteria.join(" ") : null,
+    },
+  );
+
   await db
     .insert(structuredData)
     .values({ tenderId, jsonBlob: mergedBlob, confidence: mergedConfidence })
     .onConflictDoUpdate({ target: structuredData.tenderId, set: { jsonBlob: mergedBlob, confidence: mergedConfidence, updatedAt: new Date() } });
 
-  if (scoringInputChanged) {
+  const readiness = await refreshTenderReadiness(tenderId);
+  if (scoringInputChanged && readiness.readiness.status === "ready") {
     // This distinct key queues a second score even if the initial score job is still running.
     await queueTenderStage(JOB_SCORE, tenderId, {}, "cache-detail");
   }
@@ -1427,6 +1793,13 @@ const runScoreTender = async (payload: Record<string, JsonValue>): Promise<Recor
       skipped: true,
       quality_status: tender.qualityStatus,
       quality_reason: tender.qualityReason ?? "Ausschreibung ist nicht fuer das Scoring freigegeben.",
+    };
+  }
+  if (tender.readinessStatus !== "ready") {
+    return {
+      skipped: true,
+      readiness_status: tender.readinessStatus,
+      readiness_reason: tender.readinessReason ?? "Ausschreibung ist noch nicht vollständig analysiert.",
     };
   }
 
@@ -1727,6 +2100,7 @@ const runScrapePublicTenders = async (payload: Record<string, JsonValue>): Promi
   const changesBySource = new Map<string, { accepted: number; inserted: number; updated: number }>();
 
   try {
+    const sourceFilter = typeof payload.source === "string" && payload.source.trim() ? payload.source.trim() : undefined;
     const result = await scrapeAllPublicTenders(async (sourceKey, tenders) => {
       const changes = changesBySource.get(sourceKey) ?? { accepted: 0, inserted: 0, updated: 0 };
     for (const tender of tenders) {
@@ -1774,7 +2148,7 @@ const runScrapePublicTenders = async (payload: Record<string, JsonValue>): Promi
       }
     }
     changesBySource.set(sourceKey, changes);
-    });
+    }, sourceFilter);
 
     await db.insert(publicSourceRuns).values(result.sourceRuns.map((sourceRun) => {
       const changes = changesBySource.get(sourceRun.sourceKey) ?? { accepted: sourceRun.acceptedCount, inserted: 0, updated: 0 };
@@ -1917,6 +2291,21 @@ const runPreviewCompanyUrl = async (payload: Record<string, JsonValue>): Promise
   return { cache_id: cacheId };
 };
 
+const runApiAnalyze = async (payload: Record<string, JsonValue>): Promise<Record<string, JsonValue>> => {
+  const apiJobId = Number(payload.api_job_id ?? 0);
+  const url = typeof payload.url === "string" ? payload.url : "";
+  const mode = payload.mode === "rescore" ? "rescore" : "full";
+  const companyId = payload.company_id === undefined ? undefined : Number(payload.company_id);
+  const profileSlug = typeof payload.profile_slug === "string" ? payload.profile_slug : undefined;
+
+  if (!Number.isFinite(apiJobId) || apiJobId <= 0 || !url) {
+    throw new Error("ungueltige api_analyze Nutzdaten");
+  }
+
+  await runApiAnalysisJob({ apiJobId, url, mode, companyId, profileSlug });
+  return { api_job_id: apiJobId, mode };
+};
+
 const handlers: Record<JobType, (payload: Record<string, JsonValue>) => Promise<Record<string, JsonValue>>> = {
   [JOB_CRAWL]: runCrawl,
   [JOB_SCRAPE_PUBLIC]: runScrapePublicTenders,
@@ -1931,6 +2320,7 @@ const handlers: Record<JobType, (payload: Record<string, JsonValue>) => Promise<
   [JOB_DISCOVER_COMPANY]: runDiscoverCompany,
   [JOB_SCRAPE_US]: runScrapeUsTenders,
   [JOB_PREVIEW_COMPANY_URL]: runPreviewCompanyUrl,
+  [JOB_API_ANALYZE]: runApiAnalyze,
 };
 
 export const processJobById = async (jobId: number): Promise<JobProcessResult> => {

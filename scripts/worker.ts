@@ -35,14 +35,18 @@ const shouldEnqueuePublicScrape = async (): Promise<boolean> => {
   }
 
   const lastRun = await db
-    .select({ finishedAt: publicScrapeRuns.finishedAt })
+    .select({ status: publicScrapeRuns.status, finishedAt: publicScrapeRuns.finishedAt })
     .from(publicScrapeRuns)
-    .where(eq(publicScrapeRuns.status, "success"))
     .orderBy(desc(publicScrapeRuns.finishedAt))
     .limit(1);
 
   if (lastRun.length === 0 || !lastRun[0].finishedAt) {
     console.log("[scheduler] Oeffentliche Ausschreibungen: noch kein Job vorhanden, starte ersten Scrape.");
+    return true;
+  }
+
+  if (lastRun[0].status !== "success") {
+    console.log(`[scheduler] Oeffentliche Ausschreibungen: letzter Lauf ${lastRun[0].status}, starte Recovery-Scrape.`);
     return true;
   }
 
@@ -65,12 +69,12 @@ const shouldEnqueueUsScrape = async (): Promise<boolean> => {
   if (activeJobs.length > 0) return false;
 
   const lastJob = await db
-    .select({ createdAt: jobs.createdAt })
+    .select({ createdAt: jobs.createdAt, status: jobs.status })
     .from(jobs)
     .where(eq(jobs.type, JOB_SCRAPE_US))
     .orderBy(desc(jobs.createdAt))
     .limit(1);
-  return lastJob.length === 0 || Date.now() - lastJob[0].createdAt.getTime() > settings.usScrapeIntervalHours * 60 * 60 * 1000;
+  return lastJob.length === 0 || lastJob[0].status === "failed" || Date.now() - lastJob[0].createdAt.getTime() > settings.usScrapeIntervalHours * 60 * 60 * 1000;
 };
 
 const enqueueUsScrapeIfDue = async (): Promise<void> => {

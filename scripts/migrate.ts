@@ -161,6 +161,20 @@ async function main() {
       )
     `;
 
+    await client`ALTER TABLE documents ADD COLUMN IF NOT EXISTS download_status TEXT NOT NULL DEFAULT 'downloaded'`;
+    await client`ALTER TABLE documents ADD COLUMN IF NOT EXISTS parse_status TEXT NOT NULL DEFAULT 'pending'`;
+    await client`ALTER TABLE documents ADD COLUMN IF NOT EXISTS error_message TEXT`;
+    await client`ALTER TABLE documents ADD COLUMN IF NOT EXISTS filename TEXT`;
+    await client`ALTER TABLE documents ADD COLUMN IF NOT EXISTS page_count INTEGER`;
+    await client`ALTER TABLE documents ADD COLUMN IF NOT EXISTS role TEXT`;
+    await client`ALTER TABLE documents ADD COLUMN IF NOT EXISTS role_source TEXT`;
+    await client`ALTER TABLE documents ADD COLUMN IF NOT EXISTS role_confidence REAL`;
+    await client`ALTER TABLE tenders ADD COLUMN IF NOT EXISTS readiness_status TEXT NOT NULL DEFAULT 'pending'`;
+    await client`ALTER TABLE tenders ADD COLUMN IF NOT EXISTS readiness_reason TEXT`;
+    await client`ALTER TABLE tenders ADD COLUMN IF NOT EXISTS readiness_updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`;
+    await client`UPDATE documents SET parse_status = 'failed', error_message = left(extracted_text, 500) WHERE extracted_text LIKE '[parse_error]%' AND parse_status = 'pending'`;
+    await client`UPDATE documents SET parse_status = 'parsed' WHERE extracted_text IS NOT NULL AND extracted_text != '' AND extracted_text NOT LIKE '[parse_error]%' AND parse_status = 'pending'`;
+
     await client`
       CREATE TABLE IF NOT EXISTS structured_data (
         id SERIAL PRIMARY KEY,
@@ -270,6 +284,22 @@ async function main() {
     await client`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS queue_latency_ms INTEGER`;
     await client`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS duration_ms INTEGER`;
     await client`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS priority INTEGER NOT NULL DEFAULT 100`;
+
+    await client`
+      CREATE TABLE IF NOT EXISTS job_attempts (
+        id SERIAL PRIMARY KEY,
+        job_id INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+        attempt_number INTEGER NOT NULL,
+        worker_id TEXT,
+        status TEXT NOT NULL DEFAULT 'running',
+        error_code TEXT,
+        error_message TEXT,
+        started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        finished_at TIMESTAMPTZ
+      )
+    `;
+    await client`CREATE INDEX IF NOT EXISTS idx_job_attempts_job_started ON job_attempts(job_id, started_at)`;
+    await client`CREATE INDEX IF NOT EXISTS idx_job_attempts_status ON job_attempts(status)`;
 
     await client`
       CREATE TABLE IF NOT EXISTS catalog_state (
@@ -553,7 +583,8 @@ async function main() {
       ON tenders(source, external_id)
       WHERE external_id IS NOT NULL
     `;
-    await client`CREATE INDEX IF NOT EXISTS idx_tenders_quality_status ON tenders(quality_status)`;
+     await client`CREATE INDEX IF NOT EXISTS idx_tenders_quality_status ON tenders(quality_status)`;
+     await client`CREATE INDEX IF NOT EXISTS idx_tenders_readiness_status ON tenders(readiness_status)`;
     await client`CREATE INDEX IF NOT EXISTS idx_tenders_deadline ON tenders(deadline_at)`;
     await client`CREATE INDEX IF NOT EXISTS idx_tenders_content_fingerprint ON tenders(content_fingerprint)`;
     await client`CREATE INDEX IF NOT EXISTS idx_tenders_slug ON tenders(slug)`;

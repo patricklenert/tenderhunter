@@ -1975,8 +1975,8 @@
     "semantic_hash": ""
   },
   "app/upgrade/page.tsx": {
-    "mtime": 1785613817.4806192,
-    "ast_hash": "26de633944f4b4b404cb53c6373f4c00",
+    "mtime": 1785619306.1762404,
+    "ast_hash": "e258f0aa3b0b90bd99c8bc0c7dadd4f6",
     "semantic_hash": ""
   },
   "components/billing/PaywallPanel.tsx": {
@@ -1985,8 +1985,8 @@
     "semantic_hash": ""
   },
   "components/billing/UpgradePage.tsx": {
-    "mtime": 1785616513.239563,
-    "ast_hash": "24de40c66275ddeaa380b01e41321631",
+    "mtime": 1785619877.9217107,
+    "ast_hash": "008a0a85cb4992f7c6ad3bf382fe65e5",
     "semantic_hash": ""
   },
   "lib/billing.ts": {
@@ -2200,8 +2200,8 @@
     "semantic_hash": ""
   },
   "components/billing/UpgradeProductPreview.tsx": {
-    "mtime": 1785614953.043423,
-    "ast_hash": "1c62c1d78cdff1ea8fb99ab55c9b62e6",
+    "mtime": 1785619495.371077,
+    "ast_hash": "0853feb129d8b98cf68f4a9a9c866df6",
     "semantic_hash": ""
   }
 }

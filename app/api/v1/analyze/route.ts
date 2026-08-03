@@ -8,6 +8,8 @@ import { buildTenderMatchDocument, computeScores, getDomainEligibility, getLocat
 import { generateInsight } from "@/lib/insights";
 import { eq, and, or, desc } from "drizzle-orm";
 import { normalizeStructured, type StructuredData as StructuredTenderData } from "@/lib/structurer";
+import { enqueueJob } from "@/lib/queue";
+import { JOB_API_ANALYZE, type JsonValue } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -249,9 +251,10 @@ async function scoreAllTenders(companyId: number, companyRow: CompanyRow) {
       id: tenders.id,
       title: tenders.title,
       metadataJson: tenders.metadataJson,
+      readinessStatus: tenders.readinessStatus,
     })
     .from(tenders)
-    .where(or(eq(tenders.qualityStatus, "qualified"), eq(tenders.qualityStatus, "candidate")))
+    .where(and(eq(tenders.qualityStatus, "qualified"), eq(tenders.readinessStatus, "ready")))
     .orderBy(desc(tenders.createdAt))
     .limit(200);
 
@@ -290,27 +293,6 @@ async function scoreAllTenders(companyId: number, companyRow: CompanyRow) {
           },
         });
       } catch { continue; }
-    } else {
-      const text = tender.title ?? "";
-      const mockStructured: StructuredTenderData = {
-        title: text, summary: text, confidence: 0.3,
-        hard_facts: { location: null, deadline: null, budget: null, buyer: null, contract_type: null },
-        decision_relevant: { scope: text.split(" ").filter((w) => w.length > 3), requirements: [], mandatory_documents: [], award_criteria: [] },
-        procurement: { contract_value: { min: null, max: null, currency: "EUR" }, contract_duration: { months: null, renewal: false }, award_criteria_detailed: [], participation_requirements: [], cpv_codes: [], procedure_type: "offen" },
-      };
-      const metadata = typeof tender.metadataJson === "object" && tender.metadataJson !== null
-        ? tender.metadataJson as Record<string, unknown>
-        : {};
-      tenderData.push({
-        id: tender.id,
-        title: text,
-        structured: mockStructured,
-        location: {
-          metadataLocation: metadata.location,
-          metadataDescription: metadata.description,
-          structuredLocation: null,
-        },
-      });
     }
   }
 
@@ -378,7 +360,8 @@ async function getTopTenders(companyId: number): Promise<TenderResult[]> {
     .where(and(
       eq(scores.companyId, companyId),
       eq(scores.killSwitch, false),
-      or(eq(tenders.qualityStatus, "qualified"), eq(tenders.qualityStatus, "candidate")),
+      eq(tenders.qualityStatus, "qualified"),
+      eq(tenders.readinessStatus, "ready"),
     ))
     .orderBy(desc(scores.winProbability), desc(scores.fit))
     .limit(10);
@@ -416,6 +399,56 @@ async function getTopTenders(companyId: number): Promise<TenderResult[]> {
     };
   });
 }
+
+export async function runApiAnalysisJob(payload: {
+  apiJobId: number;
+  url: string;
+  mode?: "full" | "rescore";
+  companyId?: number;
+  profileSlug?: string;
+}): Promise<void> {
+  if (payload.mode !== "rescore") {
+    await runAnalysis(payload.apiJobId, payload.url);
+    return;
+  }
+
+  if (!payload.companyId || !payload.profileSlug) {
+    throw new Error("Rescore-Job benötigt companyId und profileSlug.");
+  }
+
+  const profileRows = await db
+    .select({
+      capabilitiesJson: companyProfiles.capabilitiesJson,
+      certificationsJson: companyProfiles.certificationsJson,
+      regionsJson: companyProfiles.regionsJson,
+      teamSize: companyProfiles.teamSize,
+      industry: companyProfiles.industry,
+    })
+    .from(companyProfiles)
+    .where(eq(companyProfiles.id, payload.companyId))
+    .limit(1);
+
+  if (profileRows.length === 0) throw new Error("Unternehmensprofil nicht gefunden.");
+
+  await scoreAllTenders(payload.companyId, {
+    capabilities_json: JSON.stringify(profileRows[0].capabilitiesJson),
+    certifications_json: JSON.stringify(profileRows[0].certificationsJson),
+    regions_json: JSON.stringify(profileRows[0].regionsJson),
+    team_size: profileRows[0].teamSize,
+    industry: profileRows[0].industry,
+  });
+
+  await db.update(apiJobs).set({
+    status: "completed",
+    companyId: payload.companyId,
+    profileUrl: `${BASE_URL}/p/${payload.profileSlug}`,
+    tendersJson: await getTopTenders(payload.companyId),
+    updatedAt: new Date(),
+  }).where(eq(apiJobs.id, payload.apiJobId));
+}
+
+const enqueueApiAnalysis = (payload: Record<string, JsonValue>): Promise<number> =>
+  enqueueJob(JOB_API_ANALYZE, payload, { jobKey: `${JOB_API_ANALYZE}:${payload.apiJobId}` });
 
 export async function POST(request: Request): Promise<Response> {
   const authError = requireApiKey(request);
@@ -456,7 +489,7 @@ export async function POST(request: Request): Promise<Response> {
       }).returning({ id: apiJobs.id });
 
       const jobId = jobResult[0].id;
-      setTimeout(() => runAnalysis(jobId, normalizedUrl), 0);
+      await enqueueApiAnalysis({ apiJobId: jobId, url: normalizedUrl });
       return Response.json({ jobId, status: "processing" });
     }
 
@@ -468,38 +501,13 @@ export async function POST(request: Request): Promise<Response> {
       }).returning({ id: apiJobs.id });
 
       const jobId = jobResult[0].id;
-      const companyId = existing.id;
-      setTimeout(async () => {
-        try {
-          const profileRow = await db
-            .select({ capabilitiesJson: companyProfiles.capabilitiesJson, certificationsJson: companyProfiles.certificationsJson, regionsJson: companyProfiles.regionsJson, teamSize: companyProfiles.teamSize, industry: companyProfiles.industry })
-            .from(companyProfiles)
-            .where(eq(companyProfiles.id, companyId))
-            .limit(1);
-
-          if (profileRow.length > 0) {
-            const companyRow: CompanyRow = {
-              capabilities_json: JSON.stringify(profileRow[0].capabilitiesJson),
-              certifications_json: JSON.stringify(profileRow[0].certificationsJson),
-              regions_json: JSON.stringify(profileRow[0].regionsJson),
-              team_size: profileRow[0].teamSize,
-              industry: profileRow[0].industry,
-            };
-            await scoreAllTenders(companyId, companyRow);
-          }
-
-          const freshTenders = await getTopTenders(companyId);
-          const profileUrl = `${BASE_URL}/p/${slug}`;
-          await db.update(apiJobs).set({
-            status: "completed", companyId, profileUrl, tendersJson: freshTenders, updatedAt: new Date(),
-          }).where(eq(apiJobs.id, jobId));
-        } catch (error) {
-          console.error(`[api/v1/analyze] Rescore failed for job ${jobId}:`, error);
-          await db.update(apiJobs).set({
-            status: "failed", error: error instanceof Error ? error.message : "Unbekannter Fehler", updatedAt: new Date(),
-          }).where(eq(apiJobs.id, jobId));
-        }
-      }, 0);
+      await enqueueApiAnalysis({
+        apiJobId: jobId,
+        url: normalizedUrl,
+        mode: "rescore",
+        companyId: existing.id,
+        profileSlug: slug,
+      });
 
       return Response.json({ jobId, status: "processing" });
     }
@@ -525,7 +533,7 @@ export async function POST(request: Request): Promise<Response> {
   }).returning({ id: apiJobs.id });
 
   const jobId = jobResult[0].id;
-  setTimeout(() => runAnalysis(jobId, normalizedUrl), 0);
+  await enqueueApiAnalysis({ apiJobId: jobId, url: normalizedUrl });
 
   return Response.json({ jobId, status: "processing" });
 }

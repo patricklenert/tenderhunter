@@ -93,7 +93,8 @@ const listMatchedTenders = async (companyId: number, since: Date) => {
         eq(scores.companyId, companyId),
         eq(scores.killSwitch, false),
         gte(scores.updatedAt, since),
-        or(eq(tenders.qualityStatus, "qualified"), eq(tenders.qualityStatus, "candidate")),
+        eq(tenders.qualityStatus, "qualified"),
+        eq(tenders.readinessStatus, "ready"),
       ),
     )
     .orderBy(desc(scores.winProbability), desc(scores.fit))
@@ -244,7 +245,8 @@ const listCachedTenders = async (companyId: number) => {
       and(
         eq(scores.companyId, companyId),
         eq(scores.killSwitch, false),
-        or(eq(tenders.qualityStatus, "qualified"), eq(tenders.qualityStatus, "candidate")),
+        eq(tenders.qualityStatus, "qualified"),
+        eq(tenders.readinessStatus, "ready"),
       ),
     )
     .orderBy(desc(scores.winProbability), desc(scores.fit))

@@ -5,7 +5,7 @@ export const runtime = "nodejs";
 
 export const metadata: Metadata = {
   title: "Tenderhunter Pro",
-  description: "Prüfen Sie Passung, Muss-Kriterien und Risiken, bevor Ihr Team Zeit in eine ungeeignete Ausschreibung investiert.",
+  description: "Prüfen Sie in wenigen Minuten, ob sich eine Ausschreibung für Ihr Unternehmen lohnt.",
   robots: { index: false, follow: false },
 };
 

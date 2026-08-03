@@ -11153,8 +11153,8 @@
       "source_location": "L42",
       "_origin": "ast",
       "id": "ausschreibungen_site_package_dependencies_axios",
-      "community": 72,
-      "community_name": "axios",
+      "community": 1,
+      "community_name": "dependencies",
       "norm_label": "axios"
     },
     {
@@ -11164,8 +11164,8 @@
       "source_location": "L42",
       "_origin": "ast",
       "id": "axios",
-      "community": 72,
-      "community_name": "axios",
+      "community": 1,
+      "community_name": "dependencies",
       "norm_label": "axios"
     },
     {
@@ -11197,8 +11197,8 @@
       "source_location": "L44",
       "_origin": "ast",
       "id": "ausschreibungen_site_package_dependencies_clsx",
-      "community": 1,
-      "community_name": "dependencies",
+      "community": 263,
+      "community_name": "clsx",
       "norm_label": "clsx"
     },
     {
@@ -11208,8 +11208,8 @@
       "source_location": "L44",
       "_origin": "ast",
       "id": "ausschreibungen_site_package_json_clsx",
-      "community": 1,
-      "community_name": "dependencies",
+      "community": 263,
+      "community_name": "clsx",
       "norm_label": "clsx"
     },
     {
@@ -14912,7 +14912,7 @@
       "label": "BillingStatusResponse",
       "file_type": "code",
       "source_file": "components/billing/UpgradePage.tsx",
-      "source_location": "L37",
+      "source_location": "L34",
       "_origin": "ast",
       "id": "components_billing_upgradepage_billingstatusresponse",
       "community": 248,
@@ -14923,7 +14923,7 @@
       "label": "CheckoutResponse",
       "file_type": "code",
       "source_file": "components/billing/UpgradePage.tsx",
-      "source_location": "L45",
+      "source_location": "L42",
       "_origin": "ast",
       "id": "components_billing_upgradepage_checkoutresponse",
       "community": 248,
@@ -14934,7 +14934,7 @@
       "label": "PLAN_COPY",
       "file_type": "code",
       "source_file": "components/billing/UpgradePage.tsx",
-      "source_location": "L51",
+      "source_location": "L48",
       "_origin": "ast",
       "id": "components_billing_upgradepage_plan_copy",
       "community": 248,
@@ -14942,21 +14942,21 @@
       "norm_label": "plan_copy"
     },
     {
-      "label": "OUTCOMES",
+      "label": "HERO_OUTCOMES",
       "file_type": "code",
       "source_file": "components/billing/UpgradePage.tsx",
-      "source_location": "L74",
+      "source_location": "L68",
       "_origin": "ast",
-      "id": "components_billing_upgradepage_outcomes",
+      "id": "components_billing_upgradepage_hero_outcomes",
       "community": 248,
       "community_name": "UpgradePage.tsx",
-      "norm_label": "outcomes"
+      "norm_label": "hero_outcomes"
     },
     {
       "label": "INCLUDED_FEATURES",
       "file_type": "code",
       "source_file": "components/billing/UpgradePage.tsx",
-      "source_location": "L92",
+      "source_location": "L83",
       "_origin": "ast",
       "id": "components_billing_upgradepage_included_features",
       "community": 248,
@@ -14967,7 +14967,7 @@
       "label": "FAQS",
       "file_type": "code",
       "source_file": "components/billing/UpgradePage.tsx",
-      "source_location": "L101",
+      "source_location": "L92",
       "_origin": "ast",
       "id": "components_billing_upgradepage_faqs",
       "community": 248,
@@ -14978,7 +14978,7 @@
       "label": "UpgradePage()",
       "file_type": "code",
       "source_file": "components/billing/UpgradePage.tsx",
-      "source_location": "L132",
+      "source_location": "L123",
       "_origin": "ast",
       "id": "components_billing_upgradepage_upgradepage",
       "community": 248,
@@ -14986,21 +14986,21 @@
       "norm_label": "upgradepage()"
     },
     {
-      "label": "BenefitPoint()",
+      "label": "HeroOutcome()",
       "file_type": "code",
       "source_file": "components/billing/UpgradePage.tsx",
-      "source_location": "L486",
+      "source_location": "L454",
       "_origin": "ast",
-      "id": "components_billing_upgradepage_benefitpoint",
+      "id": "components_billing_upgradepage_herooutcome",
       "community": 248,
       "community_name": "UpgradePage.tsx",
-      "norm_label": "benefitpoint()"
+      "norm_label": "herooutcome()"
     },
     {
       "label": "UseCase()",
       "file_type": "code",
       "source_file": "components/billing/UpgradePage.tsx",
-      "source_location": "L497",
+      "source_location": "L468",
       "_origin": "ast",
       "id": "components_billing_upgradepage_usecase",
       "community": 248,
@@ -15011,7 +15011,7 @@
       "label": "CheckoutButton()",
       "file_type": "code",
       "source_file": "components/billing/UpgradePage.tsx",
-      "source_location": "L506",
+      "source_location": "L477",
       "_origin": "ast",
       "id": "components_billing_upgradepage_checkoutbutton",
       "community": 248,
@@ -15022,7 +15022,7 @@
       "label": "PlanOption()",
       "file_type": "code",
       "source_file": "components/billing/UpgradePage.tsx",
-      "source_location": "L536",
+      "source_location": "L507",
       "_origin": "ast",
       "id": "components_billing_upgradepage_planoption",
       "community": 248,
@@ -15041,15 +15041,15 @@
       "norm_label": "upgradeproductpreview.tsx"
     },
     {
-      "label": "PREVIEW_SECTIONS",
+      "label": "REVIEW_AREAS",
       "file_type": "code",
       "source_file": "components/billing/UpgradeProductPreview.tsx",
       "source_location": "L4",
       "_origin": "ast",
-      "id": "components_billing_upgradeproductpreview_preview_sections",
+      "id": "components_billing_upgradeproductpreview_review_areas",
       "community": 248,
       "community_name": "UpgradePage.tsx",
-      "norm_label": "preview_sections"
+      "norm_label": "review_areas"
     },
     {
       "label": "UpgradeProductPreview()",
@@ -18268,7 +18268,7 @@
       "_origin": "ast",
       "id": "lib_discovery",
       "community": 207,
-      "community_name": "test-scoring.ts",
+      "community_name": "discovery.ts",
       "norm_label": "discovery.ts"
     },
     {
@@ -18279,7 +18279,7 @@
       "_origin": "ast",
       "id": "lib_discovery_fallbackstructured",
       "community": 207,
-      "community_name": "test-scoring.ts",
+      "community_name": "discovery.ts",
       "norm_label": "fallbackstructured()"
     },
     {
@@ -18290,7 +18290,7 @@
       "_origin": "ast",
       "id": "lib_discovery_parsestructured",
       "community": 207,
-      "community_name": "test-scoring.ts",
+      "community_name": "discovery.ts",
       "norm_label": "parsestructured()"
     },
     {
@@ -18301,7 +18301,7 @@
       "_origin": "ast",
       "id": "lib_discovery_scoreknowntenders",
       "community": 207,
-      "community_name": "test-scoring.ts",
+      "community_name": "discovery.ts",
       "norm_label": "scoreknowntenders()"
     },
     {
@@ -18807,7 +18807,7 @@
       "_origin": "ast",
       "id": "lib_insights",
       "community": 207,
-      "community_name": "test-scoring.ts",
+      "community_name": "discovery.ts",
       "norm_label": "insights.ts"
     },
     {
@@ -18818,7 +18818,7 @@
       "_origin": "ast",
       "id": "lib_insights_pct",
       "community": 207,
-      "community_name": "test-scoring.ts",
+      "community_name": "discovery.ts",
       "norm_label": "pct()"
     },
     {
@@ -18829,7 +18829,7 @@
       "_origin": "ast",
       "id": "lib_insights_firstitems",
       "community": 207,
-      "community_name": "test-scoring.ts",
+      "community_name": "discovery.ts",
       "norm_label": "firstitems()"
     },
     {
@@ -18840,7 +18840,7 @@
       "_origin": "ast",
       "id": "lib_insights_insightresult",
       "community": 207,
-      "community_name": "test-scoring.ts",
+      "community_name": "discovery.ts",
       "norm_label": "insightresult"
     },
     {
@@ -18851,7 +18851,7 @@
       "_origin": "ast",
       "id": "lib_insights_generateinsight",
       "community": 207,
-      "community_name": "test-scoring.ts",
+      "community_name": "discovery.ts",
       "norm_label": "generateinsight()"
     },
     {
@@ -19400,8 +19400,8 @@
       "source_location": "L79",
       "_origin": "ast",
       "id": "lib_pipeline_submittoindexnow",
-      "community": 64,
-      "community_name": "lib/scoring.ts",
+      "community": 225,
+      "community_name": "analyze/route.ts",
       "norm_label": "submittoindexnow()"
     },
     {
@@ -19565,8 +19565,8 @@
       "source_location": "L560",
       "_origin": "ast",
       "id": "lib_pipeline_parsestructured",
-      "community": 64,
-      "community_name": "lib/scoring.ts",
+      "community": 207,
+      "community_name": "discovery.ts",
       "norm_label": "parsestructured()"
     },
     {
@@ -19675,8 +19675,8 @@
       "source_location": "L1418",
       "_origin": "ast",
       "id": "lib_pipeline_runscoretender",
-      "community": 64,
-      "community_name": "lib/scoring.ts",
+      "community": 225,
+      "community_name": "analyze/route.ts",
       "norm_label": "runscoretender()"
     },
     {
@@ -19753,7 +19753,7 @@
       "_origin": "ast",
       "id": "lib_pipeline_rundiscovercompany",
       "community": 207,
-      "community_name": "test-scoring.ts",
+      "community_name": "discovery.ts",
       "norm_label": "rundiscovercompany()"
     },
     {
@@ -21985,8 +21985,8 @@
       "source_location": "L110",
       "_origin": "ast",
       "id": "lib_scoring_parselist",
-      "community": 64,
-      "community_name": "lib/scoring.ts",
+      "community": 225,
+      "community_name": "analyze/route.ts",
       "norm_label": "parselist()"
     },
     {
@@ -22041,7 +22041,7 @@
       "_origin": "ast",
       "id": "lib_scoring_companyrow",
       "community": 207,
-      "community_name": "test-scoring.ts",
+      "community_name": "discovery.ts",
       "norm_label": "companyrow"
     },
     {
@@ -22106,8 +22106,8 @@
       "source_location": "L224",
       "_origin": "ast",
       "id": "lib_scoring_buildtendermatchdocument",
-      "community": 64,
-      "community_name": "lib/scoring.ts",
+      "community": 225,
+      "community_name": "analyze/route.ts",
       "norm_label": "buildtendermatchdocument()"
     },
     {
@@ -22117,8 +22117,8 @@
       "source_location": "L248",
       "_origin": "ast",
       "id": "lib_scoring_getdomaineligibility",
-      "community": 64,
-      "community_name": "lib/scoring.ts",
+      "community": 225,
+      "community_name": "analyze/route.ts",
       "norm_label": "getdomaineligibility()"
     },
     {
@@ -22150,8 +22150,8 @@
       "source_location": "L301",
       "_origin": "ast",
       "id": "lib_scoring_computescores",
-      "community": 64,
-      "community_name": "lib/scoring.ts",
+      "community": 225,
+      "community_name": "analyze/route.ts",
       "norm_label": "computescores()"
     },
     {
@@ -22503,7 +22503,7 @@
       "_origin": "ast",
       "id": "lib_structurer_structureddata",
       "community": 207,
-      "community_name": "test-scoring.ts",
+      "community_name": "discovery.ts",
       "norm_label": "structureddata"
     },
     {
@@ -22524,8 +22524,8 @@
       "source_location": "L310",
       "_origin": "ast",
       "id": "lib_structurer_sanitizetendertext",
-      "community": 64,
-      "community_name": "lib/scoring.ts",
+      "community": 165,
+      "community_name": "structurer.ts",
       "norm_label": "sanitizetendertext()"
     },
     {
@@ -22536,7 +22536,7 @@
       "_origin": "ast",
       "id": "lib_structurer_normalizestructured",
       "community": 207,
-      "community_name": "test-scoring.ts",
+      "community_name": "discovery.ts",
       "norm_label": "normalizestructured()"
     },
     {
@@ -25527,8 +25527,8 @@
       "source_location": "L46",
       "_origin": "ast",
       "id": "package_dependencies_adm_zip",
-      "community": 263,
-      "community_name": "adm-zip",
+      "community": 2,
+      "community_name": "dependencies",
       "norm_label": "adm-zip"
     },
     {
@@ -25538,8 +25538,8 @@
       "source_location": "L46",
       "_origin": "ast",
       "id": "adm_zip",
-      "community": 263,
-      "community_name": "adm-zip",
+      "community": 2,
+      "community_name": "dependencies",
       "norm_label": "adm-zip"
     },
     {
@@ -25549,8 +25549,8 @@
       "source_location": "L47",
       "_origin": "ast",
       "id": "package_dependencies_better_auth",
-      "community": 2,
-      "community_name": "dependencies",
+      "community": 266,
+      "community_name": "better-auth",
       "norm_label": "better-auth"
     },
     {
@@ -25560,8 +25560,8 @@
       "source_location": "L47",
       "_origin": "ast",
       "id": "better_auth",
-      "community": 2,
-      "community_name": "dependencies",
+      "community": 266,
+      "community_name": "better-auth",
       "norm_label": "better-auth"
     },
     {
@@ -26485,7 +26485,7 @@
       "_origin": "ast",
       "id": "scripts_backfill_location_scores",
       "community": 207,
-      "community_name": "test-scoring.ts",
+      "community_name": "discovery.ts",
       "norm_label": "backfill-location-scores.ts"
     },
     {
@@ -26496,7 +26496,7 @@
       "_origin": "ast",
       "id": "scripts_backfill_location_scores_stringifylist",
       "community": 207,
-      "community_name": "test-scoring.ts",
+      "community_name": "discovery.ts",
       "norm_label": "stringifylist()"
     },
     {
@@ -26507,7 +26507,7 @@
       "_origin": "ast",
       "id": "scripts_backfill_location_scores_main",
       "community": 207,
-      "community_name": "test-scoring.ts",
+      "community_name": "discovery.ts",
       "norm_label": "main()"
     },
     {
@@ -27518,7 +27518,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "scripts_test_scoring",
-      "community": 207,
+      "community": 72,
       "community_name": "test-scoring.ts",
       "norm_label": "test-scoring.ts"
     },
@@ -27529,7 +27529,7 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "scripts_test_scoring_landscapingcompany",
-      "community": 207,
+      "community": 72,
       "community_name": "test-scoring.ts",
       "norm_label": "landscapingcompany"
     },
@@ -27540,7 +27540,7 @@
       "source_location": "L19",
       "_origin": "ast",
       "id": "scripts_test_scoring_structured",
-      "community": 207,
+      "community": 72,
       "community_name": "test-scoring.ts",
       "norm_label": "structured()"
     },
@@ -27551,7 +27551,7 @@
       "source_location": "L35",
       "_origin": "ast",
       "id": "scripts_test_scoring_localtender",
-      "community": 207,
+      "community": 72,
       "community_name": "test-scoring.ts",
       "norm_label": "localtender"
     },
@@ -27562,7 +27562,7 @@
       "source_location": "L42",
       "_origin": "ast",
       "id": "scripts_test_scoring_unrelatedtender",
-      "community": 207,
+      "community": 72,
       "community_name": "test-scoring.ts",
       "norm_label": "unrelatedtender"
     },
@@ -27573,7 +27573,7 @@
       "source_location": "L49",
       "_origin": "ast",
       "id": "scripts_test_scoring_educationtender",
-      "community": 207,
+      "community": 72,
       "community_name": "test-scoring.ts",
       "norm_label": "educationtender"
     },
@@ -27584,7 +27584,7 @@
       "source_location": "L56",
       "_origin": "ast",
       "id": "scripts_test_scoring_paramedictender",
-      "community": 207,
+      "community": 72,
       "community_name": "test-scoring.ts",
       "norm_label": "paramedictender"
     },
@@ -27595,7 +27595,7 @@
       "source_location": "L63",
       "_origin": "ast",
       "id": "scripts_test_scoring_streetonlytender",
-      "community": 207,
+      "community": 72,
       "community_name": "test-scoring.ts",
       "norm_label": "streetonlytender"
     },
@@ -27606,7 +27606,7 @@
       "source_location": "L70",
       "_origin": "ast",
       "id": "scripts_test_scoring_bavariatender",
-      "community": 207,
+      "community": 72,
       "community_name": "test-scoring.ts",
       "norm_label": "bavariatender"
     },
@@ -27617,7 +27617,7 @@
       "source_location": "L77",
       "_origin": "ast",
       "id": "scripts_test_scoring_berlintender",
-      "community": 207,
+      "community": 72,
       "community_name": "test-scoring.ts",
       "norm_label": "berlintender"
     },
@@ -27628,7 +27628,7 @@
       "source_location": "L84",
       "_origin": "ast",
       "id": "scripts_test_scoring_unknowntenderlocation",
-      "community": 207,
+      "community": 72,
       "community_name": "test-scoring.ts",
       "norm_label": "unknowntenderlocation"
     },
@@ -27639,7 +27639,7 @@
       "source_location": "L90",
       "_origin": "ast",
       "id": "scripts_test_scoring_unknowncompanylocation",
-      "community": 207,
+      "community": 72,
       "community_name": "test-scoring.ts",
       "norm_label": "unknowncompanylocation"
     },
@@ -27650,7 +27650,7 @@
       "source_location": "L97",
       "_origin": "ast",
       "id": "scripts_test_scoring_nationwidecompany",
-      "community": 207,
+      "community": 72,
       "community_name": "test-scoring.ts",
       "norm_label": "nationwidecompany"
     },
@@ -27661,7 +27661,7 @@
       "source_location": "L105",
       "_origin": "ast",
       "id": "scripts_test_scoring_portaldump",
-      "community": 207,
+      "community": 72,
       "community_name": "test-scoring.ts",
       "norm_label": "portaldump"
     },
@@ -65214,7 +65214,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "components/billing/UpgradePage.tsx",
-      "source_location": "L32",
+      "source_location": "L29",
       "weight": 1.0,
       "_origin": "ast",
       "source": "components_billing_upgradepage",
@@ -65238,7 +65238,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "components/billing/UpgradePage.tsx",
-      "source_location": "L32",
+      "source_location": "L29",
       "weight": 1.0,
       "_origin": "ast",
       "source": "components_billing_upgradepage",
@@ -67916,18 +67916,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "components/billing/UpgradePage.tsx",
-      "source_location": "L486",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "components_billing_upgradepage",
-      "target": "components_billing_upgradepage_benefitpoint",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "components/billing/UpgradePage.tsx",
-      "source_location": "L37",
+      "source_location": "L34",
       "weight": 1.0,
       "_origin": "ast",
       "source": "components_billing_upgradepage",
@@ -67938,7 +67927,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "components/billing/UpgradePage.tsx",
-      "source_location": "L506",
+      "source_location": "L477",
       "weight": 1.0,
       "_origin": "ast",
       "source": "components_billing_upgradepage",
@@ -67949,7 +67938,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "components/billing/UpgradePage.tsx",
-      "source_location": "L45",
+      "source_location": "L42",
       "weight": 1.0,
       "_origin": "ast",
       "source": "components_billing_upgradepage",
@@ -67960,7 +67949,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "components/billing/UpgradePage.tsx",
-      "source_location": "L101",
+      "source_location": "L92",
       "weight": 1.0,
       "_origin": "ast",
       "source": "components_billing_upgradepage",
@@ -67971,7 +67960,29 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "components/billing/UpgradePage.tsx",
-      "source_location": "L92",
+      "source_location": "L68",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "components_billing_upgradepage",
+      "target": "components_billing_upgradepage_hero_outcomes",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "components/billing/UpgradePage.tsx",
+      "source_location": "L454",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "components_billing_upgradepage",
+      "target": "components_billing_upgradepage_herooutcome",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "components/billing/UpgradePage.tsx",
+      "source_location": "L83",
       "weight": 1.0,
       "_origin": "ast",
       "source": "components_billing_upgradepage",
@@ -67982,18 +67993,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "components/billing/UpgradePage.tsx",
-      "source_location": "L74",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "components_billing_upgradepage",
-      "target": "components_billing_upgradepage_outcomes",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "components/billing/UpgradePage.tsx",
-      "source_location": "L51",
+      "source_location": "L48",
       "weight": 1.0,
       "_origin": "ast",
       "source": "components_billing_upgradepage",
@@ -68004,7 +68004,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "components/billing/UpgradePage.tsx",
-      "source_location": "L536",
+      "source_location": "L507",
       "weight": 1.0,
       "_origin": "ast",
       "source": "components_billing_upgradepage",
@@ -68015,7 +68015,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "components/billing/UpgradePage.tsx",
-      "source_location": "L132",
+      "source_location": "L123",
       "weight": 1.0,
       "_origin": "ast",
       "source": "components_billing_upgradepage",
@@ -68026,7 +68026,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "components/billing/UpgradePage.tsx",
-      "source_location": "L497",
+      "source_location": "L468",
       "weight": 1.0,
       "_origin": "ast",
       "source": "components_billing_upgradepage",
@@ -68038,7 +68038,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "components/billing/UpgradePage.tsx",
-      "source_location": "L33",
+      "source_location": "L30",
       "weight": 1.0,
       "_origin": "ast",
       "source": "components_billing_upgradepage",
@@ -68050,7 +68050,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "components/billing/UpgradePage.tsx",
-      "source_location": "L33",
+      "source_location": "L30",
       "weight": 1.0,
       "_origin": "ast",
       "source": "components_billing_upgradepage",
@@ -68062,7 +68062,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "components/billing/UpgradePage.tsx",
-      "source_location": "L35",
+      "source_location": "L32",
       "weight": 1.0,
       "_origin": "ast",
       "source": "components_billing_upgradepage",
@@ -68074,7 +68074,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "components/billing/UpgradePage.tsx",
-      "source_location": "L34",
+      "source_location": "L31",
       "weight": 1.0,
       "_origin": "ast",
       "source": "components_billing_upgradepage",
@@ -68086,7 +68086,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "components/billing/UpgradePage.tsx",
-      "source_location": "L34",
+      "source_location": "L31",
       "weight": 1.0,
       "_origin": "ast",
       "source": "components_billing_upgradepage",
@@ -68098,7 +68098,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "components/billing/UpgradePage.tsx",
-      "source_location": "L34",
+      "source_location": "L31",
       "weight": 1.0,
       "_origin": "ast",
       "source": "components_billing_upgradepage",
@@ -68110,7 +68110,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "components/billing/UpgradePage.tsx",
-      "source_location": "L34",
+      "source_location": "L31",
       "weight": 1.0,
       "_origin": "ast",
       "source": "components_billing_upgradepage",
@@ -68123,7 +68123,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "components/billing/UpgradePage.tsx",
-      "source_location": "L251",
+      "source_location": "L242",
       "weight": 1.0,
       "_origin": "ast",
       "source": "components_billing_upgradepage_upgradepage",
@@ -68137,7 +68137,7 @@
       "weight": 1.0,
       "_origin": "ast",
       "source": "components_billing_upgradeproductpreview",
-      "target": "components_billing_upgradeproductpreview_preview_sections",
+      "target": "components_billing_upgradeproductpreview_review_areas",
       "confidence_score": 1.0
     },
     {

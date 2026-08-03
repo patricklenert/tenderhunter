@@ -5,7 +5,8 @@ export type AccessPageReason =
   | "session_expired"
   | "not_found"
   | "paywall_or_terms"
-  | "navigation_page";
+  | "navigation_page"
+  | "participation_required";
 
 export interface AccessPageDetection {
   blocked: boolean;
@@ -31,6 +32,22 @@ const stripMarkup = (value: string): string =>
     .toLowerCase();
 
 const hasAny = (value: string, patterns: RegExp[]): boolean => patterns.some((pattern) => pattern.test(value));
+
+const PARTICIPATION_WALL_PATTERNS: RegExp[] = [
+  /um zugriff auf dieses modul zu erhalten[^.]{0,80}vergabeverfahren teilnehmen/,
+  /müssen sie am vergabeverfahren teilnehmen/,
+  /bestätigen sie die teilnahme am verfahren um folgende vorteile/,
+  /ohne bestätigung der teilnahme an diesem verfahren[^.]{0,60}keine e-?mail benachrichtigung/,
+  /teilen sie sich dem vergabeverfahren zu/,
+];
+
+/** Returns true for VMPCenter/VMPSatellite "participation wall" boilerplate that
+ *  gates the actual tender documents behind a "Jetzt teilnehmen" confirmation. */
+export function isParticipationWallText(text: string): boolean {
+  if (!text) return false;
+  const normalized = text.toLowerCase();
+  return PARTICIPATION_WALL_PATTERNS.some((pattern) => pattern.test(normalized));
+}
 
 export function detectAccessPage(
   text: string,
@@ -94,6 +111,9 @@ export function detectAccessPage(
   ]);
   if (paywallOrTerms) signals.push("paywall_or_terms");
 
+  const participationWall = isParticipationWallText(content);
+  if (participationWall) signals.push("participation_required");
+
   const navigationPage = hasAny(content, [
     /ausschreibungen finden/,
     /alle ausschreibungen/,
@@ -108,7 +128,7 @@ export function detectAccessPage(
   ]);
   if (navigationPage && !tenderSignals) signals.push("navigation_page");
 
-  const strongBlocked = cookieRequired || accessDenied || sessionExpired || notFound || paywallOrTerms;
+  const strongBlocked = cookieRequired || accessDenied || sessionExpired || notFound || paywallOrTerms || participationWall;
   const blocked = strongBlocked || (loginRequired && content.length < 8000) || (navigationPage && !tenderSignals);
   if (!blocked) {
     return { blocked: false, reason: null, confidence: 0, signals };
@@ -126,7 +146,9 @@ export function detectAccessPage(
             ? "not_found"
             : paywallOrTerms
               ? "paywall_or_terms"
-              : "navigation_page";
+              : participationWall
+                ? "participation_required"
+                : "navigation_page";
 
   const confidence = Math.min(1, 0.7 + Math.max(0, signals.length - 1) * 0.1);
   return { blocked: true, reason, confidence, signals };

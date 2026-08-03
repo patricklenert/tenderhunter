@@ -24,6 +24,8 @@ export const bidPackDecisionStatusEnum = pgEnum("bid_pack_decision_status", BID_
 export const bidPackRequirementStatusEnum = pgEnum("bid_pack_requirement_status", BID_PACK_REQUIREMENT_STATUSES);
 export const bidPackTaskStatusEnum = pgEnum("bid_pack_task_status", BID_PACK_TASK_STATUSES);
 
+export type TenderReadinessStatus = "pending" | "partial" | "ready" | "blocked" | "failed" | "manual_review";
+
 export const tenders = pgTable(
   "tenders",
   {
@@ -40,6 +42,9 @@ export const tenders = pgTable(
     category: text("category"),
     qualityStatus: text("quality_status").notNull().default("candidate"),
     qualityReason: text("quality_reason"),
+    readinessStatus: text("readiness_status").notNull().default("pending"),
+    readinessReason: text("readiness_reason"),
+    readinessUpdatedAt: timestamp("readiness_updated_at", { withTimezone: true }).notNull().defaultNow(),
     contentFingerprint: text("content_fingerprint"),
     duplicateOfTenderId: integer("duplicate_of_tender_id"),
     // Procurement data
@@ -60,6 +65,7 @@ export const tenders = pgTable(
       .on(table.source, table.externalId)
       .where(sql`${table.externalId} IS NOT NULL`),
     index("idx_tenders_quality_status").on(table.qualityStatus),
+    index("idx_tenders_readiness_status").on(table.readinessStatus),
     index("idx_tenders_deadline").on(table.deadlineAt),
     index("idx_tenders_content_fingerprint").on(table.contentFingerprint),
     index("idx_tenders_contract_value").on(table.contractValueMax),
@@ -179,6 +185,18 @@ export const usSourceRuns = pgTable(
   (table) => [index("idx_us_source_runs_source_finished").on(table.source, table.finishedAt)]
 );
 
+export type DocumentRole =
+  | "bekanntmachung"
+  | "leistungsbeschreibung"
+  | "leistungsverzeichnis"
+  | "eignung"
+  | "zuschlagskriterien"
+  | "vertragsbedingungen"
+  | "formblatt"
+  | "anlage"
+  | "nachtrag"
+  | "other";
+
 export const documents = pgTable(
   "documents",
   {
@@ -191,6 +209,14 @@ export const documents = pgTable(
     sha256: text("sha256").notNull(),
     contentType: text("content_type"),
     extractedText: text("extracted_text"),
+    downloadStatus: text("download_status").notNull().default("downloaded"),
+    parseStatus: text("parse_status").notNull().default("pending"),
+    errorMessage: text("error_message"),
+    filename: text("filename"),
+    pageCount: integer("page_count"),
+    role: text("role"),
+    roleSource: text("role_source"),
+    roleConfidence: real("role_confidence"),
     version: integer("version").notNull().default(1),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -559,7 +585,26 @@ export const jobs = pgTable(
        .on(table.jobKey)
        .where(sql`${table.jobKey} IS NOT NULL AND ${table.status} IN ('pending', 'running')`),
    ]
-  );
+   );
+
+export const jobAttempts = pgTable(
+  "job_attempts",
+  {
+    id: serial("id").primaryKey(),
+    jobId: integer("job_id").notNull().references(() => jobs.id, { onDelete: "cascade" }),
+    attemptNumber: integer("attempt_number").notNull(),
+    workerId: text("worker_id"),
+    status: text("status").notNull().default("running"),
+    errorCode: text("error_code"),
+    errorMessage: text("error_message"),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("idx_job_attempts_job_started").on(table.jobId, table.startedAt),
+    index("idx_job_attempts_status").on(table.status),
+  ],
+);
 
 export const catalogState = pgTable("catalog_state", {
   id: integer("id").primaryKey().default(1),

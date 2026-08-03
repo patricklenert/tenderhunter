@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { tenders, companyProfiles, jobs, insights, scores, trackedTenders } from "@/lib/schema";
 import { json } from "@/lib/http";
 import { ACTIVE_TRACKED_TENDER_STATUSES } from "@/lib/tracked-tender-types";
-import { and, avg, count, desc, eq, gte, inArray, lte, or, sql } from "drizzle-orm";
+import { and, avg, count, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { requirePremiumSession } from "@/lib/entitlements";
 
 export const runtime = "nodejs";
@@ -12,7 +12,7 @@ export async function GET(request: Request): Promise<Response> {
   if (premiumOrResponse instanceof Response) return premiumOrResponse;
 
   try {
-    const scoreEligible = or(eq(tenders.qualityStatus, "qualified"), eq(tenders.qualityStatus, "candidate"));
+    const scoreEligible = and(eq(tenders.qualityStatus, "qualified"), eq(tenders.readinessStatus, "ready"));
     const now = new Date();
     const dueSoon = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 

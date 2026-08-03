@@ -1,6 +1,6 @@
 import { eq, and, lte, sql, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { jobs, type Job } from "@/lib/schema";
+import { jobs, jobAttempts, type Job } from "@/lib/schema";
 import { settings } from "@/lib/config";
 import type { JobType, JsonValue } from "@/lib/types";
 
@@ -100,6 +100,13 @@ export async function claimNextJob(workerId: string): Promise<Job | null> {
       })
       .where(eq(jobs.id, job.id));
 
+    await tx.insert(jobAttempts).values({
+      jobId: job.id,
+      attemptNumber: job.retries + 1,
+      workerId,
+      status: "running",
+    });
+
     const now = new Date();
     return {
       ...job,
@@ -136,6 +143,7 @@ export async function markDone(jobId: number, workerId: string): Promise<void> {
       durationMs: sql`GREATEST(0, EXTRACT(EPOCH FROM (NOW() - ${jobs.startedAt})) * 1000)::integer`,
     })
     .where(and(eq(jobs.id, jobId), eq(jobs.status, "running"), eq(jobs.lockedBy, workerId)));
+  await db.update(jobAttempts).set({ status: "done", finishedAt: new Date() }).where(and(eq(jobAttempts.jobId, jobId), eq(jobAttempts.status, "running")));
 }
 
 export async function markFailed(jobId: number, workerId: string, errorMessage: string): Promise<void> {
@@ -166,7 +174,8 @@ export async function markFailed(jobId: number, workerId: string, errorMessage: 
            finishedAt: new Date(),
            durationMs: sql`GREATEST(0, EXTRACT(EPOCH FROM (NOW() - ${jobs.startedAt})) * 1000)::integer`,
          })
-        .where(eq(jobs.id, jobId));
+         .where(eq(jobs.id, jobId));
+      await tx.update(jobAttempts).set({ status: "failed", errorMessage: errorMessage.slice(0, 1000), finishedAt: new Date() }).where(and(eq(jobAttempts.jobId, jobId), eq(jobAttempts.status, "running")));
       return;
     }
 
@@ -187,7 +196,8 @@ export async function markFailed(jobId: number, workerId: string, errorMessage: 
          finishedAt: null,
          durationMs: null,
        })
-      .where(eq(jobs.id, jobId));
+       .where(eq(jobs.id, jobId));
+    await tx.update(jobAttempts).set({ status: "retrying", errorMessage: errorMessage.slice(0, 1000), finishedAt: new Date() }).where(and(eq(jobAttempts.jobId, jobId), eq(jobAttempts.status, "running")));
   });
 }
 
@@ -231,7 +241,8 @@ export async function reapStaleJobs(): Promise<number> {
            finishedAt: new Date(),
            durationMs: sql`GREATEST(0, EXTRACT(EPOCH FROM (NOW() - ${jobs.startedAt})) * 1000)::integer`,
          })
-        .where(and(eq(jobs.id, job.id), eq(jobs.status, "running")));
+         .where(and(eq(jobs.id, job.id), eq(jobs.status, "running")));
+      await db.update(jobAttempts).set({ status: "failed", errorMessage: "stale lock - max retries exceeded", finishedAt: new Date() }).where(and(eq(jobAttempts.jobId, job.id), eq(jobAttempts.status, "running")));
     } else {
       // Retry with backoff
       const backoffSeconds = Math.min(300, 30 * 2 ** (newRetries - 1));
@@ -250,7 +261,8 @@ export async function reapStaleJobs(): Promise<number> {
            finishedAt: null,
            durationMs: null,
          })
-        .where(and(eq(jobs.id, job.id), eq(jobs.status, "running")));
+         .where(and(eq(jobs.id, job.id), eq(jobs.status, "running")));
+      await db.update(jobAttempts).set({ status: "retrying", errorMessage: "stale lock", finishedAt: new Date() }).where(and(eq(jobAttempts.jobId, job.id), eq(jobAttempts.status, "running")));
     }
     reaped++;
   }

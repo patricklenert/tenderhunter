@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { settings } from "@/lib/config";
+import { detectAccessPage } from "@/lib/access-page-detector";
 
 export interface StoredObject {
   storagePath: string;
@@ -10,6 +11,26 @@ export interface StoredObject {
 }
 
 const hashBytes = (payload: Buffer): string => createHash("sha256").update(payload).digest("hex");
+
+const PDF_MAGIC = Buffer.from("%PDF-");
+const ZIP_MAGIC = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
+const ZIP_EMPTY_MAGIC = Buffer.from([0x50, 0x4b, 0x05, 0x06]);
+const OLE2_MAGIC = Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
+
+const bufStartsWith = (buf: Buffer, magic: Buffer): boolean =>
+  buf.length >= magic.length && buf.subarray(0, magic.length).equals(magic);
+
+// Detect the real content type from magic bytes, overriding the often-wrong
+// Content-Type header. Returns null if no known signature is recognised.
+export const sniffContentType = (head: Buffer): string | null => {
+  if (head.length === 0) return null;
+  if (bufStartsWith(head, PDF_MAGIC)) return "application/pdf";
+  if (bufStartsWith(head, ZIP_MAGIC) || bufStartsWith(head, ZIP_EMPTY_MAGIC)) return "application/zip";
+  if (bufStartsWith(head, OLE2_MAGIC)) return "application/vnd.ms-excel";
+  const textHead = head.subarray(0, Math.min(head.length, 256)).toString("latin1").replace(/^[ \t\r\n\uFEFF]+/, "");
+  if (/^<(?:!doctype\s+html|html|head|body|\?xml)/i.test(textHead)) return "text/html";
+  return null;
+};
 
 export const saveBytes = (relativePath: string, payload: Buffer, contentType: string): StoredObject => {
   const absolute = path.join(settings.objectStorePath, relativePath);
@@ -24,6 +45,7 @@ export const saveBytes = (relativePath: string, payload: Buffer, contentType: st
 
 const FETCH_TIMEOUT_MS = 30_000;
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
+const HEAD_SAMPLE_BYTES = 8192;
 
 export const fetchAndStore = async (url: string, relativePath: string): Promise<StoredObject> => {
   // Strip jsessionid from URL for cleaner requests
@@ -57,6 +79,8 @@ export const fetchAndStore = async (url: string, relativePath: string): Promise<
   let file: Awaited<ReturnType<typeof fs.promises.open>> | null = null;
   let size = 0;
   const hash = createHash("sha256");
+  const headChunks: Buffer[] = [];
+  let headSize = 0;
   try {
     file = await fs.promises.open(temporary, "w");
     const reader = response.body.getReader();
@@ -66,24 +90,38 @@ export const fetchAndStore = async (url: string, relativePath: string): Promise<
       size += value.byteLength;
       if (size > MAX_FILE_SIZE_BYTES) {
         await reader.cancel();
-        throw new Error(`Dokument zu gross: ${size} Bytes (Limit: ${MAX_FILE_SIZE_BYTES})`);
+        throw new Error(`Dokument zu groß: ${size} Bytes (Limit: ${MAX_FILE_SIZE_BYTES})`);
       }
       hash.update(value);
       await file.write(value);
+      if (headSize < HEAD_SAMPLE_BYTES) {
+        headChunks.push(Buffer.from(value));
+        headSize += value.byteLength;
+      }
     }
     await file.close();
     file = null;
 
-    // Validate that we got actual content, not an error/login page
-    if (size < 100 && contentType.includes("html")) {
-      throw new Error(`Dokument zu kurz (${size} Bytes), vermutlich Fehlerseite`);
+    const head = headChunks.length > 0 ? Buffer.concat(headChunks) : Buffer.alloc(0);
+    const sniffed = sniffContentType(head);
+    const finalContentType = sniffed ?? contentType;
+
+    // Validate actual content using magic bytes, not just the Content-Type header.
+    if (finalContentType.includes("html")) {
+      const accessPage = detectAccessPage(head.toString("latin1"), { url: cleanUrl });
+      if (accessPage.blocked) {
+        throw new Error(`Zugriffsblockierte Seite statt Dokument (${accessPage.reason})`);
+      }
+      if (size < 100) {
+        throw new Error(`Dokument zu kurz (${size} Bytes), vermutlich Fehlerseite`);
+      }
     }
 
     await fs.promises.rename(temporary, absolute);
     return {
       storagePath: relativePath,
       sha256: hash.digest("hex"),
-      contentType,
+      contentType: finalContentType,
     };
   } catch (error) {
     if (file) await file.close().catch(() => undefined);
@@ -95,16 +133,19 @@ export const fetchAndStore = async (url: string, relativePath: string): Promise<
 export const objectAbsolutePath = (relativePath: string): string => path.join(settings.objectStorePath, relativePath);
 
 export const suggestedFilename = (url: string, fallbackPrefix: string): string => {
+  // Prefix with a short URL hash so two URLs that yield the same basename
+  // (e.g. /download/document.pdf?id=1 vs ?id=2) no longer overwrite each other.
+  const urlHash = createHash("sha256").update(url).digest("hex").slice(0, 12);
   try {
     const parsed = new URL(url.replace(/;jsessionid=[^;?/]+/gi, ""));
     const base = path.basename(parsed.pathname);
     if (!base) {
-      return `${fallbackPrefix}.html`;
+      return `${urlHash}-${fallbackPrefix}.html`;
     }
     const safe = base.replace(/[^a-zA-Z0-9._-]/g, "");
-    return safe || `${fallbackPrefix}.bin`;
+    return safe ? `${urlHash}-${safe}` : `${urlHash}-${fallbackPrefix}.bin`;
   } catch {
-    return `${fallbackPrefix}.bin`;
+    return `${urlHash}-${fallbackPrefix}.bin`;
   }
 };
 

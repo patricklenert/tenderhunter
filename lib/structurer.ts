@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { callLLM } from "@/lib/llm";
+import type { DocumentAnalysis } from "@/lib/document-analysis";
 
 const openrouterKey = process.env.OPENROUTER_API_KEY ?? "";
 
@@ -295,6 +296,7 @@ export interface StructuredData {
   };
   summary: string;
   confidence: number;
+  document_analysis?: DocumentAnalysis;
 }
 
 const PORTAL_TEXT_MARKERS = [
@@ -401,6 +403,14 @@ Regeln:
 - cpv_codes: CPV-Codes (8-stellig, z.B. "90910000")
 - procedure_type: "offen", "beschränkt", "verhandelt", "dialog", "innovation"
 
+Der Text kann mit [ROLLE: ...] markierte Abschnitte enthalten, die den Dokumenttyp kennzeichnen:
+- [ROLLE: leistungsbeschreibung] → Leistungsumfang, Art und Umfang der Leistung
+- [ROLLE: bekanntmachung] → Fristen, Auftraggeber, Vergabeart
+- [ROLLE: leistungsverzeichnis] → Positionen, Mengen, Einheiten
+- [ROLLE: eignung] → Eignungsnachweise, Teilnahmevoraussetzungen
+- [ROLLE: zuschlagskriterien] → Zuschlagskriterien, Gewichtung
+Nutze diese Markierungen, um die richtigen Abschnitte für jede Information zu finden.
+
 Wenn etwas nicht im Text steht, verwende null bzw. leeres Array.`;
 
 async function extractWithLLM(title: string, rawText: string): Promise<LLMExtractionResult | null> {
@@ -506,21 +516,41 @@ export const extractStructuredData = async (
   // LLM-based extraction for enhanced data
   const llmResult = options.useLLM === false ? null : await extractWithLLM(title, rawText);
 
-  // Merge regex and LLM results (LLM takes precedence if available)
+  // Merge regex and LLM results without allowing a valid-but-empty model
+  // response to erase deterministic signals.
+  const llmContractValue = llmResult?.contract_value;
+  const contractValue = llmContractValue &&
+    (typeof llmContractValue.min === "number" || typeof llmContractValue.max === "number")
+    ? llmContractValue
+    : contractValueRegex;
+  const llmAwardCriteria = llmResult?.award_criteria?.length ? llmResult.award_criteria : [];
+  const llmParticipationRequirements = llmResult?.participation_requirements?.length
+    ? llmResult.participation_requirements
+    : requirements;
+  const procedureType = llmResult?.procedure_type &&
+    (llmResult.procedure_type !== "offen" || procedureTypeRegex === "offen")
+    ? llmResult.procedure_type
+    : procedureTypeRegex;
   const procurement = {
-    contract_value: llmResult?.contract_value ?? contractValueRegex,
+    contract_value: contractValue,
     contract_duration: {
-      months: llmResult?.contract_duration_months ?? contractDurationRegex.months,
-      renewal: llmResult?.contract_duration_renewal ?? contractDurationRegex.renewal,
+      months: typeof llmResult?.contract_duration_months === "number" && llmResult.contract_duration_months > 0
+        ? llmResult.contract_duration_months
+        : contractDurationRegex.months,
+      renewal: Boolean(llmResult?.contract_duration_renewal) || contractDurationRegex.renewal,
     },
-    award_criteria_detailed: llmResult?.award_criteria ?? [],
-    participation_requirements: llmResult?.participation_requirements ?? [],
+    award_criteria_detailed: llmAwardCriteria,
+    participation_requirements: llmParticipationRequirements,
     cpv_codes: llmResult?.cpv_codes?.length ? llmResult.cpv_codes : cpvCodesRegex,
-    procedure_type: llmResult?.procedure_type ?? procedureTypeRegex,
+    procedure_type: procedureType,
   };
 
   const coveragePoints = [deadline, budget, location, buyer, contractType, requirements, awardCriteria];
-  const present = coveragePoints.reduce((sum, item) => (item ? sum + 1 : sum), 0);
+  const hasValue = (item: unknown): boolean => {
+    if (Array.isArray(item)) return item.length > 0;
+    return typeof item === "string" ? item.trim().length > 0 : Boolean(item);
+  };
+  const present = coveragePoints.reduce((sum, item) => (hasValue(item) ? sum + 1 : sum), 0);
   const confidence = Math.min(1, Number((present / 7).toFixed(2)));
 
   return {

@@ -1,11 +1,11 @@
 # Graph Report - tenderhunter  (2026-08-01)
 
 ## Corpus Check
-- 433 files · ~954,578 words
+- 433 files · ~954,409 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 2622 nodes · 5741 edges · 266 communities (137 shown, 129 thin omitted)
+- 2622 nodes · 5741 edges · 267 communities (138 shown, 129 thin omitted)
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 61 edges (avg confidence: 0.62)
 - Token cost: 0 input · 0 output
 
@@ -84,7 +84,7 @@
 - graphify.js
 - repository.ts
 - [type]/[kategorie]/page.tsx
-- axios
+- test-scoring.ts
 - class-variance-authority
 - @radix-ui/react-tabs
 - cmdk
@@ -213,7 +213,7 @@
 - cheerio
 - @emotion/react
 - dedupe-public-tenders.ts
-- test-scoring.ts
+- discovery.ts
 - @emotion/styled
 - jsdom
 - @radix-ui/react-alert-dialog
@@ -265,9 +265,10 @@
 - auth-schema.ts
 - StructuredData
 - tracked-tender-types.ts
-- adm-zip
+- clsx
 - @radix-ui/react-slot
 - @hookform/resolvers
+- better-auth
 
 ## God Nodes (most connected - your core abstractions)
 1. `cn()` - 274 edges
@@ -296,7 +297,7 @@
 ## Import Cycles
 - None detected.
 
-## Communities (266 total, 129 thin omitted)
+## Communities (267 total, 129 thin omitted)
 
 ### Community 0 - "processNextJob"
 Cohesion: 0.24
@@ -304,11 +305,11 @@ Nodes (9): parseLimit(), POST(), POST(), processNextJob(), runBatch(), claimNext
 
 ### Community 1 - "dependencies"
 Cohesion: 0.15
-Nodes (13): dependencies, clsx, express, @radix-ui/react-context-menu, @radix-ui/react-separator, @radix-ui/react-slider, @radix-ui/react-tooltip, clsx (+5 more)
+Nodes (13): dependencies, axios, express, @radix-ui/react-context-menu, @radix-ui/react-separator, @radix-ui/react-slider, @radix-ui/react-tooltip, axios (+5 more)
 
 ### Community 2 - "dependencies"
 Cohesion: 0.11
-Nodes (19): better-auth, @better-auth/passkey, better-sqlite3, drizzle-orm, openai, dependencies, better-auth, @better-auth/passkey (+11 more)
+Nodes (19): adm-zip, @better-auth/passkey, better-sqlite3, drizzle-orm, openai, dependencies, adm-zip, @better-auth/passkey (+11 more)
 
 ### Community 3 - "cn"
 Cohesion: 0.03
@@ -540,7 +541,7 @@ Nodes (15): acquireCatalogSync(), finishCatalogSync(), getCatalogState(), releas
 
 ### Community 64 - "lib/scoring.ts"
 Cohesion: 0.12
-Nodes (30): LocationEligibilityStatus, TenderLocationInput, parseStructured(), runScoreTender(), submitToIndexNow(), buildTenderMatchDocument(), CAPABILITY_GROUPS, CapabilityGroup (+22 more)
+Nodes (22): LocationEligibilityStatus, TenderLocationInput, CAPABILITY_GROUPS, CapabilityGroup, capabilityMatch(), clamp(), complexityScore(), DomainEligibility (+14 more)
 
 ### Community 66 - "PipelineSection.tsx"
 Cohesion: 0.29
@@ -553,6 +554,10 @@ Nodes (15): GET(), escapeXml(), formatDeadline(), GET(), generateMetadata(), Pro
 ### Community 70 - "[type]/[kategorie]/page.tsx"
 Cohesion: 0.14
 Nodes (10): PageProps, PageProps, ProcedureTypePage(), TaxCatTender, TaxonomyCategoryContent(), TaxonomyCategoryContentProps, ALL_CATEGORY_SLUGS, ALL_PROCEDURE_TYPE_SLUGS (+2 more)
+
+### Community 72 - "test-scoring.ts"
+Cohesion: 0.14
+Nodes (13): bavariaTender, berlinTender, educationTender, landscapingCompany, localTender, nationwideCompany, paramedicTender, portalDump (+5 more)
 
 ### Community 78 - "bundesland.ts"
 Cohesion: 0.10
@@ -599,8 +604,8 @@ Cohesion: 0.14
 Nodes (16): { GET, POST }, Params, GET(), isUsProfile(), POST(), auth, Session, client (+8 more)
 
 ### Community 165 - "structurer.ts"
-Cohesion: 0.17
-Nodes (23): AwardCriterion, buildSummary(), compactSpaces(), detectContractType(), detectProcedureType(), extractBudget(), extractContractValue(), extractCpvCodes() (+15 more)
+Cohesion: 0.16
+Nodes (24): AwardCriterion, buildSummary(), compactSpaces(), detectContractType(), detectProcedureType(), extractBudget(), extractContractValue(), extractCpvCodes() (+16 more)
 
 ### Community 169 - "TenderDetailDrawer.tsx"
 Cohesion: 0.18
@@ -670,9 +675,9 @@ Nodes (13): POST(), POST(), matchesApiKey(), POST(), queueTenderProcessing(), qu
 Cohesion: 0.23
 Nodes (10): canonicalPublicSourceKey(), deduplicateTenders(), extractPortalProjectId(), stripSessionId(), applyChanges, completenessScore(), getStableIdentity(), main() (+2 more)
 
-### Community 207 - "test-scoring.ts"
-Cohesion: 0.10
-Nodes (26): fallbackStructured(), parseStructured(), scoreKnownTenders(), firstItems(), generateInsight(), InsightResult, pct(), runDiscoverCompany() (+18 more)
+### Community 207 - "discovery.ts"
+Cohesion: 0.20
+Nodes (14): fallbackStructured(), parseStructured(), scoreKnownTenders(), firstItems(), generateInsight(), InsightResult, pct(), parseStructured() (+6 more)
 
 ### Community 211 - "scripts"
 Cohesion: 0.29
@@ -691,8 +696,8 @@ Cohesion: 0.23
 Nodes (14): htmlToBasicMarkdown(), detectHtmlEncoding(), extractTextFromFile(), fetchWithTimeout(), parsePdfWithMistralOCR(), parsePdfWithOpenRouter(), parseXlsxToText(), parseZipToText() (+6 more)
 
 ### Community 225 - "analyze/route.ts"
-Cohesion: 0.17
-Nodes (22): AnalyzeBody, equivalentSchemeUrl(), findCompanyProfileByUrl(), getTopTenders(), normalizeUrl(), POST(), profileNeedsRefresh(), refreshCompanyProfile() (+14 more)
+Cohesion: 0.15
+Nodes (28): AnalyzeBody, equivalentSchemeUrl(), findCompanyProfileByUrl(), getTopTenders(), normalizeUrl(), POST(), profileNeedsRefresh(), refreshCompanyProfile() (+20 more)
 
 ### Community 230 - "preview/route.ts"
 Cohesion: 0.15
@@ -748,7 +753,7 @@ Nodes (11): runScrapeUsTenders(), sameDate(), sameValue(), stableValue(), upsert
 
 ### Community 248 - "UpgradePage.tsx"
 Cohesion: 0.12
-Nodes (11): metadata, BillingStatusResponse, CheckoutResponse, FAQS, INCLUDED_FEATURES, OUTCOMES, PLAN_COPY, UpgradePage() (+3 more)
+Nodes (11): metadata, BillingStatusResponse, CheckoutResponse, FAQS, HERO_OUTCOMES, INCLUDED_FEATURES, PLAN_COPY, UpgradePage() (+3 more)
 
 ### Community 249 - "TrackedTendersSection.tsx"
 Cohesion: 0.22
@@ -802,7 +807,7 @@ Nodes (4): TrackingEventType, TRACKED_TENDER_STATUS_LABELS, TRACKED_TENDER_STATU
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `dependencies` connect `dependencies` to `adm-zip`, `DashboardSection`, `app/layout.tsx`, `@better-auth/core`, `package.json`, `@better-auth/utils`, `boneyard-js`, `cheerio`, `@emotion/react`, `@emotion/styled`, `jsdom`, `meilisearch`, `@mozilla/readability`, `@mui/icons-material`, `@mui/material`, `next`, `clsx`, `pdf-parse`, `postcss`, `postgres`, `react-dom`, `recharts`, `resend`, `tailwind-merge`, `tailwindcss`, `@tailwindcss/postcss`, `@types/jsdom`, `xlsx`, `zod`?**
+- **Why does `dependencies` connect `dependencies` to `better-auth`, `DashboardSection`, `app/layout.tsx`, `@better-auth/core`, `package.json`, `@better-auth/utils`, `boneyard-js`, `cheerio`, `@emotion/react`, `@emotion/styled`, `jsdom`, `meilisearch`, `@mozilla/readability`, `@mui/icons-material`, `@mui/material`, `next`, `clsx`, `pdf-parse`, `postcss`, `postgres`, `react-dom`, `recharts`, `resend`, `tailwind-merge`, `tailwindcss`, `@tailwindcss/postcss`, `@types/jsdom`, `xlsx`, `zod`?**
   _High betweenness centrality (0.102) - this node is a cross-community bridge._
 - **Why does `devDependencies` connect `devDependencies` to `@radix-ui/react-slot`, `package.json`?**
   _High betweenness centrality (0.097) - this node is a cross-community bridge._

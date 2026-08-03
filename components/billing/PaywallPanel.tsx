@@ -1,3 +1,4 @@
+"use client";
 import Link from "next/link";
 import { ArrowRight, LockKeyhole } from "lucide-react";
 import { Box, Button, Paper, Stack, Typography } from "@mui/material";

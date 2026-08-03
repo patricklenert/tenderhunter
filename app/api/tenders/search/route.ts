@@ -54,6 +54,7 @@ export async function GET(request: Request): Promise<Response> {
       sourceUrl: hit.sourceUrl,
       slug: hit.slug ?? null,
       pdfCount: hit.pdfCount,
+      readinessStatus: hit.readinessStatus,
       contractValueMax: hit.contractValueMax,
     }));
 

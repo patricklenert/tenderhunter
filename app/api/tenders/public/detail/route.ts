@@ -1,14 +1,17 @@
 import { db } from "@/lib/db";
-import { tenders, structuredData } from "@/lib/schema";
+import { documents, tenders, structuredData } from "@/lib/schema";
 import { json, errorResponse } from "@/lib/http";
 import { eq } from "drizzle-orm";
 import { enqueueJob } from "@/lib/queue";
 import { JOB_CACHE_DETAIL } from "@/lib/types";
 import { pickPublicDescription } from "@/lib/public-tender-scraper";
+import { readTenderMeta } from "@/lib/tender-meta";
 import { formatDeadlineDE, sanitizeTenderUrl } from "@/lib/date-utils";
 import { detectAccessPage } from "@/lib/access-page-detector";
 import { auth } from "@/lib/auth";
 import { hasPremiumAccess } from "@/lib/entitlements";
+import { buildDocumentAnalysis, type AnalyzedDocument } from "@/lib/document-analysis";
+import { normalizeStructured } from "@/lib/structurer";
 
 export const runtime = "nodejs";
 
@@ -38,6 +41,20 @@ export async function POST(request: Request): Promise<Response> {
     const tender = rows[0];
     const session = await auth.api.getSession({ headers: request.headers });
     const hasDocumentsAccess = session?.user?.id ? await hasPremiumAccess(session.user.id) : false;
+    const documentRows = await db
+      .select({
+        id: documents.id,
+        role: documents.role,
+        parseStatus: documents.parseStatus,
+        downloadStatus: documents.downloadStatus,
+        errorMessage: documents.errorMessage,
+        extractedText: documents.extractedText,
+        pageCount: documents.pageCount,
+        roleConfidence: documents.roleConfidence,
+      })
+      .from(documents)
+      .where(eq(documents.tenderId, tenderId));
+    const documentAnalysis = buildDocumentAnalysis(documentRows as AnalyzedDocument[]);
 
     if (tender.deadlineAt && !isActiveTender(tender.deadlineAt)) {
       return json({ error: "Ausschreibung abgelaufen", reason: "expired" }, { status: 410 });
@@ -65,13 +82,20 @@ export async function POST(request: Request): Promise<Response> {
           const publicSummary = pickPublicDescription(blob.summary);
           if (publicSummary) blob.summary = publicSummary;
           else delete blob.summary;
+          const normalized = normalizeStructured(blob, tender.title ?? "");
+          blob.requirements = normalized.decision_relevant.requirements;
+          blob.scope = normalized.decision_relevant.scope.join(" ");
+          blob.awardCriteria = normalized.decision_relevant.award_criteria;
           if (!hasDocumentsAccess) delete blob.pdfUrls;
           if (typeof blob.sourceUrl === "string") {
             blob.sourceUrl = sanitizeTenderUrl(blob.sourceUrl, blob.sourceUrl as string) ?? "";
           }
-          return json({
-            ...blob,
-            cached: true,
+           return json({
+             ...blob,
+             readinessStatus: tender.readinessStatus,
+             readinessReason: tender.readinessReason,
+             documentAnalysis,
+             cached: true,
             documentsLocked: !hasDocumentsAccess,
             scrapedAt: cached[0].updatedAt,
           });
@@ -83,6 +107,7 @@ export async function POST(request: Request): Promise<Response> {
     const meta = tender.metadataJson
       ? tender.metadataJson as Record<string, unknown>
       : {};
+    const tenderMeta = readTenderMeta(tender.metadataJson, tender.rawText);
     const accessPage = detectAccessPage(
       `${String(meta.description ?? "")} ${tender.rawText ?? ""}`,
       { title: tender.title ?? undefined, url: tender.url },
@@ -93,25 +118,28 @@ export async function POST(request: Request): Promise<Response> {
 
     const result = {
       title: tender.title ?? "",
-      client: String(meta.client ?? "Unbekannt"),
+      client: tenderMeta.client || "Unbekannt",
       deadline: tender.deadlineAt ? formatDeadlineDE(tender.deadlineAt) : null,
       deadlineISO: tender.deadlineAt ? new Date(tender.deadlineAt).toISOString() : null,
-      description: pickPublicDescription(meta.description, tender.rawText),
+      description: tenderMeta.description,
       requirements: [] as string[],
       scope: "",
       contact: "",
       procedure: tender.procedureType ?? "",
       awardCriteria: [] as string[],
       duration: tender.contractDurationMonths ? `${tender.contractDurationMonths} Monate` : "",
-      location: String(meta.location ?? ""),
-      referenceNumber: meta.referenceNumber ? String(meta.referenceNumber) : null,
-      pdfUrls: Array.isArray(meta.pdfUrls) ? meta.pdfUrls as string[] : [],
+      location: tenderMeta.location,
+      referenceNumber: tenderMeta.referenceNumber,
+      pdfUrls: tenderMeta.pdfUrls,
       estimatedValue: tender.contractValueMax ? `${tender.contractValueMax} EUR` : null,
       divisible: null,
-      sourceUrl: sanitizeTenderUrl(tender.url, String(meta.sourceUrl ?? "")) ?? "",
+      sourceUrl: sanitizeTenderUrl(tender.url, tenderMeta.sourceUrl) ?? "",
       cached: false,
       enriching: true,
       documentsLocked: !hasDocumentsAccess,
+      readinessStatus: tender.readinessStatus,
+      readinessReason: tender.readinessReason,
+      documentAnalysis,
       scrapedAt: new Date().toISOString(),
     };
     const responsePayload = hasDocumentsAccess

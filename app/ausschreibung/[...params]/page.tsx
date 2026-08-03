@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { tenders, structuredData, scores, companyProfiles } from "@/lib/schema";
+import { documents, tenders, structuredData, scores, companyProfiles } from "@/lib/schema";
 import { eq, and, ne, or, gt, isNull, inArray, desc } from "drizzle-orm";
 import { notFound, redirect } from "next/navigation";
 import { headers } from "next/headers";
@@ -40,6 +40,8 @@ import { PageFooter } from "@/components/profile/PageFooter";
 import { PaywallPanel } from "@/components/billing/PaywallPanel";
 import { auth } from "@/lib/auth";
 import { getBillingStatus } from "@/lib/entitlements";
+import { buildDocumentAnalysis, type AnalyzedDocument } from "@/lib/document-analysis";
+import { ROLE_LABELS_DE } from "@/lib/document-classifier";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -141,11 +143,39 @@ export default async function TenderDetailPage({ params }: PageProps) {
   const requestHeaders = await headers();
   const session = await auth.api.getSession({ headers: requestHeaders });
   const hasPremiumDocuments = session?.user?.id ? (await getBillingStatus(session.user.id)).active : false;
+  const documentRows = await db
+    .select({
+      id: documents.id,
+      role: documents.role,
+      parseStatus: documents.parseStatus,
+      downloadStatus: documents.downloadStatus,
+      errorMessage: documents.errorMessage,
+      extractedText: documents.extractedText,
+      pageCount: documents.pageCount,
+      roleConfidence: documents.roleConfidence,
+    })
+    .from(documents)
+    .where(eq(documents.tenderId, tender.id));
+  const documentAnalysis = buildDocumentAnalysis(documentRows as AnalyzedDocument[]);
 
   // Status-Page statt Redirect: expired/rejected Tenders bleiben indexable,
   // erhalten aber einen prominenten Status-Banner und Cross-Links zu aktiven Tenders.
   const isExpired = Boolean(tender.deadlineAt && new Date(tender.deadlineAt) < new Date());
   const isRejected = tender.qualityStatus === "rejected" || tender.qualityStatus === "duplicate";
+  const readinessLabel: Record<string, string> = {
+    pending: "Analyse wartet",
+    partial: "Analyse teilweise verfügbar",
+    ready: "Analyse vollständig",
+    blocked: "Dokumentzugriff blockiert",
+    failed: "Analyse fehlgeschlagen",
+    manual_review: "Manuelle Prüfung erforderlich",
+  };
+  const readinessStatus = tender.readinessStatus ?? "pending";
+  const readinessTone = readinessStatus === "ready"
+    ? { background: "#f0fdf4", border: "#bbf7d0", text: "#166534" }
+    : readinessStatus === "blocked" || readinessStatus === "failed"
+      ? { background: "#fef2f2", border: "#fecaca", text: "#991b1b" }
+      : { background: "#fffbeb", border: "#fde68a", text: "#92400e" };
 
   const meta = (typeof tender.metadataJson === "object" && tender.metadataJson !== null
     ? tender.metadataJson
@@ -516,6 +546,49 @@ export default async function TenderDetailPage({ params }: PageProps) {
               </Box>
             </Box>
           )}
+
+          {/* Analysis readiness and document coverage */}
+          <Box
+            sx={{
+              mb: 3,
+              p: 2,
+              borderRadius: 2,
+              bgcolor: readinessTone.background,
+              border: 1,
+              borderColor: readinessTone.border,
+            }}
+          >
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ sm: "center" }} justifyContent="space-between">
+              <Stack direction="row" spacing={1} alignItems="center">
+                {readinessStatus === "ready" ? <CheckCircle2 size={18} color={readinessTone.text} /> : <AlertCircle size={18} color={readinessTone.text} />}
+                <Typography sx={{ fontWeight: 700, color: readinessTone.text }}>
+                  {readinessLabel[readinessStatus] ?? readinessLabel.pending}
+                </Typography>
+              </Stack>
+              <Typography variant="caption" sx={{ color: readinessTone.text }}>
+                {documentAnalysis.coverage.parsed}/{documentAnalysis.coverage.discovered} Dokumente analysiert
+              </Typography>
+            </Stack>
+            {tender.readinessReason && readinessStatus !== "ready" && (
+              <Typography variant="body2" sx={{ mt: 0.75, color: readinessTone.text }}>
+                {tender.readinessReason}
+              </Typography>
+            )}
+            {documentAnalysis.coverage.missingRoles.length > 0 && (
+              <Typography variant="body2" sx={{ mt: 0.75, color: readinessTone.text }}>
+                Noch nicht belegt: {documentAnalysis.coverage.missingRoles.map((role) => ROLE_LABELS_DE[role] ?? role).join(", ")}.
+              </Typography>
+            )}
+            {hasPremiumDocuments && documentAnalysis.evidence.length > 0 && (
+              <Stack spacing={0.75} sx={{ mt: 1.25 }}>
+                {documentAnalysis.evidence.slice(0, 4).map((evidence) => (
+                  <Typography key={`${evidence.field}-${evidence.documentId}`} variant="caption" sx={{ display: "block", color: readinessTone.text, lineHeight: 1.5 }}>
+                    Beleg {evidence.field}: „{evidence.quote}"{evidence.page ? ` (Seite ${evidence.page})` : ""}
+                  </Typography>
+                ))}
+              </Stack>
+            )}
+          </Box>
 
           {/* Key Facts - compact metadata line */}
           <Box sx={{ mb: 1.5 }}>
@@ -991,13 +1064,20 @@ export default async function TenderDetailPage({ params }: PageProps) {
               {agencySlug && client && (
                 <Link
                   href={`/auftraggeber/${agencySlug}`}
-                  style={{ textDecoration: "none" }}
+                  style={{ textDecoration: "none", display: "block", maxWidth: "100%" }}
                 >
                   <Chip
                     clickable
                     label={`Alle Ausschreibungen von ${client.slice(0, 40)}`}
                     variant="outlined"
-                    sx={{ fontWeight: 500, height: 24, fontSize: "0.75rem", borderRadius: "4px" }}
+                    sx={{
+                      fontWeight: 500,
+                      height: 24,
+                      maxWidth: "100%",
+                      fontSize: "0.75rem",
+                      borderRadius: "4px",
+                      ".MuiChip-label": { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+                    }}
                   />
                 </Link>
               )}

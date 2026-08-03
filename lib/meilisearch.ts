@@ -40,6 +40,7 @@ interface TenderDocument {
   firstSeenAt: number | null;
   hasDeadline: boolean;
   pdfCount: number;
+  readinessStatus: string;
   contractValueMax: number | null;
   slug: string | null;
 }
@@ -76,7 +77,7 @@ async function configureMeiliIndexOnce(): Promise<void> {
   ]);
 
   await index.updateFilterableAttributes([
-    "bundesland", "city", "category", "source", "hasDeadline", "deadlineAt", "firstSeenAt",
+    "bundesland", "city", "category", "source", "hasDeadline", "deadlineAt", "firstSeenAt", "readinessStatus",
   ]);
 
   await index.updateSortableAttributes([
@@ -182,6 +183,7 @@ export async function syncTendersToMeili(): Promise<{ indexed: number; skipped: 
             structuredJson: structuredData.jsonBlob,
             contractValueMax: tenders.contractValueMax,
             slug: tenders.slug,
+            readinessStatus: tenders.readinessStatus,
           })
           .from(tenders)
           .leftJoin(structuredData, eq(structuredData.tenderId, tenders.id))
@@ -224,6 +226,7 @@ export async function syncTendersToMeili(): Promise<{ indexed: number; skipped: 
             firstSeenAt: item.firstSeenAt ? Math.floor(item.firstSeenAt.getTime() / 1000) : null,
             hasDeadline: item.deadlineAt !== null,
             pdfCount: pdfUrls.length,
+            readinessStatus: item.readinessStatus,
             contractValueMax: item.contractValueMax,
             slug: item.slug ?? null,
           };

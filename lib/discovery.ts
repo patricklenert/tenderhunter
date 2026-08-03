@@ -1,4 +1,4 @@
-import { desc, eq, or, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { insights, scores, structuredData, tenders } from "@/lib/schema";
 import { computeScores, type CompanyRow } from "@/lib/scoring";
@@ -43,10 +43,15 @@ export async function scoreKnownTenders(companyId: number, companyRow: CompanyRo
       title: tenders.title,
       metadataJson: tenders.metadataJson,
       structuredJson: structuredData.jsonBlob,
+      readinessStatus: tenders.readinessStatus,
     })
     .from(tenders)
     .leftJoin(structuredData, eq(structuredData.tenderId, tenders.id))
-    .where(or(eq(tenders.qualityStatus, "qualified"), eq(tenders.qualityStatus, "candidate")))
+    .where(and(
+      eq(tenders.qualityStatus, "qualified"),
+      eq(tenders.readinessStatus, "ready"),
+      isNotNull(structuredData.jsonBlob),
+    ))
     .orderBy(desc(tenders.createdAt));
 
   const scoreRows = [] as Array<{
@@ -68,6 +73,7 @@ export async function scoreKnownTenders(companyId: number, companyRow: CompanyRo
   }>;
 
   for (const row of rows) {
+    if (!row.structuredJson || row.readinessStatus !== "ready") continue;
     const structured = parseStructured(row.structuredJson, row.title ?? "");
     const metadata = typeof row.metadataJson === "object" && row.metadataJson !== null
       ? row.metadataJson as Record<string, unknown>

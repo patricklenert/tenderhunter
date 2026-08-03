@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
-import { scores, tenders, companyProfiles, insights } from "@/lib/schema";
+import { scores, tenders, insights } from "@/lib/schema";
 import { json } from "@/lib/http";
-import { eq, and, desc, or } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { requirePremiumSession } from "@/lib/entitlements";
 
 export const runtime = "nodejs";
@@ -40,7 +40,8 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
     .where(and(
       eq(scores.companyId, companyId),
       eq(scores.killSwitch, false),
-      or(eq(tenders.qualityStatus, "qualified"), eq(tenders.qualityStatus, "candidate")),
+      eq(tenders.qualityStatus, "qualified"),
+      eq(tenders.readinessStatus, "ready"),
     ))
     .orderBy(desc(scores.winProbability), desc(scores.fit))
     .limit(200);

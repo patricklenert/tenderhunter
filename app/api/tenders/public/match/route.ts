@@ -80,6 +80,14 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const tender = rows[0];
+    if (tender.qualityStatus !== "qualified" || tender.readinessStatus !== "ready") {
+      return json({
+        error: "Ausschreibung ist noch nicht vollständig analysiert",
+        code: "READINESS_NOT_MET",
+        readinessStatus: tender.readinessStatus,
+        readinessReason: tender.readinessReason,
+      }, { status: 409 });
+    }
 
     // 2. If no companyProfile provided, try to load from localStorage via client
     // (Client should send it; this is a fallback)

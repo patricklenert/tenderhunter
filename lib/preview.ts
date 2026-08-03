@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import dns from "node:dns/promises";
 import net from "node:net";
-import { and, asc, desc, eq, gt, or } from "drizzle-orm";
+import { and, asc, desc, eq, gt, isNotNull, or } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { scrapeWebsite } from "@/lib/firecrawl";
 import { extractCompanyProfile } from "@/lib/perplexity";
@@ -133,7 +133,9 @@ export async function processCompanyUrlPreview(cacheId: number): Promise<void> {
       metadataJson: tenders.metadataJson,
       structuredJson: structuredData.jsonBlob,
     }).from(tenders).leftJoin(structuredData, eq(structuredData.tenderId, tenders.id)).where(and(
-      or(eq(tenders.qualityStatus, "qualified"), eq(tenders.qualityStatus, "candidate")),
+       eq(tenders.qualityStatus, "qualified"),
+       eq(tenders.readinessStatus, "ready"),
+       isNotNull(structuredData.jsonBlob),
       gt(tenders.deadlineAt, now),
     )).orderBy(desc(tenders.createdAt)).limit(500);
     const scored = rows.map((row) => {
