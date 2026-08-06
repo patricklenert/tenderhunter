@@ -6,14 +6,21 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Box, Container, Stack, Typography } from "@mui/material";
 import { ChevronRight } from "lucide-react";
-import { sanitizeTenderUrl } from "@/lib/date-utils";
 import { generateTenderSlug } from "@/lib/tender-slug";
 import { CompanyProfileHeader } from "@/components/profile/CompanyProfileHeader";
 import { TenderSectionHeader } from "@/components/profile/TenderSectionHeader";
 import { TenderCard } from "@/components/profile/TenderCard";
 import { PageFooter } from "@/components/profile/PageFooter";
-import { findPublicProfileMatches } from "@/lib/discovery";
+import { findPublicProfileMatches, type PublicProfileMatch } from "@/lib/discovery";
 import { decodeHtmlEntities } from "@/lib/text-normalization";
+import { pickPublicDescription } from "@/lib/public-tender-scraper";
+import { daysUntil, getDeadlineState, parseDeadlineDate } from "@/lib/date-utils";
+import {
+  buildProfileSummary,
+  sortProfileTenders,
+  truncateProfileText,
+  type ProfileTender,
+} from "@/lib/public-profile";
 
 export const revalidate = 300;
 export const runtime = "nodejs";
@@ -23,6 +30,61 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palema
 interface PageProps {
   params: Promise<{ slug: string }>;
 }
+
+const normalizeProfileLocation = (...values: unknown[]): string | null => {
+  for (const value of values) {
+    if (typeof value !== "string") continue;
+    const normalized = value
+      .replace(/^(?:Ausführungsort|Hauptleistungsort|Leistungsort)\s*:\s*/i, "")
+      .replace(/\s+/g, " ")
+      .replace(/[,\s]+$/, "")
+      .trim();
+    if (!normalized || /(?:Eröffnungstermin|Angebotsfrist|Abgabefrist|Teilnahmefrist)\s*:/i.test(normalized)) continue;
+    return normalized;
+  }
+  return null;
+};
+
+const mapProfileMatch = (row: PublicProfileMatch): ProfileTender => {
+  const blob = (row.jsonBlob ?? {}) as Record<string, unknown>;
+  const metadata = (row.metadataJson ?? {}) as Record<string, unknown>;
+  const hardFacts = (blob.hard_facts ?? {}) as Record<string, unknown>;
+  const procurement = (blob.procurement ?? {}) as Record<string, unknown>;
+  const contractValue = (procurement.contract_value ?? {}) as Record<string, unknown>;
+  const structuredDeadline = typeof hardFacts.deadline === "string" ? hardFacts.deadline : null;
+  const deadlineSource = row.deadlineAt ?? structuredDeadline;
+  const parsedDeadline = parseDeadlineDate(deadlineSource);
+  const description = pickPublicDescription(
+    blob.description,
+    metadata.description,
+    blob.summary,
+    row.rawText,
+  );
+  const rawTitle = (typeof blob.title === "string" && blob.title.length > 5 ? blob.title : row.title)
+    ?? `Ausschreibung #${row.tenderId}`;
+  const location = normalizeProfileLocation(hardFacts.location, metadata.location);
+
+  return {
+    id: row.tenderId,
+    title: decodeHtmlEntities(rawTitle),
+    description: truncateProfileText(description),
+    location,
+    volume: typeof hardFacts.budget === "string"
+      ? hardFacts.budget
+      : typeof contractValue.max === "number"
+        ? `${contractValue.max.toLocaleString("de-DE")} EUR`
+        : null,
+    deadlineAt: parsedDeadline?.toISOString() ?? null,
+    deadlineDays: daysUntil(parsedDeadline),
+    deadlineState: getDeadlineState(parsedDeadline),
+    fit: Math.max(0, Math.min(100, Math.round(row.fit))),
+    winProbability: Math.max(0, Math.min(100, Math.round(row.winProbability))),
+    slug: row.slug ?? generateTenderSlug(
+      row.title ?? "",
+      location ?? "",
+    ),
+  };
+};
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
@@ -86,7 +148,9 @@ export default async function PublicProfilePage({ params }: PageProps) {
       title: tenders.title,
       url: tenders.url,
       rawText: tenders.rawText,
+      metadataJson: tenders.metadataJson,
       jsonBlob: structuredData.jsonBlob,
+      deadlineAt: tenders.deadlineAt,
       slug: tenders.slug,
       readinessStatus: tenders.readinessStatus,
     })
@@ -100,59 +164,32 @@ export default async function PublicProfilePage({ params }: PageProps) {
       or(eq(tenders.qualityStatus, "qualified"), eq(tenders.qualityStatus, "candidate")),
     ))
     .orderBy(desc(scores.winProbability), desc(scores.fit))
-    .limit(10);
+    .limit(50);
 
-  const persistedTenderIds = new Set(matchedRows.map((row) => row.tenderId));
-  const publicFallbackRows = matchedRows.length < 10
+  const persistedTenders = matchedRows.map((row) => mapProfileMatch(row));
+  const persistedTenderIds = new Set(persistedTenders.map((tender) => tender.id));
+  const persistedCurrent = persistedTenders.filter((tender) => tender.deadlineState !== "expired");
+  const publicFallbackRows = persistedCurrent.length < 10
     ? await findPublicProfileMatches({
       capabilities_json: JSON.stringify(capabilities),
       certifications_json: JSON.stringify(certifications),
       regions_json: JSON.stringify(regions),
       team_size: company.teamSize,
       industry: company.industry,
-    }, persistedTenderIds, 10 - matchedRows.length)
+    }, persistedTenderIds, 10 - persistedCurrent.length + 3)
     : [];
-  const displayRows = [...matchedRows, ...publicFallbackRows];
-
-  const tendersList = displayRows.map((row) => {
-    const blob = (row.jsonBlob ?? {}) as Record<string, unknown>;
-    const hardFacts = (blob.hard_facts ?? {}) as Record<string, unknown>;
-    const procurement = (blob.procurement ?? {}) as Record<string, unknown>;
-    const contractValue = (procurement.contract_value ?? {}) as Record<string, unknown>;
-
-    const description = typeof blob.description === "string"
-      ? blob.description
-      : typeof blob.summary === "string"
-        ? blob.summary.slice(0, 300)
-        : (row.rawText ?? "").slice(0, 300);
-
-    const rawUrl = row.url ?? null;
-    const sourceUrl = typeof blob.sourceUrl === "string" ? blob.sourceUrl : null;
-    const tenderUrl = sanitizeTenderUrl(rawUrl, sourceUrl);
-
-    const rawTitle = (typeof blob.title === "string" && blob.title.length > 5 ? blob.title : row.title)
-      ?? `Ausschreibung #${row.tenderId}`;
-
-    return {
-      id: row.tenderId,
-      title: decodeHtmlEntities(rawTitle),
-      description,
-      location: typeof hardFacts.location === "string" ? hardFacts.location : null,
-      volume: typeof hardFacts.budget === "string"
-        ? hardFacts.budget
-        : typeof contractValue.max === "number"
-          ? `${contractValue.max.toLocaleString("de-DE")} EUR`
-          : null,
-      deadline: typeof hardFacts.deadline === "string" ? hardFacts.deadline : null,
-      fit: Math.round(row.fit ?? 0),
-      winProbability: Math.round(row.winProbability ?? 0),
-      killSwitch: row.killSwitch,
-      url: tenderUrl,
-      slug: row.slug ?? generateTenderSlug(row.title ?? "", typeof hardFacts.location === "string" ? hardFacts.location : ""),
-    };
-  });
-
-  const bestFit = tendersList.length > 0 ? Math.max(...tendersList.map((t) => t.fit)) : null;
+  const fallbackTenders = publicFallbackRows.map((row) => mapProfileMatch(row));
+  const currentTenders = sortProfileTenders([
+    ...persistedCurrent,
+    ...fallbackTenders.filter((tender) => tender.deadlineState !== "expired"),
+  ]).slice(0, 10);
+  const expiredTenders = sortProfileTenders([
+    ...persistedTenders.filter((tender) => tender.deadlineState === "expired"),
+    ...fallbackTenders.filter((tender) => tender.deadlineState === "expired"),
+  ]).slice(0, 3);
+  const tendersList = [...currentTenders, ...expiredTenders];
+  const summary = buildProfileSummary(tendersList, capabilities, regions);
+  const bestFit = currentTenders.length > 0 ? Math.max(...currentTenders.map((tender) => tender.fit)) : null;
 
   const organizationJsonLd = {
     "@context": "https://schema.org",
@@ -179,15 +216,15 @@ export default async function PublicProfilePage({ params }: PageProps) {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
 
-      <Box sx={{ minHeight: "100vh", bgcolor: "#f8fafc" }}>
-        <Container maxWidth={false} sx={{ maxWidth: "1120px", mx: "auto", px: { xs: 2, sm: 3 }, py: { xs: 3, md: 4 } }}>
+      <Box sx={{ minHeight: "100vh", bgcolor: "#edf3f7" }}>
+        <Container maxWidth={false} sx={{ maxWidth: "1240px", mx: "auto", px: { xs: 2, sm: 3, lg: 4 }, py: { xs: 2.5, md: 3.5 } }}>
           {/* Breadcrumbs */}
           <Box
             sx={{
               display: "flex",
               alignItems: "center",
               gap: 0.5,
-              mb: 2.5,
+              mb: 2,
               fontSize: "0.8125rem",
             }}
           >
@@ -227,7 +264,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
           <CompanyProfileHeader
             name={company.name}
             industry={company.industry}
-            description={company.description}
+            description={company.description?.trim() && company.description.trim() !== company.name.trim() ? company.description : null}
             logoUrl={company.logoUrl}
             capabilities={capabilities}
             certifications={certifications}
@@ -236,58 +273,123 @@ export default async function PublicProfilePage({ params }: PageProps) {
             address={company.address}
             tenderCount={tendersList.length}
             bestFit={bestFit}
+            expiredCount={summary.expiredCount}
           />
 
-          {/* Tender Section */}
-          <TenderSectionHeader count={tendersList.length} />
+          <Box
+            component="section"
+            aria-labelledby="profile-matches-heading"
+            sx={{
+              mt: { xs: 2.5, md: 3.5 },
+              p: { xs: 1.5, sm: 2, md: 2.5 },
+              bgcolor: "#e4edf3",
+              border: "1px solid #d3e0e8",
+              borderRadius: "18px",
+            }}
+          >
+            <TenderSectionHeader count={summary.currentCount} summary={summary} />
 
-          {tendersList.length === 0 ? (
-            <Box
-              sx={{
-                p: { xs: 3, md: 4 },
-                textAlign: "center",
-                bgcolor: "white",
-                borderRadius: "10px",
-                border: "1px solid",
-                borderColor: "divider",
-              }}
-            >
-              <Typography variant="h6" component="h2" sx={{ mb: 1, fontWeight: 700 }}>
-                Aktuell keine passenden Ausschreibungen
-              </Typography>
-              <Typography sx={{ color: "text.secondary", fontSize: "0.875rem", maxWidth: 620, mx: "auto", lineHeight: 1.7 }}>
-                Für dieses Firmenprofil wurden derzeit keine passenden aktiven Vergaben gefunden. Neue Ausschreibungen
-                werden laufend ergänzt. Nutzen Sie bis dahin unsere aktuellen Vergaben, Tools und Vorlagen.
-              </Typography>
-              <Stack direction="row" spacing={1} justifyContent="center" flexWrap="wrap" useFlexGap sx={{ mt: 2 }}>
-                <Link href="/ausschreibungen" style={{ color: "#e9644d", fontWeight: 600, textDecoration: "none" }}>
-                  Alle Ausschreibungen
-                </Link>
-                <Link href="/tools" style={{ color: "#e9644d", fontWeight: 600, textDecoration: "none" }}>
-                  Vergabe-Tools
-                </Link>
-                <Link href="/vorlagen" style={{ color: "#e9644d", fontWeight: 600, textDecoration: "none" }}>
-                  Vorlagen &amp; Muster
-                </Link>
-              </Stack>
-            </Box>
-          ) : (
-            <Stack spacing={1.5}>
-              {tendersList.map((tender) => (
-                <TenderCard
-                  key={tender.id}
-                  id={tender.id}
-                  title={tender.title}
-                  description={tender.description}
-                  location={tender.location}
-                  volume={tender.volume}
-                  deadline={tender.deadline}
-                  fit={tender.fit}
-                  slug={tender.slug}
-                />
-              ))}
-            </Stack>
-          )}
+            {tendersList.length === 0 ? (
+              <Box
+                sx={{
+                  p: { xs: 3, md: 4 },
+                  textAlign: "center",
+                  bgcolor: "#fbfcfd",
+                  borderRadius: "12px",
+                  border: "1px solid #dce6ed",
+                }}
+              >
+                <Typography variant="h6" component="h3" sx={{ mb: 1, fontWeight: 700 }}>
+                  Aktuell keine passenden Ausschreibungen
+                </Typography>
+                <Typography sx={{ color: "#667288", fontSize: "0.875rem", maxWidth: 620, mx: "auto", lineHeight: 1.7 }}>
+                  Für dieses Firmenprofil wurden derzeit keine passenden aktiven Vergaben gefunden. Neue Ausschreibungen
+                  werden laufend ergänzt. Nutzen Sie bis dahin unsere aktuellen Vergaben, Tools und Vorlagen.
+                </Typography>
+                <Stack direction="row" spacing={1} justifyContent="center" flexWrap="wrap" useFlexGap sx={{ mt: 2 }}>
+                  <Link href="/ausschreibungen" style={{ color: "#c45342", fontWeight: 700, textDecoration: "none" }}>
+                    Alle Ausschreibungen
+                  </Link>
+                  <Link href="/tools" style={{ color: "#c45342", fontWeight: 700, textDecoration: "none" }}>
+                    Vergabe-Tools
+                  </Link>
+                  <Link href="/vorlagen" style={{ color: "#c45342", fontWeight: 700, textDecoration: "none" }}>
+                    Vorlagen &amp; Muster
+                  </Link>
+                </Stack>
+              </Box>
+            ) : (
+              <>
+                {currentTenders.length === 0 && (
+                  <Box sx={{ p: 2, mb: 1.5, bgcolor: "#f8fafc", border: "1px solid #dce6ed", borderRadius: "10px" }}>
+                    <Typography sx={{ color: "#475569", fontSize: "0.875rem", fontWeight: 600 }}>
+                      Keine aktiven Treffer mit offener Frist
+                    </Typography>
+                    <Typography sx={{ color: "#667288", fontSize: "0.8125rem", mt: 0.25 }}>
+                      Die abgelaufenen Ausschreibungen stehen weiter unten zur Orientierung.
+                    </Typography>
+                  </Box>
+                )}
+
+                {currentTenders.length > 0 && (
+                  <Stack component="ul" spacing={1.25} sx={{ listStyle: "none", p: 0, m: 0 }}>
+                    {currentTenders.map((tender) => (
+                      <Box component="li" key={tender.id}>
+                        <TenderCard
+                          id={tender.id}
+                          title={tender.title}
+                          description={tender.description}
+                          location={tender.location}
+                          volume={tender.volume}
+                          deadlineAt={tender.deadlineAt}
+                          deadlineDays={tender.deadlineDays}
+                          deadlineState={tender.deadlineState}
+                          fit={tender.fit}
+                          slug={tender.slug}
+                        />
+                      </Box>
+                    ))}
+                  </Stack>
+                )}
+
+                {expiredTenders.length > 0 && (
+                  <Box component="section" aria-labelledby="expired-matches-heading" sx={{ mt: { xs: 3, md: 4 } }}>
+                    <Stack direction={{ xs: "column", sm: "row" }} alignItems={{ xs: "flex-start", sm: "center" }} justifyContent="space-between" gap={0.75} sx={{ mb: 1.25 }}>
+                      <Box>
+                        <Typography id="expired-matches-heading" component="h3" sx={{ fontSize: "0.95rem", fontWeight: 700, color: "#475569" }}>
+                          Abgelaufene Ausschreibungen
+                        </Typography>
+                        <Typography sx={{ color: "#7b8798", fontSize: "0.75rem", mt: 0.25 }}>
+                          Zur Einordnung, nicht mehr im aktuellen Fokus.
+                        </Typography>
+                      </Box>
+                      <Typography sx={{ color: "#7b8798", fontSize: "0.75rem", fontWeight: 600 }}>
+                        {expiredTenders.length} Treffer
+                      </Typography>
+                    </Stack>
+                    <Stack component="ul" spacing={1.25} sx={{ listStyle: "none", p: 0, m: 0 }}>
+                      {expiredTenders.map((tender) => (
+                        <Box component="li" key={tender.id}>
+                          <TenderCard
+                            id={tender.id}
+                            title={tender.title}
+                            description={tender.description}
+                            location={tender.location}
+                            volume={tender.volume}
+                            deadlineAt={tender.deadlineAt}
+                            deadlineDays={tender.deadlineDays}
+                            deadlineState={tender.deadlineState}
+                            fit={tender.fit}
+                            slug={tender.slug}
+                          />
+                        </Box>
+                      ))}
+                    </Stack>
+                  </Box>
+                )}
+              </>
+            )}
+          </Box>
 
           <PageFooter />
         </Container>

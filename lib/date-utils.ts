@@ -1,14 +1,3 @@
-export function formatDeadlineDE(value: string | Date | null | undefined): string {
-  if (!value) return "";
-  const date = typeof value === "string" ? new Date(value) : value;
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleDateString("de-DE", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-}
-
 const BERLIN_TIME_ZONE = "Europe/Berlin";
 const berlinDateTimeFormatter = new Intl.DateTimeFormat("en-US", {
   timeZone: BERLIN_TIME_ZONE,
@@ -50,6 +39,95 @@ function getBerlinOffsetMilliseconds(utcMilliseconds: number): number {
   return localAsUtc - utcMilliseconds;
 }
 
+function dateFromBerlinParts(
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  minute: number,
+  second: number,
+): Date | null {
+  if (month < 1 || month > 12 || hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 59) {
+    return null;
+  }
+
+  const maxDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  if (day < 1 || day > maxDay) return null;
+
+  const localAsUtc = Date.UTC(year, month - 1, day, hour, minute, second);
+  let utcMilliseconds = localAsUtc;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const nextUtcMilliseconds = localAsUtc - getBerlinOffsetMilliseconds(utcMilliseconds);
+    if (nextUtcMilliseconds === utcMilliseconds) break;
+    utcMilliseconds = nextUtcMilliseconds;
+  }
+
+  return new Date(utcMilliseconds);
+}
+
+export type DeadlineState = "current" | "expired" | "missing";
+
+/** Parses stored deadlines, including German portal dates, in Berlin time. */
+export function parseDeadlineDate(value: string | Date | null | undefined): Date | null {
+  if (!value) return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : new Date(value.getTime());
+
+  const text = value.trim();
+  if (!text) return null;
+
+  const germanMatch = text.match(
+    /^(\d{1,2})\.(\d{1,2})\.(\d{4})(?:,?\s+(\d{1,2}):(\d{2}))?(?:\s*Uhr)?$/i,
+  );
+  if (germanMatch) {
+    const [, day, month, year, hour, minute] = germanMatch;
+    return dateFromBerlinParts(
+      Number(year),
+      Number(month),
+      Number(day),
+      hour ? Number(hour) : 23,
+      minute ? Number(minute) : 59,
+      hour ? 0 : 59,
+    );
+  }
+
+  const isoDateOnly = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoDateOnly) {
+    const [, year, month, day] = isoDateOnly;
+    return dateFromBerlinParts(Number(year), Number(month), Number(day), 23, 59, 59);
+  }
+
+  const isoLocal = text.match(
+    /^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2}))?(?:\.\d{1,3})?$/,
+  );
+  if (isoLocal) {
+    const [, year, month, day, hour, minute, second = "0"] = isoLocal;
+    return dateFromBerlinParts(Number(year), Number(month), Number(day), Number(hour), Number(minute), Number(second));
+  }
+
+  const parsed = new Date(text);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+export function getDeadlineState(
+  value: string | Date | null | undefined,
+  now: Date = new Date(),
+): DeadlineState {
+  const deadline = parseDeadlineDate(value);
+  if (!deadline) return "missing";
+  return deadline.getTime() <= now.getTime() ? "expired" : "current";
+}
+
+export function formatDeadlineDE(value: string | Date | null | undefined): string {
+  const date = parseDeadlineDate(value);
+  if (!date) return "";
+  return new Intl.DateTimeFormat("de-DE", {
+    timeZone: BERLIN_TIME_ZONE,
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
+}
+
 function getBerlinMidnightUnixSeconds(year: number, month: number, day: number): number {
   const localMidnightAsUtc = Date.UTC(year, month - 1, day);
   let utcMilliseconds = localMidnightAsUtc;
@@ -75,14 +153,14 @@ export function getGermanLastThreeDaysUnixRange(now: Date = new Date()): { from:
   };
 }
 
-export function daysUntil(value: string | Date | null | undefined): number | null {
-  if (!value) return null;
-  const date = typeof value === "string" ? new Date(value) : value;
-  if (Number.isNaN(date.getTime())) return null;
-  const today = new Date();
-  const start = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
-  const target = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
-  return Math.round((target - start) / (24 * 60 * 60 * 1000));
+export function daysUntil(value: string | Date | null | undefined, now: Date = new Date()): number | null {
+  const date = parseDeadlineDate(value);
+  if (!date) return null;
+  const today = getBerlinDateTimeParts(now);
+  const target = getBerlinDateTimeParts(date);
+  const start = getBerlinMidnightUnixSeconds(today.year, today.month, today.day);
+  const targetDay = getBerlinMidnightUnixSeconds(target.year, target.month, target.day);
+  return Math.round((targetDay - start) / (24 * 60 * 60));
 }
 
 export function deadlineLabel(value: string | Date | null | undefined): string | null {

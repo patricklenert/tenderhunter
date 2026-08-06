@@ -13,7 +13,9 @@ export interface PublicProfileMatch {
   title: string | null;
   url: string | null;
   rawText: string | null;
+  metadataJson: unknown;
   jsonBlob: unknown;
+  deadlineAt: Date | null;
   slug: string | null;
   readinessStatus: string | null;
 }
@@ -168,6 +170,7 @@ export async function findPublicProfileMatches(
       rawText: tenders.rawText,
       metadataJson: tenders.metadataJson,
       jsonBlob: structuredData.jsonBlob,
+      deadlineAt: tenders.deadlineAt,
       slug: tenders.slug,
       readinessStatus: tenders.readinessStatus,
     })
@@ -206,7 +209,9 @@ export async function findPublicProfileMatches(
         title: row.title,
         url: row.url,
         rawText: row.rawText,
+        metadataJson: row.metadataJson,
         jsonBlob: row.jsonBlob,
+        deadlineAt: row.deadlineAt,
         slug: row.slug,
         readinessStatus: row.readinessStatus,
       }];

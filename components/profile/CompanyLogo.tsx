@@ -16,6 +16,9 @@ export function CompanyLogo({ src, name, size = 56 }: CompanyLogoProps) {
 
   return (
     <Box
+      component="span"
+      role={src ? undefined : "img"}
+      aria-label={src ? undefined : `${name} Logo`}
       sx={{
         width: size,
         height: size,
@@ -53,6 +56,7 @@ export function CompanyLogo({ src, name, size = 56 }: CompanyLogoProps) {
             fontWeight: 700,
             letterSpacing: "-0.02em",
           }}
+          aria-hidden="true"
         >
           {initials || <Building2 size={size * 0.45} strokeWidth={1.5} />}
         </Box>

@@ -23,6 +23,7 @@
     "test:mv-scrape": "tsx scripts/test-mv-scrape.ts",
     "test:location-normalization": "tsx scripts/test-location-normalization.ts",
     "test:public-fallback": "tsx scripts/test-public-fallback.ts",
+    "test:public-profile": "tsx scripts/test-public-profile.ts",
     "test:llm": "tsx scripts/test-llm.ts",
     "test:parser": "tsx scripts/test-parser.ts",
     "test:classifier": "tsx scripts/test-document-classifier.ts",

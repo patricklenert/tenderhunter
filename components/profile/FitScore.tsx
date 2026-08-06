@@ -1,15 +1,15 @@
 "use client";
 
-import { Box, Tooltip, Typography } from "@mui/material";
+import { Box, CircularProgress, Tooltip, Typography } from "@mui/material";
 
 interface FitScoreProps {
   value: number;
 }
 
 const palette = {
-  high: { color: "#15803d" },
-  medium: { color: "#b45309" },
-  low: { color: "#475569" },
+  high: { color: "#15803d", track: "#d9efdf" },
+  medium: { color: "#b45309", track: "#f8e8c8" },
+  low: { color: "#64748b", track: "#e2e8f0" },
 };
 
 function getFitPalette(value: number) {
@@ -28,36 +28,58 @@ export function FitScore({ value }: FitScoreProps) {
       placement="top"
     >
       <Box
+        role="meter"
+        aria-label={`Fit ${value} Prozent`}
+        aria-valuenow={value}
+        aria-valuemin={0}
+        aria-valuemax={100}
         sx={{
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          gap: 0,
-          minWidth: 52,
+          gap: 0.35,
+          minWidth: 58,
           cursor: "help",
         }}
       >
-        <Typography
-          sx={{
-            fontSize: "1.125rem",
-            fontWeight: 700,
-            color: p.color,
-            lineHeight: 1.15,
-          }}
-        >
-          {value}%
-        </Typography>
-        <Typography
-          sx={{
-            fontSize: "0.6rem",
-            fontWeight: 600,
-            color: p.color,
-            textTransform: "uppercase",
-            letterSpacing: "0.06em",
-            lineHeight: 1,
-            mt: 0.25,
-          }}
-        >
+        <Box sx={{ position: "relative", display: "inline-flex" }}>
+          <CircularProgress
+            variant="determinate"
+            value={100}
+            size={54}
+            thickness={4.5}
+            aria-hidden="true"
+            sx={{ color: p.track }}
+          />
+          <CircularProgress
+            variant="determinate"
+            value={value}
+            size={54}
+            thickness={4.5}
+            aria-hidden="true"
+            sx={{
+              color: p.color,
+              position: "absolute",
+              left: 0,
+              transform: "rotate(-90deg)",
+              "& .MuiCircularProgress-circle": { strokeLinecap: "round" },
+            }}
+          />
+          <Box
+            sx={{
+              inset: 0,
+              position: "absolute",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Typography sx={{ color: p.color, fontSize: "0.82rem", fontWeight: 800, lineHeight: 1 }}>
+              {value}%
+            </Typography>
+          </Box>
+        </Box>
+        <Typography sx={{ color: p.color, fontSize: "0.6rem", fontWeight: 800, letterSpacing: "0.08em", lineHeight: 1, textTransform: "uppercase" }}>
           Fit
         </Typography>
       </Box>

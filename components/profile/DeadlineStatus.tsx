@@ -1,48 +1,78 @@
-import { Box, Typography } from "@mui/material";
-import { Clock, AlertTriangle, XCircle } from "lucide-react";
-import { formatDeadlineDE, daysUntil } from "@/lib/date-utils";
+import { Chip } from "@mui/material";
+import { AlertTriangle, Clock3, HelpCircle, XCircle } from "lucide-react";
+import { formatDeadlineDE, type DeadlineState } from "@/lib/date-utils";
 
 interface DeadlineStatusProps {
-  deadline: string | null;
+  deadlineAt: string | null;
+  deadlineDays: number | null;
+  deadlineState: DeadlineState;
 }
 
-export function DeadlineStatus({ deadline }: DeadlineStatusProps) {
-  if (!deadline) return null;
-  const formatted = formatDeadlineDE(deadline);
-  if (!formatted) return null;
+export function DeadlineStatus({ deadlineAt, deadlineDays, deadlineState }: DeadlineStatusProps) {
+  const formatted = formatDeadlineDE(deadlineAt);
+  const state = deadlineState;
+  const dateLabel = formatted && deadlineAt ? <time dateTime={deadlineAt}>{formatted}</time> : null;
 
-  const days = daysUntil(deadline);
-
-  if (days === null) return null;
-
-  if (days < 0) {
+  if (state === "missing" || !dateLabel) {
     return (
-      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-        <XCircle size={13} color="#b91c1c" />
-        <Typography variant="caption" sx={{ color: "#b91c1c", fontWeight: 500, fontSize: "0.75rem" }}>
-          Abgelaufen
-        </Typography>
-      </Box>
+      <Chip
+        icon={<HelpCircle size={13} aria-hidden="true" />}
+        label="Frist nicht angegeben"
+        size="small"
+        sx={{
+          height: 26,
+          bgcolor: "#f1f5f7",
+          color: "#667288",
+          border: "1px solid #dbe4ea",
+          fontSize: "0.7rem",
+          fontWeight: 650,
+          "& .MuiChip-icon": { color: "#8190a0", ml: 0.7 },
+        }}
+      />
     );
   }
 
-  if (days <= 7) {
+  if (state === "expired") {
     return (
-      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-        <AlertTriangle size={13} color="#b45309" />
-        <Typography variant="caption" sx={{ color: "#b45309", fontWeight: 500, fontSize: "0.75rem" }}>
-          {days === 0 ? "Heute" : days === 1 ? "Morgen" : `Noch ${days} Tage`}
-        </Typography>
-      </Box>
+      <Chip
+        icon={<XCircle size={13} aria-hidden="true" />}
+        label={<span>Abgelaufen · {dateLabel}</span>}
+        size="small"
+        sx={{
+          height: 26,
+          bgcolor: "#f3f4f6",
+          color: "#7b8798",
+          border: "1px solid #dce1e6",
+          fontSize: "0.7rem",
+          fontWeight: 650,
+          "& .MuiChip-icon": { color: "#9aa5b1", ml: 0.7 },
+        }}
+      />
     );
   }
 
+  const urgent = deadlineDays !== null && deadlineDays <= 7;
   return (
-    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-      <Clock size={13} color="#64748b" />
-      <Typography variant="caption" sx={{ color: "#475569", fontWeight: 500, fontSize: "0.75rem" }}>
-        {formatted}
-      </Typography>
-    </Box>
+    <Chip
+      icon={urgent ? <AlertTriangle size={13} aria-hidden="true" /> : <Clock3 size={13} aria-hidden="true" />}
+      label={
+        <span>
+          {urgent
+            ? `${deadlineDays === 0 ? "Heute" : deadlineDays === 1 ? "Morgen" : `Noch ${deadlineDays} Tage`} · `
+            : "Frist "}
+          {dateLabel}
+        </span>
+      }
+      size="small"
+      sx={{
+        height: 26,
+        bgcolor: urgent ? "#fff4df" : "#eef4f7",
+        color: urgent ? "#9a5a08" : "#526476",
+        border: urgent ? "1px solid #f2d59d" : "1px solid #d8e4ea",
+        fontSize: "0.7rem",
+        fontWeight: 700,
+        "& .MuiChip-icon": { color: urgent ? "#b8750b" : "#718296", ml: 0.7 },
+      }}
+    />
   );
 }
