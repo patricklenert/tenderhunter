@@ -1,10 +1,15 @@
 import { Box, Typography } from "@mui/material";
+import { settings } from "@/lib/config";
 
 interface TenderSectionHeaderProps {
   count: number;
 }
 
 export function TenderSectionHeader({ count }: TenderSectionHeaderProps) {
+  const updateCadence = settings.publicScrapeIntervalHours === 24
+    ? "täglich"
+    : `in der Regel alle ${settings.publicScrapeIntervalHours} Stunden`;
+
   return (
     <Box sx={{ mb: 2.5 }}>
       <Typography
@@ -21,9 +26,22 @@ export function TenderSectionHeader({ count }: TenderSectionHeaderProps) {
       <Typography sx={{ color: "#64748b", fontSize: "0.8125rem" }}>
         Sortiert nach Übereinstimmung mit dem Unternehmensprofil.
       </Typography>
-      <Typography sx={{ color: "#475569", fontSize: "0.8125rem", mt: 0.75 }}>
-        Der öffentliche Ausschreibungsbestand wird regelmäßig aktualisiert. Neue passende Treffer erscheinen automatisch auf dieser Seite.
-      </Typography>
+      <Box
+        sx={{
+          mt: 1.25,
+          p: 1.25,
+          borderRadius: 1.5,
+          border: "1px solid #dbe5ef",
+          bgcolor: "#f1f5f9",
+        }}
+      >
+        <Typography sx={{ color: "#334155", fontSize: "0.8125rem", fontWeight: 700, mb: 0.25 }}>
+          Automatische Aktualisierung
+        </Typography>
+        <Typography sx={{ color: "#475569", fontSize: "0.8125rem" }}>
+          Neue passende Ausschreibungen werden {updateCadence} ergänzt und automatisch auf dieser Seite angezeigt.
+        </Typography>
+      </Box>
     </Box>
   );
 }
