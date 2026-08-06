@@ -17,11 +17,27 @@ assert.equal(evaluateTenderReadiness({
 
 assert.equal(evaluateTenderReadiness({
   qualityStatus: "qualified",
-  rawText: "Titel",
+  rawText: "Ausschreibung mit Leistungsumfang und Angebotsfrist",
   structuredExists: true,
   structuredConfidence: 0.8,
   documentAnalysis: buildDocumentAnalysis([]),
-}).status, "partial");
+}).status, "ready");
+
+assert.match(evaluateTenderReadiness({
+  qualityStatus: "qualified",
+  rawText: "Ausschreibung mit Leistungsumfang und Angebotsfrist",
+  structuredExists: true,
+  structuredConfidence: 0.34,
+  documentAnalysis: buildDocumentAnalysis([]),
+}).reason, /zu geringe Konfidenz/);
+
+assert.equal(evaluateTenderReadiness({
+  qualityStatus: "candidate",
+  rawText: "Ausschreibung mit Leistungsumfang und Angebotsfrist",
+  structuredExists: true,
+  structuredConfidence: 0.8,
+  documentAnalysis: buildDocumentAnalysis([]),
+}).status, "pending");
 
 assert.equal(evaluateTenderReadiness({
   qualityStatus: "qualified",

@@ -4,7 +4,7 @@ import { enqueueJob, reapStaleJobs } from "@/lib/queue";
 import { serializeSourceItems } from "@/lib/tender-sources";
 import { JOB_CRAWL, JOB_SCRAPE_PUBLIC, JOB_SCRAPE_US } from "@/lib/types";
 import { db } from "@/lib/db";
-import { jobs, publicScrapeRuns } from "@/lib/schema";
+import { jobs, publicScrapeRuns, publicSourceCursors } from "@/lib/schema";
 import { eq, desc, and, or } from "drizzle-orm";
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -37,6 +37,7 @@ const shouldEnqueuePublicScrape = async (): Promise<boolean> => {
   const lastRun = await db
     .select({ status: publicScrapeRuns.status, finishedAt: publicScrapeRuns.finishedAt })
     .from(publicScrapeRuns)
+    .where(eq(publicScrapeRuns.isFullRun, true))
     .orderBy(desc(publicScrapeRuns.finishedAt))
     .limit(1);
 
@@ -45,9 +46,21 @@ const shouldEnqueuePublicScrape = async (): Promise<boolean> => {
     return true;
   }
 
-  if (lastRun[0].status !== "success") {
+  if (lastRun[0].status === "failed") {
     console.log(`[scheduler] Oeffentliche Ausschreibungen: letzter Lauf ${lastRun[0].status}, starte Recovery-Scrape.`);
     return true;
+  }
+
+  if (lastRun[0].status === "partial") {
+    const continuation = await db
+      .select({ sourceKey: publicSourceCursors.sourceKey })
+      .from(publicSourceCursors)
+      .where(and(eq(publicSourceCursors.exhausted, false), eq(publicSourceCursors.continuationRequired, true)))
+      .limit(1);
+    if (continuation.length > 0) {
+      console.log("[scheduler] Oeffentliche Ausschreibungen: nicht erschöpfte Quelle vorhanden, starte Recovery.");
+      return true;
+    }
   }
 
   const elapsed = Date.now() - lastRun[0].finishedAt.getTime();
@@ -58,6 +71,27 @@ const shouldEnqueuePublicScrape = async (): Promise<boolean> => {
 
   console.log(`[scheduler] Oeffentliche Ausschreibungen: letzter Scrape vor ${Math.round(elapsed / 3600000)}h, noch nicht noetig.`);
   return false;
+};
+
+const enqueuePublicContinuationsIfNeeded = async (): Promise<void> => {
+  const cursors = await db
+    .select({ sourceKey: publicSourceCursors.sourceKey })
+    .from(publicSourceCursors)
+    .where(and(eq(publicSourceCursors.exhausted, false), eq(publicSourceCursors.continuationRequired, true)));
+
+  for (const cursor of cursors) {
+    try {
+      await enqueueJob(JOB_SCRAPE_PUBLIC, { source: cursor.sourceKey }, {
+        jobKey: `public-continuation:${cursor.sourceKey}`,
+        groupKey: `public-source:${cursor.sourceKey}`,
+        priority: 140,
+        runAfter: new Date(Date.now() + 30_000),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "unbekannt";
+      console.error(`[scheduler] Public-Continuation ${cursor.sourceKey} fehlgeschlagen: ${message}`);
+    }
+  }
 };
 
 const shouldEnqueueUsScrape = async (): Promise<boolean> => {
@@ -110,6 +144,7 @@ const run = async (): Promise<void> => {
   }
 
   await enqueueUsScrapeIfDue();
+  await enqueuePublicContinuationsIfNeeded();
 
   // Cleanup expired tenders on startup
   try {
@@ -178,6 +213,7 @@ const run = async (): Promise<void> => {
 
     if (Date.now() - lastPublicScheduleCheckAt >= PUBLIC_SCHEDULE_CHECK_MS) {
       lastPublicScheduleCheckAt = Date.now();
+      await enqueuePublicContinuationsIfNeeded();
       await enqueuePublicScrapeIfDue();
     }
 

@@ -215,6 +215,7 @@ export const documents = pgTable(
     filename: text("filename"),
     pageCount: integer("page_count"),
     role: text("role"),
+    roles: jsonb("roles").$type<DocumentRole[]>(),
     roleSource: text("role_source"),
     roleConfidence: real("role_confidence"),
     version: integer("version").notNull().default(1),
@@ -225,6 +226,39 @@ export const documents = pgTable(
     uniqueIndex("idx_documents_tender_sha256").on(table.tenderId, table.sha256),
     index("idx_documents_tender").on(table.tenderId),
   ]
+);
+
+export const tenderResources = pgTable(
+  "tender_resources",
+  {
+    id: serial("id").primaryKey(),
+    tenderId: integer("tender_id")
+      .notNull()
+      .references(() => tenders.id, { onDelete: "cascade" }),
+    url: text("url").notNull(),
+    canonicalUrl: text("canonical_url").notNull(),
+    label: text("label").notNull().default(""),
+    filename: text("filename"),
+    resourceType: text("resource_type").notNull().default("unknown"),
+    roleHints: jsonb("role_hints").$type<string[]>().notNull().default([]),
+    sourcePageUrl: text("source_page_url"),
+    discoveryMethod: text("discovery_method").notNull().default("unknown"),
+    method: text("method").notNull().default("GET"),
+    status: text("status").notNull().default("discovered"),
+    contentType: text("content_type"),
+    contentDisposition: text("content_disposition"),
+    attempts: integer("attempts").notNull().default(0),
+    lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
+    errorMessage: text("error_message"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("idx_tender_resources_tender_canonical").on(table.tenderId, table.canonicalUrl),
+    index("idx_tender_resources_tender_status").on(table.tenderId, table.status),
+    index("idx_tender_resources_tender_type").on(table.tenderId, table.resourceType),
+    index("idx_tender_resources_status_attempt").on(table.status, table.lastAttemptAt),
+  ],
 );
 
 export const structuredData = pgTable(
@@ -619,6 +653,8 @@ export const publicScrapeRuns = pgTable(
   {
     id: serial("id").primaryKey(),
     jobId: integer("job_id").references(() => jobs.id, { onDelete: "set null" }),
+    scopeSourceKey: text("scope_source_key"),
+    isFullRun: boolean("is_full_run").notNull().default(true),
     status: text("status").notNull().default("running"),
     totalFound: integer("total_found").notNull().default(0),
     afterDedup: integer("after_dedup").notNull().default(0),
@@ -647,16 +683,47 @@ export const publicSourceRuns = pgTable(
     sourceKey: text("source_key").notNull(),
     status: text("status").notNull(),
     discoveredCount: integer("discovered_count").notNull().default(0),
+    listedCount: integer("listed_count").notNull().default(0),
+    detailAttempted: integer("detail_attempted").notNull().default(0),
+    detailFailed: integer("detail_failed").notNull().default(0),
+    pendingCount: integer("pending_count").notNull().default(0),
+    continuationScheduled: boolean("continuation_scheduled").notNull().default(false),
     acceptedCount: integer("accepted_count").notNull().default(0),
     insertedCount: integer("inserted_count").notNull().default(0),
     updatedCount: integer("updated_count").notNull().default(0),
     errorMessage: text("error_message"),
+    cursorBeforeJson: jsonb("cursor_before_json"),
+    cursorAfterJson: jsonb("cursor_after_json"),
+    cursorVersionBefore: integer("cursor_version_before").notNull().default(0),
+    cursorVersionAfter: integer("cursor_version_after").notNull().default(0),
+    pagesFetched: integer("pages_fetched").notNull().default(0),
+    exhausted: boolean("exhausted").notNull().default(false),
+    cursorAdvanced: boolean("cursor_advanced").notNull().default(false),
     startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
   },
   (table) => [
     uniqueIndex("idx_public_source_runs_run_source").on(table.runId, table.sourceKey),
     index("idx_public_source_runs_source_finished").on(table.sourceKey, table.finishedAt),
+  ],
+);
+
+export const publicSourceCursors = pgTable(
+  "public_source_cursors",
+  {
+    sourceKey: text("source_key").primaryKey(),
+    cursorJson: jsonb("cursor_json").notNull().default({}),
+    cursorVersion: integer("cursor_version").notNull().default(0),
+    exhausted: boolean("exhausted").notNull().default(false),
+    continuationRequired: boolean("continuation_required").notNull().default(false),
+    lastRunId: integer("last_run_id").references(() => publicScrapeRuns.id, { onDelete: "set null" }),
+    lastStatus: text("last_status"),
+    lastError: text("last_error"),
+    lastAdvancedAt: timestamp("last_advanced_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("idx_public_source_cursors_status").on(table.exhausted, table.updatedAt),
   ],
 );
 
@@ -772,6 +839,8 @@ export type BillingSubscription = typeof billingSubscriptions.$inferSelect;
 export type StripeEvent = typeof stripeEvents.$inferSelect;
 export type Document = typeof documents.$inferSelect;
 export type NewDocument = typeof documents.$inferInsert;
+export type TenderResource = typeof tenderResources.$inferSelect;
+export type NewTenderResource = typeof tenderResources.$inferInsert;
 export type StructuredData = typeof structuredData.$inferSelect;
 export type NewStructuredData = typeof structuredData.$inferInsert;
 export type CompanyProfile = typeof companyProfiles.$inferSelect;

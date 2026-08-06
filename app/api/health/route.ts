@@ -36,8 +36,47 @@ export async function GET(): Promise<Response> {
     const sourceFailures24h = Number(sourceRow.failed_recent ?? 0);
     const sourcePartial24h = Number(sourceRow.partial_recent ?? 0);
     const sourceEmpty24h = Number(sourceRow.empty_recent ?? 0);
+    const cursorResult = await db.execute(sql`
+      SELECT
+        count(*) FILTER (WHERE NOT exhausted AND continuation_required) AS non_exhausted,
+        count(*) FILTER (
+          WHERE NOT exhausted
+            AND continuation_required
+            AND NOT EXISTS (
+              SELECT 1
+              FROM jobs continuation
+              WHERE continuation.type = 'scrape_public_tenders'
+                AND continuation.status IN ('pending', 'running')
+                AND continuation.job_key = 'public-continuation:' || public_source_cursors.source_key
+            )
+        ) AS continuation_missing
+      FROM public_source_cursors
+    `);
+    const cursorRow = cursorResult[0] ?? {};
+    const nonExhaustedSources = Number(cursorRow.non_exhausted ?? 0);
+    const continuationMissingSources = Number(cursorRow.continuation_missing ?? 0);
+    const fullRunResult = await db.execute(sql`
+      SELECT status, finished_at
+      FROM public_scrape_runs
+      WHERE is_full_run = TRUE
+      ORDER BY started_at DESC
+      LIMIT 1
+    `);
+    const lastFullRun = fullRunResult[0] ?? {};
+    const publicIntervalHours = Number(process.env.PUBLIC_SCRAPE_INTERVAL_HOURS ?? 48);
+    const lastFullFinishedAt = lastFullRun.finished_at ? new Date(String(lastFullRun.finished_at)).getTime() : 0;
+    const fullRunStale = lastFullFinishedAt === 0
+      || Date.now() - lastFullFinishedAt > publicIntervalHours * 60 * 60 * 1_000;
 
-    const status = database === "ok" && staleRunning === 0 && sourceFailures24h === 0 ? "ok" : "degraded";
+    const status = database === "ok"
+      && staleRunning === 0
+      && sourceFailures24h === 0
+      && sourcePartial24h === 0
+      && continuationMissingSources === 0
+      && lastFullRun.status === "success"
+      && !fullRunStale
+      ? "ok"
+      : "degraded";
     return json({
       status,
       database,
@@ -47,6 +86,11 @@ export async function GET(): Promise<Response> {
         partial24h: sourcePartial24h,
         empty24h: sourceEmpty24h,
         lastFinishedAt: sourceRow.last_finished_at ?? null,
+        nonExhausted: nonExhaustedSources,
+        continuationMissing: continuationMissingSources,
+        lastFullRunStatus: lastFullRun.status ?? null,
+        lastFullRunFinishedAt: lastFullRun.finished_at ?? null,
+        fullRunStale,
       },
     });
   } catch (error) {

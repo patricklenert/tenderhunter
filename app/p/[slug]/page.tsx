@@ -12,6 +12,8 @@ import { CompanyProfileHeader } from "@/components/profile/CompanyProfileHeader"
 import { TenderSectionHeader } from "@/components/profile/TenderSectionHeader";
 import { TenderCard } from "@/components/profile/TenderCard";
 import { PageFooter } from "@/components/profile/PageFooter";
+import { findPublicProfileMatches } from "@/lib/discovery";
+import { decodeHtmlEntities } from "@/lib/text-normalization";
 
 export const revalidate = 300;
 export const runtime = "nodejs";
@@ -86,6 +88,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
       rawText: tenders.rawText,
       jsonBlob: structuredData.jsonBlob,
       slug: tenders.slug,
+      readinessStatus: tenders.readinessStatus,
     })
     .from(scores)
     .leftJoin(tenders, eq(scores.tenderId, tenders.id))
@@ -99,7 +102,19 @@ export default async function PublicProfilePage({ params }: PageProps) {
     .orderBy(desc(scores.winProbability), desc(scores.fit))
     .limit(10);
 
-  const tendersList = matchedRows.map((row) => {
+  const persistedTenderIds = new Set(matchedRows.map((row) => row.tenderId));
+  const publicFallbackRows = matchedRows.length < 10
+    ? await findPublicProfileMatches({
+      capabilities_json: JSON.stringify(capabilities),
+      certifications_json: JSON.stringify(certifications),
+      regions_json: JSON.stringify(regions),
+      team_size: company.teamSize,
+      industry: company.industry,
+    }, persistedTenderIds, 10 - matchedRows.length)
+    : [];
+  const displayRows = [...matchedRows, ...publicFallbackRows];
+
+  const tendersList = displayRows.map((row) => {
     const blob = (row.jsonBlob ?? {}) as Record<string, unknown>;
     const hardFacts = (blob.hard_facts ?? {}) as Record<string, unknown>;
     const procurement = (blob.procurement ?? {}) as Record<string, unknown>;
@@ -115,9 +130,12 @@ export default async function PublicProfilePage({ params }: PageProps) {
     const sourceUrl = typeof blob.sourceUrl === "string" ? blob.sourceUrl : null;
     const tenderUrl = sanitizeTenderUrl(rawUrl, sourceUrl);
 
+    const rawTitle = (typeof blob.title === "string" && blob.title.length > 5 ? blob.title : row.title)
+      ?? `Ausschreibung #${row.tenderId}`;
+
     return {
       id: row.tenderId,
-      title: (typeof blob.title === "string" && blob.title.length > 5 ? blob.title : row.title) ?? `Ausschreibung #${row.tenderId}`,
+      title: decodeHtmlEntities(rawTitle),
       description,
       location: typeof hardFacts.location === "string" ? hardFacts.location : null,
       volume: typeof hardFacts.budget === "string"

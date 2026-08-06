@@ -34,24 +34,21 @@ export default function ImpressumPage() {
             Tenderhunter
           </Typography>
           <Typography variant="body1" sx={{ mb: 3, lineHeight: 1.8, color: "text.secondary" }}>
-            [Vollständige Adresse des Betreibers]<br />
-            [PLZ Ort]
+            Patrick Lenert
           </Typography>
 
           <Typography variant="body1" sx={{ mb: 1, fontWeight: 600 }}>
             Kontakt
           </Typography>
           <Typography variant="body1" sx={{ mb: 3, lineHeight: 1.8, color: "text.secondary" }}>
-            E-Mail: [E-Mail-Adresse]<br />
-            Telefon: [Telefonnummer]
+            E-Mail: <a href="mailto:patricklenert@gmail.com">patricklenert@gmail.com</a>
           </Typography>
 
           <Typography variant="body1" sx={{ mb: 1, fontWeight: 600 }}>
             Verantwortlich für den Inhalt nach §55 Abs.2 RStV
           </Typography>
           <Typography variant="body1" sx={{ mb: 3, lineHeight: 1.8, color: "text.secondary" }}>
-            [Name des Verantwortlichen]<br />
-            [Adresse]
+            Patrick Lenert
           </Typography>
 
           <Typography variant="body1" sx={{ mb: 1, fontWeight: 600 }}>

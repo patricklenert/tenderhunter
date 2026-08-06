@@ -21,6 +21,8 @@ export const settings = {
   publicDetailLimit: positiveIntEnv("PUBLIC_DETAIL_LIMIT", 15),
   publicNoticeLimit: positiveIntEnv("PUBLIC_NOTICE_LIMIT", 15),
   publicSearchLimit: positiveIntEnv("PUBLIC_SEARCH_LIMIT", 30),
+  publicPaginationPages: positiveIntEnv("PUBLIC_PAGINATION_PAGES", 3),
+  publicCpvCodesPerRun: positiveIntEnv("PUBLIC_CPV_CODES_PER_RUN", 20),
   maxJobRetries: parseIntEnv("MAX_JOB_RETRIES", 3),
   workerPollSeconds: parseIntEnv("WORKER_POLL_SECONDS", 3),
   usScrapeIntervalHours: positiveIntEnv("US_SCRAPE_INTERVAL_HOURS", 24),

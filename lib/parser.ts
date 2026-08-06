@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { execFileSync } from "node:child_process";
 import { htmlToBasicMarkdown } from "@/lib/firecrawl";
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
@@ -14,6 +15,12 @@ const MAX_NATIVE_PAGES = parseIntEnv("PARSER_MAX_NATIVE_PAGES", 300);
 const MAX_OCR_FILE_SIZE = parseIntEnv("PARSER_MAX_OCR_FILE_MB", 15) * 1024 * 1024;
 /** Mindest-Zeichen für native Extraktion, damit OCR übersprungen wird. */
 const MIN_NATIVE_TEXT_CHARS = 200;
+const MAX_DOCUMENT_TEXT_CHARS = parseIntEnv("PARSER_MAX_TEXT_CHARS", 5_000_000);
+
+// Shared archive limits protect both generic ZIPs and DOCX files.
+const MAX_ZIP_ENTRIES = 50;
+const MAX_ZIP_ENTRY_SIZE = 50 * 1024 * 1024;
+const MAX_ZIP_TOTAL_SIZE = 200 * 1024 * 1024;
 
 export type ExtractionMethod =
   | "native"
@@ -23,6 +30,8 @@ export type ExtractionMethod =
   | "xlsx"
   | "html"
   | "zip"
+  | "docx"
+  | "doc"
   | "plain";
 
 export interface ExtractedDocument {
@@ -214,6 +223,137 @@ function detectHtmlEncoding(raw: Buffer): string {
   return "utf-8";
 }
 
+const DOCX_TEXT_ENTRIES = /^word\/(?:document|header\d*|footer\d*|footnotes|endnotes)\.xml$/i;
+const DOCX_XML_TOKEN = /<(?:(?:[A-Za-z_][\w.-]*):)?(p|br|tab)(?:\s[^>]*)?\/?>|<(?:(?:[A-Za-z_][\w.-]*):)?t(?:\s[^>]*)?>([\s\S]*?)<\/(?:(?:[A-Za-z_][\w.-]*):)?t\s*>/gi;
+
+const boundedText = (text: string): { text: string; truncated: boolean } => {
+  const normalized = text.replace(/\x00/g, "").trim();
+  return normalized.length > MAX_DOCUMENT_TEXT_CHARS
+    ? { text: normalized.slice(0, MAX_DOCUMENT_TEXT_CHARS), truncated: true }
+    : { text: normalized, truncated: false };
+};
+
+const decodeXmlEntities = (value: string): string => value
+  .replace(/&#x([0-9a-f]+);/gi, (match: string, hex: string) => {
+    const codePoint = Number.parseInt(hex, 16);
+    return Number.isInteger(codePoint) && codePoint >= 0 && codePoint <= 0x10ffff && !(codePoint >= 0xd800 && codePoint <= 0xdfff)
+      ? String.fromCodePoint(codePoint)
+      : match;
+  })
+  .replace(/&#(\d+);/g, (match: string, decimal: string) => {
+    const codePoint = Number.parseInt(decimal, 10);
+    return Number.isInteger(codePoint) && codePoint >= 0 && codePoint <= 0x10ffff && !(codePoint >= 0xd800 && codePoint <= 0xdfff)
+      ? String.fromCodePoint(codePoint)
+      : match;
+  })
+  .replace(/&quot;/gi, '"')
+  .replace(/&apos;/gi, "'")
+  .replace(/&lt;/gi, "<")
+  .replace(/&gt;/gi, ">")
+  .replace(/&amp;/gi, "&");
+
+/** Extract only text-bearing DOCX tags; XML is never executed or resolved. */
+const extractDocxXmlText = (xml: string): string => {
+  const parts: string[] = [];
+  let match: RegExpExecArray | null;
+  DOCX_XML_TOKEN.lastIndex = 0;
+  while ((match = DOCX_XML_TOKEN.exec(xml)) !== null) {
+    if (match[1] === "p" || match[1] === "br") parts.push("\n");
+    else if (match[1] === "tab") parts.push("\t");
+    else if (match[2]) parts.push(decodeXmlEntities(match[2]));
+  }
+  return parts.join("").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+};
+
+function parseDocxToText(filePath: string): { text: string; truncated: boolean } {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const AdmZip = require("adm-zip");
+  type DocxZipEntry = {
+    isDirectory?: boolean;
+    entryName?: string;
+    header?: { size?: number };
+    getData: () => Buffer;
+  };
+  let entries: DocxZipEntry[];
+  try {
+    const zip: { getEntries: () => DocxZipEntry[] } = new AdmZip(filePath);
+    entries = zip.getEntries();
+  } catch (error) {
+    console.warn("[parser] DOCX-Archiv konnte nicht geöffnet werden:", error);
+    return { text: "", truncated: false };
+  }
+
+  const parts: string[] = [];
+  let totalUncompressed = 0;
+  let processed = 0;
+  let truncated = false;
+
+  for (const entry of entries) {
+    if (entry.isDirectory) continue;
+    if (processed >= MAX_ZIP_ENTRIES) {
+      truncated = true;
+      break;
+    }
+    processed += 1;
+
+    const entryName = String(entry.entryName ?? "").replace(/\\/g, "/").replace(/^\/+/, "");
+    if (!DOCX_TEXT_ENTRIES.test(entryName)) continue;
+
+    const declaredSize = Number(entry.header?.size ?? 0);
+    if (declaredSize > MAX_ZIP_ENTRY_SIZE || declaredSize > MAX_ZIP_TOTAL_SIZE - totalUncompressed) {
+      truncated = true;
+      continue;
+    }
+
+    let data: Buffer;
+    try {
+      data = entry.getData();
+    } catch (error) {
+      console.warn(`[parser] DOCX-XML konnte nicht gelesen werden: ${entryName}`, error);
+      continue;
+    }
+    if (data.length > MAX_ZIP_ENTRY_SIZE || data.length > MAX_ZIP_TOTAL_SIZE - totalUncompressed) {
+      truncated = true;
+      continue;
+    }
+    totalUncompressed += data.length;
+    const text = extractDocxXmlText(data.toString("utf8"));
+    if (text) parts.push(text);
+  }
+
+  const bounded = boundedText(parts.join("\n\n"));
+  return { text: bounded.text, truncated: truncated || bounded.truncated };
+}
+
+function runOptionalTextCommand(command: string, args: readonly string[], filePath: string): string {
+  try {
+    const output = execFileSync(command, [...args, filePath], {
+      encoding: "utf8",
+      timeout: 15_000,
+      maxBuffer: MAX_DOCUMENT_TEXT_CHARS * 4,
+      windowsHide: true,
+    });
+    return typeof output === "string" ? output : "";
+  } catch {
+    return "";
+  }
+}
+
+function parseDocToText(filePath: string): { text: string; truncated: boolean } {
+  const commands = [
+    ["antiword", ["-f", "text"]],
+    ["strings", ["-n", "4"]],
+  ] as const;
+
+  for (const [command, args] of commands) {
+    const output = runOptionalTextCommand(command, args, filePath);
+    if (!output.trim()) continue;
+    return boundedText(output);
+  }
+
+  return { text: "", truncated: false };
+}
+
 export const extractTextFromFile = async (filePath: string, contentType?: string | null): Promise<ExtractedDocument> => {
   const loweredType = (contentType ?? "").toLowerCase();
   const loweredPath = filePath.toLowerCase();
@@ -325,6 +465,16 @@ export const extractTextFromFile = async (filePath: string, contentType?: string
      return { text: htmlToBasicMarkdown(html), pages: [], pageCount: null, method: "html", truncated: false };
   }
 
+  if (loweredPath.endsWith(".docx") || loweredType.includes("wordprocessingml.document")) {
+    const parsed = parseDocxToText(filePath);
+    return { text: parsed.text, pages: [], pageCount: null, method: "docx", truncated: parsed.truncated };
+  }
+
+  if (loweredPath.endsWith(".doc") || loweredType.includes("msword")) {
+    const parsed = parseDocToText(filePath);
+    return { text: parsed.text, pages: [], pageCount: null, method: "doc", truncated: parsed.truncated };
+  }
+
   if (loweredPath.endsWith(".zip") || loweredType.includes("zip") || loweredType.includes("archive")) {
     console.log("[parser] Parsing ZIP:", filePath);
     const zipText = await parseZipToText(filePath);
@@ -348,11 +498,6 @@ async function parseZipToText(filePath: string): Promise<string> {
   const zip = new AdmZip(filePath);
   const entries = zip.getEntries();
   const parts: string[] = [];
-
-  // Hard limits to prevent unbounded recursive extraction (zip-bomb protection)
-  const MAX_ZIP_ENTRIES = 50;
-  const MAX_ZIP_ENTRY_SIZE = 50 * 1024 * 1024; // 50 MB per entry
-  const MAX_ZIP_TOTAL_SIZE = 200 * 1024 * 1024; // 200 MB total uncompressed
   let totalUncompressed = 0;
 
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "zip-extract-"));
@@ -370,7 +515,7 @@ async function parseZipToText(filePath: string): Promise<string> {
       const entrySize = entry.header.size;
 
       // Only process known document types
-      if (![".pdf", ".xlsx", ".xls", ".html", ".htm", ".txt", ".csv"].includes(ext)) continue;
+      if (![".pdf", ".xlsx", ".xls", ".html", ".htm", ".txt", ".csv", ".docx", ".doc"].includes(ext)) continue;
       // Skip entries that are too large individually
       if (entrySize > MAX_ZIP_ENTRY_SIZE) {
         console.warn(`[parser] ZIP-Entry zu groß übersprungen: ${entryName} (${(entrySize / 1024 / 1024).toFixed(1)} MB)`);
@@ -386,7 +531,15 @@ async function parseZipToText(filePath: string): Promise<string> {
       fs.writeFileSync(tmpFile, entry.getData());
 
       try {
-        const contentType = ext === ".pdf" ? "application/pdf" : ext === ".xlsx" ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : null;
+        const contentType = ext === ".pdf"
+          ? "application/pdf"
+          : ext === ".xlsx"
+            ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            : ext === ".docx"
+              ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              : ext === ".doc"
+                ? "application/msword"
+                : null;
         const result = await extractTextFromFile(tmpFile, contentType);
         if (result.text && result.text.trim().length > 10) {
           parts.push(`=== ${entry.entryName} ===\n${result.text}`);
@@ -401,5 +554,5 @@ async function parseZipToText(filePath: string): Promise<string> {
     try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
   }
 
-  return parts.join("\n\n").trim().replace(/\x00/g, "");
+  return boundedText(parts.join("\n\n")).text;
 }

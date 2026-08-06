@@ -1,6 +1,19 @@
-import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
+import { chromium, type Browser, type BrowserContext, type Page, type Response } from "playwright";
 import { Readability } from "@mozilla/readability";
 import { JSDOM } from "jsdom";
+import { decodeHtmlEntities } from "@/lib/text-normalization";
+import {
+  extractResourcesFromHtml,
+  extractResourcesFromNetworkMetadata,
+  isCapturableNetworkResponse,
+  isSameOriginUrl,
+  mergeDiscoveredResources,
+  normalizeNetworkResponseMetadata,
+  type DiscoveredResource,
+  type NetworkResponseMetadata,
+  rankSubpageCandidates,
+  type RankedSubpageCandidate,
+} from "@/lib/resource-discovery";
 
 const SEARXNG_URL = process.env.SEARXNG_URL ?? "http://localhost:8080";
 
@@ -11,6 +24,8 @@ const BROWSER_ARGS = [
   "--disable-gpu",
 ];
 const BROWSER_IDLE_TIMEOUT_MS = 60_000;
+const MAX_CAPTURED_NETWORK_RESPONSES = 200;
+const MAX_DISCOVERED_RESOURCES = 500;
 
 let browserInstance: Browser | null = null;
 let browserPromise: Promise<Browser> | null = null;
@@ -78,6 +93,14 @@ export interface ScrapedPage {
   markdown: string;
   title: string | null;
   html: string;
+  /** Safe, normalized resources found in the rendered DOM. */
+  links: DiscoveredResource[];
+  /** Deduplicated DOM and same-origin network resources. */
+  resources: DiscoveredResource[];
+  /** Bounded same-origin page links ranked by tender-related keywords. */
+  subpageCandidates: RankedSubpageCandidate[];
+  /** Metadata only; response bodies and sensitive headers are never retained. */
+  networkResponses: NetworkResponseMetadata[];
 }
 
 function extractWithReadability(html: string, url: string): string {
@@ -95,7 +118,7 @@ function extractWithReadability(html: string, url: string): string {
 }
 
 export function htmlToBasicMarkdown(html: string): string {
-  return html
+  const stripped = html
     // Strip script, style, svg, and noscript tags with their content first
     .replace(/<script[\s\S]*?<\/script>/gi, "")
     .replace(/<style[\s\S]*?<\/style>/gi, "")
@@ -115,14 +138,9 @@ export function htmlToBasicMarkdown(html: string): string {
     // Without this, cheerio's .text() glues labels and values together (Bug: mangled captions).
     .replace(/<\/?(?:div|span|tr|td|th|dt|dd|ul|ol|tbody|thead|table|section|article|header|footer|main|aside|figure|figcaption|blockquote|address|fieldset|form|details|summary|dl|figure)[^>]*>/gi, "\n")
     // Strip remaining tags
-    .replace(/<[^>]+>/g, "")
-    // Decode common HTML entities
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#\d+;/g, "")
-    .replace(/&nbsp;/g, " ")
+    .replace(/<[^>]+>/g, "");
+
+  return decodeHtmlEntities(stripped)
     // Collapse runs of spaces/tabs (but preserve newlines) so wrapped lines stay readable
     .replace(/[^\S\n]+/g, " ")
     // Collapse 3+ newlines into one blank line
@@ -157,6 +175,26 @@ export async function scrapeWebsite(
             }
           });
         }
+        const capturedNetworkResponses = new Map<string, NetworkResponseMetadata>();
+        const captureNetworkResponse = (response: Response): void => {
+          if (capturedNetworkResponses.size >= MAX_CAPTURED_NETWORK_RESPONSES) return;
+
+          const headers = response.headers();
+          const metadata = normalizeNetworkResponseMetadata({
+            url: response.url(),
+            method: response.request().method(),
+            status: response.status(),
+            contentType: headers["content-type"] ?? null,
+            contentDisposition: headers["content-disposition"] ?? null,
+            resourceType: response.request().resourceType(),
+          });
+          if (!metadata || !isCapturableNetworkResponse(metadata)) return;
+
+          const key = [metadata.url, metadata.method, metadata.status, metadata.contentType, metadata.contentDisposition, metadata.resourceType].join("\u001f");
+          if (!capturedNetworkResponses.has(key)) capturedNetworkResponses.set(key, metadata);
+        };
+        page.on("response", captureNetworkResponse);
+
         await page.goto(url, { waitUntil: options?.waitUntil ?? "domcontentloaded", timeout: 30000 });
 
         if (options?.waitForSelector) {
@@ -187,8 +225,16 @@ export async function scrapeWebsite(
         }
 
         const finalUrl = page.url();
+        const networkResponses = [...capturedNetworkResponses.values()].filter((response) => isSameOriginUrl(response.url, finalUrl));
+        const links = extractResourcesFromHtml(html, finalUrl, { maxResources: MAX_DISCOVERED_RESOURCES });
+        const networkResources = extractResourcesFromNetworkMetadata(networkResponses, finalUrl, {
+          sameOriginOnly: true,
+          maxResources: MAX_DISCOVERED_RESOURCES,
+        });
+        const resources = mergeDiscoveredResources(links, networkResources).slice(0, MAX_DISCOVERED_RESOURCES);
+        const subpageCandidates = rankSubpageCandidates(links, { baseUrl: finalUrl });
 
-        return { url: finalUrl, markdown, title, html };
+        return { url: finalUrl, markdown, title, html, links, resources, subpageCandidates, networkResponses };
       } finally {
         if (context) {
           await context.close().catch(() => {});

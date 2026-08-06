@@ -1,8 +1,15 @@
 import * as cheerio from "cheerio";
+import { scrapeWebsite } from "@/lib/firecrawl";
+import { isSameOriginUrl, normalizeResourceUrl, rankSubpageCandidates, type DiscoveredResource } from "@/lib/resource-discovery";
 import { getTenderSourceDefinition, resolveSourceItem } from "@/lib/tender-sources";
 import type { SourceItem } from "@/lib/types";
 
 const TENDER_KEYWORDS = ["ausschreibung", "bekanntmachung", "vergabe", "tender", "procurement", "notice"];
+const NON_DETAIL_PATHS = /(?:^|\/)(?:about|contact|datenschutz|impressum|privacy|terms|faq|help|login|register|search|results?|listing|overview|uebersicht|sitemap|news)(?:\/|$)/i;
+const DETAIL_PATHS = /(?:^|\/)(?:detail|notice|project|tender|procurement|ausschreibung|bekanntmachung|vergabe)(?:\/|$)/i;
+const DETAIL_QUERY_KEYS = /^(?:id|nid|pid|oid|notice(?:-?id)?|project(?:-?id)?|tender(?:-?id)?|verfahren|guid)$/i;
+const MAX_RENDERED_CANDIDATES = 40;
+const MAX_RENDERED_SUBPAGE_CANDIDATES = 12;
 
 interface DiscoveryRules {
   includeHref: RegExp[];
@@ -59,6 +66,62 @@ const pushDiscoveredTender = (
     title: title.slice(0, 300),
     externalId: externalId ?? null,
   });
+};
+
+const resourceLabel = (resource: DiscoveredResource): string => resource.label || resource.text || resource.url;
+
+/**
+ * Rendered pages often expose both a listing route and actual detail routes.
+ * Keep only same-origin candidates with a detail signal so the source homepage
+ * is never persisted as a tender merely because it rendered successfully.
+ */
+export const isLikelyTenderDetailUrl = (candidateUrl: string, label: string, sourceUrl: string): boolean => {
+  const normalized = normalizeResourceUrl(candidateUrl, sourceUrl);
+  const source = normalizeResourceUrl(sourceUrl);
+  if (!normalized || !source || !isSameOriginUrl(normalized, source) || normalized === source) return false;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(normalized);
+  } catch {
+    return false;
+  }
+
+  const text = `${label} ${parsed.pathname} ${parsed.search}`.toLowerCase();
+  const hasDetailPath = DETAIL_PATHS.test(parsed.pathname);
+  const hasIdentifier = Array.from(parsed.searchParams.keys()).some((key) => DETAIL_QUERY_KEYS.test(key))
+    || /(?:^|\/)(?:\d{2,}|[a-z]{1,8}[-_]?\d{2,})(?:\/|$)/i.test(parsed.pathname)
+    || (hasDetailPath && /(?:detail|notice|project|tender|procurement|ausschreibung|bekanntmachung|vergabe)\/[^/]+/i.test(parsed.pathname));
+  if (NON_DETAIL_PATHS.test(parsed.pathname) && !(hasDetailPath && hasIdentifier)) return false;
+  const hasTenderKeyword = TENDER_KEYWORDS.some((keyword) => text.includes(keyword));
+  if (!hasTenderKeyword && !(hasDetailPath && hasIdentifier)) return false;
+  const isBareListing = /(?:^|\/)(?:ausschreibungen?|bekanntmachungen?|vergaben?|tenders?|notices?)(?:\/)?$/i.test(parsed.pathname);
+  const genericLabel = /^(?:ausschreibung|bekanntmachung|detail|vergabe|tender|notice|procurement)$/i.test(label.trim());
+
+  return hasIdentifier || (!isBareListing && hasDetailPath && !genericLabel && label.trim().length >= 12);
+};
+
+const renderedTenderCandidates = (source: SourceItem, page: Awaited<ReturnType<typeof scrapeWebsite>>, limit: number): DiscoveredTender[] => {
+  const ranked = rankSubpageCandidates(page.links, {
+    baseUrl: page.url,
+    limit: MAX_RENDERED_SUBPAGE_CANDIDATES,
+  });
+  const candidates = [...ranked, ...page.links, ...page.resources];
+  const seen = new Set<string>();
+  const results: DiscoveredTender[] = [];
+
+  for (const resource of candidates) {
+    if (results.length >= Math.min(limit, MAX_RENDERED_CANDIDATES)) break;
+    if (resource.type !== "page" && resource.type !== "unknown") continue;
+    if (resource.source === "form" && resource.sources.every((source) => source === "form")) continue;
+    if (!isLikelyTenderDetailUrl(resource.url, resourceLabel(resource), page.url)) continue;
+
+    const canonicalUrl = normalizeResourceUrl(resource.url, page.url);
+    if (!canonicalUrl || seen.has(canonicalUrl)) continue;
+    pushDiscoveredTender(results, seen, source, canonicalUrl, resourceLabel(resource));
+  }
+
+  return results;
 };
 
 const discoverWithRules = async (source: SourceItem, limit: number, rules: DiscoveryRules): Promise<DiscoveredTender[]> => {
@@ -125,7 +188,6 @@ const discoverGenericTenders = async (source: SourceItem, limit: number): Promis
 
   const html = await response.text();
   const $ = cheerio.load(html);
-  const title = $("title").text().trim() || source.url;
   const results: DiscoveredTender[] = [];
   const seen = new Set<string>();
 
@@ -140,7 +202,7 @@ const discoverGenericTenders = async (source: SourceItem, limit: number): Promis
     }
 
     const absolute = toAbsoluteUrl(href, source.url);
-    if (!absolute) {
+    if (!absolute || !/^https?:\/\//i.test(absolute)) {
       return;
     }
 
@@ -157,7 +219,21 @@ const discoverGenericTenders = async (source: SourceItem, limit: number): Promis
     return results;
   }
 
-  return [{ source: source.name ?? source.url, sourceKey: source.key, url: source.url, title: title.slice(0, 300), externalId: null }];
+  // A successful static response can still be an empty SPA shell. Render it
+  // once, without clicking or submitting controls, and inspect only bounded
+  // same-origin DOM/data-attribute/network-derived links.
+  try {
+    const rendered = await scrapeWebsite(source.url, {
+      onlyMainContent: false,
+      waitUntil: "networkidle",
+      waitMs: 1_000,
+      requestUrlGuard: (requestUrl) => isSameOriginUrl(requestUrl, source.url),
+    });
+    return renderedTenderCandidates(source, rendered, limit);
+  } catch {
+    // Keep a failed rendered fallback non-fatal for generic source crawling.
+    return [];
+  }
 };
 
 const extractTedExternalId = (url: URL): string | null => {

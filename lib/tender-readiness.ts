@@ -15,6 +15,8 @@ export interface TenderReadinessResult {
   reason: string;
 }
 
+const MIN_STRUCTURED_CONFIDENCE_FOR_READY = 0.35;
+
 export const evaluateTenderReadiness = (input: TenderReadinessInput): TenderReadinessResult => {
   if (input.accessBlocked || input.documentAnalysis?.coverageStatus === "blocked") {
     return { status: "blocked", reason: "Dokument- oder Quellzugriff ist blockiert." };
@@ -22,25 +24,20 @@ export const evaluateTenderReadiness = (input: TenderReadinessInput): TenderRead
   if (input.qualityStatus === "rejected" || input.qualityStatus === "duplicate") {
     return { status: "manual_review", reason: "Ausschreibung ist nicht für die normale Analyse freigegeben." };
   }
+  if (input.qualityStatus !== "qualified") {
+    return { status: "pending", reason: "Qualitätsprüfung der Ausschreibung steht noch aus." };
+  }
   if (!input.rawText?.trim() || !input.structuredExists) {
     return { status: "pending", reason: "Strukturierte Ausschreibungsdaten stehen noch aus." };
   }
-  if (input.documentAnalysis?.coverageStatus === "partial") {
-    const missing = input.documentAnalysis.coverage.missingRoles
-      .filter((role) => role !== "other")
-      .join(", ");
-    return {
-      status: "partial",
-      reason: missing
-        ? `Dokumentabdeckung unvollständig; fehlende Rollen: ${missing}.`
-        : "Dokumentabdeckung oder Textextraktion ist unvollständig.",
-    };
-  }
-  if ((input.structuredConfidence ?? 0) < 0.45) {
+  if ((input.structuredConfidence ?? 0) < MIN_STRUCTURED_CONFIDENCE_FOR_READY) {
     return { status: "partial", reason: "Strukturierte Daten haben noch zu geringe Konfidenz." };
   }
-  if (!input.documentAnalysis || input.documentAnalysis.coverageStatus === "unknown") {
-    return { status: "partial", reason: "Dokumentabdeckung ist noch nicht bekannt." };
+  if (!input.documentAnalysis || input.documentAnalysis.coverageStatus !== "complete") {
+    return {
+      status: "ready",
+      reason: "Qualifizierte strukturierte Ausschreibungsdaten sind für das Matching verfügbar; vollständige Vergabeunterlagen werden nachgeladen.",
+    };
   }
   return { status: "ready", reason: "Erforderliche Dokumentrollen und strukturierte Daten sind verfügbar." };
 };

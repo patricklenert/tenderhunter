@@ -1,9 +1,26 @@
-import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
+import { and, desc, eq, gt, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { insights, scores, structuredData, tenders } from "@/lib/schema";
 import { computeScores, type CompanyRow } from "@/lib/scoring";
 import { generateInsight } from "@/lib/insights";
 import { normalizeStructured, type StructuredData as StructuredTenderData } from "@/lib/structurer";
+
+export interface PublicProfileMatch {
+  tenderId: number;
+  fit: number;
+  winProbability: number;
+  killSwitch: boolean;
+  title: string | null;
+  url: string | null;
+  rawText: string | null;
+  jsonBlob: unknown;
+  slug: string | null;
+  readinessStatus: string | null;
+}
+
+export interface PublicProfileMatchOptions {
+  qualifiedOnly?: boolean;
+}
 
 const fallbackStructured = (title: string): StructuredTenderData => ({
   title,
@@ -135,4 +152,65 @@ export async function scoreKnownTenders(companyId: number, companyRow: CompanyRo
   }
 
   return scoreRows.length;
+}
+
+export async function findPublicProfileMatches(
+  companyRow: CompanyRow,
+  excludeTenderIds: Set<number> = new Set(),
+  limit = 10,
+  options: PublicProfileMatchOptions = {},
+): Promise<PublicProfileMatch[]> {
+  const rows = await db
+    .select({
+      tenderId: tenders.id,
+      title: tenders.title,
+      url: tenders.url,
+      rawText: tenders.rawText,
+      metadataJson: tenders.metadataJson,
+      jsonBlob: structuredData.jsonBlob,
+      slug: tenders.slug,
+      readinessStatus: tenders.readinessStatus,
+    })
+    .from(tenders)
+    .leftJoin(structuredData, eq(structuredData.tenderId, tenders.id))
+    .where(and(
+      options.qualifiedOnly
+        ? eq(tenders.qualityStatus, "qualified")
+        : or(eq(tenders.qualityStatus, "qualified"), eq(tenders.qualityStatus, "candidate")),
+      or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, new Date())),
+      isNotNull(structuredData.jsonBlob),
+    ))
+    .orderBy(desc(tenders.createdAt))
+    .limit(2_000);
+
+  return rows
+    .filter((row) => !excludeTenderIds.has(row.tenderId) && row.jsonBlob !== null)
+    .flatMap((row) => {
+      const structured = parseStructured(row.jsonBlob, row.title ?? "");
+      const metadata = typeof row.metadataJson === "object" && row.metadataJson !== null
+        ? row.metadataJson as Record<string, unknown>
+        : {};
+      const score = computeScores(row.title ?? "", structured, companyRow, undefined, {
+        metadataLocation: metadata.location,
+        metadataDescription: metadata.description,
+        structuredLocation: structured.hard_facts.location,
+        allowUnknownTenderLocation: true,
+      });
+
+      if (score.kill_switch || score.fit <= 10) return [];
+      return [{
+        tenderId: row.tenderId,
+        fit: score.fit,
+        winProbability: score.win_probability,
+        killSwitch: score.kill_switch,
+        title: row.title,
+        url: row.url,
+        rawText: row.rawText,
+        jsonBlob: row.jsonBlob,
+        slug: row.slug,
+        readinessStatus: row.readinessStatus,
+      }];
+    })
+    .sort((a, b) => b.winProbability - a.winProbability || b.fit - a.fit || a.tenderId - b.tenderId)
+    .slice(0, limit);
 }

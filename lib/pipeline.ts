@@ -2,7 +2,7 @@ import * as cheerio from "cheerio";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { and, asc, eq, ne, isNotNull, lt, inArray, or, sql } from "drizzle-orm";
+import { and, asc, eq, ne, isNotNull, isNull, lt, inArray, or, sql } from "drizzle-orm";
 import { settings } from "@/lib/config";
 import { discoverTendersFromSource } from "@/lib/crawler";
 import { db } from "@/lib/db";
@@ -11,6 +11,7 @@ import {
   usTenders,
   usSourceRuns,
   documents,
+  tenderResources,
   structuredData,
   companyProfiles,
   scores,
@@ -19,20 +20,24 @@ import {
   jobs,
   publicScrapeRuns,
   publicSourceRuns,
+  publicSourceCursors,
   type Tender,
   type Document as DocumentType,
+  type DocumentRole,
   type StructuredData as StructuredDataType,
   type CompanyProfile as CompanyProfileType,
 } from "@/lib/schema";
 import { generateInsight } from "@/lib/insights";
 import { extractTextFromFile } from "@/lib/parser";
-import { claimNextJob, enqueueJob, heartbeatJob, markDone, markFailed } from "@/lib/queue";
+import { buildJobKey, claimNextJob, enqueueJob, heartbeatJob, markDone, markFailed } from "@/lib/queue";
 import { buildTenderMatchDocument, computeScores, getDomainEligibility, getLocationEligibility, llmBatchDomainMatch, type CompanyRow } from "@/lib/scoring";
 import { ensureExtension, fetchAndStore, objectAbsolutePath, suggestedFilename } from "@/lib/storage";
 import { extractStructuredData, normalizeStructured, type StructuredData } from "@/lib/structurer";
 import { assessTenderQuality } from "@/lib/tender-quality";
 import { resolveSourceItem } from "@/lib/tender-sources";
 import { canonicalPublicSourceKey, scrapeAllPublicTenders, type ExtractedTender } from "@/lib/public-tender-scraper";
+import type { PublicSourceCursor } from "@/lib/public-pagination";
+import { resolvePublicSourceKey } from "@/lib/public-source-registry";
 import { scrapeAllUsTenders, type UsExtractedTender } from "@/lib/us-tender-scraper";
 import { categorizeUsTender } from "@/lib/us/categorize";
 import { processUsAlerts } from "@/lib/us/alerts";
@@ -44,6 +49,17 @@ import { scrapeWebsite } from "@/lib/firecrawl";
 import OpenAI from "openai";
 import { callLLM } from "@/lib/llm";
 import { detectAccessPage, type AccessPageDetection } from "@/lib/access-page-detector";
+import {
+  assignRoleHints,
+  extractResourcesFromHtml,
+  extractResourcesFromLinks,
+  normalizeResourceUrl,
+  rankSubpageCandidates,
+  type DiscoveredResource,
+  type ResourceRoleHint,
+  type ResourceSource,
+  type ResourceType,
+} from "@/lib/resource-discovery";
 import { processCompanyUrlPreview } from "@/lib/preview";
 import { markCatalogDirty } from "@/lib/catalog";
 import { classifyDocumentRole, rolePriority } from "@/lib/document-classifier";
@@ -76,6 +92,35 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://palemaz.com";
 const MAX_TENDER_TEXT_CHARS = 250_000;
 const MAX_DOCUMENT_TEXT_CHARS = 100_000;
 const CLEANUP_BATCH_SIZE = 250;
+const RESOURCE_MAX_CANDIDATES = 100;
+const RESOURCE_MAX_SUBPAGES = 3;
+const RESOURCE_FETCH_ACCEPT = "application/pdf,application/octet-stream,application/zip,application/vnd.openxmlformats-officedocument.document;q=0.9,application/msword;q=0.8,text/html;q=0.7,*/*;q=0.5";
+const REALISTIC_USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+const DOCUMENT_ROLE_VALUES = new Set<DocumentRole>([
+  "bekanntmachung",
+  "leistungsbeschreibung",
+  "leistungsverzeichnis",
+  "eignung",
+  "zuschlagskriterien",
+  "vertragsbedingungen",
+  "formblatt",
+  "anlage",
+  "nachtrag",
+  "other",
+]);
+const RESOURCE_ROLE_HINT_VALUES = new Set<ResourceRoleHint>([
+  "bekanntmachung",
+  "leistungsbeschreibung",
+  "leistungsverzeichnis",
+  "vergabeunterlagen",
+  "teilnahmeunterlagen",
+  "eignung",
+  "zuschlagskriterien",
+  "vertragsbedingungen",
+  "formblatt",
+  "anlage",
+  "nachtrag",
+]);
 
 const appendBoundedTenderText = (current: string, addition: string): string => {
   const separator = current.length > 0 ? "\n\n[Dokument]\n" : "";
@@ -181,6 +226,118 @@ const sameValue = (left: unknown, right: unknown): boolean =>
 const sameDate = (left: Date | null | undefined, right: Date | null | undefined): boolean =>
   (left?.getTime() ?? null) === (right?.getTime() ?? null);
 
+const metadataRecord = (value: unknown): Record<string, unknown> =>
+  value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+
+const metadataArray = (record: Record<string, unknown>, keys: string[]): unknown[] => {
+  for (const key of keys) {
+    if (Array.isArray(record[key])) return record[key] as unknown[];
+  }
+  return [];
+};
+
+const metadataResourceUrl = (value: unknown): string | null => {
+  if (typeof value === "string") return value;
+  const record = metadataRecord(value);
+  for (const key of ["url", "href", "canonicalUrl", "canonical_url"]) {
+    if (typeof record[key] === "string") return record[key] as string;
+  }
+  return null;
+};
+
+const sanitizeResourceUrl = (value: string | null | undefined, baseUrl?: string): string | null => {
+  const normalized = normalizeResourceUrl(value, baseUrl);
+  if (!normalized) return null;
+  try {
+    const parsed = new URL(normalized);
+    parsed.pathname = parsed.pathname.replace(/;jsessionid=[^;?/]+/gi, "");
+    return parsed.toString();
+  } catch {
+    return normalized;
+  }
+};
+
+const fingerprintResource = (value: unknown, baseUrl: string): Record<string, unknown> | null => {
+  const record = metadataRecord(value);
+  const rawUrl = metadataResourceUrl(value);
+  const url = sanitizeResourceUrl(rawUrl, baseUrl);
+  if (!url) return null;
+  const canonicalUrl = sanitizeResourceUrl(
+    typeof record.canonicalUrl === "string" ? record.canonicalUrl : record.canonical_url as string | undefined,
+    baseUrl,
+  ) ?? url;
+  const rawRoleHints = record.roleHints ?? record.role_hints;
+  const roleHints = Array.isArray(rawRoleHints)
+    ? rawRoleHints.filter((role): role is string => typeof role === "string" && RESOURCE_ROLE_HINT_VALUES.has(role as ResourceRoleHint)).sort()
+    : [];
+  const resourceType = typeof (record.resourceType ?? record.resource_type ?? record["resource-type"] ?? record.type) === "string"
+    ? String(record.resourceType ?? record.resource_type ?? record["resource-type"] ?? record.type)
+    : "";
+  const label = typeof (record.label ?? record.text ?? record.linkText ?? record.link_text) === "string"
+    ? String(record.label ?? record.text ?? record.linkText ?? record.link_text).slice(0, 300)
+    : "";
+  return { canonicalUrl, url, label, resourceType, roleHints };
+};
+
+/** Stable, non-sensitive identity for the resources associated with a tender. */
+export const buildResourceFingerprint = (sourceUrl: string, metadata: unknown): string => {
+  const record = metadataRecord(metadata);
+  const baseUrl = sanitizeResourceUrl(sourceUrl) ?? sourceUrl;
+  const values: Array<Record<string, unknown>> = [];
+  const structured = metadataArray(record, ["resources", "resource_candidates", "resourceCandidates", "subpage_candidates", "subpageCandidates"]);
+  for (const value of structured) {
+    const fingerprint = fingerprintResource(value, baseUrl);
+    if (fingerprint) values.push(fingerprint);
+  }
+  for (const value of metadataArray(record, ["pdf_urls", "pdfUrls"])) {
+    const fingerprint = fingerprintResource(value, baseUrl);
+    if (fingerprint) values.push({ ...fingerprint, resourceType: "document", label: "" });
+  }
+
+  const deduplicated = Array.from(new Map(values.map((value) => [
+    `${String(value.canonicalUrl)}|${String(value.resourceType)}|${String(value.label)}|${JSON.stringify(value.roleHints)}`,
+    value,
+  ])).values()).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+  return createHash("sha256")
+    .update(JSON.stringify({ sourceUrl: baseUrl, resources: deduplicated }))
+    .digest("hex")
+    .slice(0, 24);
+};
+
+export const buildFetchDocumentsJobKey = (tenderId: number, resourceFingerprint: string): string =>
+  buildJobKey(JOB_FETCH_DOCUMENTS, tenderId, `resources-${resourceFingerprint || "empty"}`);
+
+export type DocumentPersistenceAction = "insert" | "update" | "skip";
+
+/** Decide how a downloaded resource should interact with existing document rows. */
+export const decideDocumentPersistence = (
+  existingByUrl: { downloadStatus: string | null; sha256: string } | null,
+  existingByHash: { downloadStatus: string | null } | null,
+  sha256: string,
+): DocumentPersistenceAction => {
+  if (existingByHash?.downloadStatus === "downloaded") return "skip";
+  if (!existingByUrl) return "insert";
+  if (existingByUrl.downloadStatus === "downloaded" && existingByUrl.sha256 === sha256) return "skip";
+  return "update";
+};
+
+const normalizeDocumentRoles = (roles: unknown, fallback: string | null | undefined): DocumentRole[] => {
+  const values = [
+    ...(Array.isArray(roles) ? roles : []),
+    fallback,
+  ].filter((role): role is DocumentRole => typeof role === "string" && DOCUMENT_ROLE_VALUES.has(role as DocumentRole));
+  const unique = values.filter((role, index) => values.indexOf(role) === index && role !== "other");
+  return unique.length > 0 ? unique : ["other"];
+};
+
+const mergeDocumentRoles = (...roleGroups: unknown[]): DocumentRole[] => {
+  const values = roleGroups.flatMap((group) => Array.isArray(group) ? group : [group]);
+  return normalizeDocumentRoles(values, null);
+};
+
+const primaryDocumentRole = (roles: DocumentRole[]): DocumentRole =>
+  [...roles].sort((left, right) => rolePriority(left) - rolePriority(right))[0] ?? "other";
+
 // Merge incoming metadata without losing existing non-empty values to empty new ones.
 // A later scrape that returns thinner data must not erase previously captured fields.
 const mergeMetadata = (
@@ -237,7 +394,7 @@ const upsertTender = async ({ source, sourceKey, url, title, externalId, metadat
           rawText: tenders.rawText,
         })
         .from(tenders)
-        .where(and(eq(tenders.source, source), eq(tenders.externalId, externalId)))
+        .where(and(eq(tenders.source, source), eq(tenders.externalId, externalId), isNull(tenders.sourceKey)))
         .limit(1)
     : [];
 
@@ -257,6 +414,7 @@ const upsertTender = async ({ source, sourceKey, url, title, externalId, metadat
         .from(tenders)
         .where(and(
           eq(tenders.source, source),
+          isNull(tenders.sourceKey),
           or(
             sql`${tenders.metadataJson} ->> 'reference_number' = ${externalId}`,
             sql`substring(${tenders.url} from '/project/([^/;?]+)') = ${externalId}`,
@@ -468,12 +626,19 @@ const queueTenderStage = async (
   return enqueueJob(
     jobType,
     { tender_id: tenderId, ...payload },
-    { jobKey: `${jobType}:${tenderId}${keySuffix ? `:${keySuffix}` : ""}` },
+    { jobKey: buildJobKey(jobType, tenderId, keySuffix) },
   );
 };
 
 const queueTenderProcessing = async (tenderId: number): Promise<void> => {
-  await queueTenderStage(JOB_FETCH_DOCUMENTS, tenderId);
+  const tender = await getTender(tenderId);
+  const metadata = parseRecord(tender.metadataJson as string);
+  const resourceFingerprint = buildResourceFingerprint(tender.url, metadata);
+  await enqueueJob(
+    JOB_FETCH_DOCUMENTS,
+    { tender_id: tenderId, resource_fingerprint: resourceFingerprint },
+    { jobKey: buildFetchDocumentsJobKey(tenderId, resourceFingerprint) },
+  );
 };
 
 const cleanUrl = (url: string): string => {
@@ -493,7 +658,13 @@ export interface DiscoveredLink {
 }
 
 const findPdfLinks = async (baseUrl: string): Promise<DiscoveredLink[]> => {
-  const response = await fetch(baseUrl, { redirect: "follow" });
+  const response = await fetch(baseUrl, {
+    headers: {
+      Accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.5",
+      "User-Agent": REALISTIC_USER_AGENT,
+    },
+    redirect: "follow",
+  });
   if (!response.ok) {
     return [];
   }
@@ -538,7 +709,10 @@ const findPdfLinks = async (baseUrl: string): Promise<DiscoveredLink[]> => {
       const docsUrl = `https://www.evergabe.de/unterlagen/${vergabeId}`;
       console.log(`[pipeline] evergabe: Vergabe-ID ${vergabeId} gefunden, lade Documents-Seite ${docsUrl}`);
       try {
-        const docsResp = await fetch(docsUrl, { redirect: "follow" });
+         const docsResp = await fetch(docsUrl, {
+           headers: { Accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.5", "User-Agent": REALISTIC_USER_AGENT },
+           redirect: "follow",
+         });
         if (docsResp.ok) {
           const docsHtml = await docsResp.text();
           const $docs = cheerio.load(docsHtml);
@@ -602,7 +776,10 @@ const findPdfLinks = async (baseUrl: string): Promise<DiscoveredLink[]> => {
       try {
         // Evergabe: /zustellweg-auswaehlen von URL entfernen
         const docsUrl = subUrl.replace(/\/zustellweg-auswaehlen\/?$/, "");
-        const subResponse = await fetch(docsUrl, { redirect: "follow" });
+         const subResponse = await fetch(docsUrl, {
+           headers: { Accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.5", "User-Agent": REALISTIC_USER_AGENT },
+           redirect: "follow",
+         });
         if (!subResponse.ok) continue;
         const subHtml = await subResponse.text();
         const $sub = cheerio.load(subHtml);
@@ -627,6 +804,353 @@ const findPdfLinks = async (baseUrl: string): Promise<DiscoveredLink[]> => {
   return links;
 };
 
+export interface ResourceCandidateRecord {
+  url: string;
+  canonicalUrl: string;
+  label: string;
+  filename: string | null;
+  resourceType: ResourceType;
+  roleHints: ResourceRoleHint[];
+  sourcePageUrl: string | null;
+  discoveryMethod: string;
+  method: string;
+  contentType: string | null;
+  contentDisposition: string | null;
+}
+
+const RESOURCE_TYPES = new Set<ResourceType>([
+  "api",
+  "download",
+  "document",
+  "page",
+  "image",
+  "media",
+  "stylesheet",
+  "script",
+  "font",
+  "unknown",
+]);
+
+const resourceTypePriority: Record<ResourceType, number> = {
+  unknown: 0,
+  page: 1,
+  api: 2,
+  document: 3,
+  download: 4,
+  image: 0,
+  media: 0,
+  stylesheet: 0,
+  script: 0,
+  font: 0,
+};
+
+const boundedResourceText = (value: unknown, maxLength = 500): string =>
+  typeof value === "string"
+    ? value.replace(/[\u0000-\u001f\u007f]/g, "").replace(/\s+/g, " ").trim().slice(0, maxLength)
+    : "";
+
+const safeResourceRoleHints = (value: unknown): ResourceRoleHint[] => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((role): role is ResourceRoleHint => typeof role === "string" && RESOURCE_ROLE_HINT_VALUES.has(role as ResourceRoleHint))
+    .filter((role, index, values) => values.indexOf(role) === index);
+};
+
+const safeResourceMethod = (value: unknown): string => {
+  const method = boundedResourceText(value, 32).toUpperCase();
+  return /^[A-Z][A-Z0-9-]*$/.test(method) ? method : "GET";
+};
+
+const resourceFilenameFromUrl = (url: string): string | null => {
+  try {
+    const pathname = new URL(url).pathname.replace(/\\/g, "/");
+    const basename = pathname.split("/").pop() ?? "";
+    const safe = basename.replace(/[^a-zA-Z0-9._ -]/g, "").trim();
+    if (!safe || /^(?:download|document|file|index)$/i.test(safe)) return null;
+    return safe.slice(0, 255);
+  } catch {
+    return null;
+  }
+};
+
+const validResourceType = (value: unknown): ResourceType | null => {
+  if (typeof value !== "string") return null;
+  return RESOURCE_TYPES.has(value as ResourceType) ? value as ResourceType : null;
+};
+
+const resourceCandidateFromDiscovered = (
+  resource: DiscoveredResource,
+  sourcePageUrl: string,
+  discoveryMethod: string,
+): ResourceCandidateRecord => {
+  const url = sanitizeResourceUrl(resource.url) ?? resource.url;
+  return {
+    url,
+    canonicalUrl: sanitizeResourceUrl(resource.canonicalUrl) ?? url,
+    label: boundedResourceText(resource.label || resource.text),
+    filename: resourceFilenameFromUrl(url),
+    resourceType: resource.type,
+    roleHints: safeResourceRoleHints(resource.roleHints),
+    sourcePageUrl: sanitizeResourceUrl(sourcePageUrl) ?? null,
+    discoveryMethod: boundedResourceText(discoveryMethod, 64) || "unknown",
+    method: safeResourceMethod(resource.method),
+    contentType: boundedResourceText(resource.contentType, 200) || null,
+    contentDisposition: boundedResourceText(resource.contentDisposition, 2_000) || null,
+  };
+};
+
+const structuredResourceCandidate = (
+  value: unknown,
+  baseUrl: string,
+): ResourceCandidateRecord | null => {
+  const record = metadataRecord(value);
+  const rawUrl = metadataResourceUrl(value);
+  const pageUrl = sanitizeResourceUrl(
+    typeof (record.sourcePageUrl ?? record.source_page_url) === "string"
+      ? String(record.sourcePageUrl ?? record.source_page_url)
+      : baseUrl,
+    baseUrl,
+  ) ?? baseUrl;
+  if (!rawUrl) return null;
+
+  const source = typeof record.source === "string" && ["anchor", "button", "form", "iframe", "source", "link", "network"].includes(record.source)
+    ? record.source as ResourceSource
+    : "anchor";
+  const rawResourceType = record.resourceType ?? record.resource_type ?? record.type;
+  const resource = extractResourcesFromLinks([{
+    href: rawUrl,
+    text: typeof (record.label ?? record.text ?? record.linkText ?? record.link_text) === "string"
+      ? String(record.label ?? record.text ?? record.linkText ?? record.link_text)
+      : "",
+    source,
+    contentType: typeof (record.contentType ?? record.content_type ?? record["content-type"]) === "string" ? String(record.contentType ?? record.content_type ?? record["content-type"]) : null,
+    contentDisposition: typeof (record.contentDisposition ?? record.content_disposition ?? record["content-disposition"]) === "string" ? String(record.contentDisposition ?? record.content_disposition ?? record["content-disposition"]) : null,
+    resourceType: typeof rawResourceType === "string" ? rawResourceType : null,
+    rel: typeof record.rel === "string" ? record.rel : null,
+    attribute: typeof record.attribute === "string" ? record.attribute : undefined,
+    method: typeof record.method === "string" ? record.method : undefined,
+  }], pageUrl, { maxResources: 1 })[0];
+  if (!resource) return null;
+
+  const explicitType = validResourceType(rawResourceType);
+  const candidate = resourceCandidateFromDiscovered(
+    explicitType ? { ...resource, type: explicitType } : resource,
+    pageUrl,
+    boundedResourceText(record.discoveryMethod ?? record.discovery_method, 64) || "metadata",
+  );
+  const explicitCanonical = sanitizeResourceUrl(
+    typeof (record.canonicalUrl ?? record.canonical_url) === "string"
+      ? String(record.canonicalUrl ?? record.canonical_url)
+      : null,
+    pageUrl,
+  );
+  const explicitFilename = boundedResourceText(record.filename, 255);
+  return {
+    ...candidate,
+    canonicalUrl: explicitCanonical ?? candidate.canonicalUrl,
+    filename: explicitFilename || candidate.filename,
+    roleHints: safeResourceRoleHints(record.roleHints ?? record.role_hints).concat(candidate.roleHints)
+      .filter((role, index, values) => values.indexOf(role) === index),
+    discoveryMethod: boundedResourceText(record.discoveryMethod ?? record.discovery_method, 64) || "metadata",
+    method: safeResourceMethod(record.method ?? candidate.method),
+  };
+};
+
+const mergeResourceCandidate = (first: ResourceCandidateRecord, next: ResourceCandidateRecord): ResourceCandidateRecord => {
+  const roleHints = [...first.roleHints];
+  for (const role of next.roleHints) if (!roleHints.includes(role)) roleHints.push(role);
+  const preferred = resourceTypePriority[next.resourceType] > resourceTypePriority[first.resourceType] ? next : first;
+  return {
+    ...first,
+    resourceType: preferred.resourceType,
+    label: first.label || next.label,
+    filename: first.filename || next.filename,
+    roleHints,
+    sourcePageUrl: first.sourcePageUrl || next.sourcePageUrl,
+    discoveryMethod: first.discoveryMethod || next.discoveryMethod,
+    method: first.method || next.method,
+    contentType: first.contentType || next.contentType,
+    contentDisposition: first.contentDisposition || next.contentDisposition,
+  };
+};
+
+export const mergeResourceCandidates = (...groups: ReadonlyArray<ResourceCandidateRecord>[]): ResourceCandidateRecord[] => {
+  const byCanonicalUrl = new Map<string, ResourceCandidateRecord>();
+  for (const candidate of groups.flat()) {
+    const existing = byCanonicalUrl.get(candidate.canonicalUrl);
+    byCanonicalUrl.set(candidate.canonicalUrl, existing ? mergeResourceCandidate(existing, candidate) : candidate);
+  }
+  return [...byCanonicalUrl.values()];
+};
+
+export const isFetchableResourceCandidate = (candidate: ResourceCandidateRecord): boolean => {
+  if (["document", "download"].includes(candidate.resourceType)) return true;
+  if (/\battachment\b/i.test(candidate.contentDisposition ?? "")) return true;
+  if (/^(?:application\/pdf|application\/octet-stream|application\/msword|application\/vnd\.|application\/zip)/i.test(candidate.contentType ?? "")) return true;
+  return /\.(?:pdf|doc|docx|odt|rtf|xls|xlsx|ods|csv|zip|rar|7z|txt)(?:$|[?#])/i.test(candidate.url);
+};
+
+const isPersistableResourceCandidate = (candidate: ResourceCandidateRecord): boolean =>
+  isFetchableResourceCandidate(candidate) || ["api", "page", "unknown"].includes(candidate.resourceType);
+
+const isSameOriginCandidate = (candidate: ResourceCandidateRecord, baseUrl: string): boolean => {
+  try {
+    return new URL(candidate.url).origin === new URL(baseUrl).origin;
+  } catch {
+    return false;
+  }
+};
+
+const resourceCandidateFromUrl = (
+  url: string,
+  sourcePageUrl: string,
+  label: string,
+  discoveryMethod: string,
+  resourceType: ResourceType = "document",
+): ResourceCandidateRecord | null => {
+  const normalized = sanitizeResourceUrl(url, sourcePageUrl);
+  if (!normalized) return null;
+  return {
+    url: normalized,
+    canonicalUrl: normalized,
+    label: boundedResourceText(label),
+    filename: resourceFilenameFromUrl(normalized),
+    resourceType,
+    roleHints: assignRoleHints({ label, url: normalized }),
+    sourcePageUrl: sanitizeResourceUrl(sourcePageUrl) ?? null,
+    discoveryMethod,
+    method: "GET",
+    contentType: null,
+    contentDisposition: null,
+  };
+};
+
+const discoverTenderResources = async (
+  tender: Tender,
+  metadata: Record<string, unknown>,
+): Promise<ResourceCandidateRecord[]> => {
+  const sourcePageUrl = sanitizeResourceUrl(tender.url);
+  if (!sourcePageUrl) return [];
+
+  const metadataCandidates: ResourceCandidateRecord[] = [];
+  for (const value of metadataArray(metadata, ["resources", "resource_candidates", "resourceCandidates", "subpage_candidates", "subpageCandidates"])) {
+    const candidate = structuredResourceCandidate(value, sourcePageUrl);
+    if (candidate) metadataCandidates.push(candidate);
+  }
+  for (const value of metadataArray(metadata, ["pdf_urls", "pdfUrls"])) {
+    if (typeof value !== "string") continue;
+    const candidate = resourceCandidateFromUrl(value, sourcePageUrl, "", "legacy_pdf_url", "document");
+    if (candidate) metadataCandidates.push(candidate);
+  }
+
+  const pageCandidates: ResourceCandidateRecord[] = [];
+  let staticPageUrl = sourcePageUrl;
+  let staticResources: DiscoveredResource[] = [];
+  let hasFetchableStaticResource = false;
+  try {
+    const response = await fetch(sourcePageUrl, {
+      headers: {
+        Accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.5",
+        "User-Agent": REALISTIC_USER_AGENT,
+      },
+      redirect: "follow",
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (response.ok) {
+      staticPageUrl = sanitizeResourceUrl(response.url) ?? sourcePageUrl;
+      const contentLength = Number(response.headers.get("content-length") ?? 0);
+      if (!Number.isFinite(contentLength) || contentLength <= 10 * 1024 * 1024) {
+        const html = (await response.text()).slice(0, 10 * 1024 * 1024);
+        staticResources = extractResourcesFromHtml(html, staticPageUrl, { maxResources: RESOURCE_MAX_CANDIDATES });
+        hasFetchableStaticResource = staticResources.some((resource) => {
+          const candidate = resourceCandidateFromDiscovered(resource, staticPageUrl, "dom");
+          return candidate ? isFetchableResourceCandidate(candidate) : false;
+        });
+        pageCandidates.push(...staticResources.map((resource) => resourceCandidateFromDiscovered(resource, staticPageUrl, "dom")));
+        pageCandidates.push(...rankSubpageCandidates(staticResources, {
+          baseUrl: staticPageUrl,
+          limit: RESOURCE_MAX_SUBPAGES,
+        }).map((resource) => resourceCandidateFromDiscovered(resource, staticPageUrl, "ranked_subpage")));
+      }
+    }
+  } catch (error) {
+    console.warn(`[pipeline] Ressourcen-Seite konnte nicht statisch geladen werden: ${sourcePageUrl}`, error);
+  }
+
+  // Retain the older portal-specific fallbacks (e.g. Vergabe-ID document
+  // pages) while the generic extractor handles extensionless and data-* links.
+  try {
+    const legacyLinks = await findPdfLinks(sourcePageUrl);
+    pageCandidates.push(...legacyLinks.map((link) => resourceCandidateFromUrl(
+      link.url,
+      sourcePageUrl,
+      link.linkText,
+      "legacy_html",
+      "document",
+    )).filter((candidate): candidate is ResourceCandidateRecord => Boolean(candidate)));
+  } catch (error) {
+    console.warn(`[pipeline] Legacy-Ressourcenextraktion fehlgeschlagen: ${sourcePageUrl}`, error);
+  }
+
+  let renderedPage: Awaited<ReturnType<typeof scrapeWebsite>> | null = null;
+  // Rendering is the fallback for JS portals and pages whose useful links are
+  // not present in the initial HTML. It also removes the old host-specific SPA
+  // exception without allowing arbitrary cross-origin subpage traversal.
+  if (!hasFetchableStaticResource) {
+    try {
+      renderedPage = await scrapeWebsite(sourcePageUrl, {
+        onlyMainContent: false,
+        waitUntil: "networkidle",
+        waitMs: 1_000,
+      });
+      pageCandidates.push(...renderedPage.resources.map((resource) => resourceCandidateFromDiscovered(resource, renderedPage!.url, "rendered_dom")));
+      pageCandidates.push(...renderedPage.subpageCandidates.map((resource) => resourceCandidateFromDiscovered(resource, renderedPage!.url, "ranked_subpage")));
+    } catch (error) {
+      console.warn(`[pipeline] Gerenderte Ressourcenextraktion fehlgeschlagen: ${sourcePageUrl}`, error);
+    }
+  }
+
+  const mergedBeforeSubpages = mergeResourceCandidates(metadataCandidates, pageCandidates)
+    .filter(isPersistableResourceCandidate);
+  const candidateSubpages = mergedBeforeSubpages
+    .filter((candidate) => candidate.resourceType === "page" || candidate.resourceType === "unknown")
+    .filter((candidate) => candidate.url !== sourcePageUrl && candidate.url !== staticPageUrl)
+    .filter((candidate) => {
+      try {
+        return new URL(candidate.url).origin === new URL(sourcePageUrl).origin;
+      } catch {
+        return false;
+      }
+    })
+    .slice(0, RESOURCE_MAX_SUBPAGES);
+
+  for (const subpage of candidateSubpages) {
+    try {
+      const scrapedSubpage = await scrapeWebsite(subpage.url, {
+        onlyMainContent: false,
+        waitUntil: "networkidle",
+        waitMs: 500,
+      });
+      pageCandidates.push(...scrapedSubpage.resources.map((resource) => resourceCandidateFromDiscovered(resource, scrapedSubpage.url, "subpage")));
+    } catch (error) {
+      console.warn(`[pipeline] Unterseite konnte nicht nach Ressourcen durchsucht werden: ${subpage.url}`, error);
+    }
+  }
+
+  const finalCandidates = mergeResourceCandidates(metadataCandidates, pageCandidates)
+    .filter(isPersistableResourceCandidate)
+    .slice(0, RESOURCE_MAX_CANDIDATES);
+  if (!finalCandidates.some(isFetchableResourceCandidate)) {
+    const rootPage = resourceCandidateFromUrl(sourcePageUrl, sourcePageUrl, tender.title ?? "Ausschreibung", "source_page", "page");
+    if (rootPage) finalCandidates.push(rootPage);
+  }
+  if (renderedPage && !finalCandidates.some((candidate) => candidate.url === renderedPage!.url)) {
+    const renderedRoot = resourceCandidateFromUrl(renderedPage.url, sourcePageUrl, renderedPage.title ?? tender.title ?? "Ausschreibung", "rendered_page", "page");
+    if (renderedRoot) finalCandidates.push(renderedRoot);
+  }
+  return mergeResourceCandidates(finalCandidates).slice(0, RESOURCE_MAX_CANDIDATES);
+};
+
 const parseStructured = (value: string | Record<string, unknown>, fallbackTitle = ""): StructuredData => {
   if (typeof value === "object" && value !== null) return normalizeStructured(value, fallbackTitle);
   const parsed = JSON.parse(value as string);
@@ -649,6 +1173,7 @@ const refreshTenderReadiness = async (tenderId: number, accessBlocked = false) =
     .select({
       id: documents.id,
       role: documents.role,
+      roles: documents.roles,
       parseStatus: documents.parseStatus,
       downloadStatus: documents.downloadStatus,
       errorMessage: documents.errorMessage,
@@ -703,6 +1228,28 @@ const retryBlockedDetail = async (tender: Tender, detection: AccessPageDetection
   }
   await rejectBlockedTender(tender.id, detection);
   throw new Error(`Detailseite abgelaufen oder entfernt (${detection.reason ?? "unbekannt"})`);
+};
+
+const getAccessLimitedCacheResult = (
+  tender: Tender,
+  detection: AccessPageDetection,
+): Record<string, JsonValue> | null => {
+  const metadata = typeof tender.metadataJson === "object" && tender.metadataJson !== null
+    ? tender.metadataJson as Record<string, unknown>
+    : {};
+  const description = typeof metadata.description === "string"
+    ? cleanPublicDescription(metadata.description)
+    : "";
+
+  if (metadata.access_limited !== true || description.length < 80) return null;
+
+  return {
+    cached: true,
+    detail_cached: false,
+    access_limited: true,
+    blocked: true,
+    blocked_reason: detection.reason ?? "participation_required",
+  };
 };
 
 const evaluateTenderQuality = async (tender: Tender, structured: StructuredData) => {
@@ -813,6 +1360,223 @@ const runCrawl = async (payload: Record<string, JsonValue>): Promise<Record<stri
   return { discovered, changed, unchanged };
 };
 
+interface ClassifiedResourceCandidate {
+  candidate: ResourceCandidateRecord;
+  role: DocumentRole;
+  roles: DocumentRole[];
+  roleSource: string;
+  roleConfidence: number;
+}
+
+export const classifyResourceCandidate = (candidate: ResourceCandidateRecord): ClassifiedResourceCandidate => {
+  const filename = candidate.filename ?? resourceFilenameFromUrl(candidate.url);
+  const roleResult = classifyDocumentRole({
+    filename,
+    url: candidate.url,
+    linkText: [candidate.label, ...candidate.roleHints].filter(Boolean).join(" "),
+  });
+  const roles = mergeDocumentRoles(
+    roleResult.roles,
+    candidate.roleHints
+      .filter((hint) => DOCUMENT_ROLE_VALUES.has(hint as DocumentRole))
+      .map((hint) => hint as DocumentRole),
+  );
+  const role = primaryDocumentRole(roles);
+  const roleHint = roleResult.roleHints.find((hint) => hint.role === role);
+  return {
+    candidate,
+    role,
+    roles,
+    roleSource: roleHint?.source ?? roleResult.source,
+    roleConfidence: roleHint?.confidence ?? roleResult.confidence,
+  };
+};
+
+export const prioritizeResourceCandidates = (candidates: ResourceCandidateRecord[]): ClassifiedResourceCandidate[] => {
+  const classified = candidates.map(classifyResourceCandidate);
+  const sorted = [...classified].sort((left, right) => {
+    const leftPriority = Math.min(...left.roles.map(rolePriority));
+    const rightPriority = Math.min(...right.roles.map(rolePriority));
+    return leftPriority - rightPriority || left.candidate.canonicalUrl.localeCompare(right.candidate.canonicalUrl);
+  });
+  const reservedRoles = new Set<DocumentRole>();
+  const prioritized = sorted.filter((candidate) => {
+    const meaningfulRoles = candidate.roles.filter((role) => role !== "other");
+    if (meaningfulRoles.length === 0 || meaningfulRoles.every((role) => reservedRoles.has(role))) return false;
+    for (const role of meaningfulRoles) reservedRoles.add(role);
+    return true;
+  });
+  return [...prioritized, ...sorted.filter((candidate) => !prioritized.includes(candidate))];
+};
+
+interface PipelineDocumentRow {
+  id: number;
+  url: string | null;
+  sha256: string;
+  downloadStatus: string | null;
+  storagePath: string;
+  contentType: string | null;
+  filename: string | null;
+}
+
+const documentMatchesCandidate = (document: PipelineDocumentRow, candidate: ResourceCandidateRecord): boolean =>
+  document.url === candidate.url
+  || (Boolean(document.url) && sanitizeResourceUrl(document.url) === candidate.canonicalUrl);
+
+const documentFilename = (candidate: ResourceCandidateRecord, storedFilename: string | null | undefined, contentType: string): string => {
+  const safeStored = boundedResourceText(storedFilename, 255);
+  const safeCandidate = boundedResourceText(candidate.filename, 255);
+  const fallback = suggestedFilename(candidate.url, "document").replace(/^[0-9a-f]{12}-/, "");
+  return ensureExtension(safeStored || safeCandidate || fallback, contentType);
+};
+
+const upsertDownloadedDocument = async (
+  tenderId: number,
+  candidate: ResourceCandidateRecord,
+  stored: Awaited<ReturnType<typeof fetchAndStore>>,
+  classification: ClassifiedResourceCandidate,
+  documentsByTender: PipelineDocumentRow[],
+  storagePath: string,
+): Promise<{ id: number | null; saved: boolean }> => {
+  const existingByUrl = documentsByTender.find((document) => documentMatchesCandidate(document, candidate)) ?? null;
+  const existingByHash = documentsByTender.find((document) => document.sha256 === stored.sha256) ?? null;
+  const action = decideDocumentPersistence(existingByUrl, existingByHash, stored.sha256);
+  const filename = documentFilename(candidate, stored.filename, stored.contentType);
+  const values = {
+    tenderId,
+    url: candidate.url,
+    storagePath,
+    sha256: stored.sha256,
+    contentType: stored.contentType,
+    filename,
+    downloadStatus: "downloaded" as const,
+    parseStatus: "pending" as const,
+    errorMessage: null,
+    role: classification.role,
+    roles: classification.roles,
+    roleSource: classification.roleSource,
+    roleConfidence: classification.roleConfidence,
+    updatedAt: new Date(),
+  };
+
+  if (action === "skip") return { id: existingByHash?.id ?? existingByUrl?.id ?? null, saved: false };
+
+  if (action === "update" && existingByUrl) {
+    await db.update(documents).set(values).where(eq(documents.id, existingByUrl.id));
+    existingByUrl.sha256 = stored.sha256;
+    existingByUrl.storagePath = storagePath;
+    existingByUrl.contentType = stored.contentType;
+    existingByUrl.filename = filename;
+    existingByUrl.downloadStatus = "downloaded";
+    return { id: existingByUrl.id, saved: true };
+  }
+
+  const inserted = await db.insert(documents).values(values).onConflictDoNothing().returning({ id: documents.id });
+  if (inserted.length > 0) {
+    documentsByTender.push({
+      id: inserted[0].id,
+      url: candidate.url,
+      sha256: stored.sha256,
+      downloadStatus: "downloaded",
+      storagePath,
+      contentType: stored.contentType,
+      filename,
+    });
+    return { id: inserted[0].id, saved: true };
+  }
+
+  const existingHashRows = await db
+    .select({ id: documents.id, downloadStatus: documents.downloadStatus })
+    .from(documents)
+    .where(and(eq(documents.tenderId, tenderId), eq(documents.sha256, stored.sha256)))
+    .limit(1);
+  return { id: existingHashRows[0]?.id ?? null, saved: false };
+};
+
+const upsertFailedDocument = async (
+  tenderId: number,
+  candidate: ResourceCandidateRecord,
+  classification: ClassifiedResourceCandidate,
+  message: string,
+  documentsByTender: PipelineDocumentRow[],
+): Promise<void> => {
+  const existing = documentsByTender.find((document) => documentMatchesCandidate(document, candidate));
+  if (existing?.downloadStatus === "downloaded") return;
+  const urlHash = createHash("sha256").update(candidate.url).digest("hex");
+  const values = {
+    tenderId,
+    url: candidate.url,
+    storagePath: `tenders/${tenderId}/failed-${urlHash}.download`,
+    sha256: `failed:${urlHash}`,
+    filename: candidate.filename ?? resourceFilenameFromUrl(candidate.url),
+    downloadStatus: "failed" as const,
+    parseStatus: "pending" as const,
+    errorMessage: message.slice(0, 500),
+    role: classification.role,
+    roles: classification.roles,
+    roleSource: classification.roleSource,
+    roleConfidence: classification.roleConfidence,
+    updatedAt: new Date(),
+  };
+
+  if (existing) {
+    await db.update(documents).set(values).where(eq(documents.id, existing.id));
+    existing.sha256 = values.sha256;
+    existing.downloadStatus = "failed";
+    return;
+  }
+
+  const inserted = await db.insert(documents).values(values).onConflictDoNothing().returning({ id: documents.id });
+  if (inserted.length > 0) {
+    documentsByTender.push({
+      id: inserted[0].id,
+      url: candidate.url,
+      sha256: values.sha256,
+      downloadStatus: "failed",
+      storagePath: values.storagePath,
+      contentType: null,
+      filename: values.filename,
+    });
+  }
+};
+
+const upsertTenderResource = async (tenderId: number, candidate: ResourceCandidateRecord): Promise<{ id: number; status: string }> => {
+  const rows = await db
+    .insert(tenderResources)
+    .values({
+      tenderId,
+      url: candidate.url,
+      canonicalUrl: candidate.canonicalUrl,
+      label: candidate.label,
+      filename: candidate.filename,
+      resourceType: candidate.resourceType,
+      roleHints: candidate.roleHints,
+      sourcePageUrl: candidate.sourcePageUrl,
+      discoveryMethod: candidate.discoveryMethod,
+      method: candidate.method,
+      contentType: candidate.contentType,
+      contentDisposition: candidate.contentDisposition,
+    })
+    .onConflictDoUpdate({
+      target: [tenderResources.tenderId, tenderResources.canonicalUrl],
+      set: {
+        url: candidate.url,
+        label: candidate.label,
+        filename: candidate.filename,
+        resourceType: candidate.resourceType,
+        roleHints: candidate.roleHints,
+        sourcePageUrl: candidate.sourcePageUrl,
+        discoveryMethod: candidate.discoveryMethod,
+        method: candidate.method,
+        contentType: candidate.contentType,
+        contentDisposition: candidate.contentDisposition,
+        updatedAt: new Date(),
+      },
+    })
+    .returning({ id: tenderResources.id, status: tenderResources.status });
+  return rows[0];
+};
+
 const runFetchDocuments = async (payload: Record<string, JsonValue>): Promise<Record<string, JsonValue>> => {
   const tenderId = Number(payload.tender_id ?? 0);
   if (!Number.isFinite(tenderId) || tenderId <= 0) {
@@ -821,71 +1585,76 @@ const runFetchDocuments = async (payload: Record<string, JsonValue>): Promise<Re
 
   const tender = await getTender(tenderId);
 
-  // 1. Use PDF URLs from scraper metadata (set by public-tender-scraper)
-  const meta = parseRecord(tender.metadataJson as string);
-  const scrapedPdfUrls: DiscoveredLink[] = [];
-  if (Array.isArray(meta.pdf_urls)) {
-    for (const u of meta.pdf_urls) {
-      if (typeof u === "string" && u.startsWith("http")) {
-        scrapedPdfUrls.push({ url: u, linkText: "" });
-      }
+  const metadata = parseRecord(tender.metadataJson as string);
+  const candidates = await discoverTenderResources(tender, metadata);
+  const resourceRows = new Map<string, { id: number; status: string }>();
+  for (const candidate of candidates) {
+    const row = await upsertTenderResource(tenderId, candidate);
+    resourceRows.set(candidate.canonicalUrl, row);
+    if (candidate.method !== "GET") {
+      await db.update(tenderResources).set({
+        status: "skipped",
+        errorMessage: "Nur sichere GET-Ressourcen werden automatisch geladen.",
+        updatedAt: new Date(),
+      }).where(eq(tenderResources.id, row.id));
+      row.status = "skipped";
     }
   }
 
-  // 2. Discover page links as well. Metadata URLs and page links are merged
-  // because either source can contain a document role missing from the other.
-  const isSPA = /meinauftrag\.rib\.de|auftraege\.bayern/.test(tender.url ?? "");
-  const pageLinks = isSPA ? [] : await findPdfLinks(tender.url);
-
-  const allLinks: DiscoveredLink[] = [];
-  const seenUrls = new Set<string>();
-  for (const link of [...scrapedPdfUrls, ...pageLinks]) {
-    if (!link.url || seenUrls.has(link.url)) continue;
-    seenUrls.add(link.url);
-    allLinks.push(link);
-  }
-
-  // If no PDFs found and URL is an SPA, skip storing the page (SPA shell has no useful content)
-  if (allLinks.length === 0 && isSPA) {
-    await queueTenderStage(JOB_PARSE, tenderId);
-    return { documents_saved: 0, skipped: "SPA-URL ohne PDFs" };
-  }
-
-  const candidates = allLinks.length > 0 ? allLinks : [{ url: tender.url ?? "", linkText: "" }];
-  const classifiedCandidates = candidates.map((link) => ({
-    ...link,
-    role: classifyDocumentRole({ url: link.url, linkText: link.linkText }),
-  }));
-  const reservedRoles = new Set<string>();
-  const sortedCandidates = [...classifiedCandidates].sort(
-    (a, b) => rolePriority(a.role.role) - rolePriority(b.role.role),
-  );
-  const prioritizedLinks = sortedCandidates.filter((candidate) => {
-    if (candidate.role.role === "other" || reservedRoles.has(candidate.role.role)) return false;
-    reservedRoles.add(candidate.role.role);
-    return true;
-  });
-  const remainingLinks = sortedCandidates.filter((candidate) => !prioritizedLinks.includes(candidate));
-  const finalLinks = [...prioritizedLinks, ...remainingLinks]
-    .slice(0, settings.maxPdfLinksPerTender);
-
+  const fetchable = candidates.filter(isFetchableResourceCandidate);
+  const pageFallbacks = candidates
+    .filter((candidate) => ["page", "unknown"].includes(candidate.resourceType))
+    .filter((candidate) => isSameOriginCandidate(candidate, tender.url));
+  const selectedCandidates = (fetchable.length > 0 ? fetchable : pageFallbacks)
+    .filter((candidate) => candidate.method === "GET")
+    .slice(0, Math.max(1, settings.maxPdfLinksPerTender));
+  const prioritized = prioritizeResourceCandidates(selectedCandidates);
+  const existingDocuments = await db
+    .select({
+      id: documents.id,
+      url: documents.url,
+      sha256: documents.sha256,
+      downloadStatus: documents.downloadStatus,
+      storagePath: documents.storagePath,
+      contentType: documents.contentType,
+      filename: documents.filename,
+    })
+    .from(documents)
+    .where(eq(documents.tenderId, tenderId));
   let saved = 0;
-  for (const link of finalLinks) {
-    const url = link.url;
-    if (!url) continue;
-    const baseName = suggestedFilename(url, `tender-${tenderId}-${saved + 1}`);
-    const cleanFilename = baseName.replace(/^[0-9a-f]{12}-/, "");
-    const roleResult = classifyDocumentRole({
-      filename: cleanFilename,
-      url,
-      linkText: link.linkText,
-    });
+  let attemptedResources = 0;
+  let failedResources = 0;
 
+  for (const classified of prioritized) {
+    const candidate = classified.candidate;
+    const resource = resourceRows.get(candidate.canonicalUrl);
+    if (!resource) continue;
+    const existingByUrl = existingDocuments.find((document) => documentMatchesCandidate(document, candidate));
+    if (resource.status === "downloaded" && existingByUrl?.downloadStatus === "downloaded") continue;
+    if (existingByUrl?.downloadStatus === "downloaded") {
+      await db.update(tenderResources).set({ status: "downloaded", errorMessage: null, updatedAt: new Date() }).where(eq(tenderResources.id, resource.id));
+      resource.status = "downloaded";
+      continue;
+    }
+
+    attemptedResources += 1;
+    await db.update(tenderResources).set({
+      status: "downloading",
+      attempts: sql`${tenderResources.attempts} + 1`,
+      lastAttemptAt: new Date(),
+      errorMessage: null,
+      updatedAt: new Date(),
+    }).where(eq(tenderResources.id, resource.id));
+
+    const baseName = suggestedFilename(candidate.url, `tender-${tenderId}-${attemptedResources}`);
+    const relative = `tenders/${tenderId}/${baseName}`;
     try {
-      const relative = `tenders/${tenderId}/${baseName}`;
-      const stored = await fetchAndStore(url, relative);
+      const stored = await fetchAndStore(candidate.url, relative, {
+        referer: candidate.sourcePageUrl ?? tender.url,
+        userAgent: REALISTIC_USER_AGENT,
+        headers: { Accept: RESOURCE_FETCH_ACCEPT },
+      });
       const normalizedPath = ensureExtension(stored.storagePath, stored.contentType);
-
       if (normalizedPath !== stored.storagePath) {
         const original = objectAbsolutePath(stored.storagePath);
         const target = objectAbsolutePath(normalizedPath);
@@ -894,50 +1663,48 @@ const runFetchDocuments = async (payload: Record<string, JsonValue>): Promise<Re
         fs.unlinkSync(original);
       }
 
-      const inserted = await db
-        .insert(documents)
-        .values({
-          tenderId,
-          url,
-          storagePath: normalizedPath,
-          sha256: stored.sha256,
-          contentType: stored.contentType,
-          filename: cleanFilename,
-          downloadStatus: "downloaded",
-          parseStatus: "pending",
-          role: roleResult.role,
-          roleSource: roleResult.source,
-          roleConfidence: roleResult.confidence,
-        })
-        .onConflictDoNothing()
-        .returning({ id: documents.id });
-      if (inserted.length > 0) saved += 1;
+      const persisted = await upsertDownloadedDocument(
+        tenderId,
+        candidate,
+        stored,
+        classified,
+        existingDocuments,
+        normalizedPath,
+      );
+      if (persisted.saved) saved += 1;
+      await db.update(tenderResources).set({
+        url: sanitizeResourceUrl(stored.finalUrl) ?? candidate.url,
+        filename: stored.filename ?? candidate.filename,
+        contentType: stored.contentType,
+        contentDisposition: stored.contentDisposition ?? candidate.contentDisposition,
+        status: "downloaded",
+        errorMessage: null,
+        updatedAt: new Date(),
+      }).where(eq(tenderResources.id, resource.id));
+      resource.status = "downloaded";
     } catch (error) {
+      failedResources += 1;
       const message = error instanceof Error ? error.message : "unbekannter Downloadfehler";
-      const urlHash = createHash("sha256").update(url).digest("hex");
-      await db
-        .insert(documents)
-        .values({
-          tenderId,
-          url,
-          storagePath: `tenders/${tenderId}/failed-${urlHash}.download`,
-          sha256: `failed:${urlHash}`,
-          filename: cleanFilename,
-          downloadStatus: "failed",
-          parseStatus: "pending",
-          errorMessage: message.slice(0, 500),
-          role: roleResult.role,
-          roleSource: roleResult.source,
-          roleConfidence: roleResult.confidence,
-        })
-        .onConflictDoNothing();
-      console.warn(`[pipeline] Dokument-Download fehlgeschlagen: ${url}`, error);
+      await upsertFailedDocument(tenderId, candidate, classified, message, existingDocuments);
+      await db.update(tenderResources).set({
+        status: "failed",
+        errorMessage: message.slice(0, 500),
+        updatedAt: new Date(),
+      }).where(eq(tenderResources.id, resource.id));
+      resource.status = "failed";
+      console.warn(`[pipeline] Ressourcen-Download fehlgeschlagen: ${candidate.url}`, error);
     }
   }
 
   await refreshTenderReadiness(tenderId);
   await queueTenderStage(JOB_PARSE, tenderId);
-  return { documents_saved: saved };
+  return {
+    documents_saved: saved,
+    resources_discovered: candidates.length,
+    resources_attempted: attemptedResources,
+    resources_failed: failedResources,
+    resource_fingerprint: buildResourceFingerprint(tender.url, metadata),
+  };
 };
 
 const runParseDocuments = async (payload: Record<string, JsonValue>): Promise<Record<string, JsonValue>> => {
@@ -955,6 +1722,7 @@ const runParseDocuments = async (payload: Record<string, JsonValue>): Promise<Re
       filename: documents.filename,
       url: documents.url,
       role: documents.role,
+      roles: documents.roles,
       roleSource: documents.roleSource,
       roleConfidence: documents.roleConfidence,
       extractedText: documents.extractedText,
@@ -972,7 +1740,7 @@ const runParseDocuments = async (payload: Record<string, JsonValue>): Promise<Re
 
   // Parse every document before applying the aggregate text budget. Otherwise
   // an early, unclassified attachment could hide a later Leistungsbeschreibung.
-  const parsedDocs: Array<{ id: number; role: string; text: string }> = [];
+  const parsedDocs: Array<{ id: number; role: DocumentRole; roles: DocumentRole[]; text: string }> = [];
   let partial = false;
 
   for (const doc of docs) {
@@ -989,7 +1757,8 @@ const runParseDocuments = async (payload: Record<string, JsonValue>): Promise<Re
         : pageText;
 
       // Refine weak filename/URL classifications with document content.
-      let effectiveRole = doc.role ?? "other";
+      let effectiveRoles = normalizeDocumentRoles(doc.roles, doc.role);
+      let effectiveRole = primaryDocumentRole(effectiveRoles);
       let effectiveRoleSource = doc.roleSource ?? null;
       let effectiveRoleConfidence = doc.roleConfidence ?? 0;
       if (!doc.role || doc.role === "other" || effectiveRoleConfidence < 0.75) {
@@ -999,14 +1768,16 @@ const runParseDocuments = async (payload: Record<string, JsonValue>): Promise<Re
           textSample: bounded.slice(0, 3000),
         });
         if (refined.role !== "other" && (!doc.role || doc.role === "other" || refined.confidence >= effectiveRoleConfidence)) {
-          effectiveRole = refined.role;
+          effectiveRoles = mergeDocumentRoles(effectiveRoles, refined.roles);
+          effectiveRole = primaryDocumentRole(effectiveRoles);
           effectiveRoleSource = refined.source;
           effectiveRoleConfidence = refined.confidence;
         }
       }
+      effectiveRole = primaryDocumentRole(effectiveRoles);
 
       if (bounded.trim().length >= 20) {
-        parsedDocs.push({ id: doc.id, role: effectiveRole, text: bounded });
+        parsedDocs.push({ id: doc.id, role: effectiveRole, roles: effectiveRoles, text: bounded });
       } else {
         partial = true;
       }
@@ -1019,6 +1790,7 @@ const runParseDocuments = async (payload: Record<string, JsonValue>): Promise<Re
           errorMessage: null,
           pageCount: extracted.pageCount,
           role: effectiveRole,
+          roles: effectiveRoles,
           roleSource: effectiveRoleSource,
           roleConfidence: effectiveRoleConfidence || null,
           updatedAt: new Date(),
@@ -1046,7 +1818,7 @@ const runParseDocuments = async (payload: Record<string, JsonValue>): Promise<Re
     if (remainingText <= 0) break;
     const text = document.text.slice(0, remainingText);
     if (!text.trim()) continue;
-    mergedParts.push(`[ROLLE: ${document.role}] [DOKUMENT-ID: ${document.id}]\n${text}`);
+    mergedParts.push(`[ROLLEN: ${document.roles.join(", ")}] [ROLLE: ${document.role}] [DOKUMENT-ID: ${document.id}]\n${text}`);
     remainingText -= text.length;
   }
 
@@ -1067,6 +1839,7 @@ const runParseDocuments = async (payload: Record<string, JsonValue>): Promise<Re
     .select({
       id: documents.id,
       role: documents.role,
+      roles: documents.roles,
       parseStatus: documents.parseStatus,
       downloadStatus: documents.downloadStatus,
       errorMessage: documents.errorMessage,
@@ -1110,6 +1883,7 @@ const runStructureTender = async (payload: Record<string, JsonValue>): Promise<R
     .select({
       id: documents.id,
       role: documents.role,
+      roles: documents.roles,
       parseStatus: documents.parseStatus,
       downloadStatus: documents.downloadStatus,
       errorMessage: documents.errorMessage,
@@ -1263,6 +2037,11 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
     if (cachedAccessPage.blocked) {
       console.warn(`[cache-detail] Entferne blockierten Cache fuer Tender ${tenderId} (${cachedAccessPage.reason})`);
       await db.delete(structuredData).where(eq(structuredData.tenderId, tenderId));
+      const accessLimitedResult = getAccessLimitedCacheResult(tender, cachedAccessPage);
+      if (accessLimitedResult) {
+        console.info(`[cache-detail] Nutze vorhandene Zugangsbeschraenkungs-Zusammenfassung fuer Tender ${tenderId}`);
+        return accessLimitedResult;
+      }
       await retryBlockedDetail(tender, cachedAccessPage);
     }
 
@@ -1331,6 +2110,11 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
   const scrapedAccessPage = detectAccessPage(fullContent, { title: tender.title ?? undefined, url: sourceUrl });
   if (scrapedAccessPage.blocked) {
     console.warn(`[cache-detail] Blockierte Detailseite fuer Tender ${tenderId} (${scrapedAccessPage.reason})`);
+    const accessLimitedResult = getAccessLimitedCacheResult(tender, scrapedAccessPage);
+    if (accessLimitedResult) {
+      console.info(`[cache-detail] Nutze vorhandene Zugangsbeschraenkungs-Zusammenfassung fuer Tender ${tenderId}`);
+      return accessLimitedResult;
+    }
     await retryBlockedDetail(tender, scrapedAccessPage);
   }
 
@@ -1465,21 +2249,48 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
   if (evergabeUrls.length > 0) {
     console.log(`[cache-detail] Lade ${evergabeUrls.length} evergabe.de Dokumente herunter...`);
     const existingDocs = await db
-      .select({ url: documents.url, downloadStatus: documents.downloadStatus })
+      .select({
+        id: documents.id,
+        url: documents.url,
+        sha256: documents.sha256,
+        downloadStatus: documents.downloadStatus,
+        storagePath: documents.storagePath,
+        contentType: documents.contentType,
+        filename: documents.filename,
+      })
       .from(documents)
       .where(eq(documents.tenderId, tenderId));
     const existingUrls = new Set(existingDocs.filter((d) => d.downloadStatus === "downloaded").map((d) => d.url));
     let docIndex = 0;
 
     for (const docUrl of evergabeUrls) {
-      if (existingUrls.has(docUrl)) continue;
+      const resourceCandidate = resourceCandidateFromUrl(docUrl, sourceUrl, "", "cache_detail", "document");
+      if (!resourceCandidate) continue;
       const baseName = suggestedFilename(docUrl, `tender-${tenderId}-evergabe-${docIndex + 1}`);
       const cleanFilename = baseName.replace(/^[0-9a-f]{12}-/, "");
       const initialRole = classifyDocumentRole({ filename: cleanFilename, url: docUrl });
+      const resourceClassification = classifyResourceCandidate(resourceCandidate);
+      let resourceRow: { id: number; status: string } | null = null;
       try {
+        resourceRow = await upsertTenderResource(tenderId, resourceCandidate);
+        if (existingUrls.has(docUrl)) {
+          await db.update(tenderResources).set({ status: "downloaded", errorMessage: null, updatedAt: new Date() }).where(eq(tenderResources.id, resourceRow.id));
+          continue;
+        }
+        await db.update(tenderResources).set({
+          status: "downloading",
+          attempts: sql`${tenderResources.attempts} + 1`,
+          lastAttemptAt: new Date(),
+          errorMessage: null,
+          updatedAt: new Date(),
+        }).where(eq(tenderResources.id, resourceRow.id));
         docIndex += 1;
         const relative = `tenders/${tenderId}/${baseName}`;
-        const stored = await fetchAndStore(docUrl, relative);
+        const stored = await fetchAndStore(docUrl, relative, {
+          referer: sourceUrl,
+          userAgent: REALISTIC_USER_AGENT,
+          headers: { Accept: RESOURCE_FETCH_ACCEPT },
+        });
         const normalizedPath = ensureExtension(stored.storagePath, stored.contentType);
 
         if (normalizedPath !== stored.storagePath) {
@@ -1490,25 +2301,24 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
           fs.unlinkSync(original);
         }
 
-        const insertedDocuments = await db.insert(documents).values({
+        const persisted = await upsertDownloadedDocument(
           tenderId,
-          url: docUrl,
-          storagePath: normalizedPath,
-          sha256: stored.sha256,
+          resourceCandidate,
+          stored,
+          resourceClassification,
+          existingDocs,
+          normalizedPath,
+        );
+        const documentId = persisted.id;
+        await db.update(tenderResources).set({
+          url: sanitizeResourceUrl(stored.finalUrl) ?? resourceCandidate.url,
+          filename: stored.filename ?? resourceCandidate.filename,
           contentType: stored.contentType,
-          filename: cleanFilename,
-          downloadStatus: "downloaded",
-          parseStatus: "pending",
-          role: initialRole.role,
-          roleSource: initialRole.source,
-          roleConfidence: initialRole.confidence,
-        }).onConflictDoNothing().returning({ id: documents.id });
-        const documentId = insertedDocuments[0]?.id ?? (
-          await db.select({ id: documents.id })
-            .from(documents)
-            .where(and(eq(documents.tenderId, tenderId), eq(documents.url, docUrl)))
-            .limit(1)
-        )[0]?.id;
+          contentDisposition: stored.contentDisposition ?? resourceCandidate.contentDisposition,
+          status: "downloaded",
+          errorMessage: null,
+          updatedAt: new Date(),
+        }).where(eq(tenderResources.id, resourceRow.id));
 
         // Parse XLSX/PDF and append to rawText
         try {
@@ -1523,16 +2333,19 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
               url: docUrl,
               textSample: documentText.slice(0, 3000),
             });
+            const effectiveRoles = mergeDocumentRoles(initialRole.roles, contentRole.roles);
             const effectiveRole = contentRole.role !== "other" && contentRole.confidence >= initialRole.confidence
               ? contentRole
               : initialRole;
+            const effectiveScalarRole = primaryDocumentRole(effectiveRoles);
             if (documentId) {
               await db.update(documents).set({
                 extractedText: documentText,
                 parseStatus: "parsed",
                 errorMessage: null,
                 pageCount: extracted.pageCount,
-                role: effectiveRole.role,
+                role: effectiveScalarRole,
+                roles: effectiveRoles,
                 roleSource: effectiveRole.source,
                 roleConfidence: effectiveRole.confidence,
                 updatedAt: new Date(),
@@ -1542,7 +2355,7 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
             const freshTender = await getTender(tenderId);
             const currentRaw = freshTender.rawText ?? "";
             await db.update(tenders).set({
-              rawText: appendBoundedTenderText(currentRaw, `[ROLLE: ${effectiveRole.role}] [DOKUMENT-ID: ${documentId ?? "unbekannt"}]\n${documentText.slice(0, MAX_DOCUMENT_TEXT_CHARS)}`),
+              rawText: appendBoundedTenderText(currentRaw, `[ROLLEN: ${effectiveRoles.join(", ")}] [ROLLE: ${effectiveScalarRole}] [DOKUMENT-ID: ${documentId ?? "unbekannt"}]\n${documentText.slice(0, MAX_DOCUMENT_TEXT_CHARS)}`),
               updatedAt: new Date(),
             }).where(eq(tenders.id, tenderId));
             console.log(`[cache-detail] evergabe Dokument geparst: ${normalizedPath} (${documentText.length} Zeichen)`);
@@ -1558,20 +2371,14 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
         }
       } catch (fetchError) {
         const message = fetchError instanceof Error ? fetchError.message : "unbekannter Downloadfehler";
-        const urlHash = createHash("sha256").update(docUrl).digest("hex");
-        await db.insert(documents).values({
-          tenderId,
-          url: docUrl,
-          storagePath: `tenders/${tenderId}/failed-${urlHash}.download`,
-          sha256: `failed:${urlHash}`,
-          filename: cleanFilename,
-          downloadStatus: "failed",
-          parseStatus: "pending",
-          errorMessage: message.slice(0, 500),
-          role: initialRole.role,
-          roleSource: initialRole.source,
-          roleConfidence: initialRole.confidence,
-        }).onConflictDoNothing();
+        await upsertFailedDocument(tenderId, resourceCandidate, resourceClassification, message, existingDocs);
+        if (resourceRow) {
+          await db.update(tenderResources).set({
+            status: "failed",
+            errorMessage: message.slice(0, 500),
+            updatedAt: new Date(),
+          }).where(eq(tenderResources.id, resourceRow.id));
+        }
         console.warn(`[cache-detail] evergabe Dokument Download fehlgeschlagen: ${docUrl}`, fetchError);
       }
     }
@@ -1747,6 +2554,7 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
     .select({
       id: documents.id,
       role: documents.role,
+      roles: documents.roles,
       parseStatus: documents.parseStatus,
       downloadStatus: documents.downloadStatus,
       errorMessage: documents.errorMessage,
@@ -2091,7 +2899,14 @@ const parseDeadline = (value: string | null): Date | null => {
 
 const runScrapePublicTenders = async (payload: Record<string, JsonValue>): Promise<Record<string, JsonValue>> => {
   const jobId = Number(payload.__job_id ?? 0) || null;
-  const scrapeRun = await db.insert(publicScrapeRuns).values({ jobId, status: "running" }).returning({ id: publicScrapeRuns.id });
+  const requestedSource = typeof payload.source === "string" && payload.source.trim() ? payload.source.trim() : undefined;
+  const sourceFilter = requestedSource ? resolvePublicSourceKey(requestedSource) ?? requestedSource : undefined;
+  const scrapeRun = await db.insert(publicScrapeRuns).values({
+    jobId,
+    scopeSourceKey: sourceFilter ?? null,
+    isFullRun: !sourceFilter,
+    status: "running",
+  }).returning({ id: publicScrapeRuns.id });
   const runId = scrapeRun[0].id;
   let inserted = 0;
   let updated = 0;
@@ -2100,7 +2915,21 @@ const runScrapePublicTenders = async (payload: Record<string, JsonValue>): Promi
   const changesBySource = new Map<string, { accepted: number; inserted: number; updated: number }>();
 
   try {
-    const sourceFilter = typeof payload.source === "string" && payload.source.trim() ? payload.source.trim() : undefined;
+    const resetCursor = payload.reset_cursor === true;
+    const cursorRows = await db
+      .select({
+        sourceKey: publicSourceCursors.sourceKey,
+        cursorJson: publicSourceCursors.cursorJson,
+        cursorVersion: publicSourceCursors.cursorVersion,
+      })
+      .from(publicSourceCursors);
+    const sourceCursors: Record<string, PublicSourceCursor | null> = {};
+    const cursorVersions = new Map<string, number>();
+    for (const row of cursorRows) {
+      sourceCursors[row.sourceKey] = row.cursorJson as PublicSourceCursor;
+      cursorVersions.set(row.sourceKey, row.cursorVersion);
+    }
+    if (resetCursor && sourceFilter) sourceCursors[sourceFilter] = null;
     const result = await scrapeAllPublicTenders(async (sourceKey, tenders) => {
       const changes = changesBySource.get(sourceKey) ?? { accepted: 0, inserted: 0, updated: 0 };
     for (const tender of tenders) {
@@ -2111,20 +2940,27 @@ const runScrapePublicTenders = async (payload: Record<string, JsonValue>): Promi
       }
 
       try {
+        const tenderMetadata: Record<string, JsonValue> = {
+          client: tender.client,
+          description: tender.description,
+          reference_number: tender.referenceNumber,
+          location: tender.location,
+          pdf_urls: tender.pdfUrls ?? [],
+          discovered_at: new Date().toISOString(),
+          scraper: "public_tender_scraper",
+        };
+        if (tender.resources && tender.resources.length > 0) {
+          tenderMetadata.resources = tender.resources as unknown as JsonValue;
+        }
+        if (tender.subpageCandidates && tender.subpageCandidates.length > 0) {
+          tenderMetadata.subpage_candidates = tender.subpageCandidates as unknown as JsonValue;
+        }
         const upserted = await upsertTender({
           source: tender.source,
           sourceKey: canonicalPublicSourceKey(tender.sourceKey ?? sourceKey),
           url: tender.sourceUrl,
           title: tender.title,
-          metadata: {
-            client: tender.client,
-            description: tender.description,
-            reference_number: tender.referenceNumber,
-            location: tender.location,
-            pdf_urls: tender.pdfUrls ?? [],
-            discovered_at: new Date().toISOString(),
-            scraper: "public_tender_scraper",
-          },
+          metadata: tenderMetadata,
           externalId: tender.externalId ?? undefined,
           deadlineAt: deadline,
           category: tender.category,
@@ -2148,40 +2984,171 @@ const runScrapePublicTenders = async (payload: Record<string, JsonValue>): Promi
       }
     }
     changesBySource.set(sourceKey, changes);
-    }, sourceFilter);
+    }, sourceFilter, sourceCursors);
 
-    await db.insert(publicSourceRuns).values(result.sourceRuns.map((sourceRun) => {
-      const changes = changesBySource.get(sourceRun.sourceKey) ?? { accepted: sourceRun.acceptedCount, inserted: 0, updated: 0 };
-      return {
-        runId,
-        sourceKey: sourceRun.sourceKey,
-        status: sourceRun.status,
-        discoveredCount: sourceRun.discoveredCount,
-        acceptedCount: changes.accepted || sourceRun.acceptedCount,
-        insertedCount: changes.inserted,
-        updatedCount: changes.updated,
-        errorMessage: sourceRun.errorMessage,
-        startedAt: new Date(Date.now() - sourceRun.durationMs),
+    const persistenceFailure = result.persistenceError ?? upsertPersistenceError;
+    const continuationSources: string[] = [];
+    await db.transaction(async (tx) => {
+      for (const sourceRun of result.sourceRuns) {
+        const expectedVersion = cursorVersions.get(sourceRun.sourceKey) ?? 0;
+        const shouldCommit = !persistenceFailure && sourceRun.cursorCommit === "commit" && sourceRun.cursorAdvanced;
+        const candidateCursor = sourceRun.cursorAfter ?? {};
+        let versionAfter = expectedVersion;
+
+        if (shouldCommit) {
+          let committed = false;
+          if (!cursorVersions.has(sourceRun.sourceKey)) {
+            const insertedCursor = await tx.insert(publicSourceCursors).values({
+              sourceKey: sourceRun.sourceKey,
+              cursorJson: candidateCursor,
+              cursorVersion: 1,
+              exhausted: sourceRun.exhausted,
+              continuationRequired: sourceRun.continuationRequired,
+              lastRunId: runId,
+              lastStatus: sourceRun.status,
+              lastError: null,
+              lastAdvancedAt: new Date(),
+              updatedAt: new Date(),
+            }).onConflictDoNothing().returning({ cursorVersion: publicSourceCursors.cursorVersion });
+            committed = insertedCursor.length > 0;
+            if (committed) versionAfter = insertedCursor[0].cursorVersion;
+          }
+          if (!committed) {
+            const updatedCursor = await tx.update(publicSourceCursors).set({
+              cursorJson: candidateCursor,
+              cursorVersion: sql`${publicSourceCursors.cursorVersion} + 1`,
+              exhausted: sourceRun.exhausted,
+              continuationRequired: sourceRun.continuationRequired,
+              lastRunId: runId,
+              lastStatus: sourceRun.status,
+              lastError: null,
+              lastAdvancedAt: new Date(),
+              updatedAt: new Date(),
+            }).where(and(
+              eq(publicSourceCursors.sourceKey, sourceRun.sourceKey),
+              eq(publicSourceCursors.cursorVersion, expectedVersion),
+            )).returning({ cursorVersion: publicSourceCursors.cursorVersion });
+            committed = updatedCursor.length > 0;
+            if (committed) versionAfter = updatedCursor[0].cursorVersion;
+          }
+          if (!committed) {
+            sourceRun.status = "partial";
+            sourceRun.errorMessage = "Cursor-Konflikt: Quelle wurde parallel fortgeschrieben.";
+            sourceRun.cursorCommit = "hold";
+            sourceRun.cursorAdvanced = false;
+            sourceRun.cursorAfter = sourceRun.cursorBefore;
+            sourceRun.exhausted = false;
+            sourceRun.continuationRequired = true;
+            continuationSources.push(sourceRun.sourceKey);
+          }
+        } else {
+          const errorMessage = persistenceFailure ?? sourceRun.errorMessage;
+          if (!cursorVersions.has(sourceRun.sourceKey)) {
+            await tx.insert(publicSourceCursors).values({
+              sourceKey: sourceRun.sourceKey,
+              cursorJson: sourceRun.cursorBefore ?? {},
+              cursorVersion: expectedVersion,
+              exhausted: false,
+              continuationRequired: sourceRun.continuationRequired,
+              lastRunId: runId,
+              lastStatus: sourceRun.status,
+              lastError: errorMessage,
+              updatedAt: new Date(),
+            }).onConflictDoNothing();
+          } else {
+            await tx.update(publicSourceCursors).set({
+              lastRunId: runId,
+              lastStatus: sourceRun.status,
+              lastError: errorMessage,
+              continuationRequired: sourceRun.continuationRequired,
+              updatedAt: new Date(),
+            }).where(eq(publicSourceCursors.sourceKey, sourceRun.sourceKey));
+          }
+        }
+
+        if (sourceRun.continuationRequired && !persistenceFailure && !continuationSources.includes(sourceRun.sourceKey)) {
+          continuationSources.push(sourceRun.sourceKey);
+        }
+        sourceRun.cursorVersionBefore = expectedVersion;
+        sourceRun.cursorVersionAfter = versionAfter;
+      }
+
+      await tx.insert(publicSourceRuns).values(result.sourceRuns.map((sourceRun) => {
+        const changes = changesBySource.get(sourceRun.sourceKey) ?? { accepted: sourceRun.acceptedCount, inserted: 0, updated: 0 };
+        return {
+          runId,
+          sourceKey: sourceRun.sourceKey,
+          status: sourceRun.status,
+          discoveredCount: sourceRun.discoveredCount,
+          listedCount: sourceRun.listedCount,
+          detailAttempted: sourceRun.detailAttempted,
+          detailFailed: sourceRun.detailFailed,
+          pendingCount: sourceRun.pendingCount,
+          continuationScheduled: false,
+          acceptedCount: changes.accepted || sourceRun.acceptedCount,
+          insertedCount: changes.inserted,
+          updatedCount: changes.updated,
+          errorMessage: sourceRun.errorMessage,
+          cursorBeforeJson: sourceRun.cursorBefore,
+          cursorAfterJson: sourceRun.cursorAfter,
+          cursorVersionBefore: sourceRun.cursorVersionBefore,
+          cursorVersionAfter: sourceRun.cursorVersionAfter,
+          pagesFetched: sourceRun.pagesFetched,
+          exhausted: sourceRun.exhausted,
+          cursorAdvanced: sourceRun.cursorAdvanced,
+          startedAt: new Date(Date.now() - sourceRun.durationMs),
+          finishedAt: new Date(),
+        };
+      }));
+
+      const hasFailures = Boolean(persistenceFailure)
+        || result.sourceRuns.some((sourceRun) => ["failed", "timed_out", "partial"].includes(sourceRun.status));
+      await tx.update(publicScrapeRuns).set({
+        status: persistenceFailure ? "failed" : hasFailures ? "partial" : "success",
+        totalFound: result.totalFound,
+        afterDedup: result.afterDedup,
+        acceptedCount: result.sourceRuns.reduce((sum, sourceRun) => sum + sourceRun.acceptedCount, 0),
+        insertedCount: inserted,
+        updatedCount: updated,
+        skippedExpired: skipped,
+        errorMessage: persistenceFailure,
         finishedAt: new Date(),
-      };
-    }));
+        updatedAt: new Date(),
+      }).where(eq(publicScrapeRuns.id, runId));
+    });
 
-    if (result.persistenceError) throw new Error(result.persistenceError);
-    if (upsertPersistenceError) throw new Error(upsertPersistenceError);
-    await enqueueJob(JOB_SYNC_MEILI, {}, { jobKey: JOB_SYNC_MEILI, priority: 130 });
-    const hasFailures = result.sourceRuns.some((sourceRun) => ["failed", "timed_out", "partial"].includes(sourceRun.status));
-    await db.update(publicScrapeRuns).set({
-      status: hasFailures ? "partial" : "success",
-      totalFound: result.totalFound,
-      afterDedup: result.afterDedup,
-      acceptedCount: result.sourceRuns.reduce((sum, sourceRun) => sum + sourceRun.acceptedCount, 0),
-      insertedCount: inserted,
-      updatedCount: updated,
-      skippedExpired: skipped,
-      finishedAt: new Date(),
-      updatedAt: new Date(),
-    }).where(eq(publicScrapeRuns.id, runId));
-    return { total_found: result.totalFound, after_dedup: result.afterDedup, inserted, updated, skipped_expired: skipped, by_source: result.bySource };
+    for (const sourceKey of continuationSources) {
+      try {
+        await enqueueJob(JOB_SCRAPE_PUBLIC, { source: sourceKey }, {
+          jobKey: `public-continuation:${sourceKey}`,
+          groupKey: `public-source:${sourceKey}`,
+          priority: 140,
+          runAfter: new Date(Date.now() + 30_000),
+        });
+        await db.update(publicSourceRuns).set({ continuationScheduled: true }).where(and(
+          eq(publicSourceRuns.runId, runId),
+          eq(publicSourceRuns.sourceKey, sourceKey),
+        ));
+      } catch (error) {
+        console.error(`[public-scraper] Continuation fuer ${sourceKey} konnte nicht eingeplant werden:`, error);
+      }
+    }
+
+    try {
+      await enqueueJob(JOB_SYNC_MEILI, {}, { jobKey: JOB_SYNC_MEILI, priority: 130 });
+    } catch (error) {
+      console.error("[public-scraper] Meilisearch-Sync konnte nicht eingeplant werden:", error);
+    }
+    if (persistenceFailure) throw new Error(persistenceFailure);
+    return {
+      total_found: result.totalFound,
+      after_dedup: result.afterDedup,
+      inserted,
+      updated,
+      skipped_expired: skipped,
+      continuations: continuationSources.length,
+      by_source: result.bySource,
+    };
   } catch (error) {
     await db.update(publicScrapeRuns).set({ status: "failed", errorMessage: error instanceof Error ? error.message : "Public-Scrape fehlgeschlagen", insertedCount: inserted, updatedCount: updated, skippedExpired: skipped, finishedAt: new Date(), updatedAt: new Date() }).where(eq(publicScrapeRuns.id, runId));
     throw error;
@@ -2292,11 +3259,14 @@ const runPreviewCompanyUrl = async (payload: Record<string, JsonValue>): Promise
 };
 
 const runApiAnalyze = async (payload: Record<string, JsonValue>): Promise<Record<string, JsonValue>> => {
-  const apiJobId = Number(payload.api_job_id ?? 0);
+  // Accept CamelCase for API jobs created before the queue payload contract was fixed.
+  const apiJobId = Number(payload.api_job_id ?? payload.apiJobId ?? 0);
   const url = typeof payload.url === "string" ? payload.url : "";
   const mode = payload.mode === "rescore" ? "rescore" : "full";
-  const companyId = payload.company_id === undefined ? undefined : Number(payload.company_id);
-  const profileSlug = typeof payload.profile_slug === "string" ? payload.profile_slug : undefined;
+  const rawCompanyId = payload.company_id ?? payload.companyId;
+  const companyId = rawCompanyId === undefined ? undefined : Number(rawCompanyId);
+  const rawProfileSlug = payload.profile_slug ?? payload.profileSlug;
+  const profileSlug = typeof rawProfileSlug === "string" ? rawProfileSlug : undefined;
 
   if (!Number.isFinite(apiJobId) || apiJobId <= 0 || !url) {
     throw new Error("ungueltige api_analyze Nutzdaten");

@@ -27,6 +27,22 @@ function makeXlsx(): string {
   return tmpPath;
 }
 
+function makeDocx(documentXml: string | null = `<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:r><w:t>Bekanntmachung &amp; Leistungsbeschreibung</w:t></w:r></w:p>
+    <w:p><w:r><w:t>Abgabefrist: 15.08.2026</w:t><w:br/><w:t>Weitere Angaben</w:t></w:r></w:p>
+  </w:body>
+</w:document>`): string {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const AdmZip = require("adm-zip");
+  const zip = new AdmZip();
+  if (documentXml !== null) zip.addFile("word/document.xml", Buffer.from(documentXml, "utf8"));
+  const tmpPath = path.join(fs.mkdtempSync("/tmp/parser-test-"), "test.docx");
+  zip.writeZip(tmpPath);
+  return tmpPath;
+}
+
 async function main(): Promise<void> {
   // Test 1: Text-PDF with 2 pages
   const pdfPath = makeTextPdf([
@@ -67,7 +83,7 @@ async function main(): Promise<void> {
     assert.ok(typeof result.text === "string", "text is string");
     assert.ok(Array.isArray(result.pages), "pages is an array");
     assert.ok(result.pageCount === null || typeof result.pageCount === "number", "pageCount is number|null");
-    assert.ok(["native", "ocr", "fallback_native", "ocr_skipped_size", "xlsx", "html", "zip", "plain"].includes(result.method), "method is valid ExtractionMethod");
+    assert.ok(["native", "ocr", "fallback_native", "ocr_skipped_size", "xlsx", "html", "zip", "docx", "doc", "plain"].includes(result.method), "method is valid ExtractionMethod");
     assert.ok(typeof result.truncated === "boolean", "truncated is boolean");
     console.log("Test 3 (contract): PASS —", JSON.stringify({ method: result.method, pageCount: result.pageCount, truncated: result.truncated }));
   } finally {
@@ -85,6 +101,47 @@ async function main(): Promise<void> {
   } finally {
     fs.rmSync(path.dirname(htmlTmp), { recursive: true, force: true });
   }
+
+  // Test 5: DOCX XML extraction
+  const docxPath = makeDocx();
+  try {
+    const result = await extractTextFromFile(docxPath, "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+    assert.equal(result.method, "docx", "method = docx");
+    assert.ok(result.text.includes("Bekanntmachung & Leistungsbeschreibung"), "docx entities are decoded");
+    assert.ok(result.text.includes("Abgabefrist: 15.08.2026"), "docx text is extracted");
+  } finally {
+    fs.rmSync(path.dirname(docxPath), { recursive: true, force: true });
+  }
+  console.log("Test 5 (DOCX): PASS");
+
+  // Test 6: Empty and malformed DOCX files are safe no-op parses
+  const emptyDocxPath = makeDocx(null);
+  const malformedDocxPath = path.join(fs.mkdtempSync("/tmp/parser-test-"), "malformed.docx");
+  fs.writeFileSync(malformedDocxPath, Buffer.from("not a ZIP archive", "utf8"));
+  try {
+    const empty = await extractTextFromFile(emptyDocxPath);
+    assert.equal(empty.method, "docx", "empty DOCX method = docx");
+    assert.equal(empty.text, "", "empty DOCX has no text");
+    const malformed = await extractTextFromFile(malformedDocxPath);
+    assert.equal(malformed.method, "docx", "malformed DOCX method = docx");
+    assert.equal(malformed.text, "", "malformed DOCX has no text");
+  } finally {
+    fs.rmSync(path.dirname(emptyDocxPath), { recursive: true, force: true });
+    fs.rmSync(path.dirname(malformedDocxPath), { recursive: true, force: true });
+  }
+  console.log("Test 6 (empty/malformed DOCX): PASS");
+
+  // Test 7: Legacy DOC fallback is safe even without external converters
+  const docPath = path.join(fs.mkdtempSync("/tmp/parser-test-"), "legacy.doc");
+  fs.writeFileSync(docPath, Buffer.from("not a legacy Word document", "utf8"));
+  try {
+    const result = await extractTextFromFile(docPath);
+    assert.equal(result.method, "doc", "method = doc");
+    assert.ok(typeof result.text === "string", "DOC fallback returns text");
+  } finally {
+    fs.rmSync(path.dirname(docPath), { recursive: true, force: true });
+  }
+  console.log("Test 7 (DOC fallback): PASS");
 
   console.log("\nAll parser tests passed.");
 }

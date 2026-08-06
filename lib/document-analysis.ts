@@ -1,4 +1,5 @@
 import type { DocumentRole } from "./schema";
+import type { RoleHint } from "./document-classifier";
 
 export type DocumentCoverageStatus = "complete" | "partial" | "unknown" | "blocked";
 
@@ -32,6 +33,8 @@ export interface DocumentAnalysis {
 export interface AnalyzedDocument {
   id: number;
   role: string | null;
+  roles?: DocumentRole[] | null;
+  roleHints?: RoleHint[] | null;
   parseStatus: string | null;
   downloadStatus: string | null;
   errorMessage: string | null;
@@ -59,8 +62,28 @@ export const REQUIRED_DOCUMENT_ROLES: DocumentRole[] = [
   "leistungsbeschreibung",
 ];
 
-const isDocumentRole = (value: string | null): value is DocumentRole =>
-  value !== null && DOCUMENT_ROLES.includes(value as DocumentRole);
+const isDocumentRole = (value: unknown): value is DocumentRole =>
+  typeof value === "string" && DOCUMENT_ROLES.includes(value as DocumentRole);
+
+const documentRoles = (document: AnalyzedDocument): DocumentRole[] => {
+  const explicitRoles = Array.isArray(document.roles) ? document.roles : [];
+  const hintedRoles = Array.isArray(document.roleHints)
+    ? document.roleHints.map((hint) => hint?.role)
+    : [];
+  const legacyRoles = [document.role];
+  const roles = [...explicitRoles, ...hintedRoles, ...legacyRoles]
+    .filter(isDocumentRole)
+    .filter((role, index, values) => values.indexOf(role) === index && role !== "other");
+
+  return roles.length > 0 ? roles : ["other"];
+};
+
+const roleConfidence = (document: AnalyzedDocument, role: DocumentRole): number => {
+  const hintedConfidence = document.roleHints?.find((hint) => hint?.role === role)?.confidence;
+  return typeof hintedConfidence === "number"
+    ? hintedConfidence
+    : document.roleConfidence ?? 0.55;
+};
 
 const usableText = (document: AnalyzedDocument): boolean =>
   document.parseStatus === "parsed" &&
@@ -151,11 +174,12 @@ export const buildDocumentAnalysis = (documents: AnalyzedDocument[]): DocumentAn
   };
 
   for (const document of documents) {
-    const role = isDocumentRole(document.role) ? document.role : "other";
-    const bucket = coverage.byRole[role] ?? { total: 0, parsed: 0 };
-    bucket.total += 1;
-    if (usableText(document)) bucket.parsed += 1;
-    coverage.byRole[role] = bucket;
+    for (const role of documentRoles(document)) {
+      const bucket = coverage.byRole[role] ?? { total: 0, parsed: 0 };
+      bucket.total += 1;
+      if (usableText(document)) bucket.parsed += 1;
+      coverage.byRole[role] = bucket;
+    }
   }
 
   coverage.missingRoles = REQUIRED_DOCUMENT_ROLES.filter(
@@ -166,8 +190,8 @@ export const buildDocumentAnalysis = (documents: AnalyzedDocument[]): DocumentAn
   for (const definition of EVIDENCE_PATTERNS) {
     for (const document of documents) {
       if (!usableText(document)) continue;
-      const role = isDocumentRole(document.role) ? document.role : "other";
-      if (!definition.roles.includes(role)) continue;
+      const role = definition.roles.find((candidate) => documentRoles(document).includes(candidate));
+      if (!role) continue;
       const match = quoteFromText(document.extractedText ?? "", definition.patterns);
       if (!match) continue;
       evidence.push({
@@ -177,7 +201,7 @@ export const buildDocumentAnalysis = (documents: AnalyzedDocument[]): DocumentAn
         role,
         page: match.page,
         quote: match.quote,
-        confidence: Math.min(0.95, Math.max(0.45, document.roleConfidence ?? 0.55)),
+        confidence: Math.min(0.95, Math.max(0.45, roleConfidence(document, role))),
         source: "parsed_document",
       });
       break;

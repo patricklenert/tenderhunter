@@ -1,10 +1,29 @@
 import OpenAI from "openai";
 import * as cheerio from "cheerio";
-import { scrapeWebsite, scrapeMultiple, htmlToBasicMarkdown, type ScrapedPage } from "@/lib/firecrawl";
+import { scrapeWebsite, htmlToBasicMarkdown, type ScrapedPage } from "@/lib/firecrawl";
 import { callLLM } from "@/lib/llm";
 import { detectAccessPage, isParticipationWallText } from "@/lib/access-page-detector";
-import { extractPortalProjectId, stripSessionId } from "@/lib/tender-identity";
+import { stripSessionId } from "@/lib/tender-identity";
 import { settings } from "@/lib/config";
+import type { JsonValue } from "@/lib/types";
+import { decodeHtmlEntities } from "@/lib/text-normalization";
+import {
+  cursorBoolean,
+  cursorNumber,
+  cursorString,
+  cursorPendingDetails,
+  cursorPosition,
+  createPublicSourceCursorV2,
+  encodeDtvpSearchHash,
+  publicDetailReference,
+  sourceResult,
+  type PublicCursorCommit,
+  type PublicDetailReference,
+  type PublicSourceCursor,
+  type PublicSourceScrapeResult,
+} from "@/lib/public-pagination";
+import { canonicalPublicTenderUrl, derivePublicExternalId } from "@/lib/public-source-registry";
+import { mergeDiscoveredResources, type DiscoveredResource, type RankedSubpageCandidate } from "@/lib/resource-discovery";
 
 const openrouterKey = process.env.OPENROUTER_API_KEY ?? "";
 
@@ -40,7 +59,7 @@ function fixBrokenUmlauts(text: string): string {
 }
 
 function cleanTenderTitle(raw: string): string {
-  let title = raw;
+  let title = decodeHtmlEntities(raw);
   // Remove external IDs like CXS0YYZYT24PNNN6, CXVHY6NYT2K6KVF0
   title = title.replace(/\bCX[A-Z0-9]{6,}\b/g, "");
   // Remove URLs like www.vergabe.metropoleruhr.de
@@ -76,6 +95,70 @@ async function fetchWithEncoding(url: string, timeout = 20000): Promise<string> 
     return buf.toString("latin1");
   }
   return buf.toString("utf-8");
+}
+
+const PAGINATION_PARAM_NAMES = [
+  "page",
+  "seite",
+  "start",
+  "offset",
+  "Start",
+  "TablePage",
+  "selectedTablePagePROJECT_RESULT",
+] as const;
+
+const paginationNumber = (url: URL): number | null => {
+  for (const name of PAGINATION_PARAM_NAMES) {
+    const value = url.searchParams.get(name);
+    if (value === null) continue;
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+};
+
+export function parseGenericPaginationUrls(html: string, baseUrl: string, currentUrl = baseUrl): string[] {
+  const $ = cheerio.load(html);
+  const current = new URL(currentUrl, baseUrl);
+  const currentPage = paginationNumber(current);
+  const urls = new Map<string, number | null>();
+
+  $("a[href]").each((_, element) => {
+    const href = $(element).attr("href");
+    if (!href || href.startsWith("#") || href.startsWith("javascript:") || href.startsWith("mailto:")) return;
+
+    const text = $(element).text().replace(/\s+/g, " ").trim();
+    const inPagination = $(element).closest("nav, .pagination, .pager, [class*=pagination], [class*=pager]").length > 0;
+    const paginationHint = PAGINATION_PARAM_NAMES.some((name) => href.includes(`${name}=`))
+      || /^(?:next|weiter|naechste|nächste|more|vor|>)(?:\s|$)/i.test(text);
+    if (!inPagination && !paginationHint) return;
+
+    try {
+      const url = new URL(href, current);
+      const value = paginationNumber(url);
+      if (url.href === current.href) return;
+      if (value !== null && currentPage !== null && value <= currentPage) return;
+      urls.set(url.href, value);
+    } catch {
+      // Ignore malformed portal links.
+    }
+  });
+
+  return Array.from(urls.entries())
+    .sort((left, right) => {
+      if (left[1] === null && right[1] === null) return left[0].localeCompare(right[0]);
+      if (left[1] === null) return 1;
+      if (right[1] === null) return -1;
+      return left[1] - right[1];
+    })
+    .map(([url]) => url);
+}
+
+export function parseDtvpPageInfo(html: string): { page: number; totalPages: number } | null {
+  const text = cheerio.load(html).text().replace(/\s+/g, " ");
+  const match = text.match(/Seite:\s*(\d+)\s+von\s+(\d+)/i);
+  if (!match) return null;
+  return { page: Number(match[1]), totalPages: Number(match[2]) };
 }
 
 let openaiClient: OpenAI | null = null;
@@ -119,11 +202,191 @@ export interface ExtractedTender {
   sourceKey?: string;
   externalId?: string | null;
   pdfUrls: string[];
+  resources?: DiscoveredResource[];
+  subpageCandidates?: RankedSubpageCandidate[];
   url?: string;
 }
 
 interface ExtractionResult {
   tenders: ExtractedTender[];
+}
+
+export type PublicScraperResult = PublicSourceScrapeResult<ExtractedTender>;
+type PublicScraper = (cursor: PublicSourceCursor | null) => Promise<PublicScraperResult>;
+
+const withScrapedResources = (tender: ExtractedTender, page: ScrapedPage): ExtractedTender => ({
+  ...tender,
+  resources: page.resources,
+  subpageCandidates: page.subpageCandidates,
+});
+
+const normalizeCursor = (cursor: PublicSourceCursor | null | undefined): PublicSourceCursor | null => cursor ?? null;
+
+interface DetailOutcome {
+  tender: ExtractedTender | null;
+  retryable?: boolean;
+  blocked?: boolean;
+}
+
+interface DetailQueueResult {
+  tenders: ExtractedTender[];
+  pendingDetails: PublicDetailReference[];
+  detailAttempted: number;
+  detailFailed: number;
+}
+
+const retryDelayMs = (attempts: number): number => Math.min(60 * 60 * 1000, 2 ** Math.min(attempts, 10) * 1000);
+
+async function processDetailQueue(
+  references: PublicDetailReference[],
+  limit: number,
+  handler: (reference: PublicDetailReference) => Promise<DetailOutcome>,
+): Promise<DetailQueueResult> {
+  const tenders: ExtractedTender[] = [];
+  const pendingDetails: PublicDetailReference[] = [];
+  let detailAttempted = 0;
+  let detailFailed = 0;
+  const now = Date.now();
+
+  for (let index = 0; index < references.length; index += 1) {
+    const reference = references[index];
+    if (reference.blocked) {
+      pendingDetails.push(reference);
+      continue;
+    }
+
+    const nextAttemptAt = reference.nextAttemptAt ? Date.parse(reference.nextAttemptAt) : NaN;
+    if (Number.isFinite(nextAttemptAt) && nextAttemptAt > now) {
+      pendingDetails.push(reference);
+      continue;
+    }
+
+    if (detailAttempted >= limit) {
+      pendingDetails.push(...references.slice(index));
+      break;
+    }
+
+    const attempt = { ...reference, attempts: reference.attempts + 1 };
+    detailAttempted += 1;
+    let outcome: DetailOutcome;
+    try {
+      outcome = await handler(attempt);
+    } catch (error) {
+      console.warn(`[public-scraper] Detail-Queue Fehler (${reference.key}):`, error);
+      outcome = { tender: null, retryable: true };
+    }
+
+    if (outcome.tender) {
+      if (!outcome.tender.externalId && reference.externalId) outcome.tender.externalId = reference.externalId;
+      tenders.push(outcome.tender);
+      continue;
+    }
+
+    if (outcome.blocked) {
+      pendingDetails.push({ ...attempt, blocked: true, nextAttemptAt: undefined });
+      detailFailed += 1;
+      continue;
+    }
+
+    if (outcome.retryable) {
+      pendingDetails.push({
+        ...attempt,
+        blocked: false,
+        nextAttemptAt: new Date(Date.now() + retryDelayMs(attempt.attempts)).toISOString(),
+      });
+      detailFailed += 1;
+    }
+    // A null, non-retryable result is a terminal non-tender/filter result.
+  }
+
+  return { tenders, pendingDetails, detailAttempted, detailFailed };
+}
+
+function mergeDetailReferences(...groups: PublicDetailReference[][]): PublicDetailReference[] {
+  const merged = new Map<string, PublicDetailReference>();
+  for (const group of groups) {
+    for (const reference of group) {
+      if (!merged.has(reference.key)) merged.set(reference.key, reference);
+    }
+  }
+  return Array.from(merged.values());
+}
+
+function shouldPauseBeforeListing(queue: DetailQueueResult, limit: number): boolean {
+  return queue.detailAttempted >= limit || queue.pendingDetails.some((reference) => !reference.blocked);
+}
+
+interface SourceCursorResultOptions {
+  cursor: PublicSourceCursor | null;
+  strategy: string;
+  position: JsonValue;
+  listingExhausted: boolean;
+  listingComplete: boolean;
+  pendingDetails: PublicDetailReference[];
+  pagesFetched: number;
+  paginationStrategy: string;
+  listedCount: number;
+  detailAttempted: number;
+  detailFailed: number;
+  extra?: Record<string, JsonValue>;
+  cursorCommit?: PublicCursorCommit;
+}
+
+function sourceCursorResult(
+  tenders: ExtractedTender[],
+  options: SourceCursorResultOptions,
+): PublicScraperResult {
+  const pendingCount = options.pendingDetails.length;
+  const continuationRequired = !options.listingComplete
+    || options.pendingDetails.some((reference) => !reference.blocked);
+  const cursorCommit = options.cursorCommit ?? "commit";
+  const nextCursor = createPublicSourceCursorV2(
+    options.strategy,
+    options.position,
+    options.listingExhausted && pendingCount === 0,
+    options.pendingDetails,
+    {
+      ...(options.cursor ?? {}),
+      ...(options.extra ?? {}),
+      listingComplete: options.listingComplete,
+    },
+  );
+
+  return sourceResult(tenders, {
+    nextCursor,
+    cursorCommit,
+    cursorAdvanced: cursorCommit === "commit",
+    pagesFetched: options.pagesFetched,
+    exhausted: options.listingExhausted && pendingCount === 0,
+    paginationStrategy: options.paginationStrategy,
+    listingComplete: options.listingComplete,
+    continuationRequired,
+    listedCount: options.listedCount,
+    detailAttempted: options.detailAttempted,
+    detailFailed: options.detailFailed,
+    pendingCount,
+  });
+}
+
+function pendingOnlyResult(
+  cursor: PublicSourceCursor | null,
+  strategy: string,
+  queue: DetailQueueResult,
+): PublicScraperResult {
+  const listingComplete = cursor?.listingComplete === true;
+  return sourceCursorResult(queue.tenders, {
+    cursor,
+    strategy,
+    position: cursorPosition(cursor) ?? {},
+    listingExhausted: cursorBoolean(cursor, "exhausted"),
+    listingComplete,
+    pendingDetails: queue.pendingDetails,
+    pagesFetched: 0,
+    paginationStrategy: strategy,
+    listedCount: 0,
+    detailAttempted: queue.detailAttempted,
+    detailFailed: queue.detailFailed,
+  });
 }
 
 function isGermanText(text: string): boolean {
@@ -533,6 +796,39 @@ export function cleanPublicDescription(text: string): string {
   return isRawPortalDescription(cleaned) ? "" : cleaned;
 }
 
+export interface PublicPortalFacts {
+  client: string | null;
+  procedure: string | null;
+  deadline: string | null;
+  location: string | null;
+  subject: string | null;
+}
+
+export function extractPublicPortalFacts(text: string): PublicPortalFacts {
+  const normalized = decodeHtmlEntities(text).replace(/\s+/g, " ").trim();
+  const capture = (pattern: RegExp): string | null => normalized.match(pattern)?.[1]?.replace(/\s+/g, " ").trim() || null;
+
+  return {
+    client: capture(/(?:Auftraggeber\s*\/\s*Ausschreibende\s*Stelle|Ausschreibende\s*Stelle|Auftraggeber)\s*:?\s*(.+?)(?=\s*(?:#|;|Abgabe(?:frist)?|Angebotsfrist|Teilnahme|Vergabeart|Veröffentlicht|Verfahren|Status|Auftragsgegenstand|Folgende Möglichkeiten)|$)/i),
+    procedure: capture(/(?:Vergabeart|\bVerfahren\b)\s*:?\s*(.+?)(?=\s*(?:#|;|Veröffentlicht|Teilnahme|Auftraggeber|Abgabefrist|Status|Auftragsgegenstand)|$)/i),
+    deadline: capture(/(?:Abgabe(?:frist)?|Angebotsfrist|Teilnahmefrist)\s*:?\s*(\d{1,2}\.\d{1,2}\.\d{4}(?:\s+\d{1,2}:\d{2})?)/i),
+    location: capture(/(?:Erfüllungsort|Ausführungsort|Hauptleistungsort)\s*:?\s*(.+?)(?=\s+(?:Abgabe(?:frist)?|Angebotsfrist|Vergabeart|Auftraggeber)|$)/i),
+    subject: capture(/Auftragsgegenstand\s+(.+?)(?=\s+(?:VMP\s+\d|Systemzeit|Impressum|Datenschutz)|$)/i),
+  };
+}
+
+export function buildPublicAccessLimitedDescription(title: string, facts: PublicPortalFacts): string {
+  const details = [
+    facts.client ? `Auftraggeber: ${facts.client}` : "",
+    facts.procedure ? `Verfahren: ${facts.procedure}` : "",
+    facts.deadline ? `Angebotsfrist: ${facts.deadline}` : "",
+    facts.location ? `Leistungsort: ${facts.location}` : "",
+    facts.subject ? `Leistungsgegenstand: ${facts.subject}` : "",
+  ].filter(Boolean);
+  const detailSentence = details.length > 0 ? ` Öffentlich sichtbar sind: ${details.join("; ")}.` : "";
+  return `Für „${title}“ sind aktuell nur die öffentlich sichtbaren Verfahrensdaten verfügbar.${detailSentence} Die vollständige Leistungsbeschreibung und die Vergabeunterlagen sind auf dem Quellportal erst nach Teilnahme am Verfahren zugänglich.`;
+}
+
 /** Selects the first usable description, preferring structured values over raw fallbacks. */
 export function pickPublicDescription(...values: unknown[]): string {
   for (const value of values) {
@@ -556,8 +852,7 @@ async function extractTendersFromMarkdown(
   }
   const accessPage = detectAccessPage(markdown, { url: sourceUrl });
   if (accessPage.blocked) {
-    console.warn(`[public-scraper] Ueberspringe blockierte Seite (${accessPage.reason}) ${sourceUrl}`);
-    return [];
+    throw new Error(`Zugriff blockiert (${accessPage.reason}): ${sourceUrl}`);
   }
 
   const client = getOpenAI();
@@ -573,10 +868,10 @@ async function extractTendersFromMarkdown(
       max_tokens: 3000,
     });
     const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return [];
+    if (!jsonMatch) throw new Error(`Keine valide JSON-Extraktion fuer ${sourceUrl}`);
 
     const parsed = JSON.parse(jsonMatch[0]) as ExtractionResult;
-    if (!Array.isArray(parsed.tenders)) return [];
+    if (!Array.isArray(parsed.tenders)) throw new Error(`Extraktion ohne Tender-Liste fuer ${sourceUrl}`);
 
     return parsed.tenders
       .filter((t) => {
@@ -586,7 +881,7 @@ async function extractTendersFromMarkdown(
         return true;
       })
       .map((t) => ({
-        title: t.title.slice(0, 300),
+        title: cleanTenderTitle(String(t.title).slice(0, 300)),
         client: (t.client && t.client !== "Unbekannt" && t.client.length > 1) ? t.client : extractClientFromUrl(sourceUrl),
         deadline: t.deadline ?? null,
         description: cleanPublicDescription(t.description ?? ""),
@@ -599,7 +894,7 @@ async function extractTendersFromMarkdown(
       }));
   } catch (error) {
     console.error(`[public-scraper] Extraktionsfehler fuer ${sourceUrl}:`, error);
-    return [];
+    throw error;
   }
 }
 
@@ -630,7 +925,7 @@ async function extractDetailFromMarkdown(
       max_tokens: 1500,
     });
     const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return null;
+    if (!jsonMatch) throw new Error(`Keine valide Detail-Extraktion fuer ${sourceUrl}`);
 
     const parsed = JSON.parse(jsonMatch[0]);
     if (!parsed.title || parsed.title.length < 5) return null;
@@ -657,7 +952,7 @@ async function extractDetailFromMarkdown(
     };
   } catch (error) {
     console.error(`[public-scraper] Detail-Extraktionsfehler fuer ${sourceUrl}:`, error);
-    return null;
+    throw error;
   }
 }
 
@@ -666,9 +961,10 @@ export function extractBasicDetailFromHtml(
   sourceUrl: string,
   source: string,
   pdfUrls: string[],
+  allowAccessPage = false,
 ): ExtractedTender | null {
   const accessPage = detectAccessPage(html, { url: sourceUrl });
-  if (accessPage.blocked) return null;
+  if (accessPage.blocked && !allowAccessPage) return null;
   const $ = cheerio.load(html);
   $("script, style, nav, header, footer").remove();
   const text = htmlToBasicMarkdown($("body").html() ?? "").trim();
@@ -706,22 +1002,30 @@ export function extractBasicDetailFromHtml(
     .find((candidate) => candidate.length >= 5 && !NON_TENDER_TITLE_PATTERNS.some((pattern) => pattern.test(candidate))) ?? "";
   if (title.length < 5) return null;
 
+  const portalFacts = extractPublicPortalFacts(text);
+
   const deadline = text.match(/(?:Angebotsfrist|Abgabefrist|Ablauf der Angebotsfrist|Einreichungsfrist)[^\n]*\n?[^\n]*?(\d{1,2}\.\d{1,2}\.\d{4})/i)?.[1]
     ?? text.match(/\b\d{1,2}\.\d{1,2}\.\d{4}\b/)?.[0]
     ?? null;
-  const client = valueAfterSection(
+  const parsedClient = valueAfterSection(
     /^Ausschreibende Stelle$/i,
     /^Bezeichnung:\s*(.*)$/i,
   )
     || text.match(/(?:Auftraggeber|Vergabestelle)\s*:?\s*([^\n|]{3,120})/i)?.[1]?.trim()
     || extractClientFromUrl(sourceUrl);
-  const location = text.match(/\b\d{5}\s+[A-ZÄÖÜ][\wÄÖÜäöüß .-]{2,80}/)?.[0] ?? null;
+  const client = accessPage.blocked && portalFacts.client ? portalFacts.client : parsedClient;
+  const location = accessPage.blocked && portalFacts.location
+    ? portalFacts.location
+    : (text.match(/\b\d{5}\s+[A-ZÄÖÜ][\wÄÖÜäöüß .-]{2,80}/)?.[0] ?? null);
   const referenceNumber = text.match(/(?:Bekanntmachungs-ID|Vergabe-Nr\.)\s*:?\s*\n?\s*([A-Z0-9][A-Z0-9._/-]{2,})/i)?.[1] ?? null;
+  const description = accessPage.blocked
+    ? buildPublicAccessLimitedDescription(title, portalFacts)
+    : cleanPublicDescription(text.slice(0, 2000));
   return {
     title: title.slice(0, 300),
     client,
-    deadline,
-    description: cleanPublicDescription(text.slice(0, 2000)),
+    deadline: accessPage.blocked && portalFacts.deadline ? portalFacts.deadline : deadline,
+    description,
     referenceNumber,
     location,
     category: "Facility Management",
@@ -764,178 +1068,322 @@ function extractPdfUrlsFromMarkdown(markdown: string, baseUrl: string): string[]
 
 // --- Source Scraper ---
 
-async function scrapeDtvp(): Promise<ExtractedTender[]> {
+async function scrapeDtvp(cursor: PublicSourceCursor | null): Promise<PublicScraperResult> {
   console.log("[public-scraper] Scraping dtvp.de Detail-Seiten...");
-  try {
-    const searchUrl = "https://www.dtvp.de/Center/common/project/search.do?method=showExtendedSearch&fromExternal=true";
-    const searchPage = await scrapeWebsite(searchUrl, { onlyMainContent: false, waitForSelector: "a[href*='projectForwarding']" });
+  const searchUrl = "https://www.dtvp.de/Center/common/project/search.do?method=showExtendedSearch&fromExternal=true";
+  const startPage = cursorBoolean(cursor, "exhausted") ? 1 : cursorNumber(cursor, "page", 1);
+  let pagesFetched = 0;
+  let hasMore = false;
+  let firstSearchPage: ScrapedPage | null = null;
 
-    // Extract projectForwarding.do links from RAW HTML (not markdown which strips links)
-    const linkRegex = /href=["']([^"']*projectForwarding\.do\?pid=\d+[^"']*)["']/gi;
-    const detailLinks: string[] = [];
+  const detailHandler = async (reference: PublicDetailReference): Promise<DetailOutcome> => {
+    try {
+      const page = await scrapeWebsite(reference.url, { onlyMainContent: false });
+      if (!page.markdown || page.markdown.trim().length < 100) return { tender: null, retryable: true };
+      if (detectAccessPage(page.markdown, { url: reference.url }).blocked) return { tender: null, blocked: true };
+
+      const pdfUrls: string[] = [];
+      const pdfRegex = /href=["']([^"']*\.pdf[^"']*)["']/gi;
+      let pdfMatch;
+      while ((pdfMatch = pdfRegex.exec(page.html)) !== null) {
+        const pdfUrl = pdfMatch[1].replace(/&amp;/g, "&");
+        const fullPdfUrl = pdfUrl.startsWith("http") ? pdfUrl : new URL(pdfUrl, reference.url).href;
+        if (!pdfUrls.includes(fullPdfUrl)) pdfUrls.push(fullPdfUrl);
+      }
+
+      const extracted = await extractDetailFromMarkdown(page.markdown, page.url, "DTVP", true);
+      if (!extracted) return { tender: null };
+      extracted.externalId = reference.externalId ?? extracted.externalId ?? null;
+      extracted.pdfUrls = Array.from(new Set([...pdfUrls, ...extracted.pdfUrls]));
+      return { tender: withScrapedResources(extracted, page) };
+    } catch (error) {
+      console.error(`[public-scraper] dtvp Detail Fehler (${reference.key}):`, error);
+      return { tender: null, retryable: true };
+    }
+  };
+
+  const pendingRun = await processDetailQueue(
+    cursorPendingDetails(cursor),
+    settings.publicDetailLimit,
+    detailHandler,
+  );
+  if (shouldPauseBeforeListing(pendingRun, settings.publicDetailLimit)) {
+    return pendingOnlyResult(cursor, "dtvp-page", pendingRun);
+  }
+
+  try {
+    const detailLinks: PublicDetailReference[] = [];
     const seenPids = new Set<string>();
 
-    let match;
-    while ((match = linkRegex.exec(searchPage.html)) !== null) {
-      const url = match[1].replace(/&amp;/g, "&");
-      const pidMatch = url.match(/pid=(\d+)/);
-      if (pidMatch && !seenPids.has(pidMatch[1])) {
-        seenPids.add(pidMatch[1]);
-        const fullUrl = url.startsWith("http") ? url : `https://www.dtvp.de${url}`;
-        if (url.includes("/public/")) {
-          detailLinks.unshift(fullUrl);
-        } else {
-          detailLinks.push(fullUrl);
+    for (let pageNumber = startPage; pageNumber < startPage + settings.publicPaginationPages; pageNumber++) {
+      const pageUrl = `${searchUrl}#${encodeDtvpSearchHash(pageNumber)}`;
+      const searchPage = await scrapeWebsite(pageUrl, {
+        onlyMainContent: false,
+        waitForSelector: "a[href*='projectForwarding']",
+        waitMs: 1500,
+      });
+      if (!searchPage.html && !searchPage.markdown) throw new Error(`dtvp listing page ${pageNumber} returned no content`);
+      firstSearchPage ??= searchPage;
+      pagesFetched += 1;
+
+      // Extract projectForwarding.do links from RAW HTML (not markdown which strips links).
+      const linkRegex = /href=["']([^"']*projectForwarding\.do\?pid=\d+[^"']*)["']/gi;
+      let match;
+      while ((match = linkRegex.exec(searchPage.html)) !== null) {
+        const url = match[1].replace(/&amp;/g, "&");
+        const pidMatch = url.match(/pid=(\d+)/);
+        if (pidMatch && !seenPids.has(pidMatch[1])) {
+          seenPids.add(pidMatch[1]);
+          const fullUrl = url.startsWith("http") ? url : `https://www.dtvp.de${url}`;
+          const reference = publicDetailReference(`dtvp:pid:${pidMatch[1]}`, fullUrl, pidMatch[1]);
+          if (url.includes("/public/")) {
+            detailLinks.unshift(reference);
+          } else {
+            detailLinks.push(reference);
+          }
         }
       }
-    }
 
-    // Also check markdown as fallback
-    if (detailLinks.length === 0) {
+      // Also check markdown as fallback.
       const mdLinkRegex = /https?:\/\/[^\s"'<>]*projectForwarding\.do\?pid=\d+[^\s"'<>]*/gi;
       while ((match = mdLinkRegex.exec(searchPage.markdown)) !== null) {
         const url = match[0];
         const pidMatch = url.match(/pid=(\d+)/);
         if (pidMatch && !seenPids.has(pidMatch[1])) {
           seenPids.add(pidMatch[1]);
-          detailLinks.push(url);
+          detailLinks.push(publicDetailReference(`dtvp:pid:${pidMatch[1]}`, url, pidMatch[1]));
         }
       }
+
+      const pageInfo = parseDtvpPageInfo(searchPage.html);
+      hasMore = pageInfo
+        ? pageNumber < pageInfo.totalPages
+        : !/id=["']nextPage["'][^>]*browseForwardGhost/i.test(searchPage.html);
+      if (!hasMore || detailLinks.length === 0) break;
     }
 
     console.log(`[public-scraper] dtvp: ${detailLinks.length} Detail-Links gefunden`);
 
     if (detailLinks.length === 0) {
-      return await extractTendersFromMarkdown(searchPage.markdown, searchUrl, "DTVP");
+      const fallback = firstSearchPage
+        ? await extractTendersFromMarkdown(firstSearchPage.markdown, searchUrl, "DTVP")
+        : [];
+      return sourceCursorResult([...pendingRun.tenders, ...fallback], {
+        cursor,
+        strategy: "dtvp-page",
+        position: { page: hasMore ? startPage + pagesFetched : 1 },
+        listingExhausted: !hasMore,
+        listingComplete: !hasMore,
+        pendingDetails: pendingRun.pendingDetails,
+        pagesFetched,
+        paginationStrategy: "dtvp-page",
+        listedCount: 0,
+        detailAttempted: pendingRun.detailAttempted,
+        detailFailed: pendingRun.detailFailed,
+        extra: { page: hasMore ? startPage + pagesFetched : 1 },
+      });
     }
 
-    const tenders: ExtractedTender[] = [];
-
-    for (const detailUrl of detailLinks.slice(0, settings.publicDetailLimit)) {
-      try {
-        const page = await scrapeWebsite(detailUrl, { onlyMainContent: false });
-        if (!page.markdown || page.markdown.trim().length < 100) continue;
-
-        // Extract PDF links from HTML
-        const pdfUrls: string[] = [];
-        const pdfRegex = /href=["']([^"']*\.pdf[^"']*)["']/gi;
-        let pdfMatch;
-        while ((pdfMatch = pdfRegex.exec(page.html)) !== null) {
-          const pdfUrl = pdfMatch[1].replace(/&amp;/g, "&");
-          const fullPdfUrl = pdfUrl.startsWith("http") ? pdfUrl : new URL(pdfUrl, detailUrl).href;
-          if (!pdfUrls.includes(fullPdfUrl)) {
-            pdfUrls.push(fullPdfUrl);
-          }
-        }
-
-        const extracted = await extractDetailFromMarkdown(page.markdown, page.url, "DTVP", true);
-        if (extracted) {
-          const allPdfs = new Set([...pdfUrls, ...extracted.pdfUrls]);
-          extracted.pdfUrls = Array.from(allPdfs);
-          tenders.push(extracted);
-        }
-      } catch (err) {
-        console.error(`[public-scraper] dtvp Detail Fehler:`, err);
-      }
-    }
+    const detailRun = await processDetailQueue(
+      detailLinks,
+      settings.publicDetailLimit - pendingRun.detailAttempted,
+      detailHandler,
+    );
+    const pendingDetails = mergeDetailReferences(pendingRun.pendingDetails, detailRun.pendingDetails);
+    const tenders = [...pendingRun.tenders, ...detailRun.tenders];
 
     console.log(`[public-scraper] dtvp: ${tenders.length} Ausschreibungen mit Details`);
-    return tenders;
+    const nextPage = hasMore ? startPage + pagesFetched : 1;
+    return sourceCursorResult(tenders, {
+      cursor,
+      strategy: "dtvp-page",
+      position: { page: nextPage },
+      listingExhausted: !hasMore,
+      listingComplete: !hasMore,
+      pendingDetails,
+      pagesFetched,
+      paginationStrategy: "dtvp-page",
+      listedCount: detailLinks.length,
+      detailAttempted: pendingRun.detailAttempted + detailRun.detailAttempted,
+      detailFailed: pendingRun.detailFailed + detailRun.detailFailed,
+      extra: { page: nextPage },
+    });
   } catch (error) {
     console.error("[public-scraper] dtvp Fehler:", error);
-    return [];
+    throw error;
   }
 }
 
-async function scrapeTed(): Promise<ExtractedTender[]> {
+async function scrapeTed(cursor: PublicSourceCursor | null): Promise<PublicScraperResult> {
   console.log("[public-scraper] Scraping ted.europa.eu Detail-Seiten...");
-  try {
-    const searchUrl = "https://ted.europa.eu/en/search/result?country=DE";
-    // TED is a heavy SPA - wait for result links to appear
-    const searchPage = await scrapeWebsite(searchUrl, {
-      onlyMainContent: false,
-      waitForSelector: "a[href*='/notice']",
-      waitMs: 3000,
-    });
+  const startPage = cursorBoolean(cursor, "exhausted") ? 1 : cursorNumber(cursor, "page", 1);
+  let pagesFetched = 0;
+  let hasMore = false;
+  let firstSearchPage: ScrapedPage | null = null;
 
-    // Extract notice detail links from RAW HTML
-    const noticeRegex = /href=["']([^"']*\/notice\/[^"']*?(\d+-\d+)[^"']*)["']/gi;
-    const noticeIds: string[] = [];
-    const seenIds = new Set<string>();
+  const detailHandler = async (reference: PublicDetailReference): Promise<DetailOutcome> => {
+    try {
+      const page = await scrapeWebsite(reference.url, { waitMs: 2000 });
+      if (!page.markdown || page.markdown.trim().length < 100) return { tender: null, retryable: true };
+      if (detectAccessPage(page.markdown, { url: reference.url }).blocked) return { tender: null, blocked: true };
 
-    let match;
-    while ((match = noticeRegex.exec(searchPage.html)) !== null) {
-      const noticeId = match[2];
-      if (!seenIds.has(noticeId)) {
-        seenIds.add(noticeId);
-        noticeIds.push(noticeId);
+      const extracted = await extractDetailFromMarkdown(page.markdown, reference.url, "TED", true);
+      if (!extracted) return { tender: null };
+      if (!isGermanText(extracted.title + " " + extracted.description)) return { tender: null };
+      if (!extracted.pdfUrls.some((url) => url.includes("/pdf"))) {
+        extracted.pdfUrls.push(`https://ted.europa.eu/de/notice/${reference.externalId ?? ""}/pdf`);
       }
+      extracted.externalId = reference.externalId ?? extracted.externalId ?? null;
+      return { tender: withScrapedResources(extracted, page) };
+    } catch (error) {
+      console.error(`[public-scraper] ted Detail Fehler (${reference.key}):`, error);
+      return { tender: null, retryable: true };
     }
+  };
 
-    // Fallback: also check markdown
-    if (noticeIds.length === 0) {
+  const pendingRun = await processDetailQueue(
+    cursorPendingDetails(cursor),
+    settings.publicNoticeLimit,
+    detailHandler,
+  );
+  if (shouldPauseBeforeListing(pendingRun, settings.publicNoticeLimit)) {
+    return pendingOnlyResult(cursor, "ted-page", pendingRun);
+  }
+
+  try {
+    const noticeIds: PublicDetailReference[] = [];
+    const seenIds = new Set<string>();
+    for (let pageNumber = startPage; pageNumber < startPage + settings.publicPaginationPages; pageNumber++) {
+      const searchUrl = `https://ted.europa.eu/en/search/result?country=DE&page=${pageNumber}`;
+      // TED is a heavy SPA - wait for result links to appear.
+      const searchPage = await scrapeWebsite(searchUrl, {
+        onlyMainContent: false,
+        waitForSelector: "a[href*='/notice']",
+        waitMs: 3000,
+      });
+      if (!searchPage.html && !searchPage.markdown) throw new Error(`ted listing page ${pageNumber} returned no content`);
+      firstSearchPage ??= searchPage;
+      pagesFetched += 1;
+
+      // Extract notice detail links from RAW HTML.
+      const noticeRegex = /href=["']([^"']*\/notice\/[^"']*?(\d+-\d+)[^"']*)["']/gi;
+      let match;
+      while ((match = noticeRegex.exec(searchPage.html)) !== null) {
+        const noticeId = match[2];
+        if (!seenIds.has(noticeId)) {
+          seenIds.add(noticeId);
+          noticeIds.push(publicDetailReference(`ted:notice:${noticeId}`, `https://ted.europa.eu/en/notice/-/detail/${noticeId}`, noticeId));
+        }
+      }
+
+      // Fallback: also check markdown.
       const mdRegex = /\/notice\/[^/]*?(\d+-\d+)/gi;
       while ((match = mdRegex.exec(searchPage.markdown)) !== null) {
         if (!seenIds.has(match[1])) {
           seenIds.add(match[1]);
-          noticeIds.push(match[1]);
+          const noticeId = match[1];
+          noticeIds.push(publicDetailReference(`ted:notice:${noticeId}`, `https://ted.europa.eu/en/notice/-/detail/${noticeId}`, noticeId));
         }
       }
+
+      const pageInfo = cheerio.load(searchPage.html).text().match(/Page\s+(\d+)\s+of\s+(\d+)/i);
+      hasMore = pageInfo
+        ? pageNumber < Number(pageInfo[2])
+        : noticeIds.length >= 50;
+      if (!hasMore || noticeIds.length === 0) break;
     }
 
     console.log(`[public-scraper] ted: ${noticeIds.length} Notice-IDs gefunden`);
 
     if (noticeIds.length === 0) {
-      return await extractTendersFromMarkdown(searchPage.markdown, searchUrl, "TED");
+      const fallback = firstSearchPage
+        ? await extractTendersFromMarkdown(firstSearchPage.markdown, `https://ted.europa.eu/en/search/result?country=DE`, "TED")
+        : [];
+      return sourceCursorResult([...pendingRun.tenders, ...fallback], {
+        cursor,
+        strategy: "ted-page",
+        position: { page: hasMore ? startPage + pagesFetched : 1 },
+        listingExhausted: !hasMore,
+        listingComplete: !hasMore,
+        pendingDetails: pendingRun.pendingDetails,
+        pagesFetched,
+        paginationStrategy: "ted-page",
+        listedCount: 0,
+        detailAttempted: pendingRun.detailAttempted,
+        detailFailed: pendingRun.detailFailed,
+        extra: { page: hasMore ? startPage + pagesFetched : 1 },
+      });
     }
 
-    const tenders: ExtractedTender[] = [];
-
-    for (const noticeId of noticeIds.slice(0, settings.publicNoticeLimit)) {
-      const detailUrl = `https://ted.europa.eu/en/notice/-/detail/${noticeId}`;
-      const pdfUrl = `https://ted.europa.eu/de/notice/${noticeId}/pdf`;
-
-      try {
-        const page = await scrapeWebsite(detailUrl, { waitMs: 2000 });
-        if (!page.markdown || page.markdown.trim().length < 100) continue;
-
-        const extracted = await extractDetailFromMarkdown(page.markdown, detailUrl, "TED", true);
-        if (extracted) {
-          if (!isGermanText(extracted.title + " " + extracted.description)) {
-            console.log(`[public-scraper] ted: Überspringe nicht-deutsche Ausschreibung: ${extracted.title?.slice(0, 60)}`);
-            continue;
-          }
-          if (!extracted.pdfUrls.some(u => u.includes("/pdf"))) {
-            extracted.pdfUrls.push(pdfUrl);
-          }
-          tenders.push(extracted);
-        }
-      } catch (err) {
-        console.error(`[public-scraper] ted Detail ${noticeId} Fehler:`, err);
-      }
-    }
+    const detailRun = await processDetailQueue(
+      noticeIds,
+      settings.publicNoticeLimit - pendingRun.detailAttempted,
+      detailHandler,
+    );
+    const pendingDetails = mergeDetailReferences(pendingRun.pendingDetails, detailRun.pendingDetails);
+    const tenders = [...pendingRun.tenders, ...detailRun.tenders];
 
     console.log(`[public-scraper] ted: ${tenders.length} Ausschreibungen mit Details`);
-    return tenders;
+    const nextPage = hasMore ? startPage + pagesFetched : 1;
+    return sourceCursorResult(tenders, {
+      cursor,
+      strategy: "ted-page",
+      position: { page: nextPage },
+      listingExhausted: !hasMore,
+      listingComplete: !hasMore,
+      pendingDetails,
+      pagesFetched,
+      paginationStrategy: "ted-page",
+      listedCount: noticeIds.length,
+      detailAttempted: pendingRun.detailAttempted + detailRun.detailAttempted,
+      detailFailed: pendingRun.detailFailed + detailRun.detailFailed,
+      extra: { page: nextPage },
+    });
   } catch (error) {
     console.error("[public-scraper] ted Fehler:", error);
-    return [];
+    throw error;
   }
 }
 
-async function scrapeBauportal(): Promise<ExtractedTender[]> {
+async function scrapeBauportal(cursor: PublicSourceCursor | null): Promise<PublicScraperResult> {
   const baseUrl = "https://www.bauportal-deutschland.de";
-  const allTenders: ExtractedTender[] = [];
+  const startPage = cursorBoolean(cursor, "exhausted") ? 1 : cursorNumber(cursor, "page", 1);
+  let pagesFetched = 0;
+  let hasMore = false;
+
+  const detailHandler = async (reference: PublicDetailReference): Promise<DetailOutcome> => {
+    try {
+      const detailPage = await scrapeWebsite(reference.url, { onlyMainContent: false });
+      if (!detailPage.markdown || detailPage.markdown.trim().length < 30) return { tender: null, retryable: true };
+      if (detectAccessPage(detailPage.markdown, { url: reference.url }).blocked) return { tender: null, blocked: true };
+      const extracted = await extractDetailFromMarkdown(detailPage.markdown, detailPage.url, "bauportal-deutschland.de");
+      return extracted ? { tender: withScrapedResources(extracted, detailPage) } : { tender: null };
+    } catch (error) {
+      console.warn(`[public-scraper] bauportal Detail Fehler (${reference.key}):`, error);
+      return { tender: null, retryable: true };
+    }
+  };
+
+  const pendingRun = await processDetailQueue(
+    cursorPendingDetails(cursor),
+    settings.publicDetailLimit,
+    detailHandler,
+  );
+  if (shouldPauseBeforeListing(pendingRun, settings.publicDetailLimit)) {
+    return pendingOnlyResult(cursor, "bauportal-page", pendingRun);
+  }
 
   console.log("[public-scraper] Scraping bauportal-deutschland.de...");
   try {
-    // Scrape multiple list pages
-    for (let page = 1; page <= 3; page++) {
+    const detailRefs: PublicDetailReference[] = [];
+    const fallbackTenders: ExtractedTender[] = [];
+    for (let page = startPage; page < startPage + settings.publicPaginationPages; page++) {
       const listUrl = `${baseUrl}/ausschreibungen_fuer_Facility_Management_Hausverwaltung_gid_1000009_seite_${page}.html`;
       console.log(`[public-scraper] bauportal page ${page}...`);
       // Use onlyMainContent: false to get full HTML for link extraction
       const listPage = await scrapeWebsite(listUrl, { onlyMainContent: false });
-      if (!listPage.html && !listPage.markdown) continue;
+      pagesFetched += 1;
+      if (!listPage.html && !listPage.markdown) throw new Error(`bauportal page ${page}: listing returned no content`);
 
       // Use cheerio on the RAW HTML, not markdown
       const $ = cheerio.load(listPage.html);
@@ -955,21 +1403,45 @@ async function scrapeBauportal(): Promise<ExtractedTender[]> {
 
       if (detailUrls.length === 0) {
         const extracted = await extractTendersFromMarkdown(listPage.markdown, listUrl, "bauportal-deutschland.de");
-        allTenders.push(...extracted);
-        continue;
+        fallbackTenders.push(...extracted);
+        hasMore = false;
+        break;
       }
 
-      const detailPages = await scrapeMultiple(detailUrls.slice(0, settings.publicDetailLimit));
-      for (const detailPage of detailPages) {
-        const extracted = await extractDetailFromMarkdown(detailPage.markdown, detailPage.url, "bauportal-deutschland.de");
-        if (extracted) allTenders.push(extracted);
+      for (const detailUrl of detailUrls) {
+        detailRefs.push(publicDetailReference(`bauportal:url:${detailUrl}`, detailUrl));
       }
+
+      const nextUrls = parseGenericPaginationUrls(listPage.html, baseUrl, listUrl);
+      hasMore = nextUrls.length > 0;
+      if (!hasMore || detailRefs.length >= settings.publicDetailLimit) break;
     }
 
-    return allTenders;
+    const detailRun = await processDetailQueue(
+      detailRefs,
+      settings.publicDetailLimit - pendingRun.detailAttempted,
+      detailHandler,
+    );
+    const pendingDetails = mergeDetailReferences(pendingRun.pendingDetails, detailRun.pendingDetails);
+    const tenders = [...pendingRun.tenders, ...fallbackTenders, ...detailRun.tenders];
+    const nextPage = hasMore ? startPage + pagesFetched : 1;
+    return sourceCursorResult(tenders, {
+      cursor,
+      strategy: "bauportal-page",
+      position: { page: nextPage },
+      listingExhausted: !hasMore,
+      listingComplete: !hasMore,
+      pendingDetails,
+      pagesFetched,
+      paginationStrategy: "bauportal-page",
+      listedCount: detailRefs.length + fallbackTenders.length,
+      detailAttempted: pendingRun.detailAttempted + detailRun.detailAttempted,
+      detailFailed: pendingRun.detailFailed + detailRun.detailFailed,
+      extra: { page: nextPage },
+    });
   } catch (error) {
     console.error("[public-scraper] bauportal Fehler:", error);
-    return allTenders;
+    throw error;
   }
 }
 
@@ -1048,155 +1520,397 @@ async function fetchEvergabeDocumentUrls(pageHtml: string, detailUrl: string): P
   return allPdfUrls;
 }
 
-async function scrapeEvergabe(): Promise<ExtractedTender[]> {
+async function scrapeEvergabe(cursor: PublicSourceCursor | null): Promise<PublicScraperResult> {
   console.log("[public-scraper] Direktes Scraping: evergabe.de...");
-  try {
-    const listUrl = "https://www.evergabe.de/auftraege/auftrag-suchen";
+  const startPage = cursorBoolean(cursor, "exhausted") ? 1 : cursorNumber(cursor, "page", 1);
+  let pagesFetched = 0;
+  let hasMore = false;
 
-    // evergabe.de is server-rendered (Rails) — use fetch instead of Playwright
-    const response = await fetch(listUrl, {
-      headers: { "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36" },
-      signal: AbortSignal.timeout(15000),
-    });
-    const html = await response.text();
-    console.log(`[public-scraper] evergabe: listing HTML ${html.length} bytes`);
+  const detailHandler = async (reference: PublicDetailReference): Promise<DetailOutcome> => {
+    try {
+      const detailUrl = reference.url;
+      const page = await scrapeWebsite(detailUrl, { onlyMainContent: false });
+      if (!page.markdown || page.markdown.trim().length < 100) return { tender: null, retryable: true };
+      if (detectAccessPage(page.markdown, { url: detailUrl }).blocked) return { tender: null, blocked: true };
 
-    // Extract /ausschreibung/<slug>-<id> links from raw HTML
-    const linkRegex = /href=["'](\/ausschreibung\/[^"']+)["']/gi;
-    const detailPaths: string[] = [];
-    const seen = new Set<string>();
-    let match;
-    while ((match = linkRegex.exec(html)) !== null) {
-      const path = match[1].split("?")[0];
-      if (!seen.has(path)) {
-        seen.add(path);
-        detailPaths.push(path);
+      const pdfUrls: string[] = [];
+      const pdfRegex = /href=["']([^"']*\.pdf[^"']*)["']/gi;
+      let pdfMatch;
+      while ((pdfMatch = pdfRegex.exec(page.html)) !== null) {
+        const pdfUrl = pdfMatch[1].replace(/&amp;/g, "&");
+        const fullPdfUrl = pdfUrl.startsWith("http") ? pdfUrl : new URL(pdfUrl, detailUrl).href;
+        if (!pdfUrls.includes(fullPdfUrl)) pdfUrls.push(fullPdfUrl);
       }
+
+      const docPdfUrls = await fetchEvergabeDocumentUrls(page.html, detailUrl);
+      const extracted = await extractDetailFromMarkdown(page.markdown, page.url, "evergabe.de", true);
+      if (!extracted) return { tender: null };
+      extracted.externalId = reference.externalId ?? extracted.externalId ?? null;
+      extracted.pdfUrls = Array.from(new Set([...pdfUrls, ...docPdfUrls, ...extracted.pdfUrls]));
+      return { tender: withScrapedResources(extracted, page) };
+    } catch (error) {
+      console.error(`[public-scraper] evergabe Detail Fehler (${reference.key}):`, error);
+      return { tender: null, retryable: true };
+    }
+  };
+
+  const pendingRun = await processDetailQueue(
+    cursorPendingDetails(cursor),
+    settings.publicDetailLimit,
+    detailHandler,
+  );
+  if (shouldPauseBeforeListing(pendingRun, settings.publicDetailLimit)) {
+    return pendingOnlyResult(cursor, "evergabe-page", pendingRun);
+  }
+
+  try {
+    const linkRegex = /href=["'](\/ausschreibung\/[^"']+)["']/gi;
+    const detailPaths: PublicDetailReference[] = [];
+    const seen = new Set<string>();
+
+    for (let page = startPage; page < startPage + settings.publicPaginationPages; page++) {
+      const listUrl = `https://www.evergabe.de/bieter/auftrag-suchen?page=${page}`;
+      // evergabe.de is server-rendered (Rails) — use fetch instead of Playwright.
+      const response = await fetch(listUrl, {
+        headers: { "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36" },
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!response.ok) throw new Error(`evergabe listing HTTP ${response.status}`);
+      const html = await response.text();
+      if (!html.trim()) throw new Error(`evergabe listing page ${page} returned no content`);
+      pagesFetched += 1;
+      console.log(`[public-scraper] evergabe page ${page}: listing HTML ${html.length} bytes`);
+
+      let match;
+      while ((match = linkRegex.exec(html)) !== null) {
+        const path = match[1].split("?")[0];
+        if (!seen.has(path)) {
+          seen.add(path);
+          const detailUrl = `https://www.evergabe.de${path}`;
+          detailPaths.push(publicDetailReference(`evergabe:url:${path}`, detailUrl));
+        }
+      }
+
+      const nextUrls = parseGenericPaginationUrls(html, listUrl, listUrl);
+      hasMore = nextUrls.length > 0;
+      if (!hasMore || detailPaths.length === 0) break;
     }
 
     console.log(`[public-scraper] evergabe: ${detailPaths.length} Detail-Links gefunden`);
 
     if (detailPaths.length === 0) {
-      return [];
+      return sourceCursorResult(pendingRun.tenders, {
+        cursor,
+        strategy: "evergabe-page",
+        position: { page: hasMore ? startPage + pagesFetched : 1 },
+        listingExhausted: !hasMore,
+        listingComplete: !hasMore,
+        pendingDetails: pendingRun.pendingDetails,
+        pagesFetched,
+        paginationStrategy: "evergabe-page",
+        listedCount: 0,
+        detailAttempted: pendingRun.detailAttempted,
+        detailFailed: pendingRun.detailFailed,
+        extra: { page: hasMore ? startPage + pagesFetched : 1 },
+      });
     }
 
-    const tenders: ExtractedTender[] = [];
-    for (const path of detailPaths.slice(0, settings.publicDetailLimit)) {
-      try {
-        const detailUrl = `https://www.evergabe.de${path}`;
-        const page = await scrapeWebsite(detailUrl, { onlyMainContent: false });
-        if (!page.markdown || page.markdown.trim().length < 100) continue;
-
-        // Extract PDF links from HTML
-        const pdfUrls: string[] = [];
-        const pdfRegex = /href=["']([^"']*\.pdf[^"']*)["']/gi;
-        let pdfMatch;
-        while ((pdfMatch = pdfRegex.exec(page.html)) !== null) {
-          const pdfUrl = pdfMatch[1].replace(/&amp;/g, "&");
-          const fullPdfUrl = pdfUrl.startsWith("http") ? pdfUrl : new URL(pdfUrl, detailUrl).href;
-          if (!pdfUrls.includes(fullPdfUrl)) pdfUrls.push(fullPdfUrl);
-        }
-
-        // Evergabe: Vergabeunterlagen von Documents-Seite holen
-        const docPdfUrls = await fetchEvergabeDocumentUrls(page.html, detailUrl);
-
-        const extracted = await extractDetailFromMarkdown(page.markdown, page.url, "evergabe.de", true);
-        if (extracted) {
-          const allPdfs = new Set([...pdfUrls, ...docPdfUrls, ...extracted.pdfUrls]);
-          extracted.pdfUrls = Array.from(allPdfs);
-          tenders.push(extracted);
-        }
-      } catch (err) {
-        console.error(`[public-scraper] evergabe Detail Fehler:`, err);
-      }
-    }
+    const detailRun = await processDetailQueue(
+      detailPaths,
+      settings.publicDetailLimit - pendingRun.detailAttempted,
+      detailHandler,
+    );
+    const pendingDetails = mergeDetailReferences(pendingRun.pendingDetails, detailRun.pendingDetails);
+    const tenders = [...pendingRun.tenders, ...detailRun.tenders];
 
     console.log(`[public-scraper] evergabe: ${tenders.length} Ausschreibungen mit Details`);
-    return tenders;
+    const nextPage = hasMore ? startPage + pagesFetched : 1;
+    return sourceCursorResult(tenders, {
+      cursor,
+      strategy: "evergabe-page",
+      position: { page: nextPage },
+      listingExhausted: !hasMore,
+      listingComplete: !hasMore,
+      pendingDetails,
+      pagesFetched,
+      paginationStrategy: "evergabe-page",
+      listedCount: detailPaths.length,
+      detailAttempted: pendingRun.detailAttempted + detailRun.detailAttempted,
+      detailFailed: pendingRun.detailFailed + detailRun.detailFailed,
+      extra: { page: nextPage },
+    });
   } catch (error) {
     console.error("[public-scraper] evergabe Fehler:", error);
-    return [];
+    throw error;
   }
 }
 
-async function scrapeBundesimmobilien(): Promise<ExtractedTender[]> {
+async function scrapeBundesimmobilien(cursor: PublicSourceCursor | null): Promise<PublicScraperResult> {
   const url = "https://www.bundesimmobilien.de/ausschreibungen-cc3b21db72191aeb";
   console.log("[public-scraper] Direktes Scraping: bundesimmobilien.de...");
+
+  const pendingRun = await processDetailQueue(
+    cursorPendingDetails(cursor),
+    settings.publicDetailLimit,
+    async () => ({ tender: null, blocked: true }),
+  );
+  if (shouldPauseBeforeListing(pendingRun, settings.publicDetailLimit)) {
+    return pendingOnlyResult(cursor, "bundesimmobilien-snapshot", pendingRun);
+  }
+
   try {
     const page = await scrapeWebsite(url, { onlyMainContent: false });
     if (!page.markdown || page.markdown.trim().length < 200) {
-      console.log("[public-scraper] bundesimmobilien: Kein Content");
-      return [];
+      throw new Error("bundesimmobilien: listing returned no usable content");
     }
     const extracted = await extractTendersFromMarkdown(page.markdown, url, "bundesimmobilien.de");
     console.log(`[public-scraper] bundesimmobilien: ${extracted.length} Tenders`);
-    return extracted;
+    const snapshot = new Date().toISOString();
+    return sourceCursorResult([...pendingRun.tenders, ...extracted], {
+      cursor,
+      strategy: "bundesimmobilien-snapshot",
+      position: { snapshot, url },
+      listingExhausted: true,
+      listingComplete: true,
+      pendingDetails: pendingRun.pendingDetails,
+      pagesFetched: 1,
+      paginationStrategy: "bundesimmobilien-snapshot",
+      listedCount: extracted.length,
+      detailAttempted: pendingRun.detailAttempted,
+      detailFailed: pendingRun.detailFailed,
+      extra: { snapshot },
+    });
   } catch (error) {
     console.error("[public-scraper] bundesimmobilien Fehler:", error);
-    return [];
+    throw error;
   }
 }
 
 // --- New Sources: State Portals ---
 
-async function scrapeVergabeNiedersachsen(): Promise<ExtractedTender[]> {
+async function scrapeVergabeNiedersachsen(cursor: PublicSourceCursor | null): Promise<PublicScraperResult> {
   console.log("[public-scraper] Direktes Scraping: vergabe.niedersachsen.de...");
+  const rootUrl = "https://vergabe.niedersachsen.de/Satellite/company/welcome.do?method=showTable&fromSearch=1";
+  let currentUrl = cursorBoolean(cursor, "exhausted") ? rootUrl : cursorString(cursor, "nextUrl") ?? rootUrl;
+  let pagesFetched = 0;
+  let hasMore = false;
+
+  const detailHandler = async (reference: PublicDetailReference): Promise<DetailOutcome> => {
+    try {
+      const page = await scrapeWebsite(reference.url, { onlyMainContent: false });
+      if (!page.markdown || page.markdown.trim().length < 100) return { tender: null, retryable: true };
+      if (detectAccessPage(page.markdown, { url: reference.url }).blocked) return { tender: null, blocked: true };
+      const extracted = await extractDetailFromMarkdown(page.markdown, page.url, "vergabe.niedersachsen.de", true);
+      if (!extracted) return { tender: null };
+      extracted.externalId = reference.externalId ?? extracted.externalId ?? null;
+      return { tender: withScrapedResources(extracted, page) };
+    } catch (error) {
+      console.error(`[public-scraper] niedersachsen Detail Fehler (${reference.key}):`, error);
+      return { tender: null, retryable: true };
+    }
+  };
+
+  const pendingRun = await processDetailQueue(
+    cursorPendingDetails(cursor),
+    settings.publicDetailLimit,
+    detailHandler,
+  );
+  if (shouldPauseBeforeListing(pendingRun, settings.publicDetailLimit)) {
+    return pendingOnlyResult(cursor, "niedersachsen-url", pendingRun);
+  }
+
   try {
-    const listUrl = "https://vergabe.niedersachsen.de/Satellite/company/welcome.do?method=showTable&fromSearch=1";
-
-    // Server-rendered page — use fetch instead of Playwright
-    const response = await fetch(listUrl, {
-      headers: { "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36" },
-      signal: AbortSignal.timeout(15000),
-    });
-    const html = await response.text();
-
-    // Extract projectForwarding.do?pid= links
-    const linkRegex = /href=["']([^"'']*projectForwarding\.do\?pid=\d+[^"']*)["']/gi;
-    const detailLinks: string[] = [];
+    const detailLinks: PublicDetailReference[] = [];
     const seenPids = new Set<string>();
-    let match;
-    while ((match = linkRegex.exec(html)) !== null) {
-      const url = match[1].replace(/&amp;/g, "&");
-      const pidMatch = url.match(/pid=(\d+)/);
-      if (pidMatch && !seenPids.has(pidMatch[1])) {
-        seenPids.add(pidMatch[1]);
-        const fullUrl = url.startsWith("http") ? url : `https://vergabe.niedersachsen.de${url.startsWith("/") ? "" : "/Satellite/"}${url}`;
-        detailLinks.push(fullUrl);
+
+    for (let page = 0; page < settings.publicPaginationPages; page++) {
+      // Server-rendered page — use fetch instead of Playwright.
+      const response = await fetch(currentUrl, {
+        headers: { "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36" },
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!response.ok) throw new Error(`niedersachsen listing HTTP ${response.status}`);
+      const html = await response.text();
+      if (!html.trim()) throw new Error("niedersachsen listing returned no content");
+      pagesFetched += 1;
+
+      // Extract projectForwarding.do?pid= links.
+      const linkRegex = /href=["']([^"'']*projectForwarding\.do\?pid=\d+[^"']*)["']/gi;
+      let match;
+      while ((match = linkRegex.exec(html)) !== null) {
+        const url = match[1].replace(/&amp;/g, "&");
+        const pidMatch = url.match(/pid=(\d+)/);
+        if (pidMatch && !seenPids.has(pidMatch[1])) {
+          seenPids.add(pidMatch[1]);
+          const fullUrl = url.startsWith("http") ? url : `https://vergabe.niedersachsen.de${url.startsWith("/") ? "" : "/Satellite/"}${url}`;
+          detailLinks.push(publicDetailReference(`niedersachsen:pid:${pidMatch[1]}`, fullUrl, pidMatch[1]));
+        }
       }
+
+      const nextUrls = parseGenericPaginationUrls(html, rootUrl, currentUrl);
+      hasMore = nextUrls.length > 0;
+      if (!hasMore || detailLinks.length === 0) break;
+      currentUrl = nextUrls[0].replace(/;jsessionid=[^?/]*/, "");
     }
 
     console.log(`[public-scraper] niedersachsen: ${detailLinks.length} Detail-Links gefunden`);
 
     if (detailLinks.length === 0) {
-      return [];
+      return sourceCursorResult(pendingRun.tenders, {
+        cursor,
+        strategy: "niedersachsen-url",
+        position: { nextUrl: hasMore ? currentUrl : rootUrl },
+        listingExhausted: !hasMore,
+        listingComplete: !hasMore,
+        pendingDetails: pendingRun.pendingDetails,
+        pagesFetched,
+        paginationStrategy: "niedersachsen-url",
+        listedCount: 0,
+        detailAttempted: pendingRun.detailAttempted,
+        detailFailed: pendingRun.detailFailed,
+        extra: { nextUrl: hasMore ? currentUrl : rootUrl },
+      });
     }
 
-    const tenders: ExtractedTender[] = [];
-    for (const detailUrl of detailLinks.slice(0, settings.publicDetailLimit)) {
-      try {
-        const page = await scrapeWebsite(detailUrl, { onlyMainContent: false });
-        if (!page.markdown || page.markdown.trim().length < 100) continue;
-
-        const extracted = await extractDetailFromMarkdown(page.markdown, page.url, "vergabe.niedersachsen.de", true);
-        if (extracted) tenders.push(extracted);
-      } catch (err) {
-        console.error(`[public-scraper] niedersachsen Detail Fehler:`, err);
-      }
-    }
+    const detailRun = await processDetailQueue(
+      detailLinks,
+      settings.publicDetailLimit - pendingRun.detailAttempted,
+      detailHandler,
+    );
+    const pendingDetails = mergeDetailReferences(pendingRun.pendingDetails, detailRun.pendingDetails);
+    const tenders = [...pendingRun.tenders, ...detailRun.tenders];
 
     console.log(`[public-scraper] niedersachsen: ${tenders.length} Ausschreibungen mit Details`);
-    return tenders;
+    const nextUrl = hasMore ? currentUrl : rootUrl;
+    return sourceCursorResult(tenders, {
+      cursor,
+      strategy: "niedersachsen-url",
+      position: { nextUrl },
+      listingExhausted: !hasMore,
+      listingComplete: !hasMore,
+      pendingDetails,
+      pagesFetched,
+      paginationStrategy: "niedersachsen-url",
+      listedCount: detailLinks.length,
+      detailAttempted: pendingRun.detailAttempted + detailRun.detailAttempted,
+      detailFailed: pendingRun.detailFailed + detailRun.detailFailed,
+      extra: { nextUrl },
+    });
   } catch (error) {
     console.error("[public-scraper] niedersachsen Fehler:", error);
-    return [];
+    throw error;
   }
 }
 
-async function scrapeEvergabeNrw(): Promise<ExtractedTender[]> {
+async function scrapeNrwDetailReference(
+  reference: PublicDetailReference,
+  source: string,
+  portalStartTime: number,
+  portalMaxMs: number,
+): Promise<DetailOutcome> {
+  if (Date.now() - portalStartTime > portalMaxMs) return { tender: null, retryable: true };
+
+  try {
+    const detailResp = await fetch(reference.url, {
+      headers: { "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" },
+      redirect: "follow",
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!detailResp.ok) return detailResp.status === 404
+      ? { tender: null, blocked: true }
+      : { tender: null, retryable: true };
+
+    const detailBuf = Buffer.from(await detailResp.arrayBuffer());
+    const detailUrl = detailResp.url;
+    const contentType = detailResp.headers.get("content-type") ?? "";
+    const charsetMatch = contentType.match(/charset=([^\s;]+)/i);
+    let encoding = charsetMatch?.[1]?.toLowerCase() ?? "";
+    if (!encoding) {
+      const head = detailBuf.toString("ascii", 0, Math.min(2000, detailBuf.length));
+      encoding = head.match(/charset[=:]\s*"?([a-z0-9_-]+)/i)?.[1]?.toLowerCase() ?? "";
+    }
+    const detailHtml = (encoding.includes("latin") || encoding.includes("iso-8859") || encoding.includes("windows-1252"))
+      ? detailBuf.toString("latin1")
+      : detailBuf.toString("utf-8");
+    if (!detailHtml || detailHtml.length < 500) return { tender: null, retryable: true };
+
+    const pdfUrls: string[] = [];
+    const pdfRegex = /href=["']([^"']*\.pdf[^"']*)["']/gi;
+    let pdfMatch;
+    while ((pdfMatch = pdfRegex.exec(detailHtml)) !== null) {
+      const href = pdfMatch[1].replace(/&amp;/g, "&").replace(/;jsessionid=[^"']*/, "");
+      if (href.startsWith("#") || href.startsWith("javascript:") || href.startsWith("mailto:")) continue;
+      try {
+        const resolved = new URL(href, detailUrl).href;
+        if (!pdfUrls.includes(resolved)) pdfUrls.push(resolved);
+      } catch { /* ignore malformed document links */ }
+    }
+
+    if (detectAccessPage(detailHtml, { url: detailUrl }).blocked) {
+      const fallback = extractBasicDetailFromHtml(detailHtml, detailUrl, source, pdfUrls, true);
+      if (!fallback) return { tender: null, blocked: true };
+      fallback.externalId = reference.externalId ?? fallback.externalId ?? null;
+      fallback.sourceUrl = reference.url;
+      fallback.pdfUrls = pdfUrls;
+      return { tender: fallback };
+    }
+
+    let contentForLLM = "";
+    for (const pdfUrl of pdfUrls) {
+      try {
+        const pdfResp = await fetch(pdfUrl, {
+          headers: { "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" },
+          signal: AbortSignal.timeout(15000),
+        });
+        if (!pdfResp.ok || !(pdfResp.headers.get("content-type") ?? "").includes("pdf")) continue;
+        const buf = await pdfResp.arrayBuffer();
+        if (buf.byteLength < 1000) continue;
+        const tmpPath = `/tmp/public-nrw-${reference.externalId ?? reference.key.replace(/[^a-z0-9_-]/gi, "_")}.pdf`;
+        const { writeFileSync } = await import("fs");
+        writeFileSync(tmpPath, Buffer.from(buf));
+        const { extractTextFromFile } = await import("@/lib/parser");
+        contentForLLM = (await extractTextFromFile(tmpPath, "application/pdf")).text;
+        if (contentForLLM && contentForLLM.length > 100) break;
+      } catch { /* use the HTML fallback */ }
+    }
+
+    if (!contentForLLM || contentForLLM.length < 100) {
+      const page = await scrapeWebsite(detailUrl, { onlyMainContent: false });
+      contentForLLM = page.markdown ?? "";
+    }
+    if (!contentForLLM || contentForLLM.trim().length < 100) return { tender: null, retryable: true };
+    if (detectAccessPage(contentForLLM, { url: detailUrl }).blocked) return { tender: null, blocked: true };
+
+    const extracted = await extractDetailFromMarkdown(contentForLLM, detailUrl, source, true)
+      ?? extractBasicDetailFromHtml(detailHtml, detailUrl, source, pdfUrls);
+    if (!extracted) return { tender: null };
+    extracted.externalId = reference.externalId ?? extracted.externalId ?? null;
+    extracted.sourceUrl = reference.url;
+    extracted.pdfUrls = Array.from(new Set([...pdfUrls, ...extracted.pdfUrls]));
+    return { tender: extracted };
+  } catch (error) {
+    console.error(`[public-scraper] ${source} Detail Fehler (${reference.key}):`, error);
+    return { tender: null, retryable: true };
+  }
+}
+
+async function scrapeEvergabeNrw(cursor: PublicSourceCursor | null): Promise<PublicScraperResult> {
   console.log("[public-scraper] Direktes Scraping: evergabe.nrw.de...");
   const portalStartTime = Date.now();
   const PORTAL_MAX_MS = 5 * 60 * 1000;
+  let pagesFetched = 0;
+  const detailHandler = (reference: PublicDetailReference): Promise<DetailOutcome> => (
+    scrapeNrwDetailReference(reference, "evergabe.nrw.de", portalStartTime, PORTAL_MAX_MS)
+  );
+  const pendingRun = await processDetailQueue(
+    cursorPendingDetails(cursor),
+    settings.publicDetailLimit,
+    detailHandler,
+  );
+  if (shouldPauseBeforeListing(pendingRun, settings.publicDetailLimit)) {
+    return pendingOnlyResult(cursor, "evergabe-nrw-cpv", pendingRun);
+  }
+
   try {
     // Step 1: Fetch category overview to get CPV codes
     const overviewUrl = "https://www.evergabe.nrw.de/VMPCenter/company/announcements/categoryOverview.do?method=showCategoryOverview";
@@ -1204,6 +1918,7 @@ async function scrapeEvergabeNrw(): Promise<ExtractedTender[]> {
       headers: { "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36" },
       signal: AbortSignal.timeout(15000),
     });
+    if (!overviewResp.ok) throw new Error(`evergabe-nrw overview HTTP ${overviewResp.status}`);
     const overviewHtml = await overviewResp.text();
 
     // Extract CPV codes from overview
@@ -1225,137 +1940,69 @@ async function scrapeEvergabeNrw(): Promise<ExtractedTender[]> {
     }
     if (addedCpv > 0) console.log(`[public-scraper] evergabe-nrw: +${addedCpv} GaLa Bau CPV-Codes`);
 
-    if (cpvCodes.length === 0) return [];
+    if (cpvCodes.length === 0) {
+      throw new Error("evergabe-nrw: listing returned no CPV codes");
+    }
 
-    // Step 2: For each CPV code, get projectForwarding.do links from first page
-    const forwardingLinks: { pid: string; cpvCode: string }[] = [];
+    const startCpvIndex = cursorBoolean(cursor, "exhausted") ? 0 : cursorNumber(cursor, "cpvIndex", 0);
+    const cpvBatch = cpvCodes.slice(startCpvIndex, startCpvIndex + settings.publicCpvCodesPerRun);
+    const cpvHasMore = startCpvIndex + cpvBatch.length < cpvCodes.length;
+
+    // Step 2: For each CPV code in this cursor window, get projectForwarding.do links.
+    const forwardingLinks: PublicDetailReference[] = [];
     const seenPids = new Set<string>();
 
-    for (const cpvCode of cpvCodes) {
-      try {
-        const tableUrl = `https://www.evergabe.nrw.de/VMPCenter/company/announcements/categoryOverview.do?method=showTable&cpvCode=${cpvCode}`;
-        const tableResp = await fetch(tableUrl, {
-          headers: { "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" },
-          signal: AbortSignal.timeout(15000),
-        });
-        const tableHtml = await tableResp.text();
+    for (const cpvCode of cpvBatch) {
+      const tableUrl = `https://www.evergabe.nrw.de/VMPCenter/company/announcements/categoryOverview.do?method=showTable&cpvCode=${cpvCode}`;
+      const tableResp = await fetch(tableUrl, {
+        headers: { "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" },
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!tableResp.ok) throw new Error(`evergabe-nrw CPV ${cpvCode} HTTP ${tableResp.status}`);
+      const tableHtml = await tableResp.text();
+      pagesFetched += 1;
 
-        const pidRegex = /projectForwarding\.do\?pid=(\d+)/g;
-        let pidMatch;
-        while ((pidMatch = pidRegex.exec(tableHtml)) !== null) {
-          if (!seenPids.has(pidMatch[1])) {
-            seenPids.add(pidMatch[1]);
-            forwardingLinks.push({ pid: pidMatch[1], cpvCode });
-          }
+      const pidRegex = /projectForwarding\.do\?pid=(\d+)/g;
+      let pidMatch;
+      while ((pidMatch = pidRegex.exec(tableHtml)) !== null) {
+        if (!seenPids.has(pidMatch[1])) {
+          seenPids.add(pidMatch[1]);
+          const forwardingUrl = `https://www.evergabe.nrw.de/VMPCenter/public/company/projectForwarding.do?pid=${pidMatch[1]}`;
+          forwardingLinks.push(publicDetailReference(`evergabe-nrw:pid:${pidMatch[1]}`, forwardingUrl, pidMatch[1]));
         }
-      } catch (err) {
-        console.warn(`[public-scraper] evergabe-nrw CPV ${cpvCode} Fehler:`, err);
       }
     }
 
     console.log(`[public-scraper] evergabe-nrw: ${forwardingLinks.length} einzigartige Projekt-Links`);
 
-    if (forwardingLinks.length === 0) return [];
-
-    // Step 3: Follow redirects and scrape detail pages
-    const tenders: ExtractedTender[] = [];
-
-    for (const { pid, cpvCode } of forwardingLinks.slice(0, 100)) {
-      // Check per-portal timeout — return partial results
-      if (Date.now() - portalStartTime > PORTAL_MAX_MS) {
-        console.warn(`[public-scraper] evergabe-nrw: Portal-Timeout nach ${((Date.now() - portalStartTime) / 1000).toFixed(0)}s, breche ab mit ${tenders.length} Tenders`);
-        break;
-      }
-      try {
-        const forwardingUrl = `https://www.evergabe.nrw.de/VMPCenter/public/company/projectForwarding.do?pid=${pid}`;
-
-        // Follow redirect to get actual portal URL
-        const detailResp = await fetch(forwardingUrl, {
-          headers: { "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" },
-          redirect: "follow",
-          signal: AbortSignal.timeout(15000),
-        });
-        const detailBuf = Buffer.from(await detailResp.arrayBuffer());
-        const detailUrl = detailResp.url;
-        // Detect encoding: check Content-Type header, then HTML meta tag
-        const ct = detailResp.headers.get("content-type") ?? "";
-        const cm = ct.match(/charset=([^\s;]+)/i);
-        let enc = cm?.[1]?.toLowerCase() ?? "";
-        if (!enc) {
-          const head = detailBuf.toString("ascii", 0, Math.min(2000, detailBuf.length));
-          const mm = head.match(/charset[=:]\\s*"?([a-z0-9_-]+)/i);
-          enc = mm?.[1]?.toLowerCase() ?? "";
-        }
-        const detailHtml = (enc.includes("latin") || enc.includes("iso-8859") || enc.includes("windows-1252"))
-          ? detailBuf.toString("latin1")
-          : detailBuf.toString("utf-8");
-
-        if (!detailHtml || detailHtml.length < 500) continue;
-
-        // Extract Bekanntmachung.pdf link
-        const pdfUrls: string[] = [];
-        const pdfRegex = /href=["']([^"']*\.pdf[^"']*)["']/gi;
-        let pdfMatch;
-        while ((pdfMatch = pdfRegex.exec(detailHtml)) !== null) {
-          let href = pdfMatch[1].replace(/&amp;/g, "&").replace(/;jsessionid=[^"']*/, "");
-          if (href.startsWith("#") || href.startsWith("javascript:") || href.startsWith("mailto:")) continue;
-          try {
-            const resolved = new URL(href, detailUrl).href;
-            if (!pdfUrls.includes(resolved)) pdfUrls.push(resolved);
-          } catch { /* ignore */ }
-        }
-
-        // Try to get content from Bekanntmachung.pdf first (faster than Playwright)
-        let contentForLLM = "";
-        for (const pdfUrl of pdfUrls) {
-          try {
-            const pdfResp = await fetch(pdfUrl, {
-              headers: { "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" },
-              signal: AbortSignal.timeout(15000),
-            });
-            if (!pdfResp.ok) continue;
-            const contentType = pdfResp.headers.get("content-type") ?? "";
-            if (!contentType.includes("pdf")) continue;
-            const buf = await pdfResp.arrayBuffer();
-            if (buf.byteLength < 1000) continue;
-
-            // Save to temp file and parse
-            const tmpPath = `/tmp/evergabe-nrw-${pid}.pdf`;
-            const { writeFileSync } = await import("fs");
-            writeFileSync(tmpPath, Buffer.from(buf));
-            const { extractTextFromFile } = await import("@/lib/parser");
-            contentForLLM = (await extractTextFromFile(tmpPath, "application/pdf")).text;
-            if (contentForLLM && contentForLLM.length > 100) break;
-          } catch { /* try next PDF */ }
-        }
-
-        // Fallback: use Playwright to scrape the detail page
-        if (!contentForLLM || contentForLLM.length < 100) {
-          const page = await scrapeWebsite(detailUrl, { onlyMainContent: false });
-          contentForLLM = page.markdown ?? "";
-        }
-
-        if (!contentForLLM || contentForLLM.trim().length < 100) continue;
-
-        const extracted = await extractDetailFromMarkdown(contentForLLM, detailUrl, "evergabe.nrw.de", true);
-        if (extracted) {
-          const allPdfs = new Set([...pdfUrls, ...extracted.pdfUrls]);
-          extracted.pdfUrls = Array.from(allPdfs);
-          if (!extracted.sourceUrl || extracted.sourceUrl.includes("projectForwarding")) {
-            extracted.sourceUrl = detailUrl;
-          }
-          tenders.push(extracted);
-        }
-      } catch (err) {
-        console.error(`[public-scraper] evergabe-nrw Detail Fehler (PID ${pid}):`, err);
-      }
-    }
+    const detailRun = await processDetailQueue(
+      forwardingLinks,
+      settings.publicDetailLimit - pendingRun.detailAttempted,
+      detailHandler,
+    );
+    const pendingDetails = mergeDetailReferences(pendingRun.pendingDetails, detailRun.pendingDetails);
+    const tenders = [...pendingRun.tenders, ...detailRun.tenders];
 
     console.log(`[public-scraper] evergabe-nrw: ${tenders.length} Ausschreibungen mit Details`);
-    return tenders;
+    const nextCpvIndex = cpvHasMore ? startCpvIndex + cpvBatch.length : 0;
+    const listingComplete = !cpvHasMore;
+    return sourceCursorResult(tenders, {
+      cursor,
+      strategy: "evergabe-nrw-cpv",
+      position: { cpvIndex: nextCpvIndex },
+      listingExhausted: listingComplete,
+      listingComplete,
+      pendingDetails,
+      pagesFetched,
+      paginationStrategy: "evergabe-nrw-cpv",
+      listedCount: forwardingLinks.length,
+      detailAttempted: pendingRun.detailAttempted + detailRun.detailAttempted,
+      detailFailed: pendingRun.detailFailed + detailRun.detailFailed,
+      extra: { cpvIndex: nextCpvIndex },
+    });
   } catch (error) {
     console.error("[public-scraper] evergabe-nrw Fehler:", error);
-    return [];
+    throw error;
   }
 }
 
@@ -1502,10 +2149,24 @@ const NRW_PORTALS: NrwPortalConfig[] = [
   },
 ];
 
-async function scrapeNrwPortal(config: NrwPortalConfig): Promise<ExtractedTender[]> {
+async function scrapeNrwPortal(config: NrwPortalConfig, cursor: PublicSourceCursor | null): Promise<PublicScraperResult> {
   console.log(`[public-scraper] NRW-Portal: ${config.name} (${config.baseUrl})...`);
   const portalStartTime = Date.now();
   const PORTAL_MAX_MS = 5 * 60 * 1000; // 5 min (etwas weniger als der7-min Per-Portal-Timeout, inkl. CPV-Iteration)
+  let pagesFetched = 0;
+  const detailHandler = (reference: PublicDetailReference): Promise<DetailOutcome> => (
+    scrapeNrwDetailReference(reference, config.name, portalStartTime, PORTAL_MAX_MS)
+  );
+  const detailLimit = Math.min(config.limit, settings.publicDetailLimit);
+  const pendingRun = await processDetailQueue(
+    cursorPendingDetails(cursor),
+    detailLimit,
+    detailHandler,
+  );
+  if (shouldPauseBeforeListing(pendingRun, detailLimit)) {
+    return pendingOnlyResult(cursor, "nrw-cpv-page", pendingRun);
+  }
+
   try {
     const UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
@@ -1515,6 +2176,7 @@ async function scrapeNrwPortal(config: NrwPortalConfig): Promise<ExtractedTender
         headers: { "User-Agent": UA },
         signal: AbortSignal.timeout(20000),
       });
+      if (!resp.ok) throw new Error(`${config.name} listing HTTP ${resp.status}`);
       const buf = Buffer.from(await resp.arrayBuffer());
       const ct = resp.headers.get("content-type") ?? "";
       const cm = ct.match(/charset=([^\s;]+)/i);
@@ -1524,9 +2186,11 @@ async function scrapeNrwPortal(config: NrwPortalConfig): Promise<ExtractedTender
         const mm = head.match(/charset[=:]\s*"?([a-z0-9_-]+)/i);
         enc = mm?.[1]?.toLowerCase() ?? "";
       }
-      return (enc.includes("latin") || enc.includes("iso-8859") || enc.includes("windows-1252"))
+      const html = (enc.includes("latin") || enc.includes("iso-8859") || enc.includes("windows-1252"))
         ? buf.toString("latin1")
         : buf.toString("utf-8");
+      if (!html.trim()) throw new Error(`${config.name} listing returned no content`);
+      return html;
     };
 
     // Step 1: Fetch CPV codes from category overview
@@ -1575,7 +2239,9 @@ async function scrapeNrwPortal(config: NrwPortalConfig): Promise<ExtractedTender
       } catch (e) {
         console.warn(`[public-scraper] ${config.name} Playwright Fallback fehlgeschlagen:`, e);
       }
-      if (cpvCodes.length === 0) return [];
+      if (cpvCodes.length === 0) {
+        throw new Error(`${config.name}: listing returned no CPV codes`);
+      }
     }
 
     // Compute path prefix once for all URLs
@@ -1584,7 +2250,14 @@ async function scrapeNrwPortal(config: NrwPortalConfig): Promise<ExtractedTender
       : config.overviewPath.includes("/VMPCenter/") ? "/VMPCenter"
       : "/VMPSatellite");
 
-    const maxPages = config.maxPages ?? 10;
+    const startCpvIndex = cursorBoolean(cursor, "exhausted") ? 0 : cursorNumber(cursor, "cpvIndex", 0);
+    const pageCursor = cursorBoolean(cursor, "exhausted") ? null : cursorString(cursor, "pageUrl");
+    const cpvBatch = pageCursor
+      ? cpvCodes.slice(startCpvIndex, startCpvIndex + 1)
+      : cpvCodes.slice(startCpvIndex, startCpvIndex + settings.publicCpvCodesPerRun);
+    let nextCpvIndex = startCpvIndex;
+    let nextPageUrl: string | null = pageCursor;
+    let listingIncomplete = false;
     const parsePaginationUrls = (html: string, currentUrl: string): string[] => {
       const $ = cheerio.load(html);
       const urls = new Set<string>();
@@ -1600,36 +2273,43 @@ async function scrapeNrwPortal(config: NrwPortalConfig): Promise<ExtractedTender
     };
 
     // Step 2: Collect PIDs from all CPV codes
-    const forwardingLinks: { pid: string; cpvCode: string }[] = [];
+    const forwardingLinks: PublicDetailReference[] = [];
     const seenPids = new Set<string>();
 
-    for (const cpvCode of cpvCodes) {
-      try {
-        const tableUrl = `${config.baseUrl}${pathPrefix}/company/announcements/categoryOverview.do?method=showTable&cpvCode=${cpvCode}`;
-        const pendingPages = [tableUrl];
-        const visitedPages = new Set<string>();
-        while (pendingPages.length > 0 && visitedPages.size < maxPages) {
-          const currentUrl = pendingPages.shift()!;
-          if (visitedPages.has(currentUrl)) continue;
-          visitedPages.add(currentUrl);
-          const tableHtml = await fetchHtml(currentUrl);
+    for (const [batchIndex, cpvCode] of cpvBatch.entries()) {
+      const tableUrl = `${config.baseUrl}${pathPrefix}/company/announcements/categoryOverview.do?method=showTable&cpvCode=${cpvCode}`;
+      const pendingPages = [batchIndex === 0 && pageCursor ? pageCursor : tableUrl];
+      const visitedPages = new Set<string>();
+      while (pendingPages.length > 0 && visitedPages.size < settings.publicPaginationPages) {
+        const currentUrl = pendingPages.shift()!;
+        if (visitedPages.has(currentUrl)) continue;
+        visitedPages.add(currentUrl);
+        const tableHtml = await fetchHtml(currentUrl);
+        pagesFetched += 1;
 
-          // PID regex works for both /VMPSatellite/ and /Vergabe/ paths
-          const pidRegex = /projectForwarding\.do\?pid=(\d+)/g;
-          let pidMatch;
-          while ((pidMatch = pidRegex.exec(tableHtml)) !== null) {
-            if (!seenPids.has(pidMatch[1])) {
-              seenPids.add(pidMatch[1]);
-              forwardingLinks.push({ pid: pidMatch[1], cpvCode });
-            }
-          }
-          for (const nextUrl of parsePaginationUrls(tableHtml, currentUrl)) {
-            if (!visitedPages.has(nextUrl) && !pendingPages.includes(nextUrl)) pendingPages.push(nextUrl);
+        // PID regex works for both /VMPSatellite/ and /Vergabe/ paths
+        const pidRegex = /projectForwarding\.do\?pid=(\d+)/g;
+        let pidMatch;
+        while ((pidMatch = pidRegex.exec(tableHtml)) !== null) {
+          if (!seenPids.has(pidMatch[1])) {
+            seenPids.add(pidMatch[1]);
+            const forwardingUrl = `${config.baseUrl}${pathPrefix}/public/company/projectForwarding.do?pid=${pidMatch[1]}`;
+            forwardingLinks.push(publicDetailReference(`nrw:${config.name}:pid:${pidMatch[1]}`, forwardingUrl, pidMatch[1]));
           }
         }
-      } catch (err) {
-        console.warn(`[public-scraper] ${config.name} CPV ${cpvCode} Fehler:`, err);
+        for (const nextUrl of parsePaginationUrls(tableHtml, currentUrl)) {
+          if (!visitedPages.has(nextUrl) && !pendingPages.includes(nextUrl)) pendingPages.push(nextUrl);
+        }
       }
+
+      if (pendingPages.length > 0) {
+        nextCpvIndex = startCpvIndex + batchIndex;
+        nextPageUrl = pendingPages[0];
+        listingIncomplete = true;
+        break;
+      }
+      nextCpvIndex = startCpvIndex + batchIndex + 1;
+      nextPageUrl = null;
     }
 
     // Also try the welcome.do listing page (some portals list PIDs there)
@@ -1640,129 +2320,95 @@ async function scrapeNrwPortal(config: NrwPortalConfig): Promise<ExtractedTender
       while ((pidMatch = pidRegex.exec(welcomeHtml)) !== null) {
         if (!seenPids.has(pidMatch[1])) {
           seenPids.add(pidMatch[1]);
-          forwardingLinks.push({ pid: pidMatch[1], cpvCode: "welcome" });
+          const forwardingUrl = `${config.baseUrl}${pathPrefix}/public/company/projectForwarding.do?pid=${pidMatch[1]}`;
+          forwardingLinks.push(publicDetailReference(`nrw:${config.name}:pid:${pidMatch[1]}`, forwardingUrl, pidMatch[1]));
         }
       }
     } catch { /* ignore */ }
 
     console.log(`[public-scraper] ${config.name}: ${forwardingLinks.length} einzigartige Projekt-Links`);
 
-    if (forwardingLinks.length === 0) return [];
-
-    // Step 3: Scrape detail pages
-    const tenders: ExtractedTender[] = [];
-
-    for (const { pid } of forwardingLinks.slice(0, config.limit)) {
-      // Check per-portal timeout — return partial results instead of losing everything
-      if (Date.now() - portalStartTime > PORTAL_MAX_MS) {
-        console.warn(`[public-scraper] ${config.name}: Portal-Timeout nach ${((Date.now() - portalStartTime) / 1000).toFixed(0)}s, breche ab mit ${tenders.length} Tenders`);
-        break;
-      }
-      try {
-        const forwardingUrl = `${config.baseUrl}${pathPrefix}/public/company/projectForwarding.do?pid=${pid}`;
-
-        const detailResp = await fetch(forwardingUrl, {
-          headers: { "User-Agent": UA },
-          redirect: "follow",
-          signal: AbortSignal.timeout(20000),
-        });
-        const detailBuf = Buffer.from(await detailResp.arrayBuffer());
-        const detailUrl = detailResp.url;
-        const ct2 = detailResp.headers.get("content-type") ?? "";
-        const cm2 = ct2.match(/charset=([^\s;]+)/i);
-        let enc2 = cm2?.[1]?.toLowerCase() ?? "";
-        if (!enc2) {
-          const head2 = detailBuf.toString("ascii", 0, Math.min(2000, detailBuf.length));
-          const mm2 = head2.match(/charset[=:]\\s*"?([a-z0-9_-]+)/i);
-          enc2 = mm2?.[1]?.toLowerCase() ?? "";
-        }
-        const detailHtml = (enc2.includes("latin") || enc2.includes("iso-8859") || enc2.includes("windows-1252"))
-          ? detailBuf.toString("latin1")
-          : detailBuf.toString("utf-8");
-
-        if (!detailHtml || detailHtml.length < 500) continue;
-
-        // Extract PDF links
-        const pdfUrls: string[] = [];
-        const $ = cheerio.load(detailHtml);
-        $("a[href$='.pdf'], a[href*='.pdf?']").each((_, el) => {
-          const href = $(el).attr("href");
-          if (!href || href.startsWith("#") || href.startsWith("javascript:") || href.startsWith("mailto:")) return;
-          try {
-            const resolved = new URL(href, detailUrl).href.replace(/;jsessionid=[^"']*/, "");
-            if (!pdfUrls.includes(resolved)) pdfUrls.push(resolved);
-          } catch { /* ignore */ }
-        });
-
-        // Try PDF first (faster than Playwright)
-        let contentForLLM = "";
-        for (const pdfUrl of pdfUrls.slice(0, 3)) {
-          try {
-            const pdfResp = await fetch(pdfUrl, {
-              headers: { "User-Agent": UA },
-              signal: AbortSignal.timeout(15000),
-            });
-            if (!pdfResp.ok) continue;
-            const contentType = pdfResp.headers.get("content-type") ?? "";
-            if (!contentType.includes("pdf")) continue;
-            const buf = await pdfResp.arrayBuffer();
-            if (buf.byteLength < 1000) continue;
-
-            const tmpPath = `/tmp/nrw-${config.name}-${pid}.pdf`;
-            const { writeFileSync } = await import("fs");
-            writeFileSync(tmpPath, Buffer.from(buf));
-            const { extractTextFromFile } = await import("@/lib/parser");
-            contentForLLM = (await extractTextFromFile(tmpPath, "application/pdf")).text;
-            if (contentForLLM && contentForLLM.length > 100) break;
-          } catch { /* try next PDF */ }
-        }
-
-        // Fallback: use Cheerio to extract text from detail page (faster than Playwright)
-        if (!contentForLLM || contentForLLM.length < 100) {
-          const $page = cheerio.load(detailHtml);
-          $page("script, style, nav, header, footer").remove();
-          contentForLLM = htmlToBasicMarkdown($page("body").html() ?? "");
-        }
-
-        if (!contentForLLM || contentForLLM.trim().length < 100) continue;
-
-        const extracted = await extractDetailFromMarkdown(contentForLLM, detailUrl, config.name, true)
-          ?? extractBasicDetailFromHtml(detailHtml, detailUrl, config.name, pdfUrls);
-        if (extracted) {
-          const allPdfs = new Set([...pdfUrls, ...extracted.pdfUrls]);
-          extracted.pdfUrls = Array.from(allPdfs);
-          // The redirect target contains a transient JSESSIONID. Keep the
-          // stable forwarding URL for users and use the portal project ID as
-          // the identity across scrape sessions.
-          extracted.sourceUrl = forwardingUrl;
-          extracted.externalId = extractPortalProjectId(detailUrl) ?? `pid:${pid}`;
-          tenders.push(extracted);
-        }
-      } catch (err) {
-        console.error(`[public-scraper] ${config.name} Detail Fehler (PID ${pid}):`, err);
-      }
-    }
+    const detailRun = await processDetailQueue(
+      forwardingLinks,
+      detailLimit - pendingRun.detailAttempted,
+      detailHandler,
+    );
+    const pendingDetails = mergeDetailReferences(pendingRun.pendingDetails, detailRun.pendingDetails);
+    const tenders = [...pendingRun.tenders, ...detailRun.tenders];
 
     console.log(`[public-scraper] ${config.name}: ${tenders.length} Ausschreibungen`);
-    return tenders;
+    const listingComplete = !listingIncomplete && nextCpvIndex >= cpvCodes.length;
+    const nextIndex = listingComplete ? 0 : nextCpvIndex;
+    return sourceCursorResult(tenders, {
+      cursor,
+      strategy: "nrw-cpv-page",
+      position: { cpvIndex: nextIndex, pageUrl: listingIncomplete ? nextPageUrl : null },
+      listingExhausted: listingComplete,
+      listingComplete,
+      pendingDetails,
+      pagesFetched,
+      paginationStrategy: "nrw-cpv-page",
+      listedCount: forwardingLinks.length,
+      detailAttempted: pendingRun.detailAttempted + detailRun.detailAttempted,
+      detailFailed: pendingRun.detailFailed + detailRun.detailFailed,
+      extra: { cpvIndex: nextIndex, pageUrl: listingIncomplete ? nextPageUrl : null },
+    });
   } catch (error) {
     console.error(`[public-scraper] ${config.name} Fehler:`, error);
-    return [];
+    throw error;
   }
 }
 
 // --- Berlin Vergabeplattform (RSS Feed) ---
 
-export async function scrapeBerlinHtml(): Promise<ExtractedTender[]> {
+export async function scrapeBerlinHtml(cursor: PublicSourceCursor | null): Promise<PublicScraperResult> {
   const BASE_URL = "https://www.berlin.de/vergabeplattform/veroeffentlichungen/bekanntmachungen/";
-  const MAX_PAGES = 20;
+  const MAX_PAGES = settings.publicPaginationPages;
   const UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+  const startPage = cursorBoolean(cursor, "exhausted") ? 0 : cursorNumber(cursor, "page", 0);
+  const berlinDetailContent = new Map<string, { markdown: string; html: string }>();
 
-  console.log(`[public-scraper] Berlin HTML: Scrape ${MAX_PAGES} Seiten...`);
+  const detailHandler = async (reference: PublicDetailReference): Promise<DetailOutcome> => {
+    try {
+      const { scrapeWebsite: scrapeWithPlaywright } = await import("@/lib/firecrawl");
+      const page = await scrapeWithPlaywright(reference.url, {
+        waitUntil: "networkidle",
+        waitMs: 5000,
+        onlyMainContent: false,
+        useBodyText: true,
+      });
+      const markdown = page.markdown ?? "";
+      if (markdown.length < 200) return { tender: null, retryable: true };
+      if (detectAccessPage(markdown, { url: reference.url }).blocked) return { tender: null, blocked: true };
+      berlinDetailContent.set(reference.key, { markdown, html: page.html ?? "" });
+      const extracted = await extractDetailFromMarkdown(markdown, reference.url, "berlin-html", true);
+      if (extracted) extracted.externalId = reference.externalId ?? extracted.externalId ?? null;
+      return extracted ? { tender: withScrapedResources(extracted, page) } : { tender: null };
+    } catch (error) {
+      console.warn(`[public-scraper] Berlin Detail Fehler (${reference.key}):`, error);
+      return { tender: null, retryable: true };
+    }
+  };
 
-  const tenders: ExtractedTender[] = [];
+  const pendingRun = await processDetailQueue(
+    cursorPendingDetails(cursor),
+    settings.publicDetailLimit,
+    detailHandler,
+  );
+  if (shouldPauseBeforeListing(pendingRun, settings.publicDetailLimit)) {
+    return pendingOnlyResult(cursor, "berlin-offset", pendingRun);
+  }
 
-  for (let page = 0; page < MAX_PAGES; page++) {
+  console.log(`[public-scraper] Berlin HTML: Scrape ab Seite ${startPage + 1}, ${MAX_PAGES} Seiten...`);
+
+  const tenders: ExtractedTender[] = [...pendingRun.tenders];
+  const detailRefs: PublicDetailReference[] = [];
+  let pagesFetched = 0;
+  let listedCount = 0;
+  let hasMore = false;
+  let pageError = false;
+
+  for (let page = startPage; page < startPage + MAX_PAGES; page++) {
     const offset = page * 10;
     const url = offset === 0 ? BASE_URL : `${BASE_URL}?start=${offset}`;
     try {
@@ -1770,14 +2416,19 @@ export async function scrapeBerlinHtml(): Promise<ExtractedTender[]> {
         headers: { "User-Agent": UA },
         signal: AbortSignal.timeout(20000),
       });
+      if (!resp.ok) throw new Error(`Berlin listing HTTP ${resp.status}`);
       const html = await resp.text();
+      if (!html.trim()) throw new Error(`Berlin listing page ${page + 1} returned no content`);
       const $ = cheerio.load(html);
 
       const articles = $("article.modul-card");
       if (articles.length === 0) {
         console.log(`[public-scraper] Berlin HTML: Seite ${page + 1} leer, stoppe. (HTML: ${html.length} bytes)`);
+        hasMore = false;
         break;
       }
+      pagesFetched += 1;
+      hasMore = true;
 
       articles.each((_, el) => {
         try {
@@ -1819,7 +2470,7 @@ export async function scrapeBerlinHtml(): Promise<ExtractedTender[]> {
           if (cleanDeadline) descParts.push(`Ablauf der Angebotsfrist: ${cleanDeadline}`);
           if (onlineSeit) descParts.push(`Online seit: ${onlineSeit}`);
 
-          tenders.push({
+          const listingTender: ExtractedTender = {
             title: cleanTenderTitle(title),
             client: "",
             deadline: cleanDeadline || null,
@@ -1829,8 +2480,18 @@ export async function scrapeBerlinHtml(): Promise<ExtractedTender[]> {
             category: "Sonstiges",
             sourceUrl,
             source: "berlin-html",
+            externalId: dataId ?? null,
             pdfUrls: [],
-          });
+          };
+          tenders.push(listingTender);
+          listedCount += 1;
+          if (detailLink && detailLink.includes("meinauftrag.rib.de")) {
+            detailRefs.push(publicDetailReference(
+              `berlin:data:${dataId ?? detailLink}`,
+              detailLink,
+              dataId ?? undefined,
+            ));
+          }
         } catch (err) {
           console.warn(`[public-scraper] Berlin HTML Artikel Fehler:`, err);
         }
@@ -1839,54 +2500,64 @@ export async function scrapeBerlinHtml(): Promise<ExtractedTender[]> {
       console.log(`[public-scraper] Berlin HTML: Seite ${page + 1}: ${articles.length} Artikel (gesamt: ${tenders.length})`);
 
       // Delay between pages to avoid rate limiting
-      if (page < MAX_PAGES - 1) {
+      if (page < startPage + MAX_PAGES - 1) {
         await new Promise((r) => setTimeout(r, 1500));
       }
     } catch (err) {
       console.warn(`[public-scraper] Berlin HTML Seite ${page + 1} Fehler:`, err);
+      pageError = true;
       break;
     }
   }
 
-  // Enrich FIRST 15 tenders with detail page content via Playwright (for meinauftrag.rib.de links)
-  const { scrapeWebsite: scrapeWithPlaywright } = await import("@/lib/firecrawl");
-  let enriched = 0;
-  const MAX_ENRICH = 15;
+  const detailRun = await processDetailQueue(
+    detailRefs,
+    settings.publicDetailLimit - pendingRun.detailAttempted,
+    detailHandler,
+  );
+  const pendingDetails = mergeDetailReferences(pendingRun.pendingDetails, detailRun.pendingDetails);
+  const detailByExternalId = new Map(detailRun.tenders.filter((tender) => tender.externalId).map((tender) => [tender.externalId!, tender]));
   for (const tender of tenders) {
-    if (enriched >= MAX_ENRICH) break;
-    if (!tender.sourceUrl.includes("meinauftrag.rib.de")) continue;
-    try {
-      const page = await scrapeWithPlaywright(tender.sourceUrl, {
-        waitUntil: "networkidle",
-        waitMs: 5000,
-        onlyMainContent: false,
-        useBodyText: true,
-      });
-      const md = page.markdown ?? "";
-      const berlinEnrichAccess = detectAccessPage(md, { url: tender.sourceUrl });
-      if (md.length > 200 && !berlinEnrichAccess.blocked) {
-        // Use detail page content as description
-        tender.description = md.substring(0, 30000);
-        enriched++;
-        // Try to extract PDF links
-        if (page.html) {
-          const pdfMatches = page.html.matchAll(/href="([^"]*\.pdf[^"]*)"/gi);
-          for (const m of pdfMatches) {
-            const href = m[1];
-            if (href && !href.includes("favicon")) {
-              const fullUrl = href.startsWith("http") ? href : `https://meinauftrag.rib.de${href}`;
-              if (!tender.pdfUrls.includes(fullUrl)) tender.pdfUrls.push(fullUrl);
-            }
-          }
-        }
+    const detail = tender.externalId ? detailByExternalId.get(tender.externalId) : undefined;
+    if (!detail) continue;
+    const detailReference = detailRefs.find((reference) => reference.externalId === tender.externalId);
+    const rawDetail = detailReference ? berlinDetailContent.get(detailReference.key) : undefined;
+    tender.title = detail.title || tender.title;
+    tender.client = detail.client || tender.client;
+    tender.deadline = detail.deadline || tender.deadline;
+    tender.description = rawDetail?.markdown.substring(0, 30000) || detail.description || tender.description;
+    tender.referenceNumber = detail.referenceNumber || tender.referenceNumber;
+    tender.location = detail.location || tender.location;
+    tender.category = detail.category;
+    tender.pdfUrls = Array.from(new Set([...tender.pdfUrls, ...detail.pdfUrls]));
+    if (rawDetail?.html) {
+      for (const match of rawDetail.html.matchAll(/href=["']([^"']*\.pdf[^"']*)["']/gi)) {
+        const pdfUrl = match[1].startsWith("http") ? match[1] : new URL(match[1], tender.sourceUrl).href;
+        if (!tender.pdfUrls.includes(pdfUrl)) tender.pdfUrls.push(pdfUrl);
       }
-    } catch (e) {
-      // Silent fail — we still have the listing page data
     }
   }
+  const unmergedDetails = detailRun.tenders.filter((tender) => !tenders.some((listing) => listing.externalId && listing.externalId === tender.externalId));
+  tenders.push(...unmergedDetails);
 
-  console.log(`[public-scraper] Berlin HTML: ${tenders.length} Tenders, ${enriched} mit Detail-Seiten`);
-  return tenders;
+  console.log(`[public-scraper] Berlin HTML: ${tenders.length} Tenders, ${detailRun.tenders.length} mit Detail-Seiten`);
+  const nextPage = pageError ? startPage + pagesFetched : hasMore ? startPage + pagesFetched : 0;
+  const listingComplete = !pageError && !hasMore;
+  return sourceCursorResult(tenders, {
+    cursor,
+    strategy: "berlin-offset",
+    position: { page: nextPage },
+    listingExhausted: listingComplete,
+    listingComplete,
+    pendingDetails,
+    pagesFetched,
+    paginationStrategy: "berlin-offset",
+    listedCount,
+    detailAttempted: pendingRun.detailAttempted + detailRun.detailAttempted,
+    detailFailed: pendingRun.detailFailed + detailRun.detailFailed,
+    cursorCommit: pageError ? "hold" : "commit",
+    extra: { page: nextPage },
+  });
 }
 
 // --- NetServer Portale (landbw.de, hessen.de, berlin) ---
@@ -2089,10 +2760,114 @@ const NET_SERVER_PORTALS: NetServerConfig[] = [
   },
 ];
 
-export async function scrapeNetPortal(config: NetServerConfig): Promise<ExtractedTender[]> {
+export async function scrapeNetPortal(config: NetServerConfig, cursor: PublicSourceCursor | null): Promise<PublicScraperResult> {
   console.log(`[public-scraper] NetServer: ${config.name} (${config.baseUrl})...`);
   const portalStartTime = Date.now();
   const PORTAL_MAX_MS = 5 * 60 * 1000;
+  let pagesFetched = 0;
+  const detailLimit = Math.min(config.limit, settings.publicDetailLimit);
+  const rowByKey = new Map<string, NetServerRow>();
+  let berlinPlaywrightCount = 0;
+  const isBerlin = config.name === "berlin";
+  const berlinPlaywrightLimit = 10;
+
+  const detailHandler = async (reference: PublicDetailReference): Promise<DetailOutcome> => {
+    const row = rowByKey.get(reference.key) ?? {
+      oid: reference.externalId ?? reference.key,
+      title: "",
+      client: "",
+      deadline: "",
+      procedure: "",
+    };
+    if (Date.now() - portalStartTime > PORTAL_MAX_MS) return { tender: null, retryable: true };
+    try {
+      let detailUrl = reference.url;
+      if (rowByKey.has(reference.key)) {
+        detailUrl = await resolveNetServerDetailUrl(config, row, "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36");
+      } else if (config.detailMode === "data-provider-redirect") {
+        detailUrl = await resolveNetServerDetailUrl(config, row, "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36");
+      }
+
+      let bodyText = "";
+      if (isBerlin && berlinPlaywrightCount < berlinPlaywrightLimit) {
+        berlinPlaywrightCount += 1;
+        const { scrapeWebsite: scrapeWithPlaywright } = await import("@/lib/firecrawl");
+        const page = await scrapeWithPlaywright(detailUrl, {
+          waitUntil: "networkidle",
+          waitMs: 5000,
+          onlyMainContent: false,
+          useBodyText: true,
+        });
+        bodyText = page.markdown ?? "";
+        if (bodyText.length < 200 || detectAccessPage(bodyText, { url: detailUrl }).blocked) bodyText = "";
+      } else {
+        const detailResp = await fetch(detailUrl, {
+          headers: { "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" },
+          signal: AbortSignal.timeout(15000),
+        });
+        let detailHtml = "";
+        if (detailResp.ok) {
+          detailHtml = await detailResp.text();
+        } else {
+          const { execSync } = await import("child_process");
+          detailHtml = execSync(`curl -s -L -H "User-Agent: Mozilla/5.0" "${detailUrl}"`, {
+            maxBuffer: 5 * 1024 * 1024,
+            timeout: 20000,
+          }).toString();
+        }
+        const $detail = cheerio.load(detailHtml);
+        $detail("script, style, nav, header, footer").remove();
+        bodyText = htmlToBasicMarkdown($detail("body").html() ?? "");
+      }
+
+      if (bodyText && bodyText.length > 200 && !detectAccessPage(bodyText, { url: detailUrl }).blocked) {
+        const extracted = await extractDetailFromMarkdown(bodyText, detailUrl, config.name, true);
+        if (extracted) {
+          const isGenericTitle = !extracted.title || extracted.title.length < 5 ||
+            /^(Ausschreibung der|Keine Ausschreibung|Keine Details|Zugriff verweigert|Unbekannter Titel|Öffentliche Ausschreibung der)/i.test(extracted.title);
+          if (isGenericTitle && row.title.length > 5) extracted.title = cleanTenderTitle(row.title);
+          if (!extracted.client || extracted.client.length < 3) extracted.client = row.client;
+          if (!extracted.deadline) extracted.deadline = row.deadline;
+          if (!extracted.description || extracted.description.length < 30) extracted.description = row.procedure ? `Verfahrensart: ${row.procedure}` : "";
+          extracted.externalId = reference.externalId ?? row.oid;
+          extracted.sourceUrl = detailUrl;
+          return { tender: extracted };
+        }
+      }
+
+      if (row.title.length > 5) {
+        return {
+          tender: {
+            title: cleanTenderTitle(row.title),
+            client: row.client || "",
+            deadline: row.deadline || null,
+            description: row.procedure ? `Verfahrensart: ${row.procedure}` : "",
+            referenceNumber: row.oid,
+            externalId: reference.externalId ?? row.oid,
+            location: null,
+            category: "Sonstiges",
+            sourceUrl: detailUrl,
+            source: config.name,
+            pdfUrls: [],
+          },
+        };
+      }
+      return { tender: null, retryable: true };
+    } catch (error) {
+      console.warn(`[public-scraper] ${config.name} Detail Fehler (OID ${reference.externalId ?? reference.key}):`, error);
+      return { tender: null, retryable: true };
+    }
+  };
+
+  const pendingRun = await processDetailQueue(
+    cursorPendingDetails(cursor),
+    detailLimit,
+    detailHandler,
+  );
+  if (shouldPauseBeforeListing(pendingRun, detailLimit)) {
+    return pendingOnlyResult(cursor, "netserver-start", pendingRun);
+  }
+
   try {
     const UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
     const searchUrl = `${config.baseUrl}${config.searchPath}`;
@@ -2110,22 +2885,26 @@ export async function scrapeNetPortal(config: NetServerConfig): Promise<Extracte
       // Fallback for portals with bot protection (F5 BIG-IP etc.).
       console.log(`[public-scraper] ${config.name}: fetch gab ${response.status}, versuche curl...`);
       const { execSync } = await import("child_process");
-      return execSync(`curl -s -L -H "User-Agent: ${UA}" "${url}"`, {
+      const fallbackHtml = execSync(`curl -s -L -H "User-Agent: ${UA}" "${url}"`, {
         maxBuffer: 5 * 1024 * 1024,
         timeout: 25000,
       }).toString();
+      if (!fallbackHtml.trim()) throw new Error(`${config.name}: listing returned no content after HTTP ${response.status}`);
+      return fallbackHtml;
     };
 
     const pageHtmls: Array<{ url: string; html: string }> = [];
-    const pendingPages = [searchUrl];
+    const initialPage = cursorBoolean(cursor, "exhausted") ? searchUrl : cursorString(cursor, "nextUrl") ?? searchUrl;
+    const pendingPages = [initialPage];
     const visitedPages = new Set<string>();
-    while (pendingPages.length > 0 && visitedPages.size < 10) {
+    while (pendingPages.length > 0 && pagesFetched < settings.publicPaginationPages) {
       const currentUrl = pendingPages.shift()!;
       if (visitedPages.has(currentUrl)) continue;
       visitedPages.add(currentUrl);
       const html = await fetchHtml(currentUrl);
       pageHtmls.push({ url: currentUrl, html });
-      if (config.followPagination) {
+      pagesFetched += 1;
+      if (config.followPagination !== false) {
         for (const pageUrl of parseNetServerPaginationUrls(html, config.baseUrl, currentUrl)) {
           if (!visitedPages.has(pageUrl) && !pendingPages.includes(pageUrl)) pendingPages.push(pageUrl);
         }
@@ -2140,241 +2919,285 @@ export async function scrapeNetPortal(config: NetServerConfig): Promise<Extracte
 
     console.log(`[public-scraper] ${config.name}: ${rows.length} Zeilen in Tabelle`);
 
-    const isBerlin = config.name === "berlin";
-    const berlinPlaywrightLimit = 10;
-    let berlinPlaywrightCount = 0;
-    const tenders: ExtractedTender[] = [];
-    for (const row of rows.slice(0, config.limit)) {
-      // Check per-portal timeout — return partial results
-      if (Date.now() - portalStartTime > PORTAL_MAX_MS) {
-        console.warn(`[public-scraper] ${config.name}: Portal-Timeout nach ${((Date.now() - portalStartTime) / 1000).toFixed(0)}s, breche ab mit ${tenders.length} Tenders`);
-        break;
-      }
-      try {
-        const detailUrl = await resolveNetServerDetailUrl(config, row, UA);
-
-        let bodyText = "";
-        if (isBerlin && berlinPlaywrightCount < berlinPlaywrightLimit) {
-          // Berlin NetServer is a SPA — use Playwright to render detail pages (limited)
-          berlinPlaywrightCount++;
-          try {
-            const { scrapeWebsite: scrapeWithPlaywright } = await import("@/lib/firecrawl");
-            const page = await scrapeWithPlaywright(detailUrl, {
-              waitUntil: "networkidle",
-              waitMs: 5000,
-              onlyMainContent: false,
-              useBodyText: true,
-            });
-            bodyText = page.markdown ?? "";
-            const berlinAccess = detectAccessPage(bodyText, { url: detailUrl });
-            if (bodyText.length < 200 || berlinAccess.blocked) {
-              bodyText = ""; // SPA returned T&C/access wall, fall back to table data
-            }
-          } catch (e) {
-            console.warn(`[public-scraper] ${config.name} Playwright Fehler (OID ${row.oid}):`, e);
-          }
-        } else {
-          // landbw/hessen/muenchen: fetch with curl fallback for bot protection
-          const detailResp = await fetch(detailUrl, {
-            headers: { "User-Agent": UA },
-            signal: AbortSignal.timeout(15000),
-          });
-          let detailHtml: string;
-          if (detailResp.ok) {
-            detailHtml = await detailResp.text();
-          } else {
-            const { execSync: execSyncDetail } = await import("child_process");
-            detailHtml = execSyncDetail(`curl -s -L -H "User-Agent: ${UA}" "${detailUrl}"`, {
-              maxBuffer: 5 * 1024 * 1024,
-              timeout: 20000,
-            }).toString();
-          }
-          const $detail = cheerio.load(detailHtml);
-          $detail("script, style, nav, header, footer").remove();
-          bodyText = htmlToBasicMarkdown($detail("body").html() ?? "");
-        }
-
-        // If we have rich detail content, use LLM extraction
-        if (bodyText && bodyText.length > 200) {
-          const extracted = await extractDetailFromMarkdown(bodyText, detailUrl, config.name, true);
-          if (extracted) {
-            // Check if LLM returned generic/useless title — fall back to table data
-            const isGenericTitle = !extracted.title || extracted.title.length < 5 ||
-              /^(Ausschreibung der|Keine Ausschreibung|Keine Details|Zugriff verweigert|Unbekannter Titel|Öffentliche Ausschreibung der)/i.test(extracted.title);
-            if (isGenericTitle && row.title.length > 5) {
-              extracted.title = cleanTenderTitle(row.title);
-            }
-            if (!extracted.client || extracted.client.length < 3) extracted.client = row.client;
-            if (!extracted.deadline) extracted.deadline = row.deadline;
-            if (!extracted.sourceUrl) extracted.sourceUrl = detailUrl;
-            extracted.externalId = row.oid;
-            // If description is too short, use table procedure info
-            if (!extracted.description || extracted.description.length < 30) {
-              extracted.description = row.procedure ? `Verfahrensart: ${row.procedure}` : "";
-            }
-            tenders.push(extracted);
-            continue;
-          }
-        }
-
-        // Fallback: create tender from table data only (no LLM call)
-        if (row.title.length > 5) {
-          tenders.push({
-            title: cleanTenderTitle(row.title),
-            client: row.client || "",
-            deadline: row.deadline || null,
-            description: row.procedure ? `Verfahrensart: ${row.procedure}` : "",
-            referenceNumber: row.oid,
-            externalId: row.oid,
-            location: null,
-            category: "Sonstiges",
-            sourceUrl: detailUrl,
-            source: config.name,
-            pdfUrls: [],
-          });
-        }
-      } catch (err) {
-        console.warn(`[public-scraper] ${config.name} Detail Fehler (OID ${row.oid}):`, err);
-      }
+    const tenders: ExtractedTender[] = [...pendingRun.tenders];
+    const detailRefs: PublicDetailReference[] = [];
+    for (const row of rows) {
+      const key = `net:${config.name}:oid:${row.oid}`;
+      rowByKey.set(key, row);
+      const detailUrl = row.detailPath
+        ? new URL(row.detailPath, `${config.baseUrl}/NetServer/`).href
+        : `${config.baseUrl}/NetServer/PublicationSearchControllerServlet?function=GetPublication&oid=${encodeURIComponent(row.oid)}&Category=InvitationToTender&thContext=publications`;
+      detailRefs.push(publicDetailReference(key, detailUrl, row.oid));
     }
 
+    const detailRun = await processDetailQueue(
+      detailRefs,
+      detailLimit - pendingRun.detailAttempted,
+      detailHandler,
+    );
+    tenders.push(...detailRun.tenders);
+    const pendingDetails = mergeDetailReferences(pendingRun.pendingDetails, detailRun.pendingDetails);
+
     console.log(`[public-scraper] ${config.name}: ${tenders.length} Ausschreibungen`);
-    return tenders;
+    const nextUrl = pendingPages[0] ?? null;
+    const hasMore = Boolean(nextUrl);
+    const nextListingUrl = nextUrl ?? searchUrl;
+    return sourceCursorResult(tenders, {
+      cursor,
+      strategy: "netserver-start",
+      position: { nextUrl: nextListingUrl },
+      listingExhausted: !hasMore,
+      listingComplete: !hasMore,
+      pendingDetails,
+      pagesFetched,
+      paginationStrategy: "netserver-start",
+      listedCount: rows.length,
+      detailAttempted: pendingRun.detailAttempted + detailRun.detailAttempted,
+      detailFailed: pendingRun.detailFailed + detailRun.detailFailed,
+      extra: { nextUrl: nextListingUrl },
+    });
   } catch (error) {
     console.error(`[public-scraper] ${config.name} Fehler:`, error);
-    return [];
+    throw error;
   }
 }
 
 // --- e-vergabe-sh.de (Schleswig-Holstein) ---
 
-async function scrapeEVergabeSh(): Promise<ExtractedTender[]> {
+async function scrapeEVergabeSh(cursor: PublicSourceCursor | null): Promise<PublicScraperResult> {
   console.log("[public-scraper] e-vergabe-sh.de...");
+  const rootUrl = "https://www.e-vergabe-sh.de/vergabeverfahren/aktuelle-vergabeverfahren";
+  let currentUrl = cursorBoolean(cursor, "exhausted") ? rootUrl : cursorString(cursor, "nextUrl") ?? rootUrl;
+  let pagesFetched = 0;
+  let hasMore = false;
+  const titleByUrl = new Map<string, string>();
+
+  const detailHandler = async (reference: PublicDetailReference): Promise<DetailOutcome> => {
+    try {
+      const detailResp = await fetch(reference.url, {
+        headers: { "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36" },
+        redirect: "follow",
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!detailResp.ok) return detailResp.status === 404
+        ? { tender: null, blocked: true }
+        : { tender: null, retryable: true };
+      const detailHtml = await detailResp.text();
+      const $detail = cheerio.load(detailHtml);
+      $detail("script, style, nav, header, footer").remove();
+      const bodyText = htmlToBasicMarkdown($detail("body").html() ?? "");
+      if (!bodyText || bodyText.length < 100) return { tender: null, retryable: true };
+      if (detectAccessPage(bodyText, { url: reference.url }).blocked) return { tender: null, blocked: true };
+      const extracted = await extractDetailFromMarkdown(bodyText, reference.url, "e-vergabe-sh", true);
+      if (!extracted) return { tender: null };
+      const listedTitle = titleByUrl.get(reference.url);
+      if (listedTitle && (!extracted.title || extracted.title.length < 5)) extracted.title = cleanTenderTitle(listedTitle);
+      extracted.externalId = reference.externalId ?? extracted.externalId ?? null;
+      return { tender: extracted };
+    } catch (error) {
+      console.warn(`[public-scraper] e-vergabe-sh Detail Fehler (${reference.key}):`, error);
+      return { tender: null, retryable: true };
+    }
+  };
+
+  const pendingRun = await processDetailQueue(
+    cursorPendingDetails(cursor),
+    settings.publicDetailLimit,
+    detailHandler,
+  );
+  if (shouldPauseBeforeListing(pendingRun, settings.publicDetailLimit)) {
+    return pendingOnlyResult(cursor, "e-vergabe-sh-url", pendingRun);
+  }
+
   try {
     const UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
-    const listUrl = "https://www.e-vergabe-sh.de/vergabeverfahren/aktuelle-vergabeverfahren";
-    const resp = await fetch(listUrl, {
-      headers: { "User-Agent": UA },
-      signal: AbortSignal.timeout(20000),
-    });
-    const html = await resp.text();
-    const $ = cheerio.load(html);
 
-    const tenders: ExtractedTender[] = [];
     // Find tender links — they have aria-label starting with "Bekanntmachung"
-    const links: { title: string; url: string }[] = [];
-    $("a[aria-label^='Bekanntmachung']").each((_, el) => {
-      const $el = $(el);
-      const ariaLabel = $el.attr("aria-label") ?? "";
-      const href = $el.attr("href") ?? "";
-      const title = ariaLabel.replace(/^Bekanntmachung\s+/, "").replace(/\s+auf externer Vergabeplattform öffnen$/, "").trim();
-      if (href && title.length > 5 && href.startsWith("http")) {
-        links.push({ title, url: href });
-      }
-    });
+    const links: PublicDetailReference[] = [];
+    const seenLinks = new Set<string>();
+    for (let page = 0; page < settings.publicPaginationPages; page++) {
+      const resp = await fetch(currentUrl, {
+        headers: { "User-Agent": UA },
+        signal: AbortSignal.timeout(20000),
+      });
+      if (!resp.ok) throw new Error(`e-vergabe-sh listing HTTP ${resp.status}`);
+      const html = await resp.text();
+      if (!html.trim()) throw new Error("e-vergabe-sh listing returned no content");
+      pagesFetched += 1;
+      const $ = cheerio.load(html);
+      $("a[aria-label^='Bekanntmachung']").each((_, el) => {
+        const $el = $(el);
+        const ariaLabel = $el.attr("aria-label") ?? "";
+        const href = $el.attr("href") ?? "";
+        const title = ariaLabel.replace(/^Bekanntmachung\s+/, "").replace(/\s+auf externer Vergabeplattform öffnen$/, "").trim();
+        if (href && title.length > 5 && href.startsWith("http") && !seenLinks.has(href)) {
+          seenLinks.add(href);
+          titleByUrl.set(href, title);
+          links.push(publicDetailReference(`e-vergabe-sh:url:${href}`, href));
+        }
+      });
+
+      const nextUrls = parseGenericPaginationUrls(html, rootUrl, currentUrl);
+      hasMore = nextUrls.length > 0;
+      if (!hasMore || links.length === 0) break;
+      currentUrl = nextUrls[0];
+    }
 
     console.log(`[public-scraper] e-vergabe-sh: ${links.length} Bekanntmachungen gefunden`);
 
-    for (const link of links.slice(0, settings.publicDetailLimit)) {
-      try {
-        // The links point to external platforms — try to scrape them
-        const detailResp = await fetch(link.url, {
-          headers: { "User-Agent": UA },
-          redirect: "follow",
-          signal: AbortSignal.timeout(15000),
-        });
-        const detailHtml = await detailResp.text();
-        const $detail = cheerio.load(detailHtml);
-        $detail("script, style, nav, header, footer").remove();
-        const bodyText = htmlToBasicMarkdown($detail("body").html() ?? "");
-
-        if (!bodyText || bodyText.length < 100) continue;
-
-        const extracted = await extractDetailFromMarkdown(bodyText, link.url, "e-vergabe-sh", true);
-        if (extracted) {
-          if (!extracted.title || extracted.title.length < 5) extracted.title = cleanTenderTitle(link.title);
-          if (!extracted.sourceUrl) extracted.sourceUrl = link.url;
-          tenders.push(extracted);
-        }
-      } catch (err) {
-        console.warn(`[public-scraper] e-vergabe-sh Detail Fehler:`, err);
-      }
-    }
+    const detailRun = await processDetailQueue(
+      links,
+      settings.publicDetailLimit - pendingRun.detailAttempted,
+      detailHandler,
+    );
+    const pendingDetails = mergeDetailReferences(pendingRun.pendingDetails, detailRun.pendingDetails);
+    const tenders = [...pendingRun.tenders, ...detailRun.tenders];
 
     console.log(`[public-scraper] e-vergabe-sh: ${tenders.length} Ausschreibungen`);
-    return tenders;
+    const nextUrl = hasMore ? currentUrl : rootUrl;
+    return sourceCursorResult(tenders, {
+      cursor,
+      strategy: "e-vergabe-sh-url",
+      position: { nextUrl },
+      listingExhausted: !hasMore,
+      listingComplete: !hasMore,
+      pendingDetails,
+      pagesFetched,
+      paginationStrategy: "e-vergabe-sh-url",
+      listedCount: links.length,
+      detailAttempted: pendingRun.detailAttempted + detailRun.detailAttempted,
+      detailFailed: pendingRun.detailFailed + detailRun.detailFailed,
+      extra: { nextUrl },
+    });
   } catch (error) {
     console.error("[public-scraper] e-vergabe-sh Fehler:", error);
-    return [];
+    throw error;
   }
 }
 
 // --- verwaltung.thueringen.de (Thüringen) ---
 
-async function scrapeThueringen(): Promise<ExtractedTender[]> {
+async function scrapeThueringen(cursor: PublicSourceCursor | null): Promise<PublicScraperResult> {
   console.log("[public-scraper] thueringen.de...");
+  const rootUrl = "https://verwaltung.thueringen.de/evergabe";
+  let currentUrl = cursorBoolean(cursor, "exhausted") ? rootUrl : cursorString(cursor, "nextUrl") ?? rootUrl;
+  let pagesFetched = 0;
+  let hasMore = false;
+  const rowByUrl = new Map<string, { title: string; deadline: string }>();
+
+  const detailHandler = async (reference: PublicDetailReference): Promise<DetailOutcome> => {
+    try {
+      const detailResp = await fetch(reference.url, {
+        headers: { "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36" },
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!detailResp.ok) return detailResp.status === 404
+        ? { tender: null, blocked: true }
+        : { tender: null, retryable: true };
+      const detailHtml = await detailResp.text();
+      const $detail = cheerio.load(detailHtml);
+      $detail("script, style, nav, header, footer").remove();
+      const bodyText = htmlToBasicMarkdown($detail("body").html() ?? "");
+      if (!bodyText || bodyText.length < 100) return { tender: null, retryable: true };
+      if (detectAccessPage(bodyText, { url: reference.url }).blocked) return { tender: null, blocked: true };
+      const extracted = await extractDetailFromMarkdown(bodyText, reference.url, "thueringen", true);
+      if (!extracted) return { tender: null };
+      const row = rowByUrl.get(reference.url);
+      if (row) {
+        if (!extracted.title || extracted.title.length < 5) extracted.title = cleanTenderTitle(row.title);
+        if (!extracted.deadline) extracted.deadline = row.deadline || null;
+      }
+      extracted.externalId = reference.externalId ?? extracted.externalId ?? null;
+      return { tender: extracted };
+    } catch (error) {
+      console.warn(`[public-scraper] thueringen Detail Fehler (${reference.key}):`, error);
+      return { tender: null, retryable: true };
+    }
+  };
+
+  const pendingRun = await processDetailQueue(
+    cursorPendingDetails(cursor),
+    settings.publicDetailLimit,
+    detailHandler,
+  );
+  if (shouldPauseBeforeListing(pendingRun, settings.publicDetailLimit)) {
+    return pendingOnlyResult(cursor, "thueringen-url", pendingRun);
+  }
+
   try {
     const UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
-    const listUrl = "https://verwaltung.thueringen.de/evergabe";
-    const resp = await fetch(listUrl, {
-      headers: { "User-Agent": UA },
-      signal: AbortSignal.timeout(20000),
-    });
-    const html = await resp.text();
-    const $ = cheerio.load(html);
 
-    const tenders: ExtractedTender[] = [];
     const rows: { title: string; url: string; deadline: string }[] = [];
+    const seenRows = new Set<string>();
 
-    $("table tr").each((_, el) => {
-      const $row = $(el);
-      const cells = $row.find("td");
-      if (cells.length < 3) return;
+    for (let page = 0; page < settings.publicPaginationPages; page++) {
+      const resp = await fetch(currentUrl, {
+        headers: { "User-Agent": UA },
+        signal: AbortSignal.timeout(20000),
+      });
+      if (!resp.ok) throw new Error(`thueringen listing HTTP ${resp.status}`);
+      const html = await resp.text();
+      if (!html.trim()) throw new Error("thueringen listing returned no content");
+      pagesFetched += 1;
+      const $ = cheerio.load(html);
 
-      // Find link in first cell (Veröffentlichung)
-      const linkEl = $row.find("a").first();
-      const href = linkEl.attr("href") ?? "";
-      const title = linkEl.text().trim() || $(cells[0]).text().trim();
-      const deadline = $(cells.length >= 3 ? cells[cells.length - 1] : cells[2]).text().trim();
+      $("table tr").each((_, el) => {
+        const $row = $(el);
+        const cells = $row.find("td");
+        if (cells.length < 3) return;
 
-      if (href && title.length > 5) {
-        const url = href.startsWith("http") ? href : `https://verwaltung.thueringen.de${href}`;
-        rows.push({ title, url, deadline });
-      }
-    });
+        // Find link in first cell (Veröffentlichung)
+        const linkEl = $row.find("a").first();
+        const href = linkEl.attr("href") ?? "";
+        const title = linkEl.text().trim() || $(cells[0]).text().trim();
+        const deadline = $(cells.length >= 3 ? cells[cells.length - 1] : cells[2]).text().trim();
+
+        if (href && title.length > 5) {
+          const url = href.startsWith("http") ? href : `https://verwaltung.thueringen.de${href}`;
+          if (!seenRows.has(url)) {
+            seenRows.add(url);
+            rows.push({ title, url, deadline });
+          }
+        }
+      });
+
+      const nextUrls = parseGenericPaginationUrls(html, rootUrl, currentUrl);
+      hasMore = nextUrls.length > 0;
+      if (!hasMore || rows.length === 0) break;
+      currentUrl = nextUrls[0];
+    }
 
     console.log(`[public-scraper] thueringen: ${rows.length} Zeilen in Tabelle`);
 
-    for (const row of rows.slice(0, settings.publicDetailLimit)) {
-      try {
-        const detailResp = await fetch(row.url, {
-          headers: { "User-Agent": UA },
-          signal: AbortSignal.timeout(15000),
-        });
-        const detailHtml = await detailResp.text();
-        const $detail = cheerio.load(detailHtml);
-        $detail("script, style, nav, header, footer").remove();
-        const bodyText = htmlToBasicMarkdown($detail("body").html() ?? "");
-
-        if (!bodyText || bodyText.length < 100) continue;
-
-        const extracted = await extractDetailFromMarkdown(bodyText, row.url, "thueringen", true);
-        if (extracted) {
-          if (!extracted.title || extracted.title.length < 5) extracted.title = cleanTenderTitle(row.title);
-          if (!extracted.deadline && row.deadline) extracted.deadline = row.deadline;
-          if (!extracted.sourceUrl) extracted.sourceUrl = row.url;
-          tenders.push(extracted);
-        }
-      } catch (err) {
-        console.warn(`[public-scraper] thueringen Detail Fehler:`, err);
-      }
-    }
+    const detailRefs = rows.map((row) => publicDetailReference(`thueringen:url:${row.url}`, row.url));
+    for (const row of rows) rowByUrl.set(row.url, row);
+    const detailRun = await processDetailQueue(
+      detailRefs,
+      settings.publicDetailLimit - pendingRun.detailAttempted,
+      detailHandler,
+    );
+    const pendingDetails = mergeDetailReferences(pendingRun.pendingDetails, detailRun.pendingDetails);
+    const tenders = [...pendingRun.tenders, ...detailRun.tenders];
 
     console.log(`[public-scraper] thueringen: ${tenders.length} Ausschreibungen`);
-    return tenders;
+    const nextUrl = hasMore ? currentUrl : rootUrl;
+    return sourceCursorResult(tenders, {
+      cursor,
+      strategy: "thueringen-url",
+      position: { nextUrl },
+      listingExhausted: !hasMore,
+      listingComplete: !hasMore,
+      pendingDetails,
+      pagesFetched,
+      paginationStrategy: "thueringen-url",
+      listedCount: rows.length,
+      detailAttempted: pendingRun.detailAttempted + detailRun.detailAttempted,
+      detailFailed: pendingRun.detailFailed + detailRun.detailFailed,
+      extra: { nextUrl },
+    });
   } catch (error) {
     console.error("[public-scraper] thueringen Fehler:", error);
-    return [];
+    throw error;
   }
 }
 
@@ -2394,18 +3217,46 @@ interface BayernTender {
   APLZ: string;
 }
 
-async function scrapeBayernApi(): Promise<ExtractedTender[]> {
+async function scrapeBayernApi(cursor: PublicSourceCursor | null): Promise<PublicScraperResult> {
   console.log("[public-scraper] auftraege.bayern.de API...");
+  let startId = cursorBoolean(cursor, "exhausted") ? "" : cursorString(cursor, "startId") ?? "";
+  let pagesFetched = 0;
+  let hasMore = false;
+
+  const pendingRun = await processDetailQueue(
+    cursorPendingDetails(cursor),
+    settings.publicDetailLimit,
+    async () => ({ tender: null, blocked: true }),
+  );
+  if (shouldPauseBeforeListing(pendingRun, settings.publicDetailLimit)) {
+    return pendingOnlyResult(cursor, "bayern-startid", pendingRun);
+  }
+
   try {
     const UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
-    const apiUrl = "https://www.auftraege.bayern.de/dashboards/GetPresentationTenderList?id=V&BL=09&CPV=&startid=";
-    const resp = await fetch(apiUrl, {
-      headers: { "User-Agent": UA, "Accept": "application/json" },
-      signal: AbortSignal.timeout(30000),
-    });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const data: BayernTender[] = await resp.json();
-    console.log(`[public-scraper] bayern-api: ${data.length} Eintraege von API`);
+    const dataPages: BayernTender[][] = [];
+    for (let page = 0; page < settings.publicPaginationPages; page++) {
+      const apiUrl = `https://www.auftraege.bayern.de/dashboards/GetPresentationTenderList?id=V&BL=09&CPV=&startid=${encodeURIComponent(startId)}`;
+      const resp = await fetch(apiUrl, {
+        headers: { "User-Agent": UA, "Accept": "application/json" },
+        signal: AbortSignal.timeout(30000),
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data: BayernTender[] = await resp.json();
+      pagesFetched += 1;
+      dataPages.push(data);
+      console.log(`[public-scraper] bayern-api: Seite ${page + 1}: ${data.length} Eintraege von API`);
+      if (data.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      const nextStartId = String(data[data.length - 1]?.T_ID ?? "");
+      hasMore = data.length >= 100 && nextStartId.length > 0 && nextStartId !== startId;
+      if (!hasMore) break;
+      startId = nextStartId;
+    }
+    const data = dataPages.flat();
 
     const tenders: ExtractedTender[] = [];
     const now = new Date();
@@ -2461,6 +3312,7 @@ async function scrapeBayernApi(): Promise<ExtractedTender[]> {
         category,
         sourceUrl: detailUrl,
         source: "auftraege-bayern",
+        externalId: String(item.T_ID),
         pdfUrls: [],
       });
     }
@@ -2473,17 +3325,83 @@ async function scrapeBayernApi(): Promise<ExtractedTender[]> {
     });
 
     console.log(`[public-scraper] bayern-api: ${filtered.length} Ausschreibungen`);
-    return filtered;
+    const nextStartId = hasMore ? startId : "";
+    return sourceCursorResult([...pendingRun.tenders, ...filtered], {
+      cursor,
+      strategy: "bayern-startid",
+      position: { startId: nextStartId },
+      listingExhausted: !hasMore,
+      listingComplete: !hasMore,
+      pendingDetails: pendingRun.pendingDetails,
+      pagesFetched,
+      paginationStrategy: "bayern-startid",
+      listedCount: data.length,
+      detailAttempted: pendingRun.detailAttempted,
+      detailFailed: pendingRun.detailFailed,
+      extra: { startId: nextStartId },
+    });
   } catch (error) {
     console.error("[public-scraper] bayern-api Fehler:", error);
-    return [];
+    throw error;
   }
 }
 
 // --- hamburg.de HTML (Hamburg) ---
 
-async function scrapeHamburgDe(): Promise<ExtractedTender[]> {
+async function scrapeHamburgDe(cursor: PublicSourceCursor | null): Promise<PublicScraperResult> {
   console.log("[public-scraper] hamburg.de...");
+
+  const detailHandler = async (reference: PublicDetailReference): Promise<DetailOutcome> => {
+    try {
+      const resp = await fetch(reference.url, {
+        headers: { "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36" },
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!resp.ok) return resp.status === 404
+        ? { tender: null, blocked: true }
+        : { tender: null, retryable: true };
+      const html = await resp.text();
+      const $ = cheerio.load(html);
+      $("script, style, nav, header, footer, .navigation, .breadcrumb").remove();
+      const bodyText = htmlToBasicMarkdown($("body").html() ?? "");
+      if (bodyText.length < 100) return { tender: null, retryable: true };
+      if (detectAccessPage(bodyText, { url: reference.url }).blocked) return { tender: null, blocked: true };
+      const extracted = await extractDetailFromMarkdown(bodyText, reference.url, "hamburg-de", true);
+      if (!extracted) return { tender: null };
+      extracted.externalId = reference.externalId ?? extracted.externalId ?? null;
+      return { tender: extracted };
+    } catch (error) {
+      console.warn(`[public-scraper] hamburg-de Detail Fehler (${reference.key}):`, error);
+      return { tender: null, retryable: true };
+    }
+  };
+
+  const pendingRun = await processDetailQueue(
+    cursorPendingDetails(cursor),
+    settings.publicSearchLimit,
+    detailHandler,
+  );
+  if (shouldPauseBeforeListing(pendingRun, settings.publicSearchLimit)) {
+    return pendingOnlyResult(cursor, "hamburg-snapshot", pendingRun);
+  }
+
+  if (cursor?.snapshotComplete === true && cursorPendingDetails(cursor).length === 0 && pendingRun.detailAttempted > 0) {
+    return sourceCursorResult(pendingRun.tenders, {
+      cursor,
+      strategy: "hamburg-snapshot",
+      position: cursorPosition(cursor) ?? { snapshot: new Date().toISOString() },
+      listingExhausted: true,
+      listingComplete: true,
+      pendingDetails: pendingRun.pendingDetails,
+      pagesFetched: 0,
+      paginationStrategy: "hamburg-snapshot",
+      listedCount: 0,
+      detailAttempted: pendingRun.detailAttempted,
+      detailFailed: pendingRun.detailFailed,
+      extra: { snapshotComplete: true },
+    });
+  }
+
   try {
     const UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
     const pages = [
@@ -2499,8 +3417,9 @@ async function scrapeHamburgDe(): Promise<ExtractedTender[]> {
           headers: { "User-Agent": UA },
           signal: AbortSignal.timeout(20000),
         });
-        if (!resp.ok) { console.warn(`[public-scraper] hamburg-de ${page.label}: HTTP ${resp.status}`); continue; }
+        if (!resp.ok) throw new Error(`hamburg-de ${page.label} HTTP ${resp.status}`);
         const html = await resp.text();
+        if (!html.trim()) throw new Error(`hamburg-de ${page.label} returned no content`);
         const $ = cheerio.load(html);
 
         // Find tender links — hamburg.de uses various link patterns
@@ -2532,48 +3451,57 @@ async function scrapeHamburgDe(): Promise<ExtractedTender[]> {
         });
       } catch (err) {
         console.warn(`[public-scraper] hamburg-de ${page.label} Fehler:`, err);
+        throw err;
       }
     }
 
     console.log(`[public-scraper] hamburg-de: ${allLinks.length} Links gefunden`);
 
-    const tenders: ExtractedTender[] = [];
-    for (const link of allLinks.slice(0, settings.publicSearchLimit)) {
-      try {
-        const resp = await fetch(link.url, {
-          headers: { "User-Agent": UA },
-          signal: AbortSignal.timeout(15000),
-        });
-        if (!resp.ok) continue;
-        const html = await resp.text();
-        const $ = cheerio.load(html);
-        $("script, style, nav, header, footer, .navigation, .breadcrumb").remove();
-        const bodyText = htmlToBasicMarkdown($("body").html() ?? "");
-        if (bodyText.length < 100) continue;
-
-        const extracted = await extractDetailFromMarkdown(bodyText, link.url, "hamburg-de", true);
-        if (extracted) {
-          if (!extracted.title || extracted.title.length < 5) extracted.title = cleanTenderTitle(link.title);
-          if (!extracted.sourceUrl) extracted.sourceUrl = link.url;
-          tenders.push(extracted);
-        }
-      } catch (err) {
-        console.warn(`[public-scraper] hamburg-de Detail Fehler:`, err);
-      }
-    }
+    const detailRefs = allLinks.map((link) => publicDetailReference(`hamburg:url:${link.url}`, link.url));
+    const detailRun = await processDetailQueue(
+      detailRefs,
+      settings.publicSearchLimit - pendingRun.detailAttempted,
+      detailHandler,
+    );
+    const pendingDetails = mergeDetailReferences(pendingRun.pendingDetails, detailRun.pendingDetails);
+    const tenders = [...pendingRun.tenders, ...detailRun.tenders];
 
     console.log(`[public-scraper] hamburg-de: ${tenders.length} Ausschreibungen`);
-    return tenders;
+    const snapshot = new Date().toISOString();
+    return sourceCursorResult(tenders, {
+      cursor,
+      strategy: "hamburg-snapshot",
+      position: { snapshot, pages: pages.map((page) => page.url) },
+      listingExhausted: true,
+      listingComplete: true,
+      pendingDetails,
+      pagesFetched: pages.length,
+      paginationStrategy: "hamburg-snapshot",
+      listedCount: allLinks.length,
+      detailAttempted: pendingRun.detailAttempted + detailRun.detailAttempted,
+      detailFailed: pendingRun.detailFailed + detailRun.detailFailed,
+      extra: { snapshot, snapshotComplete: true },
+    });
   } catch (error) {
     console.error("[public-scraper] hamburg-de Fehler:", error);
-    return [];
+    throw error;
   }
 }
 
 // --- service.bund.de RSS (Bayern + Hamburg) ---
 
-async function scrapeBundRss(): Promise<ExtractedTender[]> {
+async function scrapeBundRss(cursor: PublicSourceCursor | null): Promise<PublicScraperResult> {
   console.log("[public-scraper] service.bund.de RSS...");
+
+  const pendingRun = await processDetailQueue(
+    cursorPendingDetails(cursor),
+    settings.publicDetailLimit,
+    async () => ({ tender: null, blocked: true }),
+  );
+  if (shouldPauseBeforeListing(pendingRun, settings.publicDetailLimit)) {
+    return pendingOnlyResult(cursor, "bund-rss-high-water", pendingRun);
+  }
+
   try {
     const UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
     const rssUrl = "https://www.service.bund.de/Content/DE/Ausschreibungen/Suche/Formular.html?nn=4641482&resultsPerPage=100&sortOrder=dateOfIssue_dt+desc&jobsrss=true";
@@ -2581,39 +3509,47 @@ async function scrapeBundRss(): Promise<ExtractedTender[]> {
       headers: { "User-Agent": UA },
       signal: AbortSignal.timeout(30000),
     });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const xml = await resp.text();
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const xml = await resp.text();
+      if (!xml.trim()) throw new Error("bund-rss listing returned no content");
 
     // Simple XML parsing — no fast-xml-parser needed for RSS
-    const items: { title: string; link: string; description: string; pubDate: string }[] = [];
+    const items: { title: string; link: string; description: string; pubDate: string; guid: string }[] = [];
     const itemRegex = /<item>([\s\S]*?)<\/item>/g;
     let match;
     while ((match = itemRegex.exec(xml)) !== null) {
       const itemXml = match[1];
       const getTag = (tag: string) => {
         const m = itemXml.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`));
-        return m ? m[1].trim() : "";
+        return m ? m[1].replace(/^<!\[CDATA\[|\]\]>$/g, "").trim() : "";
       };
       items.push({
         title: getTag("title"),
         link: getTag("link"),
         description: getTag("description"),
         pubDate: getTag("pubDate"),
+        guid: getTag("guid"),
       });
     }
 
     console.log(`[public-scraper] bund-rss: ${items.length} Items im Feed`);
 
+    const highWater = cursorString(cursor, "highWater");
+    const itemKey = (item: { link: string; pubDate: string; guid: string }): string => item.guid || `${item.pubDate}|${item.link}`;
+    const markerIndex = highWater ? items.findIndex((item) => itemKey(item) === highWater) : -1;
+    const unseenItems = markerIndex >= 0 ? items.slice(0, markerIndex) : items;
+    const newestKey = items.length > 0 ? itemKey(items[0]) : highWater;
+
     // Filter for Bayern and Hamburg
     const bundeslaender = ["bayern", "hamburg", "münchen", "muenchen", "nürnberg", "nuernberg", "augsburg", "regensburg", "würzburg", "wuerzburg", "ingolstadt", "fürth", "fuert", "erlangen", "bamberg", "landshut", "bayreuth", "kempten", "passau", "coburg", "schweinfurt", "hof"];
-    const filtered = items.filter((item) => {
+    const filtered = unseenItems.filter((item) => {
       const text = `${item.title} ${item.description}`.toLowerCase();
       return bundeslaender.some((bl) => text.includes(bl));
     });
 
     console.log(`[public-scraper] bund-rss: ${filtered.length} Bayern/Hamburg Items`);
 
-    const tenders: ExtractedTender[] = [];
+    const tenders: ExtractedTender[] = [...pendingRun.tenders];
     const now = new Date();
 
     for (const item of filtered) {
@@ -2654,22 +3590,37 @@ async function scrapeBundRss(): Promise<ExtractedTender[]> {
         category: "Sonstiges",
         sourceUrl: item.link || `https://www.service.bund.de`,
         source: "bund-rss",
+        externalId: item.guid || item.link || null,
         pdfUrls: [],
       });
     }
 
     console.log(`[public-scraper] bund-rss: ${tenders.length} Ausschreibungen (Bayern/Hamburg)`);
-    return tenders;
+    const snapshot = new Date().toISOString();
+    return sourceCursorResult(tenders, {
+      cursor,
+      strategy: "bund-rss-high-water",
+      position: { highWater: newestKey ?? "", snapshot },
+      listingExhausted: true,
+      listingComplete: true,
+      pendingDetails: pendingRun.pendingDetails,
+      pagesFetched: items.length > 0 ? 1 : 0,
+      paginationStrategy: "bund-rss-high-water",
+      listedCount: items.length,
+      detailAttempted: pendingRun.detailAttempted,
+      detailFailed: pendingRun.detailFailed,
+      extra: { highWater: newestKey ?? "", snapshot },
+    });
   } catch (error) {
     console.error("[public-scraper] bund-rss Fehler:", error);
-    return [];
+    throw error;
   }
 }
 
 // --- Deduplication ---
 
 export function canonicalPublicSourceKey(sourceKey: string): string {
-  return /(?:^|[-:])rlp-(?:land|lbb|lbm|central)$/.test(sourceKey) ? "rlp" : sourceKey;
+  return sourceKey.trim();
 }
 
 function deduplicateTenders(tenders: ExtractedTender[]): ExtractedTender[] {
@@ -2680,9 +3631,19 @@ function deduplicateTenders(tenders: ExtractedTender[]): ExtractedTender[] {
     const identitySource = canonicalPublicSourceKey(sourceKey);
     const key = tender.externalId
       ? `${identitySource}:id:${tender.externalId}`.toLowerCase().trim()
-      : `${identitySource}:url:${stripSessionId(tender.sourceUrl)}:${tender.title}`.toLowerCase().trim();
-    if (!seen.has(key)) {
+      : `${identitySource}:url:${canonicalPublicTenderUrl(stripSessionId(tender.sourceUrl))}`.toLowerCase().trim();
+    const existing = seen.get(key);
+    if (!existing) {
       seen.set(key, tender);
+    } else {
+      existing.pdfUrls = Array.from(new Set([...(existing.pdfUrls ?? []), ...(tender.pdfUrls ?? [])]));
+      if (tender.resources?.length) {
+        existing.resources = mergeDiscoveredResources(existing.resources ?? [], tender.resources);
+      }
+      if (tender.subpageCandidates?.length) {
+        const candidates = [...(existing.subpageCandidates ?? []), ...tender.subpageCandidates];
+        existing.subpageCandidates = Array.from(new Map(candidates.map((candidate) => [candidate.canonicalUrl, candidate])).values());
+      }
     }
   }
 
@@ -2703,16 +3664,34 @@ export interface ScrapeResult {
     acceptedCount: number;
     errorMessage: string | null;
     durationMs: number;
+    cursorBefore: PublicSourceCursor | null;
+    cursorAfter: PublicSourceCursor | null;
+    pagesFetched: number;
+    exhausted: boolean;
+    cursorAdvanced: boolean;
+    cursorCommit: PublicCursorCommit;
+    listingComplete: boolean;
+    continuationRequired: boolean;
+    listedCount: number;
+    detailAttempted: number;
+    detailFailed: number;
+    pendingCount: number;
+    cursorVersionBefore?: number;
+    cursorVersionAfter?: number;
   }>;
   persistenceError?: string | null;
 }
 
 export type OnSourceBatch = (sourceKey: string, tenders: ExtractedTender[]) => Promise<void>;
 
-export async function scrapeAllPublicTenders(onBatch?: OnSourceBatch, sourceFilter?: string): Promise<ScrapeResult> {
+export async function scrapeAllPublicTenders(
+  onBatch?: OnSourceBatch,
+  sourceFilter?: string,
+  sourceCursors: Record<string, PublicSourceCursor | null> = {},
+): Promise<ScrapeResult> {
   console.log("[public-scraper] Starte vollstaendigen Scrape aller Quellen...");
 
-  const scrapers = [
+  const scrapers: Array<{ name: string; fn: PublicScraper }> = [
     { name: "berlin-html", fn: scrapeBerlinHtml },
     { name: "bayern-api", fn: scrapeBayernApi },
     { name: "hamburg-de", fn: scrapeHamburgDe },
@@ -2723,8 +3702,8 @@ export async function scrapeAllPublicTenders(onBatch?: OnSourceBatch, sourceFilt
     { name: "evergabe", fn: scrapeEvergabe },
     { name: "bundesimmobilien", fn: scrapeBundesimmobilien },
     { name: "niedersachsen", fn: scrapeVergabeNiedersachsen },
-    ...NRW_PORTALS.map((p) => ({ name: `nrw-${p.name}`, fn: () => scrapeNrwPortal(p) })),
-    ...NET_SERVER_PORTALS.map((p) => ({ name: `net-${p.name}`, fn: () => scrapeNetPortal(p) })),
+    ...NRW_PORTALS.map((p) => ({ name: `nrw-${p.name}`, fn: (cursor: PublicSourceCursor | null) => scrapeNrwPortal(p, cursor) })),
+    ...NET_SERVER_PORTALS.map((p) => ({ name: `net-${p.name}`, fn: (cursor: PublicSourceCursor | null) => scrapeNetPortal(p, cursor) })),
     { name: "e-vergabe-sh", fn: scrapeEVergabeSh },
     { name: "thueringen", fn: scrapeThueringen },
     { name: "evergabe-nrw", fn: scrapeEvergabeNrw },
@@ -2747,24 +3726,49 @@ export async function scrapeAllPublicTenders(onBatch?: OnSourceBatch, sourceFilt
   for (const scraper of selectedScrapers) {
     const startTime = Date.now();
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+    const cursorBefore = normalizeCursor(sourceCursors[scraper.name]);
     try {
       const result = await Promise.race([
-        scraper.fn(),
+        scraper.fn(cursorBefore),
         new Promise<never>((_, reject) => {
           timeoutHandle = setTimeout(() => reject(new Error(`Portal-Timeout nach ${PORTAL_TIMEOUT_MS / 1000}s`)), PORTAL_TIMEOUT_MS);
         }),
       ]);
-      const normalized = result.map((tender) => ({ ...tender, sourceKey: tender.sourceKey ?? scraper.name }));
+      const cursorAdvanced = result.cursorAdvanced ?? result.cursorCommit === "commit";
+      const normalized = result.tenders.map((tender) => ({
+        ...tender,
+        sourceKey: scraper.name,
+        externalId: derivePublicExternalId({
+          sourceKey: scraper.name,
+          sourceUrl: tender.sourceUrl,
+          externalId: tender.externalId,
+        }),
+      }));
       bySource[scraper.name] = normalized.length;
       allTenders.push(...normalized);
       const duration = Date.now() - startTime;
+      const status = result.cursorCommit === "hold" || result.continuationRequired
+        ? "partial"
+        : normalized.length > 0 ? "success" : "empty";
       sourceRuns.push({
         sourceKey: scraper.name,
-        status: normalized.length > 0 ? "success" : "empty",
+        status,
         discoveredCount: normalized.length,
         acceptedCount: normalized.length,
         errorMessage: null,
         durationMs: duration,
+        cursorBefore,
+      cursorAfter: result.cursorCommit === "commit" ? result.nextCursor ?? cursorBefore : cursorBefore,
+        pagesFetched: result.pagesFetched ?? 0,
+        exhausted: result.exhausted ?? false,
+        cursorAdvanced,
+        cursorCommit: result.cursorCommit,
+        listingComplete: result.listingComplete,
+        continuationRequired: result.continuationRequired,
+        listedCount: result.listedCount,
+        detailAttempted: result.detailAttempted,
+        detailFailed: result.detailFailed,
+        pendingCount: result.pendingCount,
       });
       if (normalized.length === 0) {
         console.warn(`[public-scraper] ${scraper.name}: 0 Ausschreibungen nach ${duration}ms (keine Extraktion oder keine Treffer)`);
@@ -2782,6 +3786,18 @@ export async function scrapeAllPublicTenders(onBatch?: OnSourceBatch, sourceFilt
         acceptedCount: 0,
         errorMessage: message,
         durationMs: duration,
+        cursorBefore,
+        cursorAfter: cursorBefore,
+        pagesFetched: 0,
+        exhausted: false,
+        cursorAdvanced: false,
+        cursorCommit: "hold",
+        listingComplete: false,
+        continuationRequired: true,
+        listedCount: 0,
+        detailAttempted: 0,
+        detailFailed: 0,
+        pendingCount: 0,
       });
       console.error(`[public-scraper] ${scraper.name} fehlgeschlagen nach ${duration}ms:`, error);
       bySource[scraper.name] = 0;

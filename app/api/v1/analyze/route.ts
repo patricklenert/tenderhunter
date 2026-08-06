@@ -5,11 +5,12 @@ import { generateSlug } from "@/lib/slug";
 import { scrapeWebsite } from "@/lib/firecrawl";
 import { extractCompanyProfile } from "@/lib/perplexity";
 import { buildTenderMatchDocument, computeScores, getDomainEligibility, getLocationEligibility, llmBatchDomainMatch, type CompanyRow } from "@/lib/scoring";
+import { findPublicProfileMatches } from "@/lib/discovery";
 import { generateInsight } from "@/lib/insights";
 import { eq, and, or, desc } from "drizzle-orm";
 import { normalizeStructured, type StructuredData as StructuredTenderData } from "@/lib/structurer";
 import { enqueueJob } from "@/lib/queue";
-import { JOB_API_ANALYZE, type JsonValue } from "@/lib/types";
+import { JOB_API_ANALYZE } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -120,7 +121,45 @@ interface TenderResult {
   winProbability: number;
   url: string | null;
   deadline: string | null;
+  readinessStatus: string | null;
 }
+
+type TenderResultRow = {
+  id: number;
+  title: string | null;
+  rawText: string | null;
+  jsonBlob: unknown;
+  url: string | null;
+  fit: number | null;
+  winProbability: number | null;
+  readinessStatus: string | null;
+};
+
+const toTenderResult = (row: TenderResultRow): TenderResult => {
+  const blob = (row.jsonBlob ?? {}) as Record<string, unknown>;
+  const hardFacts = (blob.hard_facts ?? {}) as Record<string, unknown>;
+  const procurement = (blob.procurement ?? {}) as Record<string, unknown>;
+  const contractValue = (procurement.contract_value ?? {}) as Record<string, unknown>;
+
+  const description = typeof blob.description === "string" ? blob.description
+    : typeof blob.summary === "string" ? blob.summary.slice(0, 300)
+    : (row.rawText ?? "").slice(0, 300);
+
+  return {
+    id: row.id,
+    title: row.title ?? `Ausschreibung #${row.id}`,
+    description,
+    location: typeof hardFacts.location === "string" ? hardFacts.location : null,
+    volume: typeof hardFacts.budget === "string" ? hardFacts.budget
+      : typeof contractValue.max === "number" ? `${contractValue.max.toLocaleString("de-DE")} EUR`
+      : null,
+    fit: Math.round(row.fit ?? 0),
+    winProbability: Math.round(row.winProbability ?? 0),
+    url: row.url ?? null,
+    deadline: typeof hardFacts.deadline === "string" ? hardFacts.deadline : null,
+    readinessStatus: row.readinessStatus,
+  };
+};
 
 async function runAnalysis(jobId: number, url: string) {
   try {
@@ -131,6 +170,7 @@ async function runAnalysis(jobId: number, url: string) {
     let companyId: number;
     let companyName: string;
     let companySlug: string;
+    let scoringCompany: CompanyRow | undefined;
 
     if (existingProfile.length > 0) {
       let profile = existingProfile[0] as StoredCompanyProfile;
@@ -148,7 +188,8 @@ async function runAnalysis(jobId: number, url: string) {
           console.warn(`[api/v1/analyze] Profilaktualisierung fehlgeschlagen, verwende bestehenden Stand:`, refreshError);
         }
       }
-      await scoreAllTenders(companyId, toCompanyRow(profile));
+       scoringCompany = toCompanyRow(profile);
+       await scoreAllTenders(companyId, scoringCompany);
     } else {
       const scraped = await scrapeWebsite(normalizedUrl);
       if (!scraped.markdown || scraped.markdown.trim().length < 50) {
@@ -159,11 +200,11 @@ async function runAnalysis(jobId: number, url: string) {
       const canonicalUrl = normalizeUrl(scraped.url);
 
       if (canonicalUrl !== normalizedUrl) {
-        const existingByCanonical = await db
-          .select({ id: companyProfiles.id, name: companyProfiles.name, slug: companyProfiles.slug })
-          .from(companyProfiles)
-          .where(eq(companyProfiles.websiteUrl, canonicalUrl))
-          .limit(1);
+         const existingByCanonical = await db
+           .select()
+           .from(companyProfiles)
+           .where(eq(companyProfiles.websiteUrl, canonicalUrl))
+           .limit(1);
 
         if (existingByCanonical.length > 0) {
           companyId = existingByCanonical[0].id;
@@ -172,7 +213,10 @@ async function runAnalysis(jobId: number, url: string) {
           if (!existingByCanonical[0].slug) {
             await db.update(companyProfiles).set({ slug: companySlug }).where(eq(companyProfiles.id, companyId));
           }
-          const topTenders = await getTopTenders(companyId);
+           const topTenders = await getTopTenders(
+             companyId,
+             toCompanyRow(existingByCanonical[0] as StoredCompanyProfile),
+           );
           const profileUrl = `${BASE_URL}/p/${companySlug}`;
           await db.update(apiJobs).set({
             status: "completed", companyId, profileUrl, tendersJson: topTenders, updatedAt: new Date(),
@@ -219,18 +263,19 @@ async function runAnalysis(jobId: number, url: string) {
         companySlug = uniqueSlug;
       }
 
-      const companyRow: CompanyRow = {
-        capabilities_json: JSON.stringify(profile.capabilities),
+       const companyRow: CompanyRow = {
+         capabilities_json: JSON.stringify(profile.capabilities),
         certifications_json: JSON.stringify(profile.certifications),
         regions_json: JSON.stringify(profile.regions),
         team_size: profile.team_size,
         industry: profile.industry,
-      };
+       };
 
-      await scoreAllTenders(companyId, companyRow);
+       scoringCompany = companyRow;
+       await scoreAllTenders(companyId, companyRow);
     }
 
-    const topTenders = await getTopTenders(companyId);
+    const topTenders = await getTopTenders(companyId, scoringCompany);
     const profileUrl = `${BASE_URL}/p/${companySlug}`;
 
     await db.update(apiJobs).set({
@@ -346,13 +391,14 @@ async function scoreAllTenders(companyId: number, companyRow: CompanyRow) {
   }
 }
 
-async function getTopTenders(companyId: number): Promise<TenderResult[]> {
+async function getTopTenders(companyId: number, companyRow?: CompanyRow): Promise<TenderResult[]> {
   const rows = await db
     .select({
       id: scores.tenderId, title: tenders.title, source: tenders.source, url: tenders.url,
       fit: scores.fit, winProbability: scores.winProbability,
       rawText: tenders.rawText,
       jsonBlob: structuredData.jsonBlob,
+      readinessStatus: tenders.readinessStatus,
     })
     .from(scores)
     .leftJoin(tenders, eq(scores.tenderId, tenders.id))
@@ -369,35 +415,39 @@ async function getTopTenders(companyId: number): Promise<TenderResult[]> {
   const filtered = rows.filter((row) => (row.fit ?? 0) >= 15);
   const MIN_TENDERS = 5;
   const results = filtered.length >= MIN_TENDERS ? filtered : rows.slice(0, MIN_TENDERS);
+  const strictResults = results.map((row) => toTenderResult({
+    id: row.id,
+    title: row.title,
+    rawText: row.rawText,
+    jsonBlob: row.jsonBlob,
+    url: row.url,
+    fit: row.fit,
+    winProbability: row.winProbability,
+    readinessStatus: row.readinessStatus,
+  }));
 
-  return results.map((row) => {
-    const blob = (row.jsonBlob ?? {}) as Record<string, unknown>;
-    const hardFacts = (blob.hard_facts ?? {}) as Record<string, unknown>;
-    const procurement = (blob.procurement ?? {}) as Record<string, unknown>;
-    const contractValue = (procurement.contract_value ?? {}) as Record<string, unknown>;
+  if (!companyRow || strictResults.length >= 10) return strictResults;
 
-    const description = typeof blob.description === "string" ? blob.description
-      : typeof blob.summary === "string" ? blob.summary.slice(0, 300)
-      : (row.rawText ?? "").slice(0, 300);
+  const publicMatches = await findPublicProfileMatches(
+    companyRow,
+    new Set(strictResults.map((row) => row.id)),
+    10 - strictResults.length,
+    { qualifiedOnly: true },
+  );
 
-    const location = typeof hardFacts.location === "string" ? hardFacts.location : null;
-    const volume = typeof hardFacts.budget === "string" ? hardFacts.budget
-      : typeof contractValue.max === "number" ? `${contractValue.max.toLocaleString("de-DE")} EUR`
-      : null;
-    const deadline = typeof hardFacts.deadline === "string" ? hardFacts.deadline : null;
-
-    return {
-      id: row.id,
-      title: row.title ?? `Ausschreibung #${row.id}`,
-      description,
-      location,
-      volume,
-      fit: Math.round(row.fit ?? 0),
-      winProbability: Math.round(row.winProbability ?? 0),
-      url: row.url ?? null,
-      deadline,
-    };
-  });
+  return [
+    ...strictResults,
+    ...publicMatches.map((row) => toTenderResult({
+      id: row.tenderId,
+      title: row.title,
+      rawText: row.rawText,
+      jsonBlob: row.jsonBlob,
+      url: row.url,
+      fit: row.fit,
+      winProbability: row.winProbability,
+      readinessStatus: row.readinessStatus,
+    })),
+  ];
 }
 
 export async function runApiAnalysisJob(payload: {
@@ -430,25 +480,48 @@ export async function runApiAnalysisJob(payload: {
 
   if (profileRows.length === 0) throw new Error("Unternehmensprofil nicht gefunden.");
 
-  await scoreAllTenders(payload.companyId, {
-    capabilities_json: JSON.stringify(profileRows[0].capabilitiesJson),
-    certifications_json: JSON.stringify(profileRows[0].certificationsJson),
-    regions_json: JSON.stringify(profileRows[0].regionsJson),
-    team_size: profileRows[0].teamSize,
-    industry: profileRows[0].industry,
-  });
+   const companyRow: CompanyRow = {
+     capabilities_json: JSON.stringify(profileRows[0].capabilitiesJson),
+     certifications_json: JSON.stringify(profileRows[0].certificationsJson),
+     regions_json: JSON.stringify(profileRows[0].regionsJson),
+     team_size: profileRows[0].teamSize,
+     industry: profileRows[0].industry,
+   };
+
+   await scoreAllTenders(payload.companyId, companyRow);
 
   await db.update(apiJobs).set({
     status: "completed",
     companyId: payload.companyId,
     profileUrl: `${BASE_URL}/p/${payload.profileSlug}`,
-    tendersJson: await getTopTenders(payload.companyId),
+     tendersJson: await getTopTenders(payload.companyId, companyRow),
     updatedAt: new Date(),
   }).where(eq(apiJobs.id, payload.apiJobId));
 }
 
-const enqueueApiAnalysis = (payload: Record<string, JsonValue>): Promise<number> =>
-  enqueueJob(JOB_API_ANALYZE, payload, { jobKey: `${JOB_API_ANALYZE}:${payload.apiJobId}` });
+type ApiAnalysisQueuePayload = {
+  apiJobId: number;
+  url: string;
+  mode?: "full" | "rescore";
+  companyId?: number;
+  profileSlug?: string;
+};
+
+const enqueueApiAnalysis = (payload: ApiAnalysisQueuePayload): Promise<number> =>
+  enqueueJob(
+    JOB_API_ANALYZE,
+    {
+      api_job_id: payload.apiJobId,
+      url: payload.url,
+      ...(payload.mode ? { mode: payload.mode } : {}),
+      ...(payload.companyId !== undefined ? { company_id: payload.companyId } : {}),
+      ...(payload.profileSlug ? { profile_slug: payload.profileSlug } : {}),
+    },
+    {
+      jobKey: `${JOB_API_ANALYZE}:${payload.apiJobId}`,
+      priority: 200,
+    },
+  );
 
 export async function POST(request: Request): Promise<Response> {
   const authError = requireApiKey(request);
@@ -493,7 +566,10 @@ export async function POST(request: Request): Promise<Response> {
       return Response.json({ jobId, status: "processing" });
     }
 
-    const topTenders = await getTopTenders(existing.id);
+     const topTenders = await getTopTenders(
+       existing.id,
+       toCompanyRow(existing as StoredCompanyProfile),
+     );
 
     if (topTenders.length === 0) {
       const jobResult = await db.insert(apiJobs).values({

@@ -47,4 +47,27 @@ assert.equal(ROLE_LABELS_DE["leistungsbeschreibung"], "Leistungsbeschreibung");
 assert.equal(ROLE_LABELS_DE["other"], "Sonstiges");
 console.log("  ✓ role labels correct");
 
-console.log(`\n${passed}/${tests.length} classifier tests passed.`);
+const combined = classifyDocumentRole({
+  filename: "Bekanntmachung_Leistungsbeschreibung.pdf",
+  url: "https://example.de/ausschreibung/123/download/42",
+  linkText: "Bekanntmachung und Leistungsbeschreibung",
+  textSample: "Bekanntmachung. Leistungsbeschreibung und Gegenstand der Ausschreibung.",
+});
+assert.deepEqual(combined.roles.slice(0, 2), ["leistungsbeschreibung", "bekanntmachung"]);
+assert.ok(combined.roleHints.find((hint) => hint.role === "bekanntmachung")?.evidence.length);
+assert.ok(combined.roleHints.find((hint) => hint.role === "leistungsbeschreibung")?.evidence.length);
+console.log("  ✓ combined document exposes both role hints with evidence");
+passed++;
+
+const genericUrl = classifyDocumentRole({
+  url: "https://example.de/ausschreibung/123/download/42",
+  linkText: "Leistungsbeschreibung",
+  textSample: "Leistungsbeschreibung für Dachdeckungsarbeiten",
+});
+assert.equal(genericUrl.role, "leistungsbeschreibung");
+assert.equal(genericUrl.source, "linktext");
+assert.deepEqual(genericUrl.roles, ["leistungsbeschreibung"]);
+console.log("  ✓ generic URL does not outrank stronger link/content signals");
+passed++;
+
+console.log(`\n${passed}/${tests.length + 2} classifier tests passed.`);

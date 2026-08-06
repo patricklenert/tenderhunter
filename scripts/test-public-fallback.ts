@@ -32,4 +32,23 @@ assert.equal(rlpItem.title, "26F0047 (LBB NL Mainz) Bauendreinigung");
 assert.equal(rlpItem.client, "LBB Niederlassung Mainz");
 assert.equal(rlpItem.location, "55128 Mainz");
 assert.equal(rlpItem.referenceNumber, "CXCPEYDYYYRM0");
+
+const participationWallItem = extractBasicDetailFromHtml(
+  `<html><head><title>DA Ausstellungsbau (3)</title></head><body>
+    <h1>DA Ausstellungsbau (3)</h1>
+    <p>Um Zugriff auf dieses Modul zu erhalten müssen Sie am Vergabeverfahren teilnehmen.</p>
+    <p>Vergabeart: Offenes Verfahren</p>
+    <p>Auftraggeber / Ausschreibende Stelle Leibniz-Zentrum für Archäologie</p>
+    <p>Abgabefrist 03.08.2026 08:00 Ortszeit</p>
+  </body></html>`,
+  "https://landesverwaltung.vergabe.rlp.de/project/123",
+  "rlp-land",
+  [],
+  true,
+);
+
+assert.ok(participationWallItem);
+assert.equal(participationWallItem.client, "Leibniz-Zentrum für Archäologie");
+assert.equal(participationWallItem.deadline, "03.08.2026 08:00");
+assert.match(participationWallItem.description, /vollständige Leistungsbeschreibung/);
 console.log("Public detail fallback tests passed.");

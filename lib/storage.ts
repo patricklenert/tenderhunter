@@ -8,6 +8,16 @@ export interface StoredObject {
   storagePath: string;
   sha256: string;
   contentType: string;
+  finalUrl?: string;
+  filename?: string | null;
+  contentDisposition?: string | null;
+}
+
+export interface FetchAndStoreOptions {
+  /** Only a small allow-list of request headers is accepted. */
+  headers?: Readonly<Record<string, string>>;
+  referer?: string;
+  userAgent?: string;
 }
 
 const hashBytes = (payload: Buffer): string => createHash("sha256").update(payload).digest("hex");
@@ -46,13 +56,76 @@ export const saveBytes = (relativePath: string, payload: Buffer, contentType: st
 const FETCH_TIMEOUT_MS = 30_000;
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
 const HEAD_SAMPLE_BYTES = 8192;
+const DEFAULT_ACCEPT = "application/pdf,application/octet-stream,application/zip,application/vnd.openxmlformats-officedocument.document;q=0.9,application/msword;q=0.8,text/html;q=0.7,*/*;q=0.5";
+const DEFAULT_USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+const SAFE_REQUEST_HEADERS = new Set(["accept", "accept-language", "referer", "user-agent"]);
+const CANONICAL_REQUEST_HEADERS: Record<string, string> = {
+  accept: "Accept",
+  "accept-language": "Accept-Language",
+  referer: "Referer",
+  "user-agent": "User-Agent",
+};
 
-export const fetchAndStore = async (url: string, relativePath: string): Promise<StoredObject> => {
+const boundedHeaderValue = (value: unknown, maxLength = 2_000): string | null => {
+  if (typeof value !== "string") return null;
+  const bounded = value.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, maxLength);
+  return bounded || null;
+};
+
+const safeReferer = (value: string | undefined): string | null => {
+  const bounded = boundedHeaderValue(value, 2_048);
+  if (!bounded) return null;
+  try {
+    const parsed = new URL(bounded);
+    return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed.toString() : null;
+  } catch {
+    return null;
+  }
+};
+
+export const buildSafeRequestHeaders = (options?: FetchAndStoreOptions): Record<string, string> => {
+  const headers: Record<string, string> = {
+    Accept: DEFAULT_ACCEPT,
+    "User-Agent": DEFAULT_USER_AGENT,
+  };
+
+  for (const [name, value] of Object.entries(options?.headers ?? {})) {
+    const normalizedName = name.toLowerCase();
+    if (!SAFE_REQUEST_HEADERS.has(normalizedName)) continue;
+    const bounded = boundedHeaderValue(value);
+    if (bounded) headers[CANONICAL_REQUEST_HEADERS[normalizedName]] = bounded;
+  }
+
+  const referer = safeReferer(options?.referer);
+  if (referer) headers.Referer = referer;
+  const userAgent = boundedHeaderValue(options?.userAgent, 512);
+  if (userAgent) headers["User-Agent"] = userAgent;
+  return headers;
+};
+
+const responseFilename = (contentDisposition: string | null): string | null => {
+  if (!contentDisposition) return null;
+  const match = contentDisposition.match(/filename\*\s*=\s*(?:UTF-8''|[^']*'[^']*')?([^;]+)/i)
+    ?? contentDisposition.match(/filename\s*=\s*(?:"([^"]+)"|([^;]+))/i);
+  const raw = match?.[1] ?? match?.[2];
+  if (!raw) return null;
+  let decoded = raw.trim();
+  try {
+    decoded = decodeURIComponent(decoded);
+  } catch {
+    // Keep the bounded header value when RFC 5987 decoding is not possible.
+  }
+  const safe = path.basename(decoded.replace(/\\/g, "/")).replace(/[^a-zA-Z0-9._ -]/g, "").trim();
+  return safe ? safe.slice(0, 255) : null;
+};
+
+export const fetchAndStore = async (url: string, relativePath: string, options?: FetchAndStoreOptions): Promise<StoredObject> => {
   // Strip jsessionid from URL for cleaner requests
   const cleanUrl = url.replace(/;jsessionid=[^;?/]+/gi, "");
   const response = await fetch(cleanUrl, {
     redirect: "follow",
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    headers: buildSafeRequestHeaders(options),
   });
   if (!response.ok) {
     throw new Error(`Dokument konnte nicht geladen werden: ${response.status}`);
@@ -61,6 +134,7 @@ export const fetchAndStore = async (url: string, relativePath: string): Promise<
   const contentType = (response.headers.get("content-type") ?? "application/octet-stream")
     .split(";")[0]
     .trim();
+  const contentDisposition = boundedHeaderValue(response.headers.get("content-disposition"));
 
   // Check Content-Length header for early rejection
   const contentLength = response.headers.get("content-length");
@@ -122,6 +196,9 @@ export const fetchAndStore = async (url: string, relativePath: string): Promise<
       storagePath: relativePath,
       sha256: hash.digest("hex"),
       contentType: finalContentType,
+      finalUrl: (response.url || cleanUrl).replace(/;jsessionid=[^;?/]+/gi, ""),
+      filename: responseFilename(contentDisposition),
+      contentDisposition,
     };
   } catch (error) {
     if (file) await file.close().catch(() => undefined);

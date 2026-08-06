@@ -9,6 +9,9 @@ const STALE_JOB_THRESHOLD_MS = 15 * 60 * 1000;
 
 const ACTIVE_JOB_STATUSES = ["pending", "running"] as const;
 
+export const buildJobKey = (jobType: string, scope: string | number, suffix?: string): string =>
+  `${jobType}:${scope}${suffix ? `:${suffix}` : ""}`;
+
 type EnqueueOptions = {
   maxRetries?: number;
   runAfter?: Date;
@@ -24,6 +27,27 @@ export async function enqueueJob(
 ): Promise<number> {
   const runAfter = opts?.runAfter ?? new Date();
   const maxRetries = opts?.maxRetries ?? settings.maxJobRetries;
+
+  if (opts?.jobKey) {
+    const active = await db
+      .select({ id: jobs.id })
+      .from(jobs)
+      .where(and(eq(jobs.jobKey, opts.jobKey), inArray(jobs.status, ACTIVE_JOB_STATUSES)))
+      .orderBy(sql`${jobs.id} DESC`)
+      .limit(1);
+    if (active.length > 0) return active[0].id;
+
+    const latest = await db
+      .select({ id: jobs.id, status: jobs.status })
+      .from(jobs)
+      .where(eq(jobs.jobKey, opts.jobKey))
+      .orderBy(sql`${jobs.id} DESC`)
+      .limit(1);
+    // A completed job represents the unchanged work identified by this key.
+    // Failed jobs intentionally fall through so a new retry row preserves the
+    // old failure history without resetting it.
+    if (latest[0]?.status === "done") return latest[0].id;
+  }
 
   const result = await db
     .insert(jobs)
@@ -60,7 +84,32 @@ export async function enqueueJob(
       .where(eq(jobs.jobKey, opts.jobKey))
       .orderBy(sql`${jobs.id} DESC`)
       .limit(1);
-    if (completed.length > 0) return completed[0].id;
+    if (completed.length > 0 && completed[0].id) {
+      const status = await db
+        .select({ status: jobs.status })
+        .from(jobs)
+        .where(eq(jobs.id, completed[0].id))
+        .limit(1);
+      if (status[0]?.status === "done") return completed[0].id;
+
+      // This is only reachable when a concurrent insert raced with the retry
+      // path. Re-queue the failed row without deleting or rewriting history.
+      const retried = await db
+        .update(jobs)
+        .set({
+          status: "pending",
+          runAfter,
+          lockedAt: null,
+          lockedBy: null,
+          heartbeatAt: null,
+          finishedAt: null,
+          durationMs: null,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(jobs.id, completed[0].id), eq(jobs.status, "failed")))
+        .returning({ id: jobs.id });
+      if (retried.length > 0) return retried[0].id;
+    }
     throw new Error(`Job ${jobType} mit Key ${opts.jobKey} konnte nicht eingereiht werden`);
   }
   return active[0].id;

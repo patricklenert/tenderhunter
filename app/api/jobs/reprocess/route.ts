@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { documents, jobs } from "@/lib/schema";
 import { requireApiKey } from "@/lib/api-auth";
 import { enqueueJob } from "@/lib/queue";
+import { resolvePublicSourceKey } from "@/lib/public-source-registry";
 import {
   JOB_CACHE_DETAIL,
   JOB_FETCH_DOCUMENTS,
@@ -34,6 +35,7 @@ export async function POST(request: Request): Promise<Response> {
       documentId?: number;
       source?: string;
       stage?: string;
+      reset_cursor?: boolean;
     };
 
     const scopes = [body.jobId, body.tenderId, body.documentId, body.source].filter((value) => value !== undefined);
@@ -73,8 +75,18 @@ export async function POST(request: Request): Promise<Response> {
       return Response.json({ requeued: true, jobId, documentId: body.documentId, tenderId: document[0].tenderId });
     }
 
-    const jobId = await enqueueJob(JOB_SCRAPE_PUBLIC, { source: body.source ?? "" }, { jobKey: `reprocess:${JOB_SCRAPE_PUBLIC}:${body.source}:${Date.now()}`, priority: 130 });
-    return Response.json({ requeued: true, jobId, source: body.source });
+    if (typeof body.source !== "string" || !body.source.trim()) {
+      return Response.json({ error: "Eine gültige Public-Quelle ist erforderlich." }, { status: 400 });
+    }
+    const sourceKey = resolvePublicSourceKey(body.source);
+    if (!sourceKey) {
+      return Response.json({ error: "Unbekannte oder mehrdeutige Public-Quelle." }, { status: 400 });
+    }
+    const jobId = await enqueueJob(JOB_SCRAPE_PUBLIC, {
+      source: sourceKey,
+      ...(body.reset_cursor ? { reset_cursor: true } : {}),
+    }, { jobKey: `reprocess:${JOB_SCRAPE_PUBLIC}:${sourceKey}`, groupKey: `public-source:${sourceKey}`, priority: 130 });
+    return Response.json({ requeued: true, jobId, source: sourceKey, resetCursor: body.reset_cursor === true });
   } catch (error) {
     console.error("[jobs/reprocess] Fehler:", error);
     return Response.json({ error: "Reprocess konnte nicht eingereiht werden." }, { status: 500 });

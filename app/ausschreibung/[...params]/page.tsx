@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { documents, tenders, structuredData, scores, companyProfiles } from "@/lib/schema";
+import { documents, tenderResources, tenders, structuredData, scores, companyProfiles } from "@/lib/schema";
 import { eq, and, ne, or, gt, isNull, inArray, desc } from "drizzle-orm";
 import { notFound, redirect } from "next/navigation";
 import { headers } from "next/headers";
@@ -42,6 +42,8 @@ import { auth } from "@/lib/auth";
 import { getBillingStatus } from "@/lib/entitlements";
 import { buildDocumentAnalysis, type AnalyzedDocument } from "@/lib/document-analysis";
 import { ROLE_LABELS_DE } from "@/lib/document-classifier";
+import { normalizeResourceUrl } from "@/lib/resource-discovery";
+import { readTenderMeta } from "@/lib/tender-meta";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -146,7 +148,12 @@ export default async function TenderDetailPage({ params }: PageProps) {
   const documentRows = await db
     .select({
       id: documents.id,
+      url: documents.url,
+      filename: documents.filename,
+      contentType: documents.contentType,
       role: documents.role,
+      roles: documents.roles,
+      roleSource: documents.roleSource,
       parseStatus: documents.parseStatus,
       downloadStatus: documents.downloadStatus,
       errorMessage: documents.errorMessage,
@@ -165,7 +172,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
   const readinessLabel: Record<string, string> = {
     pending: "Analyse wartet",
     partial: "Analyse teilweise verfügbar",
-    ready: "Analyse vollständig",
+    ready: "Analyse verfügbar",
     blocked: "Dokumentzugriff blockiert",
     failed: "Analyse fehlgeschlagen",
     manual_review: "Manuelle Prüfung erforderlich",
@@ -182,6 +189,148 @@ export default async function TenderDetailPage({ params }: PageProps) {
     : {}) as Record<string, unknown>;
 
   const blob = sd?.jsonBlob as Record<string, unknown> | null;
+  const resourceRows = await db
+    .select({
+      id: tenderResources.id,
+      url: tenderResources.url,
+      canonicalUrl: tenderResources.canonicalUrl,
+      label: tenderResources.label,
+      filename: tenderResources.filename,
+      resourceType: tenderResources.resourceType,
+      roleHints: tenderResources.roleHints,
+      sourcePageUrl: tenderResources.sourcePageUrl,
+      discoveryMethod: tenderResources.discoveryMethod,
+      method: tenderResources.method,
+      status: tenderResources.status,
+      contentType: tenderResources.contentType,
+    })
+    .from(tenderResources)
+    .where(eq(tenderResources.tenderId, tender.id));
+  const tenderMeta = readTenderMeta(meta, tender.rawText);
+  const structuredMeta = readTenderMeta(blob);
+  const resourceUrl = (value: string | null | undefined): string | null => normalizeResourceUrl(value, tender.url);
+  const resourceKey = (value: string | null | undefined): string | null => resourceUrl(value);
+  type DisplayResource = {
+    id: number | null;
+    documentId: number | null;
+    url: string | null;
+    label: string;
+    filename: string | null;
+    resourceType: string;
+    roles: string[];
+    status: string;
+    sourcePageUrl: string | null;
+    contentType: string | null;
+  };
+  const documentByUrl = new Map<string, { id: number; filename: string | null }>();
+  for (const document of documentRows) {
+    const key = resourceKey(document.url);
+    if (key) documentByUrl.set(key, { id: document.id, filename: document.filename });
+  }
+  const resourceByUrl = new Map<string, DisplayResource>();
+  const addResource = (resource: DisplayResource): void => {
+    const key = resourceKey(resource.url) ?? resource.url;
+    if (!key) return;
+    const existing = resourceByUrl.get(key);
+    if (!existing) {
+      resourceByUrl.set(key, resource);
+      return;
+    }
+    existing.label ||= resource.label;
+    existing.filename ||= resource.filename;
+    existing.resourceType = existing.resourceType === "unknown" ? resource.resourceType : existing.resourceType;
+    existing.roles = [...existing.roles, ...resource.roles].filter((role, index, roles) => roles.indexOf(role) === index);
+    existing.documentId ||= resource.documentId;
+    if (existing.status === "discovered" || existing.status === "unknown") existing.status = resource.status;
+  };
+  for (const document of documentRows) {
+    addResource({
+      id: null,
+      documentId: document.id,
+      url: resourceUrl(document.url),
+      label: document.filename ?? "",
+      filename: document.filename,
+      resourceType: "document",
+      roles: [
+        ...(Array.isArray(document.roles) ? document.roles : []),
+        document.role,
+      ].filter((role): role is string => typeof role === "string" && role.length > 0)
+        .filter((role, index, roles) => roles.indexOf(role) === index),
+      status: document.downloadStatus ?? "unknown",
+      sourcePageUrl: null,
+      contentType: document.contentType,
+    });
+  }
+  for (const resource of resourceRows) {
+    const url = resourceUrl(resource.url);
+    const canonicalUrl = resourceUrl(resource.canonicalUrl) ?? url;
+    const document = documentByUrl.get(canonicalUrl ?? "");
+    addResource({
+      id: resource.id,
+      documentId: document?.id ?? null,
+      url,
+      label: resource.label || resource.filename || "",
+      filename: resource.filename,
+      resourceType: resource.resourceType || "unknown",
+      roles: Array.isArray(resource.roleHints) ? resource.roleHints.filter((role): role is string => typeof role === "string") : [],
+      status: resource.status || "discovered",
+      sourcePageUrl: resourceUrl(resource.sourcePageUrl),
+      contentType: resource.contentType,
+    });
+  }
+  for (const resource of [
+    ...tenderMeta.resourceCandidates,
+    ...structuredMeta.resourceCandidates,
+    ...tenderMeta.pdfUrls.map((url) => ({ url, label: "", text: "", type: "document", resourceType: "document", roleHints: [] as string[], filename: null, status: "discovered", sourcePageUrl: null, contentType: null })),
+    ...structuredMeta.pdfUrls.map((url) => ({ url, label: "", text: "", type: "document", resourceType: "document", roleHints: [] as string[], filename: null, status: "discovered", sourcePageUrl: null, contentType: null })),
+  ]) {
+    const url = resourceUrl(resource.url);
+    const document = documentByUrl.get(resourceKey(url) ?? "");
+    addResource({
+      id: null,
+      documentId: document?.id ?? null,
+      url,
+      label: resource.label || resource.text || resource.filename || "",
+      filename: resource.filename,
+      resourceType: resource.resourceType || resource.type || "unknown",
+      roles: resource.roleHints,
+      status: typeof resource.status === "string" ? resource.status : "discovered",
+      sourcePageUrl: resourceUrl(resource.sourcePageUrl),
+      contentType: resource.contentType,
+    });
+  }
+  const allResources = [...resourceByUrl.values()]
+    .filter((resource) => resource.url && resource.url !== resourceUrl(tender.url))
+    .slice(0, 40);
+  const downloadableResources = allResources.filter((resource) =>
+    Boolean(resource.documentId) || ["document", "download"].includes(resource.resourceType),
+  );
+  const discoveredPageResources = allResources.filter((resource) => !downloadableResources.includes(resource));
+  const failedResources = downloadableResources.filter((resource) => ["failed", "blocked"].includes(resource.status)).length;
+  const downloadedResources = downloadableResources.filter((resource) => resource.status === "downloaded").length;
+  const pendingResources = downloadableResources.filter((resource) => !["downloaded", "failed", "blocked", "skipped"].includes(resource.status)).length;
+  const resourceCoverageStatus = downloadableResources.length === 0
+    ? "unknown"
+    : failedResources > 0 && downloadedResources === 0 && pendingResources === 0
+      ? "blocked"
+      : downloadedResources === downloadableResources.length
+        ? "complete"
+        : "partial";
+  const coverageStatusLabel: Record<string, string> = {
+    complete: "vollständig",
+    partial: "teilweise",
+    blocked: "blockiert",
+    unknown: "unbekannt",
+  };
+  const resourceStatusLabel: Record<string, string> = {
+    discovered: "Entdeckt",
+    downloading: "Wird geladen",
+    downloaded: "Gespeichert",
+    failed: "Fehlgeschlagen",
+    blocked: "Blockiert",
+    skipped: "Übersprungen",
+    unknown: "Unbekannt",
+  };
 
   const title = tender.title ?? `Ausschreibung #${tender.id}`;
   const categoryLabel = CATEGORY_LABELS[tender.category ?? "Sonstiges"] ?? tender.category ?? "Diverse Leistungen";
@@ -241,12 +390,6 @@ export default async function TenderDetailPage({ params }: PageProps) {
   const awardCriteria = Array.isArray(blob?.awardCriteria)
     ? (blob.awardCriteria as string[]).filter((r) => r.trim().length > 5)
     : [];
-  const pdfUrls = Array.isArray(blob?.pdfUrls)
-    ? (blob.pdfUrls as string[])
-    : Array.isArray(meta.pdf_urls)
-      ? (meta.pdf_urls as string[])
-      : [];
-
   const deadline = tender.deadlineAt
     ? new Date(tender.deadlineAt).toLocaleDateString("de-DE", {
         day: "2-digit",
@@ -454,7 +597,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
               flexWrap: "wrap",
             }}
           >
-            {breadcrumbLinks.map((link, i) => (
+            {breadcrumbLinks.map((link) => (
               <Box key={link.href} sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                 <Link
                   href={link.href}
@@ -565,9 +708,14 @@ export default async function TenderDetailPage({ params }: PageProps) {
                   {readinessLabel[readinessStatus] ?? readinessLabel.pending}
                 </Typography>
               </Stack>
-              <Typography variant="caption" sx={{ color: readinessTone.text }}>
-                {documentAnalysis.coverage.parsed}/{documentAnalysis.coverage.discovered} Dokumente analysiert
-              </Typography>
+              <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
+                <Typography variant="caption" sx={{ color: readinessTone.text }}>
+                  Dokumente: {coverageStatusLabel[documentAnalysis.coverageStatus] ?? "unbekannt"} ({documentAnalysis.coverage.parsed}/{documentAnalysis.coverage.discovered} analysiert)
+                </Typography>
+                <Typography variant="caption" sx={{ color: readinessTone.text }}>
+                  Ressourcen: {coverageStatusLabel[resourceCoverageStatus] ?? "unbekannt"} ({downloadedResources}/{downloadableResources.length} geladen)
+                </Typography>
+              </Stack>
             </Stack>
             {tender.readinessReason && readinessStatus !== "ready" && (
               <Typography variant="body2" sx={{ mt: 0.75, color: readinessTone.text }}>
@@ -583,7 +731,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
               <Stack spacing={0.75} sx={{ mt: 1.25 }}>
                 {documentAnalysis.evidence.slice(0, 4).map((evidence) => (
                   <Typography key={`${evidence.field}-${evidence.documentId}`} variant="caption" sx={{ display: "block", color: readinessTone.text, lineHeight: 1.5 }}>
-                    Beleg {evidence.field}: „{evidence.quote}"{evidence.page ? ` (Seite ${evidence.page})` : ""}
+                     Beleg {evidence.field}: „{evidence.quote}&quot;{evidence.page ? ` (Seite ${evidence.page})` : ""}
                   </Typography>
                 ))}
               </Stack>
@@ -800,24 +948,74 @@ export default async function TenderDetailPage({ params }: PageProps) {
             </Box>
           )}
 
-          {/* Documents */}
-          {pdfUrls.length > 0 && (
+          {/* Documents and discovered resources */}
+          {allResources.length > 0 && (
             <Box sx={{ mb: 2.5 }}>
               <Typography component="h2" sx={sectionHeadingSx}>
-                Vergabeunterlagen
+                Vergabeunterlagen und Ressourcen
               </Typography>
               {hasPremiumDocuments ? (
                 <Stack spacing={1}>
-                  {pdfUrls.map((pdfUrl, i) => (
-                    <PdfDocumentLink key={i} url={pdfUrl} index={i} />
+                  {downloadableResources.map((resource, i) => (
+                    <PdfDocumentLink
+                      key={`${resource.documentId ?? resource.id ?? resource.url}-${i}`}
+                      url={resource.url}
+                      documentId={resource.documentId}
+                      tenderId={tender.id}
+                      index={i}
+                      label={resource.label}
+                      filename={resource.filename}
+                      roles={resource.roles}
+                      status={resource.status}
+                    />
+                  ))}
+                  {discoveredPageResources.slice(0, 8).map((resource, i) => (
+                    <Box
+                      key={`${resource.id ?? resource.url}-${i}`}
+                      component="a"
+                      href={resource.url ?? undefined}
+                      target="_blank"
+                      rel="nofollow noopener noreferrer"
+                      sx={{
+                        p: 1.25,
+                        border: 1,
+                        borderColor: "divider",
+                        borderRadius: 1,
+                        color: "text.primary",
+                        textDecoration: "none",
+                        "&:hover": { bgcolor: "action.hover" },
+                      }}
+                    >
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                        {resource.label || resource.filename || resource.url}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {[...resource.roles.map((role) => ROLE_LABELS_DE[role] ?? role), resourceStatusLabel[resource.status] ?? resource.status].filter(Boolean).join(" · ")}
+                      </Typography>
+                    </Box>
                   ))}
                 </Stack>
               ) : (
-                <PaywallPanel
-                  feature="Dokumente"
-                  title="Vergabeunterlagen freischalten"
-                  description="Die Originalunterlagen sind nur die Quelle. Pro prüft die Ausschreibung gegen dein Unternehmen und macht Go-/No-Go, offene Anforderungen und nächste Schritte sichtbar."
-                />
+                <>
+                  <Typography variant="body2" sx={{ mb: 1, color: "text.secondary" }}>
+                    {allResources.length} Ressource{allResources.length === 1 ? "" : "n"} entdeckt. Verfügbarkeit: {coverageStatusLabel[resourceCoverageStatus] ?? "unbekannt"}.
+                  </Typography>
+                  <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ mb: 1.5 }}>
+                    {allResources.slice(0, 8).map((resource, i) => (
+                      <Chip
+                        key={`${resource.url}-${i}`}
+                        size="small"
+                        label={[resource.label || resource.filename || "Ressource", ...resource.roles.map((role) => ROLE_LABELS_DE[role] ?? role)].join(" · ")}
+                        variant="outlined"
+                      />
+                    ))}
+                  </Stack>
+                  <PaywallPanel
+                    feature="Dokumente"
+                    title="Vergabeunterlagen freischalten"
+                    description="Die Originalunterlagen sind nur die Quelle. Pro prüft die Ausschreibung gegen dein Unternehmen und macht Go-/No-Go, offene Anforderungen und nächste Schritte sichtbar."
+                  />
+                </>
               )}
             </Box>
           )}

@@ -155,6 +155,7 @@ async function main() {
         content_type TEXT,
         extracted_text TEXT,
         version INTEGER NOT NULL DEFAULT 1,
+        roles JSONB,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         UNIQUE(tender_id, sha256)
@@ -167,6 +168,7 @@ async function main() {
     await client`ALTER TABLE documents ADD COLUMN IF NOT EXISTS filename TEXT`;
     await client`ALTER TABLE documents ADD COLUMN IF NOT EXISTS page_count INTEGER`;
     await client`ALTER TABLE documents ADD COLUMN IF NOT EXISTS role TEXT`;
+    await client`ALTER TABLE documents ADD COLUMN IF NOT EXISTS roles JSONB`;
     await client`ALTER TABLE documents ADD COLUMN IF NOT EXISTS role_source TEXT`;
     await client`ALTER TABLE documents ADD COLUMN IF NOT EXISTS role_confidence REAL`;
     await client`ALTER TABLE tenders ADD COLUMN IF NOT EXISTS readiness_status TEXT NOT NULL DEFAULT 'pending'`;
@@ -174,6 +176,30 @@ async function main() {
     await client`ALTER TABLE tenders ADD COLUMN IF NOT EXISTS readiness_updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`;
     await client`UPDATE documents SET parse_status = 'failed', error_message = left(extracted_text, 500) WHERE extracted_text LIKE '[parse_error]%' AND parse_status = 'pending'`;
     await client`UPDATE documents SET parse_status = 'parsed' WHERE extracted_text IS NOT NULL AND extracted_text != '' AND extracted_text NOT LIKE '[parse_error]%' AND parse_status = 'pending'`;
+
+    await client`
+      CREATE TABLE IF NOT EXISTS tender_resources (
+        id SERIAL PRIMARY KEY,
+        tender_id INTEGER NOT NULL REFERENCES tenders(id) ON DELETE CASCADE,
+        url TEXT NOT NULL,
+        canonical_url TEXT NOT NULL,
+        label TEXT NOT NULL DEFAULT '',
+        filename TEXT,
+        resource_type TEXT NOT NULL DEFAULT 'unknown',
+        role_hints JSONB NOT NULL DEFAULT '[]'::jsonb,
+        source_page_url TEXT,
+        discovery_method TEXT NOT NULL DEFAULT 'unknown',
+        method TEXT NOT NULL DEFAULT 'GET',
+        status TEXT NOT NULL DEFAULT 'discovered',
+        content_type TEXT,
+        content_disposition TEXT,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        last_attempt_at TIMESTAMPTZ,
+        error_message TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
 
     await client`
       CREATE TABLE IF NOT EXISTS structured_data (
@@ -315,6 +341,8 @@ async function main() {
       CREATE TABLE IF NOT EXISTS public_scrape_runs (
         id SERIAL PRIMARY KEY,
         job_id INTEGER REFERENCES jobs(id) ON DELETE SET NULL,
+        scope_source_key TEXT,
+        is_full_run BOOLEAN NOT NULL DEFAULT TRUE,
         status TEXT NOT NULL DEFAULT 'running',
         total_found INTEGER NOT NULL DEFAULT 0,
         after_dedup INTEGER NOT NULL DEFAULT 0,
@@ -335,15 +363,59 @@ async function main() {
         source_key TEXT NOT NULL,
         status TEXT NOT NULL,
         discovered_count INTEGER NOT NULL DEFAULT 0,
+        listed_count INTEGER NOT NULL DEFAULT 0,
+        detail_attempted INTEGER NOT NULL DEFAULT 0,
+        detail_failed INTEGER NOT NULL DEFAULT 0,
+        pending_count INTEGER NOT NULL DEFAULT 0,
+        continuation_scheduled BOOLEAN NOT NULL DEFAULT FALSE,
         accepted_count INTEGER NOT NULL DEFAULT 0,
         inserted_count INTEGER NOT NULL DEFAULT 0,
         updated_count INTEGER NOT NULL DEFAULT 0,
         error_message TEXT,
+        cursor_before_json JSONB,
+        cursor_after_json JSONB,
+        cursor_version_before INTEGER NOT NULL DEFAULT 0,
+        cursor_version_after INTEGER NOT NULL DEFAULT 0,
+        pages_fetched INTEGER NOT NULL DEFAULT 0,
+        exhausted BOOLEAN NOT NULL DEFAULT FALSE,
+        cursor_advanced BOOLEAN NOT NULL DEFAULT FALSE,
         started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         finished_at TIMESTAMPTZ,
         UNIQUE(run_id, source_key)
       )
     `;
+    await client`ALTER TABLE public_scrape_runs ADD COLUMN IF NOT EXISTS scope_source_key TEXT`;
+    await client`ALTER TABLE public_scrape_runs ADD COLUMN IF NOT EXISTS is_full_run BOOLEAN NOT NULL DEFAULT TRUE`;
+    await client`ALTER TABLE public_source_runs ADD COLUMN IF NOT EXISTS listed_count INTEGER NOT NULL DEFAULT 0`;
+    await client`ALTER TABLE public_source_runs ADD COLUMN IF NOT EXISTS detail_attempted INTEGER NOT NULL DEFAULT 0`;
+    await client`ALTER TABLE public_source_runs ADD COLUMN IF NOT EXISTS detail_failed INTEGER NOT NULL DEFAULT 0`;
+    await client`ALTER TABLE public_source_runs ADD COLUMN IF NOT EXISTS pending_count INTEGER NOT NULL DEFAULT 0`;
+    await client`ALTER TABLE public_source_runs ADD COLUMN IF NOT EXISTS continuation_scheduled BOOLEAN NOT NULL DEFAULT FALSE`;
+    await client`ALTER TABLE public_source_runs ADD COLUMN IF NOT EXISTS cursor_before_json JSONB`;
+    await client`ALTER TABLE public_source_runs ADD COLUMN IF NOT EXISTS cursor_after_json JSONB`;
+    await client`ALTER TABLE public_source_runs ADD COLUMN IF NOT EXISTS cursor_version_before INTEGER NOT NULL DEFAULT 0`;
+    await client`ALTER TABLE public_source_runs ADD COLUMN IF NOT EXISTS cursor_version_after INTEGER NOT NULL DEFAULT 0`;
+    await client`ALTER TABLE public_source_runs ADD COLUMN IF NOT EXISTS pages_fetched INTEGER NOT NULL DEFAULT 0`;
+    await client`ALTER TABLE public_source_runs ADD COLUMN IF NOT EXISTS exhausted BOOLEAN NOT NULL DEFAULT FALSE`;
+    await client`ALTER TABLE public_source_runs ADD COLUMN IF NOT EXISTS cursor_advanced BOOLEAN NOT NULL DEFAULT FALSE`;
+    await client`
+      CREATE TABLE IF NOT EXISTS public_source_cursors (
+        source_key TEXT PRIMARY KEY,
+         cursor_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+         cursor_version INTEGER NOT NULL DEFAULT 0,
+         exhausted BOOLEAN NOT NULL DEFAULT FALSE,
+         continuation_required BOOLEAN NOT NULL DEFAULT FALSE,
+        last_run_id INTEGER REFERENCES public_scrape_runs(id) ON DELETE SET NULL,
+        last_status TEXT,
+        last_error TEXT,
+        last_advanced_at TIMESTAMPTZ,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+       )
+     `;
+    await client`ALTER TABLE public_source_cursors ADD COLUMN IF NOT EXISTS cursor_version INTEGER NOT NULL DEFAULT 0`;
+    await client`ALTER TABLE public_source_cursors ADD COLUMN IF NOT EXISTS continuation_required BOOLEAN NOT NULL DEFAULT FALSE`;
+    await client`UPDATE public_source_cursors SET continuation_required = TRUE WHERE exhausted = FALSE AND continuation_required = FALSE`;
+    await client`CREATE INDEX IF NOT EXISTS idx_public_source_cursors_status ON public_source_cursors(exhausted, updated_at)`;
 
     await client`
       CREATE TABLE IF NOT EXISTS tracked_tenders (
@@ -577,12 +649,9 @@ async function main() {
     await client`CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_active_job_key ON jobs(job_key) WHERE job_key IS NOT NULL AND status IN ('pending', 'running')`;
     await client`CREATE INDEX IF NOT EXISTS idx_scores_company ON scores(company_id)`;
     await client`CREATE INDEX IF NOT EXISTS idx_tenders_source_url ON tenders(source, url)`;
-    await client`CREATE INDEX IF NOT EXISTS idx_tenders_source_external ON tenders(source, external_id)`;
-    await client`
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_tenders_source_external_unique
-      ON tenders(source, external_id)
-      WHERE external_id IS NOT NULL
-    `;
+     await client`CREATE INDEX IF NOT EXISTS idx_tenders_source_external ON tenders(source, external_id)`;
+     await client`CREATE INDEX IF NOT EXISTS idx_tenders_source_key_external ON tenders(source_key, external_id)`;
+     await client`DROP INDEX IF EXISTS idx_tenders_source_external_unique`;
      await client`CREATE INDEX IF NOT EXISTS idx_tenders_quality_status ON tenders(quality_status)`;
      await client`CREATE INDEX IF NOT EXISTS idx_tenders_readiness_status ON tenders(readiness_status)`;
     await client`CREATE INDEX IF NOT EXISTS idx_tenders_deadline ON tenders(deadline_at)`;
@@ -597,9 +666,13 @@ async function main() {
     await client`CREATE INDEX IF NOT EXISTS idx_us_source_runs_source_finished ON us_source_runs(source, finished_at)`;
     await client`CREATE INDEX IF NOT EXISTS idx_billing_subscriptions_user_updated ON billing_subscriptions(user_id, updated_at)`;
     await client`CREATE INDEX IF NOT EXISTS idx_billing_subscriptions_customer ON billing_subscriptions(stripe_customer_id)`;
-    await client`CREATE INDEX IF NOT EXISTS idx_stripe_events_processed_at ON stripe_events(processed_at)`;
-    await client`CREATE INDEX IF NOT EXISTS idx_documents_tender ON documents(tender_id)`;
-    await client`CREATE INDEX IF NOT EXISTS idx_events_company ON attribution_events(company_id, event_type)`;
+     await client`CREATE INDEX IF NOT EXISTS idx_stripe_events_processed_at ON stripe_events(processed_at)`;
+     await client`CREATE INDEX IF NOT EXISTS idx_documents_tender ON documents(tender_id)`;
+     await client`CREATE UNIQUE INDEX IF NOT EXISTS idx_tender_resources_tender_canonical ON tender_resources(tender_id, canonical_url)`;
+     await client`CREATE INDEX IF NOT EXISTS idx_tender_resources_tender_status ON tender_resources(tender_id, status)`;
+     await client`CREATE INDEX IF NOT EXISTS idx_tender_resources_tender_type ON tender_resources(tender_id, resource_type)`;
+     await client`CREATE INDEX IF NOT EXISTS idx_tender_resources_status_attempt ON tender_resources(status, last_attempt_at)`;
+     await client`CREATE INDEX IF NOT EXISTS idx_events_company ON attribution_events(company_id, event_type)`;
     await client`CREATE INDEX IF NOT EXISTS idx_tracked_tenders_status_updated ON tracked_tenders(status, updated_at)`;
      await client`CREATE INDEX IF NOT EXISTS idx_tracked_tenders_deadline ON tracked_tenders(deadline_at)`;
      await client`CREATE UNIQUE INDEX IF NOT EXISTS idx_bid_packs_tracked_tender ON bid_packs(tracked_tender_id)`;

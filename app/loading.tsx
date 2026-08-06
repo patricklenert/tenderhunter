@@ -30,7 +30,7 @@ export default function Loading() {
           whiteSpace: "nowrap",
         }}
       >
-        Aktuelle öffentliche Ausschreibungen, Vergabeverfahren und Aufträge der öffentlichen Hand. Täglich aktualisiert.
+        Aktuelle öffentliche Ausschreibungen, Vergabeverfahren und Aufträge der öffentlichen Hand. Regelmäßig aktualisiert.
       </Box>
       <Container maxWidth="md">
         <Skeleton variant="text" sx={{ fontSize: "2.5rem", mb: 2, maxWidth: "70%" }} />

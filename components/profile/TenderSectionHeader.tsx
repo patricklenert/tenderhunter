@@ -21,6 +21,9 @@ export function TenderSectionHeader({ count }: TenderSectionHeaderProps) {
       <Typography sx={{ color: "#64748b", fontSize: "0.8125rem" }}>
         Sortiert nach Übereinstimmung mit dem Unternehmensprofil.
       </Typography>
+      <Typography sx={{ color: "#475569", fontSize: "0.8125rem", mt: 0.75 }}>
+        Der öffentliche Ausschreibungsbestand wird regelmäßig aktualisiert. Neue passende Treffer erscheinen automatisch auf dieser Seite.
+      </Typography>
     </Box>
   );
 }

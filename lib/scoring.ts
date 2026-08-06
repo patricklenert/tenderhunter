@@ -9,6 +9,7 @@ import { callLLM } from "@/lib/llm";
 import OpenAI from "openai";
 
 const WORD_PATTERN = /[\p{L}\p{N}-]{3,}/gu;
+const CPV_PATTERN = /\b\d{8}(?:-\d)?\b/g;
 
 const clamp = (value: number, lower = 0, upper = 100): number => Math.max(lower, Math.min(upper, value));
 
@@ -37,7 +38,8 @@ type CapabilityGroup =
   | "wood"
   | "it"
   | "medical"
-  | "education";
+  | "education"
+  | "property_management";
 
 const CAPABILITY_GROUPS: Record<CapabilityGroup, { terms: string[]; cpvPrefixes: string[] }> = {
   green_outdoor: {
@@ -71,6 +73,10 @@ const CAPABILITY_GROUPS: Record<CapabilityGroup, { terms: string[]; cpvPrefixes:
   education: {
     terms: ["ausbildung", "fortbildung", "weiterbildung", "qualifizierung", "fuehrungskraeftequalifizierung", "seminare", "schulung"],
     cpvPrefixes: ["80"],
+  },
+  property_management: {
+    terms: ["immobilienverwaltung", "immobilienmanagement", "hausverwaltung", "liegenschaftsverwaltung", "objektverwaltung", "mietverwaltung", "wohnungsverwaltung", "immobilienmakler", "immobilienvermittlung"],
+    cpvPrefixes: ["70"],
   },
 };
 
@@ -202,6 +208,7 @@ export interface CompanyRow {
 
 export interface TenderScoringInput extends TenderLocationInput {
   metadataDescription?: unknown;
+  allowUnknownTenderLocation?: boolean;
 }
 
 export type DomainEligibilityStatus = "match" | "mismatch" | "domain_unknown";
@@ -221,6 +228,11 @@ export interface TenderMatchDocument {
 
 const uniqueNonEmpty = (values: string[]): string[] => [...new Set(values.filter(Boolean))];
 
+const explicitCpvCodes = (text: string): string[] => text.match(CPV_PATTERN) ?? [];
+
+const domainMatchText = (tenderTitle: string, document: TenderMatchDocument): string =>
+  uniqueNonEmpty([tenderTitle, document.scope || document.description]).join(" ");
+
 export const buildTenderMatchDocument = (
   tenderTitle: string,
   structured: StructuredData,
@@ -232,16 +244,29 @@ export const buildTenderMatchDocument = (
     ...(structured.decision_relevant.mandatory_documents ?? []),
     ...(structured.procurement?.participation_requirements ?? []),
   ].map(sanitizeTenderText));
+  const structuredDescription = sanitizeTenderText(
+    (structured as StructuredData & { description?: unknown }).description,
+  );
   const description = uniqueNonEmpty([
+    structuredDescription,
     sanitizeTenderText(input.metadataDescription),
     sanitizeTenderText(structured.summary),
-  ]).join(" ");
+  ])[0] ?? "";
+  const cpvText = [tenderTitle, description, ...scope, ...requirements, sanitizeTenderText(structured.summary)].join(" ");
+  const explicitCodes = explicitCpvCodes(cpvText);
+  const explicitCodeDigits = new Set(explicitCodes.map((code) => code.replace(/\D/g, "")));
+  const structuredCodes = Array.isArray(structured.procurement?.cpv_codes)
+    ? structured.procurement.cpv_codes.filter((code): code is string => typeof code === "string")
+    : [];
 
   return {
     text: uniqueNonEmpty([sanitizeTenderText(tenderTitle), description, ...scope, ...requirements]).join(" ").slice(0, 5_000),
     scope: uniqueNonEmpty([...scope, ...requirements]).join(" ").slice(0, 2_000),
     description: description.slice(0, 2_000),
-    cpvCodes: Array.isArray(structured.procurement?.cpv_codes) ? structured.procurement.cpv_codes : [],
+    cpvCodes: uniqueNonEmpty([
+      ...explicitCodes,
+      ...structuredCodes.filter((code) => explicitCodeDigits.has(code.replace(/\D/g, ""))),
+    ]),
   };
 };
 
@@ -254,10 +279,11 @@ export const getDomainEligibility = (
   const capabilities = parseList(company.capabilities_json);
   const profileGroups = groupsForText(`${capabilities.join(" ")} ${company.industry ?? ""}`);
   const document = buildTenderMatchDocument(tenderTitle, structured, input);
-  const textGroups = groupsForText(document.text);
+  const domainText = domainMatchText(tenderTitle, document);
+  const textGroups = groupsForText(domainText);
   const cpvGroups = groupsForCpvCodes(document.cpvCodes);
   const tenderGroups = new Set<CapabilityGroup>([...textGroups, ...cpvGroups]);
-  const directMatch = keywordMatchRatio(capabilities, document.text);
+  const directMatch = keywordMatchRatio(capabilities, domainText);
 
   if ([...profileGroups].some((group) => cpvGroups.has(group))) {
     return { status: "match", reason: "Passende CPV-Leistungsfamilie erkannt.", source: "cpv" };
@@ -308,6 +334,7 @@ export const computeScores = (
   const capabilities = parseList(company.capabilities_json);
   const certifications = parseList(company.certifications_json);
   const matchDocument = buildTenderMatchDocument(tenderTitle, structured, tenderInput);
+  const domainText = domainMatchText(tenderTitle, matchDocument);
   const requirementLines = [
     ...structured.decision_relevant.requirements,
     ...structured.decision_relevant.mandatory_documents
@@ -321,7 +348,7 @@ export const computeScores = (
   const deterministicDomain = domainBlocked
     ? 0
     : Math.max(
-        capabilityMatch(capabilities, company.industry ?? null, matchDocument.text),
+        capabilityMatch(capabilities, company.industry ?? null, domainText),
         domainEligibility.source === "cpv" ? 0.58 : 0,
       );
   const semanticDomain = llmDomainScore;
@@ -344,10 +371,16 @@ export const computeScores = (
     ...tenderInput,
     structuredLocation: tenderInput.structuredLocation ?? structured.hard_facts.location,
   });
-  const regional = locationEligibility.status === "match" ? 1 : 0;
+  const regional = locationEligibility.status === "match"
+    ? 1
+    : locationEligibility.status === "tender_location_unknown" && tenderInput.allowUnknownTenderLocation
+      ? 0.35
+      : 0;
   const size = sizeMatch(company.team_size, matchDocument.scope);
 
-  const locationBlocked = locationEligibility.status !== "match";
+  const locationBlocked = locationEligibility.status === "mismatch"
+    || locationEligibility.status === "company_location_unknown"
+    || (locationEligibility.status === "tender_location_unknown" && !tenderInput.allowUnknownTenderLocation);
   const fit = locationBlocked || domainBlocked
     ? 0
     : clamp((domain * 0.4 + reqCoverage * 0.35 + regional * 0.15 + size * 0.1) * 100);

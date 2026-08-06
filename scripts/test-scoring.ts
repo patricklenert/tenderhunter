@@ -3,6 +3,7 @@ import { deriveBundesland } from "@/lib/bundesland";
 import { computeScores } from "@/lib/scoring";
 import { normalizeStructured, type StructuredData } from "@/lib/structurer";
 import type { CompanyRow } from "@/lib/scoring";
+import { fallbackCompanyProfile } from "@/lib/perplexity";
 
 const landscapingCompany: CompanyRow = {
   capabilities_json: JSON.stringify([
@@ -87,6 +88,13 @@ const unknownTenderLocation = computeScores(
   landscapingCompany,
   1,
 );
+const publicUnknownTenderLocation = computeScores(
+  "Pflege von Grünanlagen",
+  structured("Pflege von Grünanlagen", "", ["77310000-6"]),
+  landscapingCompany,
+  1,
+  { allowUnknownTenderLocation: true },
+);
 const unknownCompanyLocation = computeScores(
   "Pflege von Grünanlagen",
   structured("Pflege von Grünanlagen", "Dortmund", ["77310000-6"]),
@@ -100,6 +108,76 @@ const nationwideCompany = computeScores(
   { ...landscapingCompany, regions_json: JSON.stringify(["Deutschland"]) },
   1,
   { metadataLocation: "81929" },
+);
+
+const propertyCompany: CompanyRow = {
+  capabilities_json: JSON.stringify(["Immobilienverwaltung"]),
+  certifications_json: "[]",
+  regions_json: JSON.stringify(["Deutschland"]),
+  team_size: null,
+  industry: "Immobilienverwaltung",
+};
+const propertyTender = computeScores(
+  "Verwaltung städtischer Wohnungen",
+  structured("Liegenschaftsverwaltung und Mietverwaltung", "Moers", ["70330000-3"]),
+  propertyCompany,
+  undefined,
+  { bundesland: "Nordrhein-Westfalen", city: "Moers" },
+);
+const cleaningTenderForPropertyCompany = computeScores(
+  "Gebäudereinigung von Gemeinschaftsunterkünften",
+  structured("Unterhaltsreinigung und Glasreinigung", "Moers", ["90910000-9"]),
+  propertyCompany,
+  undefined,
+  { bundesland: "Nordrhein-Westfalen", city: "Moers" },
+);
+const propertyBuyerConstructionTender = computeScores(
+  "Bayreuth, Casselmannstraße 6, 330-Sonnenschutz",
+  normalizeStructured({
+    title: "Bayreuth, Casselmannstraße 6, 330-Sonnenschutz",
+    summary: "Vergabestelle BA - Gebäude-, Bau- und Immobilienmanagement GmbH",
+    description: "Ausschreibung für Bauleistungen im Zusammenhang mit Sonnenschutz.",
+    confidence: 0.8,
+    hard_facts: { location: "95444 Bayreuth", deadline: null, budget: null, buyer: null, contract_type: "bau" },
+    decision_relevant: { scope: ["Bauleistungen", "Sonnenschutzsysteme"], requirements: [], mandatory_documents: [], award_criteria: [] },
+    procurement: {
+      contract_value: { min: null, max: null, currency: "EUR" },
+      contract_duration: { months: null, renewal: false },
+      award_criteria_detailed: [],
+      participation_requirements: [],
+      cpv_codes: [],
+      procedure_type: "offen",
+    },
+  }, "Bayreuth, Casselmannstraße 6, 330-Sonnenschutz"),
+  propertyCompany,
+  undefined,
+  { allowUnknownTenderLocation: true },
+);
+const misclassifiedCpvConstructionTender = computeScores(
+  "Fruchtkasten - Fassadenlamellen Holz",
+  normalizeStructured({
+    title: "Fruchtkasten - Fassadenlamellen Holz",
+    summary: "Fassadenarbeiten aus Holz, CPV 45443000-4",
+    description: "Bekanntmachung einer geplanten Vergabe für Fassadenarbeiten (CPV 45443000-4).",
+    confidence: 0.8,
+    hard_facts: { location: "Herrenberg", deadline: null, budget: null, buyer: null, contract_type: "bau" },
+    decision_relevant: { scope: ["Unterkonstruktion aus Stahl", "Fassadenlamellen aus Holz"], requirements: [], mandatory_documents: [], award_criteria: [] },
+    procurement: {
+      contract_value: { min: null, max: null, currency: "EUR" },
+      contract_duration: { months: null, renewal: false },
+      award_criteria_detailed: [],
+      participation_requirements: [],
+      cpv_codes: ["70329240"],
+      procedure_type: "beschränkt",
+    },
+  }, "Fruchtkasten - Fassadenlamellen Holz"),
+  propertyCompany,
+  undefined,
+  { allowUnknownTenderLocation: true },
+);
+const fallbackProfile = fallbackCompanyProfile(
+  "<html><title>Immobilienmakler Moers | Selektive</title><meta name=\"description\" content=\"Immobilienvermittlung und Betreuung von Eigentümern in Moers.\"><body>Hinweise zur Reinigung der Seite finden Sie im Footer.</body></html>",
+  "https://www.selektive.de/unternehmen/standorte/immobilienmakler-moers",
 );
 
 const portalDump = normalizeStructured({
@@ -141,10 +219,24 @@ assert.equal(berlinTender.details.tender_bundesland, "Berlin");
 
 assert.equal(unknownTenderLocation.fit, 0);
 assert.equal(unknownTenderLocation.details.location_status, "tender_location_unknown");
+assert.equal(publicUnknownTenderLocation.kill_switch, false);
+assert.ok(publicUnknownTenderLocation.fit > 10, `publicUnknown=${publicUnknownTenderLocation.fit}`);
+assert.equal(publicUnknownTenderLocation.details.location_status, "tender_location_unknown");
 assert.equal(unknownCompanyLocation.fit, 0);
 assert.equal(unknownCompanyLocation.details.location_status, "company_location_unknown");
 assert.equal(nationwideCompany.details.location_status, "match");
 assert.ok(nationwideCompany.fit > 0, `nationwide=${nationwideCompany.fit}`);
+assert.equal(propertyTender.details.domain_status, "match");
+assert.equal(propertyTender.kill_switch, false);
+assert.ok(propertyTender.fit > 0, `property=${propertyTender.fit}`);
+assert.equal(cleaningTenderForPropertyCompany.fit, 0);
+assert.equal(cleaningTenderForPropertyCompany.details.domain_status, "mismatch");
+assert.equal(propertyBuyerConstructionTender.fit, 0);
+assert.notEqual(propertyBuyerConstructionTender.details.domain_status, "match");
+assert.equal(misclassifiedCpvConstructionTender.fit, 0);
+assert.notEqual(misclassifiedCpvConstructionTender.details.domain_status, "match");
+assert.equal(fallbackProfile.industry, "Immobilienverwaltung");
+assert.deepEqual(fallbackProfile.capabilities, ["Immobilienverwaltung"]);
 
 assert.deepEqual(portalDump.decision_relevant.scope, []);
 assert.equal(portalDump.summary, "Ausbildung");

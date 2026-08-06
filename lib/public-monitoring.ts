@@ -1,8 +1,8 @@
-import { desc, eq, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { getCatalogState } from "@/lib/catalog";
-import { jobs, publicScrapeRuns, publicSourceRuns, structuredData, tenders } from "@/lib/schema";
-import { JOB_SYNC_MEILI } from "@/lib/types";
+import { jobs, publicScrapeRuns, publicSourceCursors, publicSourceRuns, structuredData, tenders } from "@/lib/schema";
+import { JOB_SCRAPE_PUBLIC, JOB_SYNC_MEILI } from "@/lib/types";
 
 const PUBLIC_SCRAPE_INTERVAL_HOURS = Number(process.env.PUBLIC_SCRAPE_INTERVAL_HOURS ?? 48);
 
@@ -111,13 +111,48 @@ export async function getPublicScrapeMonitoring() {
     .where(or(eq(publicScrapeRuns.status, "success"), eq(publicScrapeRuns.status, "partial")))
     .orderBy(desc(publicScrapeRuns.finishedAt))
     .limit(1);
+  const [lastFullRun] = await db
+    .select()
+    .from(publicScrapeRuns)
+    .where(eq(publicScrapeRuns.isFullRun, true))
+    .orderBy(desc(publicScrapeRuns.startedAt))
+    .limit(1);
+  const [lastHealthyFullRun] = await db
+    .select()
+    .from(publicScrapeRuns)
+    .where(and(eq(publicScrapeRuns.isFullRun, true), eq(publicScrapeRuns.status, "success")))
+    .orderBy(desc(publicScrapeRuns.finishedAt))
+    .limit(1);
   const sourceRuns = lastRun
     ? await db
       .select()
       .from(publicSourceRuns)
       .where(eq(publicSourceRuns.runId, lastRun.id))
       .orderBy(publicSourceRuns.sourceKey)
-    : [];
+      : [];
+  const sourceCursors = await db
+    .select()
+    .from(publicSourceCursors)
+    .orderBy(publicSourceCursors.sourceKey);
+  const continuationJobs = await db
+    .select({ payload: jobs.payload })
+    .from(jobs)
+    .where(and(
+      eq(jobs.type, JOB_SCRAPE_PUBLIC),
+      inArray(jobs.status, ["pending", "running"]),
+      sql`${jobs.jobKey} like 'public-continuation:%'`,
+    ));
+  const activeContinuationSources = new Set(
+    continuationJobs
+      .map((job) => {
+        if (!job.payload || typeof job.payload !== "object" || Array.isArray(job.payload)) return null;
+        return (job.payload as Record<string, unknown>).source;
+      })
+      .filter((source): source is string => typeof source === "string" && source.length > 0),
+  );
+  const nonExhaustedSources = sourceCursors.filter((cursor) => !cursor.exhausted && cursor.continuationRequired).map((cursor) => cursor.sourceKey);
+  const blockedSources = sourceCursors.filter((cursor) => !cursor.exhausted && !cursor.continuationRequired).map((cursor) => cursor.sourceKey);
+  const continuationMissingSources = nonExhaustedSources.filter((sourceKey) => !activeContinuationSources.has(sourceKey));
   const [lastSyncJob] = await db
     .select({
       id: jobs.id,
@@ -132,8 +167,8 @@ export async function getPublicScrapeMonitoring() {
     .limit(1);
   const catalog = await getCatalogState();
 
-  const completedAt = lastCompletedRun?.finishedAt?.getTime() ?? 0;
-  const stale = completedAt === 0 || Date.now() - completedAt > PUBLIC_SCRAPE_INTERVAL_HOURS * 60 * 60 * 1_000;
+  const healthyCompletedAt = lastHealthyFullRun?.finishedAt?.getTime() ?? 0;
+  const stale = healthyCompletedAt === 0 || Date.now() - healthyCompletedAt > PUBLIC_SCRAPE_INTERVAL_HOURS * 60 * 60 * 1_000;
   const failedSources = sourceRuns
     .filter((run) => ["failed", "timed_out", "partial"].includes(run.status))
     .map((run) => ({ sourceKey: run.sourceKey, status: run.status, errorMessage: run.errorMessage }));
@@ -144,6 +179,8 @@ export async function getPublicScrapeMonitoring() {
   const issues: string[] = [];
   if (stale) issues.push(`Public-Scrape ist älter als ${PUBLIC_SCRAPE_INTERVAL_HOURS} Stunden.`);
   if (failedSources.length > 0) issues.push(`${failedSources.length} Public-Quelle(n) fehlgeschlagen oder unvollständig.`);
+  if (lastFullRun?.status === "partial" || lastFullRun?.status === "failed") issues.push(`Der letzte vollständige Public-Lauf ist ${lastFullRun.status}.`);
+  if (continuationMissingSources.length > 0) issues.push(`${continuationMissingSources.length} Quelle(n) benötigen Fortsetzung, haben aber keinen aktiven Folgejob.`);
   if (emptySources.length > 0) issues.push(`${emptySources.length} Public-Quelle(n) ohne Treffer — möglicher Portal-Ausfall (wird als leerer Erfolg gespeichert).`);
   if (syncStale) issues.push("Meilisearch-Sync ist ausstehend oder läuft noch.");
   if (lastSyncJob?.status === "failed") issues.push("Der letzte Meilisearch-Sync ist fehlgeschlagen.");
@@ -153,7 +190,13 @@ export async function getPublicScrapeMonitoring() {
     stale,
     lastRun: lastRun ?? null,
     lastCompletedAt: lastCompletedRun?.finishedAt ?? null,
+    lastFullRun: lastFullRun ?? null,
+    lastHealthyFullRun: lastHealthyFullRun ?? null,
     sourceRuns,
+    sourceCursors,
+    nonExhaustedSources,
+    blockedSources,
+    continuationMissingSources,
     failedSources,
     emptySources,
     catalog: catalog

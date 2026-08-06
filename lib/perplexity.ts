@@ -68,11 +68,13 @@ const metaContent = (html: string, key: string): string => {
   return "";
 };
 
-const fallbackCompanyProfile = (websiteContent: string, url: string): CompanyProfile => {
+export const fallbackCompanyProfile = (websiteContent: string, url: string): CompanyProfile => {
   const title = websiteContent.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]?.trim() ?? "";
   const description = metaContent(websiteContent, "description");
   const keywords = metaContent(websiteContent, "keywords");
   const plainText = `${title} ${description} ${keywords} ${websiteContent.replace(/<[^>]+>/g, " ")}`.toLowerCase();
+  const realEstatePattern = /immobilien(?:verwaltung|management|makler|vermittlung)|hausverwaltung|liegenschaftsverwaltung|objektverwaltung|mietverwaltung|wohnungsverwaltung/;
+  const cleaningPattern = /(?:gebäude|gebaeude|unterhalts|glas|fassaden)reinigung|reinigungs(?:dienst|unternehmen|service|arbeiten)/;
   const capabilityRules: Array<[RegExp, string]> = [
     [/garten|galabau|landschaftsbau/, "Garten- und Landschaftsbau"],
     [/pflaster/, "Pflasterarbeiten"],
@@ -80,7 +82,8 @@ const fallbackCompanyProfile = (websiteContent: string, url: string): CompanyPro
     [/mutterboden|sandstein|mauer|teich/, "Außenanlagen und Naturstein"],
     [/brennholz|mischholz/, "Brennholz und Holzhandel"],
     [/transport|lkw|logistik/, "Transporte"],
-    [/reinigung|gebäudereinigung/, "Gebäudereinigung"],
+    [realEstatePattern, "Immobilienverwaltung"],
+    [cleaningPattern, "Gebäudereinigung"],
     [/software|it-dienst|programmierung|webentwicklung/, "IT-Dienstleistungen"],
     [/bauunternehmen|hochbau|tiefbau|bauarbeiten/, "Bauleistungen"],
   ];
@@ -90,7 +93,8 @@ const fallbackCompanyProfile = (websiteContent: string, url: string): CompanyPro
 
   let industry: string | null = null;
   if (/garten|galabau|landschaftsbau/.test(plainText)) industry = "Garten- und Landschaftsbau";
-  else if (/reinigung/.test(plainText)) industry = "Gebäudereinigung";
+  else if (realEstatePattern.test(plainText)) industry = "Immobilienverwaltung";
+  else if (cleaningPattern.test(plainText)) industry = "Gebäudereinigung";
   else if (/software|it-dienst|programmierung|webentwicklung/.test(plainText)) industry = "IT-Dienstleistungen";
   else if (/bauunternehmen|hochbau|tiefbau|bauarbeiten/.test(plainText)) industry = "Bauleistungen";
 
