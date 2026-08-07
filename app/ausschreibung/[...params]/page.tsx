@@ -12,6 +12,8 @@ import {
   Stack,
   Chip,
   Paper,
+  Button,
+  Divider,
 } from "@mui/material";
 import {
   Building2,
@@ -26,6 +28,7 @@ import {
   ChevronRight,
   AlertCircle,
   CheckCircle2,
+  LockKeyhole,
 } from "lucide-react";
 import { cleanDescription } from "@/lib/public-tender-scraper";
 import { looksMangled } from "@/lib/structurer";
@@ -36,8 +39,6 @@ import { normalizeAgencySlug } from "@/lib/agencies";
 import { generateTenderSlug } from "@/lib/tender-slug";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 import { PdfDocumentLink } from "@/components/PdfDocumentLink";
-import { PageFooter } from "@/components/profile/PageFooter";
-import { PaywallPanel } from "@/components/billing/PaywallPanel";
 import { auth } from "@/lib/auth";
 import { getBillingStatus } from "@/lib/entitlements";
 import { buildDocumentAnalysis, type AnalyzedDocument } from "@/lib/document-analysis";
@@ -399,6 +400,14 @@ export default async function TenderDetailPage({ params }: PageProps) {
     : null;
 
   const deadlineISO = tender.deadlineAt ? new Date(tender.deadlineAt).toISOString() : null;
+  const publishedAt = tender.createdAt
+    ? new Date(tender.createdAt).toLocaleDateString("de-DE", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+      })
+    : null;
+  const publishedAtISO = tender.createdAt ? new Date(tender.createdAt).toISOString() : null;
 
   const contractValue = estimatedValue
     || (tender.contractValueMax ? `${tender.contractValueMax.toLocaleString("de-DE", { maximumFractionDigits: 0 })} EUR` : "");
@@ -438,6 +447,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
       id: t.id,
       slug: tSlug,
       title: t.title ?? `Ausschreibung #${t.id}`,
+      category: CATEGORY_LABELS[t.category ?? "Sonstiges"] ?? t.category ?? categoryLabel,
       client: typeof m.client === "string" ? m.client : "",
       location: typeof m.location === "string" ? m.location.split(",")[0] : "",
       deadline: t.deadlineAt
@@ -566,759 +576,620 @@ export default async function TenderDetailPage({ params }: PageProps) {
 
   const sectionHeadingSx = {
     fontSize: { xs: "1.25rem", md: "1.375rem" },
-    fontWeight: 600,
-    color: "#1e293b",
-    mb: 1,
-    lineHeight: 1.2,
+    fontWeight: 700,
+    letterSpacing: "-0.015em",
+    color: "#2d3544",
+    mb: 1.25,
+    lineHeight: 1.25,
   };
-
-  const sectionCardSx = {
-    p: { xs: 1.5, md: 2 },
-    border: "1px solid",
-    borderColor: "divider",
-    borderRadius: "6px",
-  };
+  const sectionSx = { mb: { xs: 4, md: 5 }, scrollMarginTop: 24 };
+  const tenderStatus = isRejected
+    ? { label: "Prüfhinweis", color: "#991b1b", background: "#fef2f2" }
+    : isExpired
+      ? { label: "Frist abgelaufen", color: "#92400e", background: "#fffbeb" }
+      : deadline
+        ? { label: "Offene Frist", color: "#b34d3d", background: "#f8d8d2" }
+        : { label: "Frist unbekannt", color: "#667288", background: "#e8eff5" };
+  const missingRolesLabel = documentAnalysis.coverage.missingRoles
+    .map((role) => ROLE_LABELS_DE[role] ?? role)
+    .join(", ");
+  const keyFacts = [
+    { label: "Auftraggeber", value: client, Icon: Building2 },
+    { label: "Ort", value: location, Icon: MapPin },
+    { label: "Vergabeart", value: procedure, Icon: FileText },
+    { label: "Frist", value: deadline ?? "", Icon: Calendar },
+    { label: "Veröffentlicht", value: publishedAt ?? "", Icon: Clock },
+    { label: "Laufzeit", value: duration, Icon: Clock },
+    { label: "Geschätzter Wert", value: contractValue, Icon: Euro },
+    { label: "Referenz", value: referenceNumber, Icon: Briefcase },
+  ].filter((fact) => Boolean(fact.value));
 
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
 
-      <Box sx={{ minHeight: "100vh", bgcolor: "#f8fafc" }}>
-        <Container maxWidth={false} sx={{ maxWidth: "1120px", mx: "auto", px: { xs: 2, sm: 3 }, py: { xs: 3, md: 4 } }}>
-          {/* Breadcrumbs */}
+      <Box sx={{ minHeight: "100vh", bgcolor: "#f0f4f8" }}>
+        <Container
+          component="main"
+          maxWidth={false}
+          sx={{ maxWidth: "1280px", mx: "auto", px: { xs: 2, sm: 3, md: 4 }, py: { xs: 3, md: 5 } }}
+        >
           <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 0.5,
-              mb: 2,
-              fontSize: "0.8125rem",
-              flexWrap: "wrap",
-            }}
+            component="nav"
+            aria-label="Brotkrümelnavigation"
+            sx={{ display: "flex", alignItems: "center", gap: 0.5, mb: { xs: 3, md: 4 }, flexWrap: "wrap" }}
           >
-            {breadcrumbLinks.map((link) => (
-              <Box key={link.href} sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                <Link
-                  href={link.href}
-                  style={{
-                    color: "#475569",
-                    textDecoration: "none",
-                  }}
-                >
+            {breadcrumbLinks.map((link, index) => (
+              <Box key={link.href} component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 0.5 }}>
+                <Link href={link.href} style={{ color: "#667288", textDecoration: "none", fontSize: "0.8125rem" }}>
                   {link.label}
                 </Link>
-                <ChevronRight size={14} color="#94a3b8" />
+                {index < breadcrumbLinks.length - 1 && <ChevronRight size={14} color="#94a3b8" aria-hidden="true" />}
               </Box>
             ))}
+            <ChevronRight size={14} color="#94a3b8" aria-hidden="true" />
             <Typography
               component="span"
+              aria-current="page"
               sx={{
+                color: "#2d3544",
                 fontSize: "0.8125rem",
                 fontWeight: 600,
-                color: "#1e293b",
+                maxWidth: { xs: "100%", sm: 360 },
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
               }}
             >
               {title}
             </Typography>
           </Box>
 
-          {/* Title */}
-          <Typography
-            component="h1"
+          <Box
+            component="article"
             sx={{
-              fontSize: { xs: "1.75rem", md: "2rem" },
-              fontWeight: 600,
-              lineHeight: 1.2,
-              color: "#1e293b",
-              mb: 1.5,
+              display: "grid",
+              gridTemplateColumns: { xs: "minmax(0, 1fr)", lg: "minmax(0, 1fr) 340px" },
+              columnGap: { lg: 5, xl: 6 },
+              rowGap: { xs: 3, lg: 5 },
             }}
           >
-            {title}
-          </Typography>
+            <Box sx={{ minWidth: 0 }}>
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 2 }}>
+                <Chip
+                  label={categoryLabel}
+                  size="small"
+                  sx={{
+                    height: 26,
+                    bgcolor: "#e8eff5",
+                    color: "#2d3544",
+                    borderRadius: 1.5,
+                    fontWeight: 700,
+                    "& .MuiChip-label": { px: 1 },
+                  }}
+                />
+                <Box
+                  sx={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 0.5,
+                    minHeight: 26,
+                    px: 1,
+                    borderRadius: 1.5,
+                    bgcolor: tenderStatus.background,
+                    color: tenderStatus.color,
+                    fontSize: "0.75rem",
+                    fontWeight: 700,
+                  }}
+                >
+                  {isExpired || isRejected ? <AlertCircle size={14} aria-hidden="true" /> : <CheckCircle2 size={14} aria-hidden="true" />}
+                  {tenderStatus.label}
+                </Box>
+              </Stack>
 
-          {/* Status Banner — replaces redirect/noindex for expired or rejected tenders */}
-          {(isExpired || isRejected) && (
-            <Box
+              <Typography
+                component="h1"
+                sx={{
+                  maxWidth: { lg: "23ch" },
+                  color: "#2d3544",
+                  fontSize: { xs: "2rem", sm: "2.25rem", md: "2.5rem" },
+                  fontWeight: 700,
+                  letterSpacing: "-0.035em",
+                  lineHeight: 1.1,
+                  textWrap: "balance",
+                  overflowWrap: "anywhere",
+                }}
+              >
+                {title}
+              </Typography>
+
+              <Stack direction="row" spacing={{ xs: 1.25, sm: 2 }} flexWrap="wrap" useFlexGap sx={{ mt: 2.25 }}>
+                {client && (
+                  <Stack direction="row" spacing={0.65} alignItems="center" sx={{ minWidth: 0 }}>
+                    <Building2 size={16} color="#667288" aria-hidden="true" />
+                    <Typography variant="body2" sx={{ color: "#4b5565", fontWeight: 600, overflowWrap: "anywhere" }}>
+                      {client}
+                    </Typography>
+                  </Stack>
+                )}
+                {location && (
+                  <Stack direction="row" spacing={0.65} alignItems="center" sx={{ minWidth: 0 }}>
+                    <MapPin size={16} color="#667288" aria-hidden="true" />
+                    <Typography variant="body2" sx={{ color: "#4b5565", fontWeight: 600, overflowWrap: "anywhere" }}>
+                      {location}
+                    </Typography>
+                  </Stack>
+                )}
+                {deadline && (
+                  <Stack direction="row" spacing={0.65} alignItems="center">
+                    <Calendar size={16} color="#b34d3d" aria-hidden="true" />
+                    <Typography component="time" dateTime={deadlineISO ?? undefined} variant="body2" sx={{ color: "#b34d3d", fontWeight: 700 }}>
+                      Frist: {deadline}
+                    </Typography>
+                  </Stack>
+                )}
+              </Stack>
+
+              {(isExpired || isRejected) && (
+                <Box
+                  sx={{
+                    display: "flex",
+                    gap: 1,
+                    mt: 3,
+                    p: { xs: 1.25, sm: 1.5 },
+                    borderRadius: 2,
+                    bgcolor: tenderStatus.background,
+                  }}
+                >
+                  <AlertCircle size={18} color={tenderStatus.color} aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
+                  <Box>
+                    <Typography sx={{ color: tenderStatus.color, fontSize: "0.875rem", fontWeight: 700 }}>
+                      {isRejected ? "Verfahrensinformation nicht abschließend bewertet" : "Angebotsfrist abgelaufen"}
+                    </Typography>
+                    <Typography variant="body2" sx={{ mt: 0.25, color: tenderStatus.color, lineHeight: 1.55 }}>
+                      {isRejected
+                        ? "Diese Ausschreibung wurde aus dem qualifizierten Bestand entfernt. Die Originaldaten bleiben aus Transparenzgründen verfügbar."
+                        : `Diese Ausschreibung endete am ${deadline ?? "unbekanntem Datum"}. Die Angaben dienen als Archiv.`}
+                    </Typography>
+                    {categorySlug && (
+                      <Link
+                        href={`/ausschreibungen/${categorySlug}`}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 8, color: tenderStatus.color, textDecoration: "none", fontWeight: 700, fontSize: "0.8125rem" }}
+                      >
+                        Aktuelle {categoryLabel}-Ausschreibungen ansehen
+                        <ArrowRight size={14} aria-hidden="true" />
+                      </Link>
+                    )}
+                  </Box>
+                </Box>
+              )}
+
+              <Box
+                component="section"
+                id="analyse"
+                aria-labelledby="analyse-status-heading"
+                sx={{ mt: 3.5, p: { xs: 1.5, sm: 2 }, borderRadius: 2.5, bgcolor: "#e8eff5" }}
+              >
+                <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1.1fr 1fr 1.25fr" }, gap: { xs: 1.5, sm: 2 } }}>
+                  <Box>
+                    <Typography id="analyse-status-heading" variant="caption" sx={{ color: "#667288", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                      Analyse
+                    </Typography>
+                    <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mt: 0.35 }}>
+                      {readinessStatus === "ready" ? <CheckCircle2 size={17} color={readinessTone.text} aria-hidden="true" /> : <AlertCircle size={17} color={readinessTone.text} aria-hidden="true" />}
+                      <Typography sx={{ color: readinessTone.text, fontSize: "0.9375rem", fontWeight: 700 }}>
+                        {readinessLabel[readinessStatus] ?? readinessLabel.pending}
+                      </Typography>
+                    </Stack>
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" sx={{ color: "#667288", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                      Dokumente
+                    </Typography>
+                    <Typography sx={{ mt: 0.35, color: "#2d3544", fontSize: "0.9375rem", fontWeight: 700 }}>
+                      {documentAnalysis.coverage.parsed}/{documentAnalysis.coverage.discovered} analysiert
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: "#667288" }}>
+                      {downloadedResources}/{downloadableResources.length} geladen, {coverageStatusLabel[resourceCoverageStatus] ?? "unbekannt"}
+                    </Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" sx={{ color: "#667288", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                      Fehlende Unterlagen
+                    </Typography>
+                    <Typography sx={{ mt: 0.35, color: "#2d3544", fontSize: "0.9375rem", fontWeight: 700, lineHeight: 1.4 }}>
+                      {missingRolesLabel || "Keine Pflichtunterlagen offen"}
+                    </Typography>
+                  </Box>
+                </Box>
+                {(tender.readinessReason && readinessStatus !== "ready") || (hasPremiumDocuments && documentAnalysis.evidence.length > 0) ? (
+                  <Box sx={{ mt: 1.5, pt: 1.5, borderTop: "1px solid rgba(102, 114, 136, 0.22)" }}>
+                    {tender.readinessReason && readinessStatus !== "ready" && (
+                      <Typography variant="body2" sx={{ color: readinessTone.text, lineHeight: 1.55 }}>
+                        {tender.readinessReason}
+                      </Typography>
+                    )}
+                    {hasPremiumDocuments && documentAnalysis.evidence.length > 0 && (
+                      <Stack spacing={0.5} sx={{ mt: tender.readinessReason && readinessStatus !== "ready" ? 1 : 0 }}>
+                        {documentAnalysis.evidence.slice(0, 4).map((evidence) => (
+                          <Typography key={`${evidence.field}-${evidence.documentId}`} variant="caption" sx={{ color: "#4b5565", lineHeight: 1.5 }}>
+                            Beleg {evidence.field}: „{evidence.quote}&quot;{evidence.page ? ` (Seite ${evidence.page})` : ""}
+                          </Typography>
+                        ))}
+                      </Stack>
+                    )}
+                  </Box>
+                ) : null}
+              </Box>
+            </Box>
+
+            <Paper
+              component="aside"
+              elevation={0}
+              aria-labelledby="vergabedetails-heading"
               sx={{
-                mb: 3,
-                p: 2,
+                alignSelf: "start",
+                gridColumn: { lg: "2" },
+                gridRow: { lg: "1 / span 2" },
+                position: { lg: "sticky" },
+                top: { lg: 24 },
+                minWidth: 0,
+                p: { xs: 1.5, sm: 2 },
                 borderRadius: 2,
-                bgcolor: isRejected ? "#fef2f2" : "#fffbeb",
-                border: 1,
-                borderColor: isRejected ? "#fecaca" : "#fde68a",
-                display: "flex",
-                alignItems: "flex-start",
-                gap: 1.5,
+                bgcolor: "#fbfcfd",
+                boxShadow: "0 4px 12px rgba(45, 53, 68, 0.04)",
               }}
             >
-              <AlertCircle
-                size={20}
-                color={isRejected ? "#dc2626" : "#d97706"}
-                style={{ flexShrink: 0, marginTop: 2 }}
-              />
-              <Box sx={{ flex: 1 }}>
-                <Typography sx={{ fontWeight: 600, color: isRejected ? "#991b1b" : "#92400e", mb: 0.5 }}>
-                  {isRejected
-                    ? "Verfahrensinformation nicht abschließend bewertet"
-                    : "Angebotsfrist abgelaufen"}
+              <Typography variant="overline" sx={{ color: "#667288", fontWeight: 700, letterSpacing: "0.08em" }}>
+                Entscheidungsübersicht
+              </Typography>
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1, mb: 1 }}>
+                <Briefcase size={14} color="#667288" aria-hidden="true" />
+                <Typography id="vergabedetails-heading" component="span" variant="caption" sx={{ color: "#7a8594", fontWeight: 500, fontSize: "0.75rem", lineHeight: 1.4 }}>
+                  Quelle:
                 </Typography>
-                <Typography variant="body2" sx={{ color: isRejected ? "#7f1d1d" : "#78350f", lineHeight: 1.6 }}>
-                  {isRejected
-                    ? "Diese Ausschreibung wurde aus dem qualifizierten Bestand entfernt. Die Originaldaten sind aus Gründen der Transparenz weiterhin verfügbar."
-                    : `Diese Ausschreibung endete am ${deadline ?? "unbekanntem Datum"}. Die nachstehenden Angaben dienen als Archiv — aktuelle Vergaben finden Sie unten auf dieser Seite.`}
+                <Typography component="span" variant="caption" sx={{ color: "#667288", fontWeight: 500, fontSize: "0.75rem", lineHeight: 1.4 }}>
+                  {tender.source}
                 </Typography>
-                {categorySlug && (
-                  <Link
-                    href={`/ausschreibungen/${categorySlug}`}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 4,
-                      marginTop: 8,
-                      color: isRejected ? "#dc2626" : "#d97706",
-                      textDecoration: "none",
-                      fontWeight: 600,
-                      fontSize: "0.875rem",
+              </Stack>
+
+              <Box sx={{ px: 1.5, py: 1, borderRadius: 1.5, bgcolor: deadline ? "#fcebea" : "#eef3f6" }}>
+                <Typography variant="caption" sx={{ display: "block", mb: 1, color: "#667288", fontWeight: 700, fontSize: "0.6875rem", lineHeight: 1.2, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  Angebotsfrist
+                </Typography>
+                <Typography
+                  component={deadline ? "time" : "span"}
+                  dateTime={deadlineISO ?? undefined}
+                  sx={{ display: "block", color: deadline ? "#ad5b4e" : "#4b5565", fontSize: "1.0625rem", fontWeight: 700, lineHeight: 1.3 }}
+                >
+                  {deadline ?? "Nicht angegeben"}
+                </Typography>
+              </Box>
+
+              <Stack divider={<Divider flexItem sx={{ borderColor: "rgba(102, 114, 136, 0.12)" }} />} sx={{ mt: 1.5 }}>
+                <Stack direction="row" spacing={1} alignItems="flex-start" sx={{ py: 1 }}>
+                  <FileText size={17} color="#667288" aria-hidden="true" />
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography variant="caption" sx={{ display: "block", color: "#667288", fontSize: "0.6875rem", lineHeight: 1.3 }}>Vergabeart</Typography>
+                    <Typography variant="body2" sx={{ display: "block", mt: 1, color: "#2d3544", fontWeight: 700, lineHeight: 1.4, overflowWrap: "anywhere" }}>
+                      {procedure || "Nicht angegeben"}
+                    </Typography>
+                  </Box>
+                </Stack>
+                <Stack direction="row" spacing={1} alignItems="flex-start" sx={{ py: 1 }}>
+                  <Calendar size={17} color="#667288" aria-hidden="true" />
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography variant="caption" sx={{ display: "block", color: "#667288", fontSize: "0.6875rem", lineHeight: 1.3 }}>Veröffentlicht</Typography>
+                    <Typography component={publishedAt ? "time" : "span"} dateTime={publishedAtISO ?? undefined} variant="body2" sx={{ display: "block", mt: 1, color: "#2d3544", fontWeight: 700, lineHeight: 1.4, overflowWrap: "anywhere" }}>
+                      {publishedAt ?? "Nicht angegeben"}
+                    </Typography>
+                  </Box>
+                </Stack>
+              </Stack>
+
+              <Button
+                component="a"
+                href={tender.url}
+                target="_blank"
+                rel="nofollow noopener noreferrer"
+                variant="contained"
+                fullWidth
+                size="small"
+                endIcon={<ArrowUpRight size={16} />}
+                sx={{ mt: 2, minHeight: 36 }}
+              >
+                Original-Anzeige öffnen
+              </Button>
+            </Paper>
+
+            <Box sx={{ gridColumn: { lg: "1" }, minWidth: 0 }}>
+              {description && (
+                <Box component="section" aria-labelledby="beschreibung-heading" sx={sectionSx}>
+                  <Typography id="beschreibung-heading" component="h2" sx={sectionHeadingSx}>
+                    Beschreibung
+                  </Typography>
+                  <Typography sx={{ maxWidth: "72ch", color: "#4b5565", fontSize: "1rem", lineHeight: 1.7, whiteSpace: "pre-line" }}>
+                    {description}
+                  </Typography>
+                </Box>
+              )}
+
+              {scope && scope !== description && (
+                <Box component="section" aria-labelledby="leistungsumfang-heading" sx={sectionSx}>
+                  <Typography id="leistungsumfang-heading" component="h2" sx={sectionHeadingSx}>
+                    Leistungsumfang
+                  </Typography>
+                  <Typography sx={{ maxWidth: "72ch", color: "#4b5565", fontSize: "1rem", lineHeight: 1.7, whiteSpace: "pre-line" }}>
+                    {scope}
+                  </Typography>
+                </Box>
+              )}
+
+              {keyFacts.length > 0 && (
+                <Box component="section" aria-labelledby="kerndaten-heading" sx={sectionSx}>
+                  <Typography id="kerndaten-heading" component="h2" sx={sectionHeadingSx}>
+                    Kerndaten
+                  </Typography>
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", lg: "repeat(3, minmax(0, 1fr))" },
+                      gap: { xs: 1.75, sm: 2.25 },
+                      p: { xs: 2, sm: 2.5 },
+                      borderRadius: 2.5,
+                      bgcolor: "#e8eff5",
                     }}
                   >
-                    Aktuelle {categoryLabel}-Ausschreibungen ansehen
-                    <ArrowRight size={14} />
+                    {keyFacts.map(({ label, value, Icon }) => (
+                      <Stack key={label} direction="row" spacing={1} alignItems="flex-start" sx={{ minWidth: 0 }}>
+                        <Icon size={17} color="#667288" aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
+                        <Box sx={{ minWidth: 0 }}>
+                          <Typography variant="caption" sx={{ color: "#667288", display: "block" }}>{label}</Typography>
+                          <Typography sx={{ color: "#2d3544", fontSize: "0.9375rem", fontWeight: 700, lineHeight: 1.45, overflowWrap: "anywhere" }}>
+                            {value}
+                          </Typography>
+                        </Box>
+                      </Stack>
+                    ))}
+                  </Box>
+                </Box>
+              )}
+
+              {(requirements.length > 0 || awardCriteria.length > 0 || contactInfo) && (
+                <Box component="section" aria-labelledby="vergabedetails-section-heading" sx={sectionSx}>
+                  <Typography id="vergabedetails-section-heading" component="h2" sx={sectionHeadingSx}>
+                    Vergabedetails
+                  </Typography>
+                  <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" }, gap: { xs: 3, md: 4 }, p: { xs: 2, sm: 2.5 }, borderRadius: 2.5, bgcolor: "#fbfcfd" }}>
+                    {requirements.length > 0 && (
+                      <Box>
+                        <Typography component="h3" sx={{ color: "#2d3544", fontSize: "1rem", fontWeight: 700, mb: 1 }}>
+                          Anforderungen
+                        </Typography>
+                        <Box component="ul" sx={{ m: 0, pl: 2.25, color: "#4b5565", "& li + li": { mt: 0.75 } }}>
+                          {requirements.map((req, i) => (
+                            <li key={`${req}-${i}`}>
+                              <Typography component="span" sx={{ fontSize: "0.9375rem", lineHeight: 1.55 }}>{req}</Typography>
+                            </li>
+                          ))}
+                        </Box>
+                      </Box>
+                    )}
+                    {awardCriteria.length > 0 && (
+                      <Box>
+                        <Typography component="h3" sx={{ color: "#2d3544", fontSize: "1rem", fontWeight: 700, mb: 1 }}>
+                          Zuschlagskriterien
+                        </Typography>
+                        <Box component="ul" sx={{ m: 0, pl: 2.25, color: "#4b5565", "& li + li": { mt: 0.75 } }}>
+                          {awardCriteria.map((criterion, i) => (
+                            <li key={`${criterion}-${i}`}>
+                              <Typography component="span" sx={{ fontSize: "0.9375rem", lineHeight: 1.55 }}>{criterion}</Typography>
+                            </li>
+                          ))}
+                        </Box>
+                      </Box>
+                    )}
+                    {contactInfo && (
+                      <Box sx={{ gridColumn: { md: requirements.length > 0 || awardCriteria.length > 0 ? "1 / -1" : "auto" } }}>
+                        <Typography component="h3" sx={{ color: "#2d3544", fontSize: "1rem", fontWeight: 700, mb: 1 }}>
+                          Kontakt / Vergabestelle
+                        </Typography>
+                        <Typography sx={{ color: "#4b5565", fontSize: "0.9375rem", lineHeight: 1.6, whiteSpace: "pre-line" }}>
+                          {contactInfo}
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
+                </Box>
+              )}
+
+              {allResources.length > 0 && (
+                <Box component="section" aria-labelledby="unterlagen-heading" sx={sectionSx}>
+                  <Typography id="unterlagen-heading" component="h2" sx={sectionHeadingSx}>
+                    Vergabeunterlagen
+                  </Typography>
+                  {hasPremiumDocuments ? (
+                    <Box sx={{ overflow: "hidden", borderRadius: 2.5, bgcolor: "#fbfcfd" }}>
+                      <Stack divider={<Divider flexItem sx={{ borderColor: "rgba(102, 114, 136, 0.16)" }} />}>
+                        {downloadableResources.map((resource, i) => (
+                          <PdfDocumentLink
+                            key={`${resource.documentId ?? resource.id ?? resource.url}-${i}`}
+                            variant="detail"
+                            url={resource.url}
+                            documentId={resource.documentId}
+                            tenderId={tender.id}
+                            index={i}
+                            label={resource.label}
+                            filename={resource.filename}
+                            roles={resource.roles}
+                            status={resource.status}
+                          />
+                        ))}
+                        {discoveredPageResources.slice(0, 8).map((resource, i) => (
+                          <Box
+                            key={`${resource.id ?? resource.url}-${i}`}
+                            component="a"
+                            href={resource.url ?? undefined}
+                            target="_blank"
+                            rel="nofollow noopener noreferrer"
+                            sx={{ p: 1.5, color: "text.primary", textDecoration: "none", "&:hover": { bgcolor: "action.hover" } }}
+                          >
+                            <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                              {resource.label || resource.filename || resource.url}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {[...resource.roles.map((role) => ROLE_LABELS_DE[role] ?? role), resourceStatusLabel[resource.status] ?? resource.status].filter(Boolean).join(" · ")}
+                            </Typography>
+                          </Box>
+                        ))}
+                      </Stack>
+                    </Box>
+                  ) : (
+                    <>
+                      <Typography sx={{ maxWidth: "68ch", color: "#4b5565", fontSize: "0.9375rem", lineHeight: 1.6 }}>
+                        {allResources.length} Ressource{allResources.length === 1 ? "" : "n"} entdeckt. Verfügbarkeit: {coverageStatusLabel[resourceCoverageStatus] ?? "unbekannt"}.
+                      </Typography>
+                      <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ mt: 1.5 }}>
+                        {allResources.slice(0, 8).map((resource, i) => (
+                          <Chip
+                            key={`${resource.url}-${i}`}
+                            size="small"
+                            label={[resource.label || resource.filename || "Ressource", ...resource.roles.map((role) => ROLE_LABELS_DE[role] ?? role)].join(" · ")}
+                            sx={{ maxWidth: "100%", bgcolor: "#e8eff5", color: "#4b5565", borderRadius: 1.5, ".MuiChip-label": { overflow: "hidden", textOverflow: "ellipsis" } }}
+                          />
+                        ))}
+                      </Stack>
+                      <Box sx={{ display: "flex", alignItems: { sm: "center" }, flexDirection: { xs: "column", sm: "row" }, gap: 2, mt: 2.5, p: { xs: 2, sm: 2.5 }, borderRadius: 2.5, bgcolor: "#e8eff5" }}>
+                        <Box sx={{ width: 40, height: 40, display: "grid", placeItems: "center", flexShrink: 0, borderRadius: 2, bgcolor: "#fbfcfd", color: "#4b5565" }}>
+                          <LockKeyhole size={19} aria-hidden="true" />
+                        </Box>
+                        <Box sx={{ flex: 1 }}>
+                          <Typography variant="overline" sx={{ color: "#667288", fontWeight: 700, letterSpacing: "0.06em" }}>
+                            Tenderhunter Pro
+                          </Typography>
+                          <Typography component="h3" sx={{ mt: -0.5, color: "#2d3544", fontSize: "1.0625rem", fontWeight: 700 }}>
+                            Unterlagen in eine klare Entscheidung übersetzen
+                          </Typography>
+                          <Typography variant="body2" sx={{ mt: 0.5, color: "#4b5565", lineHeight: 1.55 }}>
+                            Prüfen Sie Go/No-Go, fehlende Anforderungen und die nächsten Schritte direkt anhand der Originalunterlagen.
+                          </Typography>
+                          <Stack direction="row" spacing={1.25} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
+                            {['Originalunterlagen', 'Go-/No-Go-Check', 'Offene Anforderungen'].map((benefit) => (
+                              <Stack key={benefit} direction="row" spacing={0.4} alignItems="center">
+                                <CheckCircle2 size={14} color="#4b5565" aria-hidden="true" />
+                                <Typography variant="caption" sx={{ color: "#4b5565", fontWeight: 700 }}>{benefit}</Typography>
+                              </Stack>
+                            ))}
+                          </Stack>
+                        </Box>
+                        <Button component={Link} href="/upgrade" variant="contained" endIcon={<ArrowRight size={16} />} sx={{ flexShrink: 0, alignSelf: { xs: "flex-start", sm: "center" } }}>
+                          Unterlagen freischalten
+                        </Button>
+                      </Box>
+                    </>
+                  )}
+                </Box>
+              )}
+
+              {similarTenders.length > 0 && (
+                <Box component="section" aria-labelledby="aehnliche-heading" sx={sectionSx}>
+                  <Typography id="aehnliche-heading" component="h2" sx={sectionHeadingSx}>
+                    Ähnliche Ausschreibungen
+                  </Typography>
+                  <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" }, gap: 1.5 }}>
+                    {similarTenders.map((similarTender) => (
+                      <Link key={similarTender.id} href={`/ausschreibung/${similarTender.id}/${similarTender.slug}`} style={{ color: "inherit", textDecoration: "none" }}>
+                        <Box sx={{ height: "100%", p: { xs: 1.5, sm: 2 }, borderRadius: 2.5, bgcolor: "#fbfcfd", transition: "background-color 180ms ease-out", "&:hover": { bgcolor: "#e8eff5" } }}>
+                          <Typography variant="caption" sx={{ color: "#667288", fontWeight: 700 }}>{similarTender.category}</Typography>
+                          <Typography component="h3" sx={{ mt: 0.4, color: "#2d3544", fontSize: "0.9375rem", fontWeight: 700, lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                            {similarTender.title}
+                          </Typography>
+                          <Stack direction="row" spacing={1.25} flexWrap="wrap" useFlexGap sx={{ mt: 1.25 }}>
+                            {similarTender.client && (
+                              <Stack direction="row" spacing={0.35} alignItems="center">
+                                <Building2 size={13} color="#667288" aria-hidden="true" />
+                                <Typography variant="caption" sx={{ color: "#667288" }}>{similarTender.client.slice(0, 50)}</Typography>
+                              </Stack>
+                            )}
+                            {similarTender.location && (
+                              <Stack direction="row" spacing={0.35} alignItems="center">
+                                <MapPin size={13} color="#667288" aria-hidden="true" />
+                                <Typography variant="caption" sx={{ color: "#667288" }}>{similarTender.location}</Typography>
+                              </Stack>
+                            )}
+                            {similarTender.deadline && (
+                              <Stack direction="row" spacing={0.35} alignItems="center">
+                                <Calendar size={13} color="#b34d3d" aria-hidden="true" />
+                                <Typography variant="caption" sx={{ color: "#b34d3d", fontWeight: 700 }}>{similarTender.deadline}</Typography>
+                              </Stack>
+                            )}
+                          </Stack>
+                        </Box>
+                      </Link>
+                    ))}
+                  </Box>
+                </Box>
+              )}
+
+              <Box component="aside" aria-labelledby="weitere-ausschreibungen-heading" sx={{ mt: { xs: 5, md: 6 }, pt: { xs: 3, md: 4 }, borderTop: "1px solid #d1d5db" }}>
+                <Typography id="weitere-ausschreibungen-heading" component="h2" sx={{ color: "#667288", fontSize: "0.9375rem", fontWeight: 700, mb: 1.25 }}>
+                  Weitere Ausschreibungen entdecken
+                </Typography>
+                <Stack direction="row" spacing={1.25} flexWrap="wrap" useFlexGap>
+                  <Link href={`/ausschreibungen/${categorySlug}`} style={{ color: "#667288", textDecoration: "none", fontSize: "0.8125rem" }}>
+                    Alle {categoryLabel}-Ausschreibungen
                   </Link>
+                  {bundeslandSlug && tenderBundesland && (
+                    <Link href={`/ausschreibungen/region/${bundeslandSlug}`} style={{ color: "#667288", textDecoration: "none", fontSize: "0.8125rem" }}>
+                      Ausschreibungen in {tenderBundesland}
+                    </Link>
+                  )}
+                  {bundeslandSlug && tenderBundesland && (
+                    <Link href={`/ausschreibungen/region/${bundeslandSlug}/${categorySlug}`} style={{ color: "#667288", textDecoration: "none", fontSize: "0.8125rem" }}>
+                      {categoryLabel} in {tenderBundesland}
+                    </Link>
+                  )}
+                  {citySlug && tenderCity && (
+                    <Link href={`/ausschreibungen/stadt/${citySlug}`} style={{ color: "#667288", textDecoration: "none", fontSize: "0.8125rem" }}>
+                      Ausschreibungen in {tenderCity}
+                    </Link>
+                  )}
+                  {citySlug && tenderCity && (
+                    <Link href={`/ausschreibungen/stadt/${citySlug}/${categorySlug}`} style={{ color: "#667288", textDecoration: "none", fontSize: "0.8125rem" }}>
+                      {categoryLabel} in {tenderCity}
+                    </Link>
+                  )}
+                  {agencySlug && client && (
+                    <Link href={`/auftraggeber/${agencySlug}`} style={{ color: "#667288", textDecoration: "none", fontSize: "0.8125rem" }}>
+                      Alle Ausschreibungen von {client.slice(0, 40)}
+                    </Link>
+                  )}
+                  <Link href="/ausschreibungen" style={{ color: "#667288", textDecoration: "none", fontSize: "0.8125rem" }}>
+                    Alle Kategorien
+                  </Link>
+                </Stack>
+
+                {scoredCompanies.length > 0 && (
+                  <Box sx={{ mt: 2.5 }}>
+                    <Typography component="h3" sx={{ color: "#667288", fontSize: "0.875rem", fontWeight: 700, mb: 1 }}>
+                      Passende Auftraggeber
+                    </Typography>
+                    <Stack direction="row" spacing={1.25} flexWrap="wrap" useFlexGap>
+                      {scoredCompanies.map((company) => (
+                        <Link key={company.slug} href={`/p/${company.slug}`} style={{ color: "#667288", textDecoration: "none", fontSize: "0.8125rem" }}>
+                          {company.name}{company.industry ? ` · ${company.industry}` : ""}
+                        </Link>
+                      ))}
+                    </Stack>
+                  </Box>
                 )}
               </Box>
             </Box>
-          )}
-
-          {/* Analysis readiness and document coverage */}
-          <Box
-            sx={{
-              mb: 3,
-              p: 2,
-              borderRadius: 2,
-              bgcolor: readinessTone.background,
-              border: 1,
-              borderColor: readinessTone.border,
-            }}
-          >
-            <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ sm: "center" }} justifyContent="space-between">
-              <Stack direction="row" spacing={1} alignItems="center">
-                {readinessStatus === "ready" ? <CheckCircle2 size={18} color={readinessTone.text} /> : <AlertCircle size={18} color={readinessTone.text} />}
-                <Typography sx={{ fontWeight: 700, color: readinessTone.text }}>
-                  {readinessLabel[readinessStatus] ?? readinessLabel.pending}
-                </Typography>
-              </Stack>
-              <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
-                <Typography variant="caption" sx={{ color: readinessTone.text }}>
-                  Dokumente: {coverageStatusLabel[documentAnalysis.coverageStatus] ?? "unbekannt"} ({documentAnalysis.coverage.parsed}/{documentAnalysis.coverage.discovered} analysiert)
-                </Typography>
-                <Typography variant="caption" sx={{ color: readinessTone.text }}>
-                  Ressourcen: {coverageStatusLabel[resourceCoverageStatus] ?? "unbekannt"} ({downloadedResources}/{downloadableResources.length} geladen)
-                </Typography>
-              </Stack>
-            </Stack>
-            {tender.readinessReason && readinessStatus !== "ready" && (
-              <Typography variant="body2" sx={{ mt: 0.75, color: readinessTone.text }}>
-                {tender.readinessReason}
-              </Typography>
-            )}
-            {documentAnalysis.coverage.missingRoles.length > 0 && (
-              <Typography variant="body2" sx={{ mt: 0.75, color: readinessTone.text }}>
-                Noch nicht belegt: {documentAnalysis.coverage.missingRoles.map((role) => ROLE_LABELS_DE[role] ?? role).join(", ")}.
-              </Typography>
-            )}
-            {hasPremiumDocuments && documentAnalysis.evidence.length > 0 && (
-              <Stack spacing={0.75} sx={{ mt: 1.25 }}>
-                {documentAnalysis.evidence.slice(0, 4).map((evidence) => (
-                  <Typography key={`${evidence.field}-${evidence.documentId}`} variant="caption" sx={{ display: "block", color: readinessTone.text, lineHeight: 1.5 }}>
-                     Beleg {evidence.field}: „{evidence.quote}&quot;{evidence.page ? ` (Seite ${evidence.page})` : ""}
-                  </Typography>
-                ))}
-              </Stack>
-            )}
           </Box>
-
-          {/* Key Facts - compact metadata line */}
-          <Box sx={{ mb: 1.5 }}>
-            <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap alignItems="center">
-              {client && (
-                <Box sx={{ display: "flex", alignItems: "center", gap: 0.4 }}>
-                  <Building2 size={13} color="#475569" />
-                  <Typography variant="caption" sx={{ color: "#475569", fontSize: "0.8125rem" }}>
-                    {client}
-                  </Typography>
-                </Box>
-              )}
-              {location && (
-                <Box sx={{ display: "flex", alignItems: "center", gap: 0.4 }}>
-                  <MapPin size={13} color="#475569" />
-                  <Typography variant="caption" sx={{ color: "#475569", fontSize: "0.8125rem" }}>
-                    {location}
-                  </Typography>
-                </Box>
-              )}
-              {procedure && (
-                <Box sx={{ display: "flex", alignItems: "center", gap: 0.4 }}>
-                  <FileText size={13} color="#475569" />
-                  <Typography variant="caption" sx={{ color: "#475569", fontSize: "0.8125rem" }}>
-                    {procedure}
-                  </Typography>
-                </Box>
-              )}
-              {deadline && (
-                <Box sx={{ display: "flex", alignItems: "center", gap: 0.4 }}>
-                  <Calendar size={13} color="#475569" />
-                  <Typography
-                    variant="caption"
-                    sx={{ color: "#475569", fontSize: "0.8125rem" }}
-                    component="time"
-                    dateTime={deadlineISO ?? undefined}
-                  >
-                    {deadline}
-                  </Typography>
-                </Box>
-              )}
-              {contractValue && (
-                <Box sx={{ display: "flex", alignItems: "center", gap: 0.4 }}>
-                  <Euro size={13} color="#475569" />
-                  <Typography variant="caption" sx={{ color: "#475569", fontSize: "0.8125rem" }}>
-                    {contractValue}
-                  </Typography>
-                </Box>
-              )}
-              {duration && (
-                <Box sx={{ display: "flex", alignItems: "center", gap: 0.4 }}>
-                  <Clock size={13} color="#475569" />
-                  <Typography variant="caption" sx={{ color: "#475569", fontSize: "0.8125rem" }}>
-                    {duration}
-                  </Typography>
-                </Box>
-              )}
-            </Stack>
-          </Box>
-
-          {/* Tags */}
-          <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ mb: 2.5 }}>
-            <Chip
-              label={categoryLabel}
-              size="small"
-              sx={{
-                height: 22,
-                fontSize: "0.6875rem",
-                fontWeight: 600,
-                bgcolor: "#f1f5f9",
-                color: "#334155",
-                borderRadius: "4px",
-                "& .MuiChip-label": { px: 0.75 },
-              }}
-            />
-            <Chip
-              label={tender.source}
-              size="small"
-              sx={{
-                height: 22,
-                fontSize: "0.6875rem",
-                fontWeight: 500,
-                bgcolor: "#f8fafc",
-                color: "#475569",
-                borderRadius: "4px",
-                border: "1px solid #e2e8f0",
-                "& .MuiChip-label": { px: 0.75 },
-              }}
-            />
-            {referenceNumber && (
-              <Chip
-                label={`Ref: ${referenceNumber}`}
-                size="small"
-                sx={{
-                  height: 22,
-                  fontSize: "0.6875rem",
-                  fontWeight: 500,
-                  bgcolor: "#f8fafc",
-                  color: "#475569",
-                  borderRadius: "4px",
-                  border: "1px solid #e2e8f0",
-                  "& .MuiChip-label": { px: 0.75 },
-                }}
-              />
-            )}
-          </Stack>
-
-          {/* Description */}
-          {description && (
-            <Box sx={{ mb: 2.5 }}>
-              <Typography component="h2" sx={sectionHeadingSx}>
-                Beschreibung
-              </Typography>
-              <Paper elevation={0} sx={sectionCardSx}>
-                <Typography variant="body2" sx={{ lineHeight: 1.5, color: "#334155", whiteSpace: "pre-line", fontSize: "0.9375rem" }}>
-                  {description}
-                </Typography>
-              </Paper>
-            </Box>
-          )}
-
-          {/* Scope */}
-          {scope && scope !== description && (
-            <Box sx={{ mb: 2.5 }}>
-              <Typography component="h2" sx={sectionHeadingSx}>
-                Leistungsumfang
-              </Typography>
-              <Paper elevation={0} sx={sectionCardSx}>
-                <Typography variant="body2" sx={{ lineHeight: 1.5, color: "#334155", whiteSpace: "pre-line", fontSize: "0.9375rem" }}>
-                  {scope}
-                </Typography>
-              </Paper>
-            </Box>
-          )}
-
-          {/* Requirements */}
-          {requirements.length > 0 && (
-            <Box sx={{ mb: 2.5 }}>
-              <Typography component="h2" sx={sectionHeadingSx}>
-                Anforderungen
-              </Typography>
-              <Paper elevation={0} sx={sectionCardSx}>
-                <Stack spacing={1}>
-                  {requirements.map((req, i) => (
-                    <Stack key={i} direction="row" spacing={1.5} alignItems="flex-start">
-                      <Box
-                        component="span"
-                        sx={{
-                          mt: 0.625,
-                          width: 5,
-                          height: 5,
-                          borderRadius: "50%",
-                          bgcolor: "#94a3b8",
-                          flexShrink: 0,
-                        }}
-                      />
-                      <Typography variant="body2" sx={{ lineHeight: 1.5, fontSize: "0.9375rem", color: "#334155" }}>
-                        {req}
-                      </Typography>
-                    </Stack>
-                  ))}
-                </Stack>
-              </Paper>
-            </Box>
-          )}
-
-          {/* Award Criteria */}
-          {awardCriteria.length > 0 && (
-            <Box sx={{ mb: 2.5 }}>
-              <Typography component="h2" sx={sectionHeadingSx}>
-                Zuschlagskriterien
-              </Typography>
-              <Paper elevation={0} sx={sectionCardSx}>
-                <Stack spacing={1}>
-                  {awardCriteria.map((crit, i) => (
-                    <Stack key={i} direction="row" spacing={1.5} alignItems="flex-start">
-                      <Box
-                        component="span"
-                        sx={{
-                          mt: 0.625,
-                          width: 5,
-                          height: 5,
-                          borderRadius: "50%",
-                          bgcolor: "#94a3b8",
-                          flexShrink: 0,
-                        }}
-                      />
-                      <Typography variant="body2" sx={{ lineHeight: 1.5, fontSize: "0.9375rem", color: "#334155" }}>
-                        {crit}
-                      </Typography>
-                    </Stack>
-                  ))}
-                </Stack>
-              </Paper>
-            </Box>
-          )}
-
-          {/* Contact */}
-          {contactInfo && (
-            <Box sx={{ mb: 2.5 }}>
-              <Typography component="h2" sx={sectionHeadingSx}>
-                Kontakt / Vergabestelle
-              </Typography>
-              <Paper elevation={0} sx={sectionCardSx}>
-                <Typography variant="body2" sx={{ lineHeight: 1.5, whiteSpace: "pre-line", fontSize: "0.9375rem", color: "#334155" }}>
-                  {contactInfo}
-                </Typography>
-              </Paper>
-            </Box>
-          )}
-
-          {/* Documents and discovered resources */}
-          {allResources.length > 0 && (
-            <Box sx={{ mb: 2.5 }}>
-              <Typography component="h2" sx={sectionHeadingSx}>
-                Vergabeunterlagen und Ressourcen
-              </Typography>
-              {hasPremiumDocuments ? (
-                <Stack spacing={1}>
-                  {downloadableResources.map((resource, i) => (
-                    <PdfDocumentLink
-                      key={`${resource.documentId ?? resource.id ?? resource.url}-${i}`}
-                      url={resource.url}
-                      documentId={resource.documentId}
-                      tenderId={tender.id}
-                      index={i}
-                      label={resource.label}
-                      filename={resource.filename}
-                      roles={resource.roles}
-                      status={resource.status}
-                    />
-                  ))}
-                  {discoveredPageResources.slice(0, 8).map((resource, i) => (
-                    <Box
-                      key={`${resource.id ?? resource.url}-${i}`}
-                      component="a"
-                      href={resource.url ?? undefined}
-                      target="_blank"
-                      rel="nofollow noopener noreferrer"
-                      sx={{
-                        p: 1.25,
-                        border: 1,
-                        borderColor: "divider",
-                        borderRadius: 1,
-                        color: "text.primary",
-                        textDecoration: "none",
-                        "&:hover": { bgcolor: "action.hover" },
-                      }}
-                    >
-                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                        {resource.label || resource.filename || resource.url}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {[...resource.roles.map((role) => ROLE_LABELS_DE[role] ?? role), resourceStatusLabel[resource.status] ?? resource.status].filter(Boolean).join(" · ")}
-                      </Typography>
-                    </Box>
-                  ))}
-                </Stack>
-              ) : (
-                <>
-                  <Typography variant="body2" sx={{ mb: 1, color: "text.secondary" }}>
-                    {allResources.length} Ressource{allResources.length === 1 ? "" : "n"} entdeckt. Verfügbarkeit: {coverageStatusLabel[resourceCoverageStatus] ?? "unbekannt"}.
-                  </Typography>
-                  <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ mb: 1.5 }}>
-                    {allResources.slice(0, 8).map((resource, i) => (
-                      <Chip
-                        key={`${resource.url}-${i}`}
-                        size="small"
-                        label={[resource.label || resource.filename || "Ressource", ...resource.roles.map((role) => ROLE_LABELS_DE[role] ?? role)].join(" · ")}
-                        variant="outlined"
-                      />
-                    ))}
-                  </Stack>
-                  <PaywallPanel
-                    feature="Dokumente"
-                    title="Vergabeunterlagen freischalten"
-                    description="Die Originalunterlagen sind nur die Quelle. Pro prüft die Ausschreibung gegen dein Unternehmen und macht Go-/No-Go, offene Anforderungen und nächste Schritte sichtbar."
-                  />
-                </>
-              )}
-            </Box>
-          )}
-
-          {/* Source Link */}
-          <Paper
-            elevation={0}
-            sx={{
-              p: { xs: 1.5, md: 1.5 },
-              border: "1px solid",
-              borderColor: "divider",
-              borderRadius: "6px",
-              mb: 3,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 1,
-            }}
-          >
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
-              <Briefcase size={14} color="#475569" />
-              <Typography variant="caption" sx={{ color: "#475569", fontSize: "0.75rem" }}>
-                Quelle: {tender.source}
-              </Typography>
-            </Box>
-            <Box
-              component="a"
-              href={tender.url}
-              target="_blank"
-              rel="nofollow noopener noreferrer"
-              sx={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 0.5,
-                color: "primary.main",
-                textDecoration: "none",
-                fontWeight: 600,
-                fontSize: "0.8125rem",
-                "&:hover": { textDecoration: "underline" },
-              }}
-            >
-              Original-Anzeige
-              <ArrowUpRight size={14} />
-            </Box>
-          </Paper>
-
-          {/* CTA */}
-          <Box
-            sx={{
-              p: { xs: 2, md: 2.5 },
-              mb: 3,
-              textAlign: "center",
-              bgcolor: "#f8fafc",
-              borderRadius: "6px",
-              border: "1px solid #e2e8f0",
-            }}
-          >
-            <Typography variant="subtitle1" component="h2" fontWeight={600} sx={{ mb: 0.5, fontSize: "1rem", color: "#1e293b" }}>
-              Passende Ausschreibungen für Ihr Unternehmen?
-            </Typography>
-            <Typography variant="body2" sx={{ mb: 1.5, fontSize: "0.8125rem", color: "#475569" }}>
-              Scannen Sie Ihre Website und finden Sie automatisch Ausschreibungen, die zu Ihren Leistungen passen.
-            </Typography>
-            <Box
-              component="a"
-              href="/#app"
-              sx={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 1,
-                bgcolor: "primary.main",
-                color: "#fff",
-                px: 2,
-                py: 0.75,
-                borderRadius: "6px",
-                fontWeight: 600,
-                fontSize: "0.8125rem",
-                textDecoration: "none",
-                "&:hover": { opacity: 0.88 },
-              }}
-            >
-              Jetzt Website analysieren
-              <ArrowRight size={15} />
-            </Box>
-          </Box>
-
-          {/* Similar Tenders */}
-          {similarTenders.length > 0 && (
-            <Box sx={{ mb: 3 }}>
-              <Typography component="h2" sx={sectionHeadingSx}>
-                Ähnliche Ausschreibungen
-              </Typography>
-              <Stack spacing={1}>
-                {similarTenders.map((t) => (
-                  <Link
-                    key={t.id}
-                    href={`/ausschreibung/${t.id}/${t.slug}`}
-                    style={{ textDecoration: "none", color: "inherit" }}
-                  >
-                    <Paper
-                      elevation={0}
-                      sx={{
-                        p: { xs: 1.5, md: 2 },
-                        border: "1px solid",
-                        borderColor: "divider",
-                        borderRadius: "6px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: 2,
-                        transition: "border-color 0.15s, background-color 0.15s",
-                        "&:hover": {
-                          borderColor: "grey.400",
-                          bgcolor: "grey.25",
-                          "& .chevron": { transform: "translateX(2px)", opacity: 1 },
-                        },
-                      }}
-                    >
-                      <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Typography
-                          variant="subtitle2"
-                          component="h3"
-                          fontWeight={600}
-                          sx={{
-                            mb: 0.25,
-                            fontSize: "0.875rem",
-                            lineHeight: 1.35,
-                            color: "#1e293b",
-                            display: "-webkit-box",
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: "vertical",
-                            overflow: "hidden",
-                          }}
-                        >
-                          {t.title}
-                        </Typography>
-                        <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap alignItems="center">
-                          {t.client && (
-                            <Typography variant="caption" sx={{ color: "#475569", fontSize: "0.75rem" }}>
-                              {t.client.slice(0, 50)}
-                            </Typography>
-                          )}
-                          {t.location && (
-                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.3 }}>
-                              <MapPin size={12} color="#475569" />
-                              <Typography variant="caption" sx={{ color: "#475569", fontSize: "0.75rem" }}>
-                                {t.location}
-                              </Typography>
-                            </Box>
-                          )}
-                          {t.deadline && (
-                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.3 }}>
-                              <Calendar size={12} color="#475569" />
-                              <Typography variant="caption" sx={{ color: "#475569", fontSize: "0.75rem" }}>
-                                {t.deadline}
-                              </Typography>
-                            </Box>
-                          )}
-                        </Stack>
-                      </Box>
-                      <ChevronRight
-                        size={18}
-                        className="chevron"
-                        style={{ opacity: 0.3, transition: "all 0.15s", flexShrink: 0 }}
-                        color="#475569"
-                      />
-                    </Paper>
-                  </Link>
-                ))}
-              </Stack>
-            </Box>
-          )}
-
-          {/* SEO: Contextual internal links to category and region pages */}
-          <Box sx={{ mb: 3 }}>
-            <Typography component="h2" sx={sectionHeadingSx}>
-              Weitere Ausschreibungen
-            </Typography>
-            <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
-              <Link
-                href={`/ausschreibungen/${categorySlug}`}
-                style={{ textDecoration: "none" }}
-              >
-                <Chip
-                  clickable
-                  label={`Alle ${categoryLabel} Ausschreibungen`}
-                  color="primary"
-                  variant="outlined"
-                  sx={{ fontWeight: 600, height: 24, fontSize: "0.75rem", borderRadius: "4px" }}
-                />
-              </Link>
-              {bundeslandSlug && tenderBundesland && (
-                <Link
-                  href={`/ausschreibungen/region/${bundeslandSlug}`}
-                  style={{ textDecoration: "none" }}
-                >
-                  <Chip
-                    clickable
-                    label={`Ausschreibungen in ${tenderBundesland}`}
-                    variant="outlined"
-                    sx={{ fontWeight: 500, height: 24, fontSize: "0.75rem", borderRadius: "4px" }}
-                  />
-                </Link>
-              )}
-              {bundeslandSlug && tenderBundesland && (
-                <Link
-                  href={`/ausschreibungen/region/${bundeslandSlug}/${categorySlug}`}
-                  style={{ textDecoration: "none" }}
-                >
-                  <Chip
-                    clickable
-                    label={`${categoryLabel} in ${tenderBundesland}`}
-                    variant="outlined"
-                    sx={{ fontWeight: 500, height: 24, fontSize: "0.75rem", borderRadius: "4px" }}
-                  />
-                </Link>
-              )}
-              {citySlug && tenderCity && (
-                <Link
-                  href={`/ausschreibungen/stadt/${citySlug}`}
-                  style={{ textDecoration: "none" }}
-                >
-                  <Chip
-                    clickable
-                    label={`Ausschreibungen in ${tenderCity}`}
-                    variant="outlined"
-                    sx={{ fontWeight: 500, height: 24, fontSize: "0.75rem", borderRadius: "4px" }}
-                  />
-                </Link>
-              )}
-              {citySlug && tenderCity && (
-                <Link
-                  href={`/ausschreibungen/stadt/${citySlug}/${categorySlug}`}
-                  style={{ textDecoration: "none" }}
-                >
-                  <Chip
-                    clickable
-                    label={`${categoryLabel} in ${tenderCity}`}
-                    variant="outlined"
-                    sx={{ fontWeight: 500, height: 24, fontSize: "0.75rem", borderRadius: "4px" }}
-                  />
-                </Link>
-              )}
-              {agencySlug && client && (
-                <Link
-                  href={`/auftraggeber/${agencySlug}`}
-                  style={{ textDecoration: "none", display: "block", maxWidth: "100%" }}
-                >
-                  <Chip
-                    clickable
-                    label={`Alle Ausschreibungen von ${client.slice(0, 40)}`}
-                    variant="outlined"
-                    sx={{
-                      fontWeight: 500,
-                      height: 24,
-                      maxWidth: "100%",
-                      fontSize: "0.75rem",
-                      borderRadius: "4px",
-                      ".MuiChip-label": { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
-                    }}
-                  />
-                </Link>
-              )}
-              <Link href="/ausschreibungen" style={{ textDecoration: "none" }}>
-                <Chip
-                  clickable
-                  label="Alle Kategorien"
-                  variant="outlined"
-                  sx={{ fontWeight: 500, height: 24, fontSize: "0.75rem", borderRadius: "4px" }}
-                />
-              </Link>
-            </Stack>
-          </Box>
-
-          {/* Scored Companies */}
-          {scoredCompanies.length > 0 && (
-            <Box sx={{ mb: 3 }}>
-              <Typography component="h2" sx={sectionHeadingSx}>
-                Passende Auftraggeber
-              </Typography>
-              <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
-                {scoredCompanies.map((c) => (
-                  <Link
-                    key={c.slug}
-                    href={`/p/${c.slug}`}
-                    style={{ textDecoration: "none" }}
-                  >
-                    <Chip
-                      clickable
-                      label={`${c.name}${c.industry ? ` – ${c.industry}` : ""}`}
-                      variant="outlined"
-                      sx={{ fontWeight: 500, height: 24, fontSize: "0.75rem", borderRadius: "4px" }}
-                    />
-                  </Link>
-                ))}
-              </Stack>
-            </Box>
-          )}
-
-          <PageFooter />
         </Container>
       </Box>
-      <SiteFooter containerMaxWidth="1120px" />
+      <SiteFooter containerMaxWidth="1280px" />
     </>
   );
 }

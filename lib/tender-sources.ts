@@ -29,6 +29,30 @@ export const TENDER_SOURCE_DEFINITIONS: readonly TenderSourceDefinition[] = [
     aliases: ["service.bund.de", "www.service.bund.de", "bund.de", "www.bund.de"],
   },
   {
+    key: "evergabe-online",
+    name: "eVergabe Bund",
+    defaultUrl: "https://www.evergabe-online.de",
+    aliases: ["evergabe-online.de", "www.evergabe-online.de"],
+  },
+  {
+    key: "net-bremen",
+    name: "Vergabeplattform Bremen",
+    defaultUrl: "https://vergabe.bremen.de/NetServer/",
+    aliases: ["vergabe.bremen.de", "www.vergabe.bremen.de"],
+  },
+  {
+    key: "net-saarland",
+    name: "Vergabeplattform Saarland",
+    defaultUrl: "https://vergabe.saarland/NetServer/",
+    aliases: ["vergabe.saarland", "www.vergabe.saarland"],
+  },
+  {
+    key: "sachsen-anhalt",
+    name: "eVergabe Sachsen-Anhalt",
+    defaultUrl: "https://evergabe.sachsen-anhalt.de",
+    aliases: ["evergabe.sachsen-anhalt.de", "www.evergabe.sachsen-anhalt.de"],
+  },
+  {
     key: "mv",
     name: "Vergabemarktplatz Mecklenburg-Vorpommern",
     defaultUrl: "https://vergabe.mv-regierung.de/NetServer/",
@@ -38,7 +62,14 @@ export const TENDER_SOURCE_DEFINITIONS: readonly TenderSourceDefinition[] = [
 
 const SOURCE_BY_KEY = new Map(TENDER_SOURCE_DEFINITIONS.map((definition) => [definition.key, definition]));
 
-const normalizeHost = (value: string): string => value.toLowerCase().replace(/^www\./, "");
+const normalizeHost = (value: string): string => {
+  try {
+    const parsed = new URL(/^https?:\/\//i.test(value) ? value : `https://${value}`);
+    return parsed.hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return value.toLowerCase().replace(/^www\./, "").split("/", 1)[0];
+  }
+};
 
 const dedupeSources = (items: SourceItem[]): SourceItem[] => {
   const seen = new Set<string>();
@@ -58,7 +89,9 @@ const dedupeSources = (items: SourceItem[]): SourceItem[] => {
 
 export const getTenderSourceDefinition = (key?: string | null, url?: string | null): TenderSourceDefinition | null => {
   if (key) {
-    const byKey = SOURCE_BY_KEY.get(key.trim().toLowerCase());
+    const normalizedKey = key.trim().toLowerCase();
+    const byKey = SOURCE_BY_KEY.get(normalizedKey)
+      ?? TENDER_SOURCE_DEFINITIONS.find((definition) => definition.aliases.some((alias) => normalizeHost(alias) === normalizeHost(normalizedKey)));
     if (byKey) {
       return byKey;
     }
@@ -113,8 +146,9 @@ const resolveConfiguredToken = (token: string): SourceItem | null => {
   }
 
   const definition = SOURCE_BY_KEY.get(normalized.toLowerCase());
-  if (definition) {
-    return { key: definition.key, name: definition.name, url: definition.defaultUrl };
+  const aliasDefinition = definition ?? getTenderSourceDefinition(normalized);
+  if (aliasDefinition) {
+    return { key: aliasDefinition.key, name: aliasDefinition.name, url: aliasDefinition.defaultUrl };
   }
 
   return resolveSourceItem({ url: normalized });

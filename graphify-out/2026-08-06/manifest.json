@@ -790,8 +790,8 @@
     "semantic_hash": ""
   },
   "next-env.d.ts": {
-    "mtime": 1785611066.9837446,
-    "ast_hash": "2a74d3909800ca5467fa83b0ab4a4890",
+    "mtime": 1786042300.3216236,
+    "ast_hash": "d0f8375ae1199dc7acd3977fc33b78b8",
     "semantic_hash": ""
   },
   "next.config.ts": {
@@ -800,8 +800,8 @@
     "semantic_hash": ""
   },
   "package.json": {
-    "mtime": 1785972715.1391008,
-    "ast_hash": "1958857d2ea47bfbe76c0b8edd5bf566",
+    "mtime": 1786033396.5382934,
+    "ast_hash": "ed6cb6cf4935e3289b4b6325774af3cf",
     "semantic_hash": ""
   },
   "postcss.config.mjs": {
@@ -1060,8 +1060,8 @@
     "semantic_hash": ""
   },
   "app/ausschreibung/[...params]/page.tsx": {
-    "mtime": 1785970322.4934123,
-    "ast_hash": "8926a9b1f865c820e80156f2c24d44c5",
+    "mtime": 1786042000.0614223,
+    "ast_hash": "1ed3c64e5e87fa740183bbcfd5e0c2b3",
     "semantic_hash": ""
   },
   "app/ausschreibungen/[kategorie]/opengraph-image.tsx": {
@@ -1215,8 +1215,8 @@
     "semantic_hash": ""
   },
   "app/p/[slug]/page.tsx": {
-    "mtime": 1786024858.4034343,
-    "ast_hash": "04d3faa20187287755637eb7d3bba58a",
+    "mtime": 1786037781.6207438,
+    "ast_hash": "67c1d45e7bdaab7533fcd8e1d7ed2eaf",
     "semantic_hash": ""
   },
   "app/robots.ts": {
@@ -1245,8 +1245,8 @@
     "semantic_hash": ""
   },
   "components/PdfDocumentLink.tsx": {
-    "mtime": 1785970765.942588,
-    "ast_hash": "bf9bfda99b611f17ec3cc193eee619b7",
+    "mtime": 1786041235.452979,
+    "ast_hash": "18ed65d805bf7ceefaecf985d701bb0f",
     "semantic_hash": ""
   },
   "components/SwetrixAnalytics.tsx": {
@@ -1260,23 +1260,23 @@
     "semantic_hash": ""
   },
   "components/profile/CompanyLogo.tsx": {
-    "mtime": 1784350501.5711973,
-    "ast_hash": "cac07ab7cb8005e5b902cfe45dfb8423",
+    "mtime": 1786033034.3875082,
+    "ast_hash": "c6cc7773a3273e979e15f467392c821a",
     "semantic_hash": ""
   },
   "components/profile/CompanyProfileHeader.tsx": {
-    "mtime": 1784350559.790793,
-    "ast_hash": "b53bf64b6ea6d94170fbd57319556694",
+    "mtime": 1786033587.561133,
+    "ast_hash": "b6dd4b3ec72600aacd36c79c61328126",
     "semantic_hash": ""
   },
   "components/profile/DeadlineStatus.tsx": {
-    "mtime": 1784350564.2927616,
-    "ast_hash": "4c7175c8a78b86fb90c42424599c3fda",
+    "mtime": 1786033547.7543743,
+    "ast_hash": "b16c71cf5f426464e8d82019a72c4642",
     "semantic_hash": ""
   },
   "components/profile/FitScore.tsx": {
-    "mtime": 1784350497.996222,
-    "ast_hash": "113fd4159e57de2fde6a386bce05a710",
+    "mtime": 1786033075.1482575,
+    "ast_hash": "dcd7ff8b429251f297baf723c0553c50",
     "semantic_hash": ""
   },
   "components/profile/PageFooter.tsx": {
@@ -1285,13 +1285,13 @@
     "semantic_hash": ""
   },
   "components/profile/TenderCard.tsx": {
-    "mtime": 1784350603.8664868,
-    "ast_hash": "4e3bdba084845fc551f5a09ca7a7033b",
+    "mtime": 1786033495.295693,
+    "ast_hash": "6e5499cfaa204c034a0120615effe756",
     "semantic_hash": ""
   },
   "components/profile/TenderSectionHeader.tsx": {
-    "mtime": 1786028742.4789746,
-    "ast_hash": "b875284847ca6141592d109029d52610",
+    "mtime": 1786033495.298693,
+    "ast_hash": "53761160d546f4e757f0a1ed13ec55e8",
     "semantic_hash": ""
   },
   "components/seo/HomeSeoContent.tsx": {
@@ -1380,8 +1380,8 @@
     "semantic_hash": ""
   },
   "lib/date-utils.ts": {
-    "mtime": 1785555255.5917046,
-    "ast_hash": "63eec8d6b210b554e78e509299f1cd68",
+    "mtime": 1786032642.671943,
+    "ast_hash": "c80ba4bcdb07d92a713c203f863b20bf",
     "semantic_hash": ""
   },
   "lib/llm.ts": {
@@ -1570,8 +1570,8 @@
     "semantic_hash": ""
   },
   "lib/discovery.ts": {
-    "mtime": 1785954089.1585557,
-    "ast_hash": "8a4e833c963b4d4af64d15c1820dd726",
+    "mtime": 1786032731.1353877,
+    "ast_hash": "d5b5d20bfd997f01fef2bc55a361d2ba",
     "semantic_hash": ""
   },
   "lib/glossary.ts": {
@@ -2337,6 +2337,16 @@
   "scripts/test-tender-meta.ts": {
     "mtime": 1785970214.4550934,
     "ast_hash": "849c94d3f65b21831d80e53e3c4f92ff",
+    "semantic_hash": ""
+  },
+  "lib/public-profile.ts": {
+    "mtime": 1786032683.1026886,
+    "ast_hash": "a750b5cd8371571766c3ec2bfb0a7267",
+    "semantic_hash": ""
+  },
+  "scripts/test-public-profile.ts": {
+    "mtime": 1786033396.5532935,
+    "ast_hash": "875bc93e62ecfe60ce5dce6181ce01f7",
     "semantic_hash": ""
   }
 }

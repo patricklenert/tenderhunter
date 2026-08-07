@@ -15,6 +15,7 @@ interface PdfDocumentLinkProps {
   filename?: string | null;
   roles?: string[];
   status?: string | null;
+  variant?: "default" | "detail";
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -28,7 +29,7 @@ const STATUS_LABELS: Record<string, string> = {
   unknown: "Status unbekannt",
 };
 
-export function PdfDocumentLink({ url, documentId, tenderId, index, label, filename, roles = [], status }: PdfDocumentLinkProps) {
+export function PdfDocumentLink({ url, documentId, tenderId, index, label, filename, roles = [], status, variant = "default" }: PdfDocumentLinkProps) {
   const [loading, setLoading] = useState(false);
   const [publicUrl, setPublicUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -76,9 +77,10 @@ export function PdfDocumentLink({ url, documentId, tenderId, index, label, filen
         alignItems: "center",
         gap: 1,
         p: 1.5,
-        border: 1,
+        border: variant === "detail" ? 0 : 1,
         borderColor: "divider",
-        borderRadius: 1,
+        borderRadius: variant === "detail" ? 0 : 1,
+        bgcolor: variant === "detail" ? "transparent" : undefined,
         "&:hover": { bgcolor: "action.hover" },
       }}
     >

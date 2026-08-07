@@ -171,6 +171,31 @@ async function main() {
     await client`ALTER TABLE documents ADD COLUMN IF NOT EXISTS roles JSONB`;
     await client`ALTER TABLE documents ADD COLUMN IF NOT EXISTS role_source TEXT`;
     await client`ALTER TABLE documents ADD COLUMN IF NOT EXISTS role_confidence REAL`;
+    await client`
+      CREATE TABLE IF NOT EXISTS us_documents (
+        id SERIAL PRIMARY KEY,
+        us_tender_id INTEGER NOT NULL REFERENCES us_tenders(id) ON DELETE CASCADE,
+        url TEXT NOT NULL,
+        storage_path TEXT NOT NULL,
+        sha256 TEXT NOT NULL,
+        content_type TEXT,
+        extracted_text TEXT,
+        download_status TEXT NOT NULL DEFAULT 'downloaded',
+        parse_status TEXT NOT NULL DEFAULT 'pending',
+        error_message TEXT,
+        filename TEXT,
+        page_count INTEGER,
+        role TEXT,
+        roles JSONB,
+        role_source TEXT,
+        role_confidence REAL,
+        version INTEGER NOT NULL DEFAULT 1,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE(us_tender_id, sha256)
+      )
+    `;
+    await client`CREATE INDEX IF NOT EXISTS idx_us_documents_tender ON us_documents(us_tender_id)`;
     await client`ALTER TABLE tenders ADD COLUMN IF NOT EXISTS readiness_status TEXT NOT NULL DEFAULT 'pending'`;
     await client`ALTER TABLE tenders ADD COLUMN IF NOT EXISTS readiness_reason TEXT`;
     await client`ALTER TABLE tenders ADD COLUMN IF NOT EXISTS readiness_updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`;

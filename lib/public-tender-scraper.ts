@@ -22,8 +22,14 @@ import {
   type PublicSourceCursor,
   type PublicSourceScrapeResult,
 } from "@/lib/public-pagination";
-import { canonicalPublicTenderUrl, derivePublicExternalId } from "@/lib/public-source-registry";
-import { mergeDiscoveredResources, type DiscoveredResource, type RankedSubpageCandidate } from "@/lib/resource-discovery";
+import { canonicalPublicTenderUrl, derivePublicExternalId, resolvePublicSourceKey } from "@/lib/public-source-registry";
+import {
+  extractResourcesFromHtml,
+  mergeDiscoveredResources,
+  rankSubpageCandidates,
+  type DiscoveredResource,
+  type RankedSubpageCandidate,
+} from "@/lib/resource-discovery";
 
 const openrouterKey = process.env.OPENROUTER_API_KEY ?? "";
 
@@ -82,6 +88,7 @@ async function fetchWithEncoding(url: string, timeout = 20000): Promise<string> 
     headers: { "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" },
     signal: AbortSignal.timeout(timeout),
   });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   const buf = Buffer.from(await resp.arrayBuffer());
   const contentType = resp.headers.get("content-type") ?? "";
   const charsetMatch = contentType.match(/charset=([^\s;]+)/i);
@@ -95,6 +102,13 @@ async function fetchWithEncoding(url: string, timeout = 20000): Promise<string> 
     return buf.toString("latin1");
   }
   return buf.toString("utf-8");
+}
+
+function normalizePublicMarkupText(value: string): string {
+  return decodeHtmlEntities(value)
+    .replace(/\u00ad/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 const PAGINATION_PARAM_NAMES = [
@@ -1004,20 +1018,23 @@ export function extractBasicDetailFromHtml(
 
   const portalFacts = extractPublicPortalFacts(text);
 
-  const deadline = text.match(/(?:Angebotsfrist|Abgabefrist|Ablauf der Angebotsfrist|Einreichungsfrist)[^\n]*\n?[^\n]*?(\d{1,2}\.\d{1,2}\.\d{4})/i)?.[1]
+  const deadline = text.match(/(?:Angebotsfrist|Abgabefrist|Ablauf der Angebotsfrist|Einreichungsfrist)[\s\S]{0,120}?(\d{1,2}\.\d{1,2}\.\d{4})/i)?.[1]
     ?? text.match(/\b\d{1,2}\.\d{1,2}\.\d{4}\b/)?.[0]
     ?? null;
   const parsedClient = valueAfterSection(
     /^Ausschreibende Stelle$/i,
     /^Bezeichnung:\s*(.*)$/i,
   )
+    || text.match(/(?:Name und Anschrift|Name)\s*:?\s*\n?\s*([^\n|]{3,120})/i)?.[1]?.trim()
     || text.match(/(?:Auftraggeber|Vergabestelle)\s*:?\s*([^\n|]{3,120})/i)?.[1]?.trim()
     || extractClientFromUrl(sourceUrl);
   const client = accessPage.blocked && portalFacts.client ? portalFacts.client : parsedClient;
   const location = accessPage.blocked && portalFacts.location
     ? portalFacts.location
-    : (text.match(/\b\d{5}\s+[A-ZÄÖÜ][\wÄÖÜäöüß .-]{2,80}/)?.[0] ?? null);
-  const referenceNumber = text.match(/(?:Bekanntmachungs-ID|Vergabe-Nr\.)\s*:?\s*\n?\s*([A-Z0-9][A-Z0-9._/-]{2,})/i)?.[1] ?? null;
+    : (text.match(/(?:Ort der Ausführung|Ort der Leistungserbringung)\s*:?\s*\n?\s*([^\n|]{3,120})/i)?.[1]?.trim()
+      ?? text.match(/\b\d{5}\s+[A-ZÄÖÜ][\wÄÖÜäöüß .-]{2,80}/)?.[0]
+      ?? null);
+  const referenceNumber = text.match(/(?:Bekanntmachungs-ID|Vergabe-Nr\.|Vergabenummer)\s*:?\s*\n?\s*([A-Z0-9][A-Z0-9._/-]{2,})/i)?.[1] ?? null;
   const description = accessPage.blocked
     ? buildPublicAccessLimitedDescription(title, portalFacts)
     : cleanPublicDescription(text.slice(0, 2000));
@@ -1064,6 +1081,263 @@ function extractPdfUrlsFromMarkdown(markdown: string, baseUrl: string): string[]
   }
 
   return Array.from(found);
+}
+
+export interface PublicResourceMetadata {
+  resources: DiscoveredResource[];
+  pdfUrls: string[];
+  subpageCandidates: RankedSubpageCandidate[];
+}
+
+export function extractPublicResourceMetadata(html: string, baseUrl: string): PublicResourceMetadata {
+  const resources = extractResourcesFromHtml(html, baseUrl);
+  const pdfUrls = resources
+    .filter((resource) => (resource.type === "document" || resource.type === "download")
+      && (/\.pdf(?:[?#]|$)/i.test(resource.url) || /application\/pdf/i.test(resource.contentType ?? "")))
+    .map((resource) => resource.url);
+
+  return {
+    resources,
+    pdfUrls: Array.from(new Set(pdfUrls)),
+    subpageCandidates: rankSubpageCandidates(resources, { baseUrl }),
+  };
+}
+
+function mainTextLines(html: string): string[] {
+  const $ = cheerio.load(html);
+  $("script, style, nav, header, footer").remove();
+  return htmlToBasicMarkdown($("main").html() ?? $("body").html() ?? "")
+    .split(/\n+/)
+    .map((line) => normalizePublicMarkupText(line.replace(/^#+\s*/, "")))
+    .filter(Boolean);
+}
+
+function readPublicLineValue(lines: string[], pattern: RegExp): string | null {
+  for (let index = 0; index < lines.length; index += 1) {
+    const match = lines[index].match(pattern);
+    if (!match) continue;
+    const inlineValue = normalizePublicMarkupText(match[1] ?? "");
+    if (inlineValue) return inlineValue;
+    for (let next = index + 1; next < lines.length; next += 1) {
+      if (lines[next]) return lines[next];
+    }
+  }
+  return null;
+}
+
+function readPublicTextSection(lines: string[], heading: RegExp, stop: RegExp): string | null {
+  const start = lines.findIndex((line) => heading.test(line));
+  if (start < 0) return null;
+  const values: string[] = [];
+  for (let index = start + 1; index < lines.length; index += 1) {
+    if (stop.test(lines[index])) break;
+    values.push(lines[index]);
+  }
+  const result = normalizePublicMarkupText(values.join(" "));
+  return result || null;
+}
+
+export interface EvergabeOnlineRow {
+  id: string;
+  title: string;
+  referenceNumber: string;
+  client: string;
+  location: string;
+  procedure: string;
+  deadline: string;
+  detailUrl: string;
+}
+
+export function parseEvergabeOnlineRows(
+  html: string,
+  baseUrl = "https://www.evergabe-online.de/search.html",
+): EvergabeOnlineRow[] {
+  const $ = cheerio.load(html);
+  const rows: EvergabeOnlineRow[] = [];
+  const seenIds = new Set<string>();
+
+  $("a[href*='tenderdetails.html']").each((_, element) => {
+    const href = $(element).attr("href");
+    if (!href) return;
+
+    try {
+      const detailUrl = new URL(href, baseUrl).href;
+      const detailUrlObject = new URL(detailUrl);
+      const id = detailUrlObject.searchParams.get("id") ?? detailUrl.match(/[?&]id=([^&#]+)/i)?.[1] ?? "";
+      const row = $(element).closest("tr");
+      const cells = row.find("td");
+      const cell = (selector: string, index: number): string => normalizePublicMarkupText(
+        selector ? row.find(selector).first().text() : cells.eq(index).text(),
+      );
+      const title = normalizePublicMarkupText($(element).text()) || cell("", 0);
+      if (!id || title.length < 5 || seenIds.has(id)) return;
+
+      seenIds.add(id);
+      rows.push({
+        id,
+        title: cleanTenderTitle(title),
+        referenceNumber: cell("", 1),
+        client: cell("", 2),
+        location: cell("", 3),
+        procedure: cell("", 4),
+        deadline: cell(".result_col_deadline", 5),
+        detailUrl,
+      });
+    } catch {
+      // Ignore malformed listing links.
+    }
+  });
+
+  return rows;
+}
+
+export function parseEvergabeOnlineNextUrl(html: string, currentUrl: string): string | null {
+  const $ = cheerio.load(html);
+  const current = new URL(currentUrl);
+  const candidates = $("a[rel='next'], a.next, a[title*='nächste'], a[title*='naechste']");
+
+  for (const element of candidates.toArray()) {
+    const $element = $(element);
+    const href = $element.attr("href");
+    if (!href || $element.attr("aria-disabled") === "true" || $element.hasClass("disabled")) continue;
+    try {
+      const next = new URL(href, current).href;
+      if (next !== current.href) return next;
+    } catch {
+      // Ignore malformed pagination links.
+    }
+  }
+
+  return null;
+}
+
+export function parseEvergabeOnlineDetail(html: string, sourceUrl: string): ExtractedTender | null {
+  if (!html || html.trim().length < 100) return null;
+  if (detectAccessPage(html, { url: sourceUrl }).blocked) return null;
+
+  const $ = cheerio.load(html);
+  const lines = mainTextLines(html);
+  const title = cleanTenderTitle(normalizePublicMarkupText(
+    $(".procedure-infos h4").first().text() || $("main h4").first().text() || $("h1").first().text(),
+  ));
+  if (title.length < 5 || NON_TENDER_TITLE_PATTERNS.some((pattern) => pattern.test(title))) return null;
+
+  const basic = extractBasicDetailFromHtml(html, sourceUrl, "evergabe-online.de", [], true);
+  const procedure = readPublicLineValue(lines, /^Verfahrensart\s*:?\s*(.*)$/i);
+  const client = readPublicLineValue(lines, /^Name\s*:?\s*(.*)$/i)
+    ?? readPublicLineValue(lines, /^Vergabestelle\s*:?\s*(.*)$/i)
+    ?? basic?.client
+    ?? "Bundesrepublik Deutschland";
+  const deadline = readPublicLineValue(lines, /^(?:Abgabefrist Angebot|Ablauf der Angebotsfrist|Angebotsfrist)\s*:?\s*(.*)$/i) ?? basic?.deadline;
+  const referenceNumber = readPublicLineValue(lines, /^Geschäftszeichen\s*:?\s*(.*)$/i) ?? basic?.referenceNumber;
+  const location = readPublicTextSection(
+    lines,
+    /^Ort der Leistungserbringung$/i,
+    /^(?:Angaben zu Losen|Zulassung von Nebenangeboten|Bestimmungen über die Ausführungsfrist|Wesentliche Zahlungsbedingungen|Unterlagen und Anforderungen|Zuschlagskriterien|Rechtsform|Sonstige Angaben)$/i,
+  ) ?? basic?.location;
+  const performance = readPublicTextSection(
+    lines,
+    /^Art und Umfang der Leistung$/i,
+    /^(?:CPV-Codes|Ort der Leistungserbringung|Angaben zu Losen|Zulassung von Nebenangeboten|Bestimmungen über die Ausführungsfrist|Wesentliche Zahlungsbedingungen)$/i,
+  );
+  const description = pickPublicDescription(
+    performance,
+    basic?.description,
+    [procedure ? `Verfahrensart: ${procedure}` : "", referenceNumber ? `Geschäftszeichen: ${referenceNumber}` : ""].filter(Boolean).join(". "),
+  );
+  const resourceMetadata = extractPublicResourceMetadata(html, sourceUrl);
+  const externalId = new URL(sourceUrl).searchParams.get("id");
+
+  return {
+    title,
+    client,
+    deadline: deadline ?? null,
+    description,
+    referenceNumber: referenceNumber ?? null,
+    location: location ?? null,
+    category: "Sonstiges",
+    sourceUrl,
+    source: "evergabe-online.de",
+    ...(externalId ? { externalId } : {}),
+    pdfUrls: resourceMetadata.pdfUrls,
+    resources: resourceMetadata.resources,
+    subpageCandidates: resourceMetadata.subpageCandidates,
+  };
+}
+
+export interface SachsenAnhaltListingRow {
+  idp: string;
+  title: string;
+  url: string;
+}
+
+export interface SachsenAnhaltDetailPage {
+  idp: string | null;
+  title: string;
+  deadline: string | null;
+  client: string | null;
+  location: string | null;
+  procedure: string | null;
+  externalUrl: string | null;
+}
+
+export function parseSachsenAnhaltListing(
+  html: string,
+  baseUrl = "https://evergabe.sachsen-anhalt.de/",
+): SachsenAnhaltListingRow[] {
+  const $ = cheerio.load(html);
+  const rows: SachsenAnhaltListingRow[] = [];
+  const seenIds = new Set<string>();
+
+  $("a[href*='recherche-aktueller-vergaben?idp=']").each((_, element) => {
+    const href = $(element).attr("href");
+    if (!href) return;
+    try {
+      const url = new URL(href, baseUrl).href;
+      const idp = new URL(url).searchParams.get("idp") ?? "";
+      const container = $(element).closest("tr, article, li, td").first();
+      const rawContainerText = normalizePublicMarkupText(container.text() || $(element).parent().text());
+      const title = cleanTenderTitle(rawContainerText.replace(/\s*mehr\s*>>.*$/i, ""));
+      if (!idp || title.length < 5 || seenIds.has(idp)) return;
+      seenIds.add(idp);
+      rows.push({ idp, title, url });
+    } catch {
+      // Ignore malformed wrapper links.
+    }
+  });
+
+  return rows;
+}
+
+export function parseSachsenAnhaltDetail(html: string, sourceUrl: string): SachsenAnhaltDetailPage | null {
+  if (!html || html.trim().length < 100) return null;
+  const $ = cheerio.load(html);
+  const value = (className: string): string | null => {
+    const text = normalizePublicMarkupText($(`.${className} .tsaid_data`).first().text());
+    return text || null;
+  };
+  const title = cleanTenderTitle(value("tsaid_TOPIC") ?? "");
+  if (title.length < 5) return null;
+
+  const externalHref = $(".tsaid_URL a[href]").first().attr("href");
+  let externalUrl: string | null = null;
+  if (externalHref) {
+    try {
+      externalUrl = new URL(externalHref, sourceUrl).href;
+    } catch {
+      externalUrl = null;
+    }
+  }
+
+  return {
+    idp: new URL(sourceUrl).searchParams.get("idp"),
+    title,
+    deadline: value("tsaid_DEADLINE") ?? value("tsaid_APPLICATIONPERIOD"),
+    client: value("tsaid_MANDANT"),
+    location: value("tsaid_AREA"),
+    procedure: value("tsaid_PROCESSTYPE"),
+    externalUrl,
+  };
 }
 
 // --- Source Scraper ---
@@ -1641,6 +1915,137 @@ async function scrapeEvergabe(cursor: PublicSourceCursor | null): Promise<Public
     });
   } catch (error) {
     console.error("[public-scraper] evergabe Fehler:", error);
+    throw error;
+  }
+}
+
+// --- eVergabe Bund (evergabe-online.de) ---
+
+async function scrapeEvergabeOnline(cursor: PublicSourceCursor | null): Promise<PublicScraperResult> {
+  const rootUrl = "https://www.evergabe-online.de/search.html";
+  let currentUrl = rootUrl;
+  let pagesFetched = 0;
+  let hasMore = false;
+
+  const detailHandler = async (reference: PublicDetailReference): Promise<DetailOutcome> => {
+    try {
+      const detailPage = await scrapeWebsite(reference.url, { onlyMainContent: false });
+      const detailUrl = detailPage.url || reference.url;
+      const detailHtml = detailPage.html;
+      if (!detailHtml.trim() || detailHtml.trim().length < 100) return { tender: null, retryable: true };
+      if (detectAccessPage(detailHtml, { url: detailUrl }).blocked) return { tender: null, blocked: true };
+
+      const extracted = parseEvergabeOnlineDetail(detailHtml, detailUrl);
+      if (!extracted) return { tender: null };
+      extracted.externalId = reference.externalId ?? extracted.externalId ?? null;
+      extracted.resources = mergeDiscoveredResources(extracted.resources ?? [], detailPage.resources);
+      extracted.pdfUrls = Array.from(new Set([
+        ...(extracted.pdfUrls ?? []),
+        ...detailPage.resources
+          .filter((resource) => resource.type === "document" && /\.pdf(?:[?#]|$)/i.test(resource.url))
+          .map((resource) => resource.url),
+      ]));
+      extracted.subpageCandidates = detailPage.subpageCandidates;
+      return { tender: extracted };
+    } catch (error) {
+      console.warn(`[public-scraper] evergabe-online Detail Fehler (${reference.key}):`, error);
+      return { tender: null, retryable: true };
+    }
+  };
+
+  const pendingRun = await processDetailQueue(
+    cursorPendingDetails(cursor),
+    settings.publicDetailLimit,
+    detailHandler,
+  );
+  if (shouldPauseBeforeListing(pendingRun, settings.publicDetailLimit)) {
+    return pendingOnlyResult(cursor, "evergabe-online-page", pendingRun);
+  }
+
+  try {
+    const detailRefs: PublicDetailReference[] = [];
+    const seenIds = new Set<string>();
+
+    let startPage = Math.max(1, cursorBoolean(cursor, "exhausted") ? 1 : cursorNumber(cursor, "page", 1));
+    const { chromium } = await import("playwright");
+    const browser = await chromium.launch({ headless: true, args: ["--no-sandbox"] });
+    try {
+      const page = await browser.newPage({
+        userAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36",
+      });
+      let pageNumber = 1;
+      currentUrl = rootUrl;
+
+      while (pageNumber < startPage) {
+        const response = await page.goto(currentUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+        if (response && response.status() >= 400) throw new Error(`evergabe-online listing HTTP ${response.status()}`);
+        await page.waitForTimeout(300);
+        const html = await page.content();
+        const nextUrl = parseEvergabeOnlineNextUrl(html, page.url());
+        if (!nextUrl) {
+          startPage = 1;
+          pageNumber = 1;
+          currentUrl = rootUrl;
+          break;
+        }
+        currentUrl = nextUrl;
+        pageNumber += 1;
+      }
+
+      for (let pageIndex = 0; pageIndex < settings.publicPaginationPages; pageIndex += 1) {
+        const response = await page.goto(currentUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+        if (response && response.status() >= 400) throw new Error(`evergabe-online listing HTTP ${response.status()}`);
+        await page.waitForTimeout(300);
+        const html = await page.content();
+        if (!html.trim()) throw new Error(`evergabe-online listing page ${pageNumber} returned no content`);
+        pagesFetched += 1;
+
+        const rows = parseEvergabeOnlineRows(html, page.url());
+        if (rows.length === 0 && detectAccessPage(html, { url: page.url() }).blocked) {
+          throw new Error("evergabe-online listing access blocked");
+        }
+        for (const row of rows) {
+          if (seenIds.has(row.id)) continue;
+          seenIds.add(row.id);
+          detailRefs.push(publicDetailReference(`evergabe-online:id:${row.id}`, row.detailUrl, row.id));
+        }
+
+        const nextUrl = parseEvergabeOnlineNextUrl(html, page.url());
+        hasMore = Boolean(nextUrl);
+        if (!nextUrl || detailRefs.length === 0) break;
+        currentUrl = nextUrl;
+        pageNumber += 1;
+      }
+    } finally {
+      await browser.close().catch(() => {});
+    }
+
+    console.log(`[public-scraper] evergabe-online: ${detailRefs.length} Detail-Links gefunden`);
+    const detailRun = await processDetailQueue(
+      detailRefs,
+      settings.publicDetailLimit - pendingRun.detailAttempted,
+      detailHandler,
+    );
+    const pendingDetails = mergeDetailReferences(pendingRun.pendingDetails, detailRun.pendingDetails);
+    const tenders = [...pendingRun.tenders, ...detailRun.tenders];
+    const nextPage = hasMore ? startPage + pagesFetched : 1;
+
+    return sourceCursorResult(tenders, {
+      cursor,
+      strategy: "evergabe-online-page",
+      position: { page: nextPage },
+      listingExhausted: !hasMore,
+      listingComplete: !hasMore,
+      pendingDetails,
+      pagesFetched,
+      paginationStrategy: "evergabe-online-page",
+      listedCount: detailRefs.length,
+      detailAttempted: pendingRun.detailAttempted + detailRun.detailAttempted,
+      detailFailed: pendingRun.detailFailed + detailRun.detailFailed,
+      extra: { page: nextPage },
+    });
+  } catch (error) {
+    console.error("[public-scraper] evergabe-online Fehler:", error);
     throw error;
   }
 }
@@ -2581,7 +2986,7 @@ export interface NetServerRow {
 }
 
 export function parseNetServerRows(html: string): NetServerRow[] {
-  const $ = cheerio.load(html);
+  const $ = cheerio.load(html, {}, false);
   const rows: NetServerRow[] = [];
   const seenOids = new Set<string>();
 
@@ -2600,12 +3005,19 @@ export function parseNetServerRows(html: string): NetServerRow[] {
 
     const cells = $row.find("td");
     if (cells.length > 0) {
+      const cellText = (selector: string, index: number): string => normalizePublicMarkupText(
+        selector ? $row.find(selector).first().text() : cells.eq(index).text(),
+      );
+      const tenderTypes = $row.find(".tenderType")
+        .toArray()
+        .map((cell) => normalizePublicMarkupText($(cell).text()))
+        .filter(Boolean);
       addRow({
         oid,
-        title: $(cells[1]).text().trim(),
-        client: $(cells[2]).text().trim(),
-        deadline: $(cells[5]).text().trim(),
-        procedure: $(cells[3]).text().trim(),
+        title: cellText(".tender", 1),
+        client: cellText(".tenderAuthority", 2),
+        deadline: cellText(".tenderDeadline", 5),
+        procedure: tenderTypes[0] ?? cellText("", 3),
       });
       return;
     }
@@ -2614,8 +3026,8 @@ export function parseNetServerRows(html: string): NetServerRow[] {
     addRow({
       oid,
       title: text.match(/Bezeichnung\s+(.+?)(?:\s+Vergabenummer|\s+Art:)/)?.[1]?.trim() ?? "",
-      client: text.match(/Vergabestelle:\s+(.+?)(?:\s+Abgabefrist|\s+Art:)/)?.[1]?.trim() ?? "",
-      deadline: text.match(/Abgabefrist:\s+(\d{2}\.\d{2}\.\d{4}\s+\d{2}:\d{2})/)?.[1]?.trim() ?? "",
+      client: text.match(/(?:Vergabestelle|Auftraggeber):\s+(.+?)(?:\s+Abgabe(?:frist)?|\s+Art:)/)?.[1]?.trim() ?? "",
+      deadline: text.match(/(?:Abgabe(?:frist)?|Angebotsfrist):\s+(\d{2}\.\d{2}\.\d{4}\s+\d{2}:\d{2})/)?.[1]?.trim() ?? "",
       procedure: text.match(/Art:\s+(.+?)(?:\s+Vergabestelle|\s+Abgabefrist)/)?.[1]?.trim() ?? "",
     });
   });
@@ -2758,6 +3170,22 @@ const NET_SERVER_PORTALS: NetServerConfig[] = [
     detailMode: "data-provider-redirect",
     followPagination: true,
   },
+  {
+    name: "bremen",
+    baseUrl: "https://vergabe.bremen.de",
+    searchPath: "/NetServer/PublicationSearchControllerServlet?function=SearchPublications&Gesetzesgrundlage=All&Category=InvitationToTender&thContext=publications&Max=100",
+    limit: 50,
+    detailMode: "data-provider-redirect",
+    followPagination: true,
+  },
+  {
+    name: "saarland",
+    baseUrl: "https://vergabe.saarland",
+    searchPath: "/NetServer/PublicationSearchControllerServlet?function=SearchPublications&Gesetzesgrundlage=All&Category=InvitationToTender&thContext=publications&Max=100",
+    limit: 50,
+    detailMode: "data-provider-redirect",
+    followPagination: true,
+  },
 ];
 
 export async function scrapeNetPortal(config: NetServerConfig, cursor: PublicSourceCursor | null): Promise<PublicScraperResult> {
@@ -2789,6 +3217,7 @@ export async function scrapeNetPortal(config: NetServerConfig, cursor: PublicSou
       }
 
       let bodyText = "";
+      let detailHtml = "";
       if (isBerlin && berlinPlaywrightCount < berlinPlaywrightLimit) {
         berlinPlaywrightCount += 1;
         const { scrapeWebsite: scrapeWithPlaywright } = await import("@/lib/firecrawl");
@@ -2799,13 +3228,13 @@ export async function scrapeNetPortal(config: NetServerConfig, cursor: PublicSou
           useBodyText: true,
         });
         bodyText = page.markdown ?? "";
+        detailHtml = page.html ?? "";
         if (bodyText.length < 200 || detectAccessPage(bodyText, { url: detailUrl }).blocked) bodyText = "";
       } else {
         const detailResp = await fetch(detailUrl, {
           headers: { "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" },
           signal: AbortSignal.timeout(15000),
         });
-        let detailHtml = "";
         if (detailResp.ok) {
           detailHtml = await detailResp.text();
         } else {
@@ -2821,7 +3250,14 @@ export async function scrapeNetPortal(config: NetServerConfig, cursor: PublicSou
       }
 
       if (bodyText && bodyText.length > 200 && !detectAccessPage(bodyText, { url: detailUrl }).blocked) {
-        const extracted = await extractDetailFromMarkdown(bodyText, detailUrl, config.name, true);
+        let extracted: ExtractedTender | null = null;
+        if (openrouterKey && !["bremen", "saarland"].includes(config.name)) {
+          try {
+            extracted = await extractDetailFromMarkdown(bodyText, detailUrl, config.name, true);
+          } catch (error) {
+            console.warn(`[public-scraper] ${config.name} LLM-Detail-Fallback (${reference.key}):`, error);
+          }
+        }
         if (extracted) {
           const isGenericTitle = !extracted.title || extracted.title.length < 5 ||
             /^(Ausschreibung der|Keine Ausschreibung|Keine Details|Zugriff verweigert|Unbekannter Titel|Öffentliche Ausschreibung der)/i.test(extracted.title);
@@ -2833,9 +3269,32 @@ export async function scrapeNetPortal(config: NetServerConfig, cursor: PublicSou
           extracted.sourceUrl = detailUrl;
           return { tender: extracted };
         }
+
+        const basic = detailHtml
+          ? extractBasicDetailFromHtml(detailHtml, detailUrl, config.name, [], true)
+          : null;
+        if (basic) {
+          const isGenericBasicTitle = !basic.title || basic.title.length < 5 ||
+            /^(?:Bekanntmachungsdetails|Ausschreibungsdetails|Vergabedetails|Ausschreibung der|Öffentliche Ausschreibung der)/i.test(basic.title) ||
+            /\bVergabeplattform\b/i.test(basic.title);
+          if (isGenericBasicTitle && row.title.length > 5) basic.title = cleanTenderTitle(row.title);
+          if (!basic.client || basic.client.length < 3 || /^\(Vergabestelle\)$/i.test(basic.client)) {
+            basic.client = row.client || config.name;
+          }
+          if (!basic.deadline) basic.deadline = row.deadline || null;
+          if (!basic.description || basic.description.length < 30) basic.description = row.procedure ? `Verfahrensart: ${row.procedure}` : "";
+          basic.externalId = reference.externalId ?? row.oid;
+          basic.sourceUrl = detailUrl;
+          const resourceMetadata = extractPublicResourceMetadata(detailHtml, detailUrl);
+          basic.pdfUrls = Array.from(new Set([...resourceMetadata.pdfUrls, ...basic.pdfUrls]));
+          basic.resources = resourceMetadata.resources;
+          basic.subpageCandidates = resourceMetadata.subpageCandidates;
+          return { tender: basic };
+        }
       }
 
       if (row.title.length > 5) {
+        const resourceMetadata = detailHtml ? extractPublicResourceMetadata(detailHtml, detailUrl) : null;
         return {
           tender: {
             title: cleanTenderTitle(row.title),
@@ -2848,7 +3307,11 @@ export async function scrapeNetPortal(config: NetServerConfig, cursor: PublicSou
             category: "Sonstiges",
             sourceUrl: detailUrl,
             source: config.name,
-            pdfUrls: [],
+            pdfUrls: resourceMetadata?.pdfUrls ?? [],
+            ...(resourceMetadata ? {
+              resources: resourceMetadata.resources,
+              subpageCandidates: resourceMetadata.subpageCandidates,
+            } : {}),
           },
         };
       }
@@ -3071,6 +3534,194 @@ async function scrapeEVergabeSh(cursor: PublicSourceCursor | null): Promise<Publ
     });
   } catch (error) {
     console.error("[public-scraper] e-vergabe-sh Fehler:", error);
+    throw error;
+  }
+}
+
+// --- eVergabe-Portal Sachsen-Anhalt ---
+
+async function scrapeSachsenAnhalt(cursor: PublicSourceCursor | null): Promise<PublicScraperResult> {
+  const rootUrl = "https://evergabe.sachsen-anhalt.de/";
+  let currentUrl = cursorBoolean(cursor, "exhausted") ? rootUrl : cursorString(cursor, "nextUrl") ?? rootUrl;
+  let pagesFetched = 0;
+  let hasMore = false;
+
+  const detailHandler = async (reference: PublicDetailReference): Promise<DetailOutcome> => {
+    try {
+      const response = await fetch(reference.url, {
+        headers: { "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36" },
+        redirect: "follow",
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!response.ok) return response.status === 404
+        ? { tender: null, blocked: true }
+        : { tender: null, retryable: true };
+
+      const wrapperHtml = await response.text();
+      if (!wrapperHtml.trim() || wrapperHtml.trim().length < 100) return { tender: null, retryable: true };
+      if (detectAccessPage(wrapperHtml, { url: reference.url }).blocked) return { tender: null, blocked: true };
+
+      const wrapper = parseSachsenAnhaltDetail(wrapperHtml, reference.url);
+      if (!wrapper) return { tender: null, retryable: true };
+
+      let resourceMetadata = extractPublicResourceMetadata(wrapperHtml, reference.url);
+      const descriptionParts = [
+        wrapper.procedure ? `Verfahrensart: ${wrapper.procedure}` : "",
+        wrapper.location ? `Leistungsort: ${wrapper.location}` : "",
+      ].filter(Boolean);
+      const tender: ExtractedTender = {
+        title: wrapper.title,
+        client: wrapper.client || "Sachsen-Anhalt",
+        deadline: wrapper.deadline,
+        description: descriptionParts.join(". "),
+        referenceNumber: null,
+        location: wrapper.location,
+        category: "Sonstiges",
+        sourceUrl: reference.url,
+        source: "sachsen-anhalt",
+        externalId: reference.externalId ?? wrapper.idp,
+        pdfUrls: resourceMetadata.pdfUrls,
+        resources: resourceMetadata.resources,
+        subpageCandidates: resourceMetadata.subpageCandidates,
+      };
+
+      if (wrapper.externalUrl) {
+        try {
+          const externalResponse = await fetch(wrapper.externalUrl, {
+            headers: { "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36" },
+            redirect: "follow",
+            signal: AbortSignal.timeout(15000),
+          });
+          if (externalResponse.ok) {
+            const externalUrl = externalResponse.url || wrapper.externalUrl;
+            const externalHtml = await externalResponse.text();
+            if (externalHtml.trim()) {
+              const externalMetadata = extractPublicResourceMetadata(externalHtml, externalUrl);
+              resourceMetadata = {
+                resources: mergeDiscoveredResources(resourceMetadata.resources, externalMetadata.resources),
+                pdfUrls: Array.from(new Set([...resourceMetadata.pdfUrls, ...externalMetadata.pdfUrls])),
+                subpageCandidates: [...resourceMetadata.subpageCandidates, ...externalMetadata.subpageCandidates],
+              };
+
+              if (!detectAccessPage(externalHtml, { url: externalUrl }).blocked) {
+                const externalDetail = extractBasicDetailFromHtml(
+                  externalHtml,
+                  externalUrl,
+                  "sachsen-anhalt",
+                  externalMetadata.pdfUrls,
+                  true,
+                );
+                if (externalDetail) {
+                  const isGenericExternalTitle = !externalDetail.title ||
+                    /^(?:Bekanntmachungsdetails|Ausschreibungsdetails|Vergabedetails|Ausschreibung der|Öffentliche Ausschreibung der)/i.test(externalDetail.title) ||
+                    /\bVergabeplattform\b/i.test(externalDetail.title);
+                  const isGenericExternalClient = !externalDetail.client || /^\(Vergabestelle\)$/i.test(externalDetail.client);
+                  if (!isGenericExternalTitle) tender.title = externalDetail.title;
+                  if (!isGenericExternalClient && (!tender.client || tender.client === "Sachsen-Anhalt")) tender.client = externalDetail.client;
+                  if (!tender.deadline) tender.deadline = externalDetail.deadline;
+                  if (tender.description.length < 30) tender.description = pickPublicDescription(externalDetail.description, tender.description);
+                  if (!tender.referenceNumber) tender.referenceNumber = externalDetail.referenceNumber;
+                  if (!tender.location) tender.location = externalDetail.location;
+                }
+              }
+
+              tender.pdfUrls = resourceMetadata.pdfUrls;
+              tender.resources = resourceMetadata.resources;
+              tender.subpageCandidates = Array.from(new Map(
+                resourceMetadata.subpageCandidates.map((candidate) => [candidate.canonicalUrl, candidate]),
+              ).values());
+            }
+          }
+        } catch (error) {
+          console.warn(`[public-scraper] sachsen-anhalt externe Detailseite nicht verfügbar (${reference.key}):`, error);
+        }
+      }
+
+      return { tender };
+    } catch (error) {
+      console.warn(`[public-scraper] sachsen-anhalt Detail Fehler (${reference.key}):`, error);
+      return { tender: null, retryable: true };
+    }
+  };
+
+  const pendingRun = await processDetailQueue(
+    cursorPendingDetails(cursor),
+    settings.publicDetailLimit,
+    detailHandler,
+  );
+  if (shouldPauseBeforeListing(pendingRun, settings.publicDetailLimit)) {
+    return pendingOnlyResult(cursor, "sachsen-anhalt-snapshot", pendingRun);
+  }
+  if (cursor?.snapshotComplete === true && cursorPendingDetails(cursor).length === 0 && pendingRun.detailAttempted > 0) {
+    return sourceCursorResult(pendingRun.tenders, {
+      cursor,
+      strategy: "sachsen-anhalt-snapshot",
+      position: cursorPosition(cursor) ?? { highWater: cursorString(cursor, "highWater") ?? "" },
+      listingExhausted: true,
+      listingComplete: true,
+      pendingDetails: pendingRun.pendingDetails,
+      pagesFetched: 0,
+      paginationStrategy: "sachsen-anhalt-snapshot",
+      listedCount: 0,
+      detailAttempted: pendingRun.detailAttempted,
+      detailFailed: pendingRun.detailFailed,
+      extra: { snapshotComplete: true },
+    });
+  }
+
+  try {
+    const rowsById = new Map<string, SachsenAnhaltListingRow>();
+    const pageUrls = new Set<string>();
+    for (let page = 0; page < settings.publicPaginationPages; page += 1) {
+      if (pageUrls.has(currentUrl)) break;
+      pageUrls.add(currentUrl);
+      const html = await fetchWithEncoding(currentUrl, 20000);
+      if (!html.trim()) throw new Error(`sachsen-anhalt listing page ${page + 1} returned no content`);
+      pagesFetched += 1;
+      for (const row of parseSachsenAnhaltListing(html, currentUrl)) rowsById.set(row.idp, row);
+
+      const nextUrl = parseGenericPaginationUrls(html, rootUrl, currentUrl)[0] ?? null;
+      hasMore = Boolean(nextUrl);
+      if (!nextUrl || rowsById.size === 0) break;
+      currentUrl = nextUrl;
+    }
+
+    const rows = Array.from(rowsById.values());
+    const highWater = cursorString(cursor, "highWater");
+    const markerIndex = highWater ? rows.findIndex((row) => row.idp === highWater) : -1;
+    const unseenRows = markerIndex >= 0 ? rows.slice(0, markerIndex) : rows;
+    const detailRefs = unseenRows.map((row) => publicDetailReference(
+      `sachsen-anhalt:idp:${row.idp}`,
+      row.url,
+      row.idp,
+    ));
+    const detailRun = await processDetailQueue(
+      detailRefs,
+      settings.publicDetailLimit - pendingRun.detailAttempted,
+      detailHandler,
+    );
+    const pendingDetails = mergeDetailReferences(pendingRun.pendingDetails, detailRun.pendingDetails);
+    const tenders = [...pendingRun.tenders, ...detailRun.tenders];
+    const nextUrl = hasMore ? currentUrl : rootUrl;
+    const nextHighWater = rows[0]?.idp ?? highWater ?? "";
+
+    console.log(`[public-scraper] sachsen-anhalt: ${tenders.length} Ausschreibungen`);
+    return sourceCursorResult(tenders, {
+      cursor,
+      strategy: "sachsen-anhalt-snapshot",
+      position: { highWater: nextHighWater, nextUrl },
+      listingExhausted: !hasMore,
+      listingComplete: !hasMore,
+      pendingDetails,
+      pagesFetched,
+      paginationStrategy: "sachsen-anhalt-snapshot",
+      listedCount: unseenRows.length,
+      detailAttempted: pendingRun.detailAttempted + detailRun.detailAttempted,
+      detailFailed: pendingRun.detailFailed + detailRun.detailFailed,
+      extra: { highWater: nextHighWater, nextUrl, snapshotComplete: !hasMore },
+    });
+  } catch (error) {
+    console.error("[public-scraper] sachsen-anhalt Fehler:", error);
     throw error;
   }
 }
@@ -3540,14 +4191,11 @@ async function scrapeBundRss(cursor: PublicSourceCursor | null): Promise<PublicS
     const unseenItems = markerIndex >= 0 ? items.slice(0, markerIndex) : items;
     const newestKey = items.length > 0 ? itemKey(items[0]) : highWater;
 
-    // Filter for Bayern and Hamburg
-    const bundeslaender = ["bayern", "hamburg", "münchen", "muenchen", "nürnberg", "nuernberg", "augsburg", "regensburg", "würzburg", "wuerzburg", "ingolstadt", "fürth", "fuert", "erlangen", "bamberg", "landshut", "bayreuth", "kempten", "passau", "coburg", "schweinfurt", "hof"];
-    const filtered = unseenItems.filter((item) => {
-      const text = `${item.title} ${item.description}`.toLowerCase();
-      return bundeslaender.some((bl) => text.includes(bl));
-    });
+    // The federal RSS feed contains notices from all regions. Regional
+    // filtering here silently discarded most of the official coverage.
+    const filtered = unseenItems;
 
-    console.log(`[public-scraper] bund-rss: ${filtered.length} Bayern/Hamburg Items`);
+    console.log(`[public-scraper] bund-rss: ${filtered.length} bundesweite Items`);
 
     const tenders: ExtractedTender[] = [...pendingRun.tenders];
     const now = new Date();
@@ -3595,7 +4243,7 @@ async function scrapeBundRss(cursor: PublicSourceCursor | null): Promise<PublicS
       });
     }
 
-    console.log(`[public-scraper] bund-rss: ${tenders.length} Ausschreibungen (Bayern/Hamburg)`);
+    console.log(`[public-scraper] bund-rss: ${tenders.length} bundesweite Ausschreibungen`);
     const snapshot = new Date().toISOString();
     return sourceCursorResult(tenders, {
       cursor,
@@ -3620,7 +4268,7 @@ async function scrapeBundRss(cursor: PublicSourceCursor | null): Promise<PublicS
 // --- Deduplication ---
 
 export function canonicalPublicSourceKey(sourceKey: string): string {
-  return sourceKey.trim();
+  return resolvePublicSourceKey(sourceKey) ?? sourceKey.trim();
 }
 
 function deduplicateTenders(tenders: ExtractedTender[]): ExtractedTender[] {
@@ -3700,11 +4348,13 @@ export async function scrapeAllPublicTenders(
     { name: "ted", fn: scrapeTed },
     { name: "bauportal", fn: scrapeBauportal },
     { name: "evergabe", fn: scrapeEvergabe },
+    { name: "evergabe-online", fn: scrapeEvergabeOnline },
     { name: "bundesimmobilien", fn: scrapeBundesimmobilien },
     { name: "niedersachsen", fn: scrapeVergabeNiedersachsen },
     ...NRW_PORTALS.map((p) => ({ name: `nrw-${p.name}`, fn: (cursor: PublicSourceCursor | null) => scrapeNrwPortal(p, cursor) })),
     ...NET_SERVER_PORTALS.map((p) => ({ name: `net-${p.name}`, fn: (cursor: PublicSourceCursor | null) => scrapeNetPortal(p, cursor) })),
     { name: "e-vergabe-sh", fn: scrapeEVergabeSh },
+    { name: "sachsen-anhalt", fn: scrapeSachsenAnhalt },
     { name: "thueringen", fn: scrapeThueringen },
     { name: "evergabe-nrw", fn: scrapeEvergabeNrw },
   ];

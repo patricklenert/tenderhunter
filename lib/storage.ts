@@ -3,6 +3,7 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { settings } from "@/lib/config";
 import { detectAccessPage } from "@/lib/access-page-detector";
+import { fetchResourceWithBrowserSession } from "@/lib/firecrawl";
 
 export interface StoredObject {
   storagePath: string;
@@ -18,6 +19,8 @@ export interface FetchAndStoreOptions {
   headers?: Readonly<Record<string, string>>;
   referer?: string;
   userAgent?: string;
+  /** Optional public page to open first when a portal requires a session cookie. */
+  sessionPageUrl?: string;
 }
 
 const hashBytes = (payload: Buffer): string => createHash("sha256").update(payload).digest("hex");
@@ -119,7 +122,7 @@ const responseFilename = (contentDisposition: string | null): string | null => {
   return safe ? safe.slice(0, 255) : null;
 };
 
-export const fetchAndStore = async (url: string, relativePath: string, options?: FetchAndStoreOptions): Promise<StoredObject> => {
+const fetchAndStoreDirect = async (url: string, relativePath: string, options?: FetchAndStoreOptions): Promise<StoredObject> => {
   // Strip jsessionid from URL for cleaner requests
   const cleanUrl = url.replace(/;jsessionid=[^;?/]+/gi, "");
   const response = await fetch(cleanUrl, {
@@ -204,6 +207,58 @@ export const fetchAndStore = async (url: string, relativePath: string, options?:
     if (file) await file.close().catch(() => undefined);
     await fs.promises.rm(temporary, { force: true }).catch(() => undefined);
     throw error;
+  }
+};
+
+const persistBrowserResource = (
+  relativePath: string,
+  result: Awaited<ReturnType<typeof fetchResourceWithBrowserSession>>,
+): StoredObject => {
+  if (result.body.length > MAX_FILE_SIZE_BYTES) {
+    throw new Error(`Dokument zu groß: ${result.body.length} Bytes (Limit: ${MAX_FILE_SIZE_BYTES})`);
+  }
+
+  const head = result.body.subarray(0, HEAD_SAMPLE_BYTES);
+  const declaredContentType = (result.contentType ?? "application/octet-stream").split(";", 1)[0].trim();
+  const contentType = sniffContentType(head) ?? declaredContentType;
+  const finalUrl = result.url.replace(/;jsessionid=[^;?/]+/gi, "");
+  if (contentType.includes("html")) {
+    const accessPage = detectAccessPage(head.toString("latin1"), { url: finalUrl });
+    if (accessPage.blocked) {
+      throw new Error(`Zugriffsblockierte Seite statt Dokument (${accessPage.reason})`);
+    }
+    if (result.body.length < 100) {
+      throw new Error(`Dokument zu kurz (${result.body.length} Bytes), vermutlich Fehlerseite`);
+    }
+  }
+
+  const stored = saveBytes(relativePath, result.body, contentType);
+  return {
+    ...stored,
+    finalUrl,
+    filename: responseFilename(result.contentDisposition),
+    contentDisposition: result.contentDisposition,
+  };
+};
+
+export const fetchAndStore = async (url: string, relativePath: string, options?: FetchAndStoreOptions): Promise<StoredObject> => {
+  try {
+    return await fetchAndStoreDirect(url, relativePath, options);
+  } catch (directError) {
+    const sessionPageUrl = options?.sessionPageUrl;
+    if (!sessionPageUrl) throw directError;
+
+    try {
+      const browserResult = await fetchResourceWithBrowserSession(sessionPageUrl, url, {
+        accept: options?.headers?.Accept ?? DEFAULT_ACCEPT,
+        userAgent: options?.userAgent,
+      });
+      return persistBrowserResource(relativePath, browserResult);
+    } catch (browserError) {
+      const directMessage = directError instanceof Error ? directError.message : "direkter Download fehlgeschlagen";
+      const browserMessage = browserError instanceof Error ? browserError.message : "Browser-Download fehlgeschlagen";
+      throw new Error(`${directMessage}; ${browserMessage}`);
+    }
   }
 };
 

@@ -1,5 +1,5 @@
 import { json } from "@/lib/http";
-import { getUsTenderById, isActiveUsTender, serializeUsTender } from "@/lib/us/repository";
+import { getUsTenderById, getUsTenderDocuments, isActiveUsTender, serializeUsTender } from "@/lib/us/repository";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,5 +9,6 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   if (!Number.isSafeInteger(id) || id <= 0) return json({ error: "Invalid opportunity id" }, { status: 400 });
   const tender = await getUsTenderById(id);
   if (!tender || !isActiveUsTender(tender)) return json({ error: "Opportunity not found" }, { status: 404 });
-  return json({ item: serializeUsTender(tender, true) });
+  const documents = await getUsTenderDocuments(tender.id);
+  return json({ item: { ...serializeUsTender(tender, true), documents } });
 }

@@ -5,6 +5,7 @@ export type JobStatus = "pending" | "running" | "done" | "failed";
 export const JOB_CRAWL = "crawl_sources";
 export const JOB_SCRAPE_PUBLIC = "scrape_public_tenders";
 export const JOB_FETCH_DOCUMENTS = "fetch_documents";
+export const JOB_FETCH_US_DOCUMENTS = "fetch_us_documents";
 export const JOB_PARSE = "parse_documents";
 export const JOB_STRUCTURE = "structure_tender";
 export const JOB_SCORE = "score_tender";
@@ -21,6 +22,7 @@ export type JobType =
   | typeof JOB_CRAWL
   | typeof JOB_SCRAPE_PUBLIC
   | typeof JOB_FETCH_DOCUMENTS
+  | typeof JOB_FETCH_US_DOCUMENTS
   | typeof JOB_PARSE
   | typeof JOB_STRUCTURE
   | typeof JOB_SCORE

@@ -10,6 +10,7 @@ const FIXED_SOURCES: Record<string, PublicSourceDefinition> = {
   "bayern-api": { sourceKey: "bayern-api", label: "Bayern", emptyAllowed: false, supportsContinuation: true },
   "hamburg-de": { sourceKey: "hamburg-de", label: "Hamburg", emptyAllowed: false, supportsContinuation: true },
   "bund-rss": { sourceKey: "bund-rss", label: "Bund RSS", emptyAllowed: true, supportsContinuation: false },
+  "evergabe-online": { sourceKey: "evergabe-online", label: "eVergabe Bund", emptyAllowed: false, supportsContinuation: true },
   dtvp: { sourceKey: "dtvp", label: "DTVP", emptyAllowed: false, supportsContinuation: true },
   ted: { sourceKey: "ted", label: "TED", emptyAllowed: false, supportsContinuation: true },
   bauportal: { sourceKey: "bauportal", label: "Bauportal", emptyAllowed: false, supportsContinuation: true },
@@ -19,6 +20,9 @@ const FIXED_SOURCES: Record<string, PublicSourceDefinition> = {
   "e-vergabe-sh": { sourceKey: "e-vergabe-sh", label: "Schleswig-Holstein", emptyAllowed: false, supportsContinuation: true },
   thueringen: { sourceKey: "thueringen", label: "Thüringen", emptyAllowed: false, supportsContinuation: true },
   "evergabe-nrw": { sourceKey: "evergabe-nrw", label: "eVergabe NRW", emptyAllowed: false, supportsContinuation: true },
+  "net-bremen": { sourceKey: "net-bremen", label: "Bremen", emptyAllowed: false, supportsContinuation: true },
+  "net-saarland": { sourceKey: "net-saarland", label: "Saarland", emptyAllowed: false, supportsContinuation: true },
+  "sachsen-anhalt": { sourceKey: "sachsen-anhalt", label: "Sachsen-Anhalt", emptyAllowed: false, supportsContinuation: true },
 };
 
 const DYNAMIC_SOURCES = new Set([
@@ -60,6 +64,14 @@ const SOURCE_ALIASES: Record<string, string> = {
   "bund-rss": "bund-rss",
   bund: "bund-rss",
   "service.bund.de": "bund-rss",
+  "evergabe-online": "evergabe-online",
+  "e-vergabe-online": "evergabe-online",
+  "e-vergabe-online.de": "evergabe-online",
+  "evergabe-online.de": "evergabe-online",
+  "evergabe online": "evergabe-online",
+  "e-vergabe bund": "evergabe-online",
+  "evergabe bund": "evergabe-online",
+  "bund-evergabe": "evergabe-online",
   bauportal: "bauportal",
   "bauportal-deutschland": "bauportal",
   bundesimmobilien: "bundesimmobilien",
@@ -133,6 +145,28 @@ const SOURCE_ALIASES: Record<string, string> = {
   "net-rhein-neckar": "net-rhein-neckar",
   "rhein-neckar": "net-rhein-neckar",
   "vergabe.vmstart.de": "net-rhein-neckar",
+
+  // Bremen and Saarland use the standard NetServer publication portal.
+  bremen: "net-bremen",
+  "net-bremen": "net-bremen",
+  "bremen-netserver": "net-bremen",
+  "netserver bremen": "net-bremen",
+  "vergabe-bremen": "net-bremen",
+  "vergabe.bremen.de": "net-bremen",
+  saarland: "net-saarland",
+  "net-saarland": "net-saarland",
+  "saarland-netserver": "net-saarland",
+  "netserver saarland": "net-saarland",
+  "vergabe-saarland": "net-saarland",
+  "vergabe.saarland": "net-saarland",
+
+  // The state portal publishes a public wrapper around the underlying tender.
+  "sachsen-anhalt": "sachsen-anhalt",
+  "sachsen anhalt": "sachsen-anhalt",
+  "evergabe-sachsen-anhalt": "sachsen-anhalt",
+  "net-sachsen-anhalt": "sachsen-anhalt",
+  "vergabe-sachsen-anhalt": "sachsen-anhalt",
+  "evergabe.sachsen-anhalt.de": "sachsen-anhalt",
 };
 
 for (const sourceKey of DYNAMIC_SOURCES) {
@@ -168,6 +202,7 @@ const HOST_SOURCE_RULES: HostSourceRule[] = [
   { domains: ["auftraege.bayern.de"], sourceKey: "bayern-api" },
   { domains: ["hamburg.de", "vergabe-hamburg.de"], sourceKey: "hamburg-de", path: /ausschreib|vergabe/i },
   { domains: ["service.bund.de"], sourceKey: "bund-rss", path: /ausschreib/i },
+  { domains: ["evergabe-online.de"], sourceKey: "evergabe-online" },
   { domains: ["berlin.de"], sourceKey: "berlin-html", path: /vergabeplattform|ausschreib/i },
   { domains: ["meinauftrag.rib.de"], sourceKey: "berlin-html" },
   { domains: ["e-vergabe-sh.de"], sourceKey: "e-vergabe-sh" },
@@ -193,6 +228,9 @@ const HOST_SOURCE_RULES: HostSourceRule[] = [
   { domains: ["vergabekooperation.berlin"], sourceKey: "net-berlin" },
   { domains: ["vergabe.mv-regierung.de"], sourceKey: "net-mecklenburg-vorpommern" },
   { domains: ["vergabe.vmstart.de"], sourceKey: "net-rhein-neckar" },
+  { domains: ["vergabe.bremen.de"], sourceKey: "net-bremen" },
+  { domains: ["vergabe.saarland"], sourceKey: "net-saarland" },
+  { domains: ["evergabe.sachsen-anhalt.de"], sourceKey: "sachsen-anhalt" },
 ];
 
 const sourceKeyFromHost = (value: string): string | null => {
@@ -247,7 +285,7 @@ export const canonicalPublicTenderUrl = (value: string): string => {
     url.hash = "";
     url.pathname = url.pathname.replace(/;jsessionid=[^/;?]*/gi, "");
     for (const key of Array.from(url.searchParams.keys())) {
-      if (/^(?:utm_|fbclid$|gclid$|session|jsessionid)/i.test(key)) url.searchParams.delete(key);
+      if (/^(?:utm_|fbclid$|gclid$|session|jsessionid|cookieCheck$)/i.test(key)) url.searchParams.delete(key);
     }
     return url.toString();
   } catch {
@@ -266,6 +304,9 @@ export const derivePublicExternalId = ({ sourceKey, sourceUrl, externalId }: Pub
 
   const patterns = [
     /projectForwarding\.do\?pid=(\d+)/i,
+    /\/tenderdetails\.html\?[^#]*\bid=(\d+)/i,
+    /\/recherche-aktueller-vergaben\?[^#]*\bidp=([^&#]+)/i,
+    /(?:[?&#](?:oid|TWOID)=)([A-Za-z0-9_-]{6,})/i,
     /(?:[?&#](?:T_ID|TIDGUID|guid|noticeId)=|\/notice\/)([A-Za-z0-9_-]{6,})/i,
     /(?:\/ausschreibung\/|\/project\/)([A-Za-z0-9_-]{6,})/i,
   ];

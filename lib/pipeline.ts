@@ -9,6 +9,7 @@ import { db } from "@/lib/db";
 import {
   tenders,
   usTenders,
+  usDocuments,
   usSourceRuns,
   documents,
   tenderResources,
@@ -39,6 +40,7 @@ import { canonicalPublicSourceKey, scrapeAllPublicTenders, type ExtractedTender 
 import type { PublicSourceCursor } from "@/lib/public-pagination";
 import { resolvePublicSourceKey } from "@/lib/public-source-registry";
 import { scrapeAllUsTenders, type UsExtractedTender } from "@/lib/us-tender-scraper";
+import { dedupeUsAttachments } from "@/lib/us/types";
 import { categorizeUsTender } from "@/lib/us/categorize";
 import { processUsAlerts } from "@/lib/us/alerts";
 import { enrichFromOeffentlicheVergabe, cleanPublicDescription, type OeffentlicheVergabeDetails } from "@/lib/public-tender-scraper";
@@ -69,6 +71,7 @@ import { runApiAnalysisJob } from "@/app/api/v1/analyze/route";
 import {
   JOB_CRAWL,
   JOB_FETCH_DOCUMENTS,
+  JOB_FETCH_US_DOCUMENTS,
   JOB_INSIGHT,
   JOB_NOTIFY,
   JOB_PARSE,
@@ -304,8 +307,11 @@ export const buildResourceFingerprint = (sourceUrl: string, metadata: unknown): 
     .slice(0, 24);
 };
 
+const documentRefreshBucket = (): number =>
+  Math.floor(Date.now() / (settings.documentRefreshHours * 60 * 60 * 1000));
+
 export const buildFetchDocumentsJobKey = (tenderId: number, resourceFingerprint: string): string =>
-  buildJobKey(JOB_FETCH_DOCUMENTS, tenderId, `resources-${resourceFingerprint || "empty"}`);
+  buildJobKey(JOB_FETCH_DOCUMENTS, tenderId, `resources-${resourceFingerprint || "empty"}-refresh-${documentRefreshBucket()}`);
 
 export type DocumentPersistenceAction = "insert" | "update" | "skip";
 
@@ -1046,7 +1052,6 @@ const discoverTenderResources = async (
   const pageCandidates: ResourceCandidateRecord[] = [];
   let staticPageUrl = sourcePageUrl;
   let staticResources: DiscoveredResource[] = [];
-  let hasFetchableStaticResource = false;
   try {
     const response = await fetch(sourcePageUrl, {
       headers: {
@@ -1062,10 +1067,6 @@ const discoverTenderResources = async (
       if (!Number.isFinite(contentLength) || contentLength <= 10 * 1024 * 1024) {
         const html = (await response.text()).slice(0, 10 * 1024 * 1024);
         staticResources = extractResourcesFromHtml(html, staticPageUrl, { maxResources: RESOURCE_MAX_CANDIDATES });
-        hasFetchableStaticResource = staticResources.some((resource) => {
-          const candidate = resourceCandidateFromDiscovered(resource, staticPageUrl, "dom");
-          return candidate ? isFetchableResourceCandidate(candidate) : false;
-        });
         pageCandidates.push(...staticResources.map((resource) => resourceCandidateFromDiscovered(resource, staticPageUrl, "dom")));
         pageCandidates.push(...rankSubpageCandidates(staticResources, {
           baseUrl: staticPageUrl,
@@ -1093,21 +1094,18 @@ const discoverTenderResources = async (
   }
 
   let renderedPage: Awaited<ReturnType<typeof scrapeWebsite>> | null = null;
-  // Rendering is the fallback for JS portals and pages whose useful links are
-  // not present in the initial HTML. It also removes the old host-specific SPA
-  // exception without allowing arbitrary cross-origin subpage traversal.
-  if (!hasFetchableStaticResource) {
-    try {
-      renderedPage = await scrapeWebsite(sourcePageUrl, {
-        onlyMainContent: false,
-        waitUntil: "networkidle",
-        waitMs: 1_000,
-      });
-      pageCandidates.push(...renderedPage.resources.map((resource) => resourceCandidateFromDiscovered(resource, renderedPage!.url, "rendered_dom")));
-      pageCandidates.push(...renderedPage.subpageCandidates.map((resource) => resourceCandidateFromDiscovered(resource, renderedPage!.url, "ranked_subpage")));
-    } catch (error) {
-      console.warn(`[pipeline] Gerenderte Ressourcenextraktion fehlgeschlagen: ${sourcePageUrl}`, error);
-    }
+  // Always merge rendered resources with static resources. Portals often expose
+  // one public PDF in HTML while loading the remaining attachments via JS.
+  try {
+    renderedPage = await scrapeWebsite(sourcePageUrl, {
+      onlyMainContent: false,
+      waitUntil: "networkidle",
+      waitMs: 1_000,
+    });
+    pageCandidates.push(...renderedPage.resources.map((resource) => resourceCandidateFromDiscovered(resource, renderedPage!.url, "rendered_dom")));
+    pageCandidates.push(...renderedPage.subpageCandidates.map((resource) => resourceCandidateFromDiscovered(resource, renderedPage!.url, "ranked_subpage")));
+  } catch (error) {
+    console.warn(`[pipeline] Gerenderte Ressourcenextraktion fehlgeschlagen: ${sourcePageUrl}`, error);
   }
 
   const mergedBeforeSubpages = mergeResourceCandidates(metadataCandidates, pageCandidates)
@@ -1417,6 +1415,7 @@ interface PipelineDocumentRow {
   storagePath: string;
   contentType: string | null;
   filename: string | null;
+  updatedAt: Date;
 }
 
 const documentMatchesCandidate = (document: PipelineDocumentRow, candidate: ResourceCandidateRecord): boolean =>
@@ -1428,6 +1427,12 @@ const documentFilename = (candidate: ResourceCandidateRecord, storedFilename: st
   const safeCandidate = boundedResourceText(candidate.filename, 255);
   const fallback = suggestedFilename(candidate.url, "document").replace(/^[0-9a-f]{12}-/, "");
   return ensureExtension(safeStored || safeCandidate || fallback, contentType);
+};
+
+const isDocumentRefreshDue = (document: PipelineDocumentRow): boolean => {
+  const updatedAt = document.updatedAt instanceof Date ? document.updatedAt.getTime() : Number.NaN;
+  return !Number.isFinite(updatedAt)
+    || Date.now() - updatedAt >= settings.documentRefreshHours * 60 * 60 * 1000;
 };
 
 const upsertDownloadedDocument = async (
@@ -1459,7 +1464,13 @@ const upsertDownloadedDocument = async (
     updatedAt: new Date(),
   };
 
-  if (action === "skip") return { id: existingByHash?.id ?? existingByUrl?.id ?? null, saved: false };
+  if (action === "skip") {
+    if (existingByUrl && existingByUrl.sha256 === stored.sha256) {
+      await db.update(documents).set({ updatedAt: new Date(), errorMessage: null }).where(eq(documents.id, existingByUrl.id));
+      existingByUrl.updatedAt = new Date();
+    }
+    return { id: existingByHash?.id ?? existingByUrl?.id ?? null, saved: false };
+  }
 
   if (action === "update" && existingByUrl) {
     await db.update(documents).set(values).where(eq(documents.id, existingByUrl.id));
@@ -1468,6 +1479,7 @@ const upsertDownloadedDocument = async (
     existingByUrl.contentType = stored.contentType;
     existingByUrl.filename = filename;
     existingByUrl.downloadStatus = "downloaded";
+    existingByUrl.updatedAt = new Date();
     return { id: existingByUrl.id, saved: true };
   }
 
@@ -1481,6 +1493,7 @@ const upsertDownloadedDocument = async (
       storagePath,
       contentType: stored.contentType,
       filename,
+      updatedAt: new Date(),
     });
     return { id: inserted[0].id, saved: true };
   }
@@ -1536,6 +1549,7 @@ const upsertFailedDocument = async (
       storagePath: values.storagePath,
       contentType: null,
       filename: values.filename,
+      updatedAt: new Date(),
     });
   }
 };
@@ -1605,10 +1619,10 @@ const runFetchDocuments = async (payload: Record<string, JsonValue>): Promise<Re
   const pageFallbacks = candidates
     .filter((candidate) => ["page", "unknown"].includes(candidate.resourceType))
     .filter((candidate) => isSameOriginCandidate(candidate, tender.url));
-  const selectedCandidates = (fetchable.length > 0 ? fetchable : pageFallbacks)
-    .filter((candidate) => candidate.method === "GET")
+  const candidatePool = (fetchable.length > 0 ? fetchable : pageFallbacks)
+    .filter((candidate) => candidate.method === "GET");
+  const prioritized = prioritizeResourceCandidates(candidatePool)
     .slice(0, Math.max(1, settings.maxPdfLinksPerTender));
-  const prioritized = prioritizeResourceCandidates(selectedCandidates);
   const existingDocuments = await db
     .select({
       id: documents.id,
@@ -1618,6 +1632,7 @@ const runFetchDocuments = async (payload: Record<string, JsonValue>): Promise<Re
       storagePath: documents.storagePath,
       contentType: documents.contentType,
       filename: documents.filename,
+      updatedAt: documents.updatedAt,
     })
     .from(documents)
     .where(eq(documents.tenderId, tenderId));
@@ -1630,8 +1645,8 @@ const runFetchDocuments = async (payload: Record<string, JsonValue>): Promise<Re
     const resource = resourceRows.get(candidate.canonicalUrl);
     if (!resource) continue;
     const existingByUrl = existingDocuments.find((document) => documentMatchesCandidate(document, candidate));
-    if (resource.status === "downloaded" && existingByUrl?.downloadStatus === "downloaded") continue;
-    if (existingByUrl?.downloadStatus === "downloaded") {
+    if (resource.status === "downloaded" && existingByUrl?.downloadStatus === "downloaded" && !isDocumentRefreshDue(existingByUrl)) continue;
+    if (existingByUrl?.downloadStatus === "downloaded" && !isDocumentRefreshDue(existingByUrl)) {
       await db.update(tenderResources).set({ status: "downloaded", errorMessage: null, updatedAt: new Date() }).where(eq(tenderResources.id, resource.id));
       resource.status = "downloaded";
       continue;
@@ -1651,6 +1666,7 @@ const runFetchDocuments = async (payload: Record<string, JsonValue>): Promise<Re
     try {
       const stored = await fetchAndStore(candidate.url, relative, {
         referer: candidate.sourcePageUrl ?? tender.url,
+        sessionPageUrl: candidate.sourcePageUrl ?? tender.url,
         userAgent: REALISTIC_USER_AGENT,
         headers: { Accept: RESOURCE_FETCH_ACCEPT },
       });
@@ -2257,6 +2273,7 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
         storagePath: documents.storagePath,
         contentType: documents.contentType,
         filename: documents.filename,
+        updatedAt: documents.updatedAt,
       })
       .from(documents)
       .where(eq(documents.tenderId, tenderId));
@@ -2288,6 +2305,7 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
         const relative = `tenders/${tenderId}/${baseName}`;
         const stored = await fetchAndStore(docUrl, relative, {
           referer: sourceUrl,
+          sessionPageUrl: sourceUrl,
           userAgent: REALISTIC_USER_AGENT,
           headers: { Accept: RESOURCE_FETCH_ACCEPT },
         });
@@ -3155,6 +3173,237 @@ const runScrapePublicTenders = async (payload: Record<string, JsonValue>): Promi
   }
 };
 
+interface UsDocumentPipelineRow {
+  id: number;
+  url: string;
+  sha256: string;
+  storagePath: string;
+  contentType: string | null;
+  filename: string | null;
+  extractedText: string | null;
+  downloadStatus: string;
+  parseStatus: string;
+  errorMessage: string | null;
+  updatedAt: Date;
+}
+
+const isUsDocumentRefreshDue = (document: UsDocumentPipelineRow): boolean =>
+  !Number.isFinite(document.updatedAt.getTime())
+  || Date.now() - document.updatedAt.getTime() >= settings.documentRefreshHours * 60 * 60 * 1000;
+
+const buildUsAttachmentFingerprint = (attachments: Array<{ name: string; url: string }>): string =>
+  createHash("sha256")
+    .update(JSON.stringify([...attachments].sort((left, right) => left.url.localeCompare(right.url))))
+    .digest("hex")
+    .slice(0, 24);
+
+export const buildFetchUsDocumentsJobKey = (
+  usTenderId: number,
+  attachments: Array<{ name: string; url: string }>,
+): string => buildJobKey(
+  JOB_FETCH_US_DOCUMENTS,
+  usTenderId,
+  `attachments-${buildUsAttachmentFingerprint(attachments)}-refresh-${documentRefreshBucket()}`,
+);
+
+const queueUsDocumentFetch = async (usTenderId: number, tender: UsExtractedTender): Promise<boolean> => {
+  const attachments = dedupeUsAttachments(tender.attachments, tender.url);
+  if (attachments.length === 0) return false;
+  await enqueueJob(JOB_FETCH_US_DOCUMENTS, { us_tender_id: usTenderId }, {
+    jobKey: buildFetchUsDocumentsJobKey(usTenderId, attachments),
+    groupKey: `us-tender:${usTenderId}`,
+    priority: 85,
+  });
+  return true;
+};
+
+const runFetchUsDocuments = async (payload: Record<string, JsonValue>): Promise<Record<string, JsonValue>> => {
+  const usTenderId = Number(payload.us_tender_id ?? 0);
+  if (!Number.isFinite(usTenderId) || usTenderId <= 0) throw new Error("ungueltige us_tender_id");
+
+  const tenderRows = await db
+    .select({ id: usTenders.id, url: usTenders.url, metadataJson: usTenders.metadataJson })
+    .from(usTenders)
+    .where(eq(usTenders.id, usTenderId))
+    .limit(1);
+  const tender = tenderRows[0];
+  if (!tender) throw new Error(`US Tender ${usTenderId} nicht gefunden`);
+
+  const metadata = parseRecord(tender.metadataJson as string);
+  const rawAttachments = Array.isArray(metadata.attachments)
+    ? metadata.attachments as Array<{ name?: unknown; url?: unknown }>
+    : [];
+  const attachments = dedupeUsAttachments(rawAttachments, tender.url).slice(0, Math.max(1, settings.maxPdfLinksPerTender));
+  if (attachments.length === 0) return { us_documents_saved: 0, attachments_discovered: 0 };
+
+  const existingDocuments = await db
+    .select({
+      id: usDocuments.id,
+      url: usDocuments.url,
+      sha256: usDocuments.sha256,
+      storagePath: usDocuments.storagePath,
+      contentType: usDocuments.contentType,
+      filename: usDocuments.filename,
+      extractedText: usDocuments.extractedText,
+      downloadStatus: usDocuments.downloadStatus,
+      parseStatus: usDocuments.parseStatus,
+      errorMessage: usDocuments.errorMessage,
+      updatedAt: usDocuments.updatedAt,
+    })
+    .from(usDocuments)
+    .where(eq(usDocuments.usTenderId, usTenderId));
+  const documentRows = existingDocuments as UsDocumentPipelineRow[];
+  const analysis: Array<Record<string, JsonValue>> = [];
+  let saved = 0;
+  let downloadFailures = 0;
+
+  for (let index = 0; index < attachments.length; index += 1) {
+    const attachment = attachments[index];
+    const existing = documentRows.find((document) => document.url === attachment.url);
+    if (existing?.downloadStatus === "downloaded" && !isUsDocumentRefreshDue(existing)) {
+      analysis.push({
+        name: attachment.name,
+        url: attachment.url,
+        status: existing.parseStatus,
+        document_id: existing.id,
+        content_type: existing.contentType,
+        text_preview: existing.extractedText?.slice(0, 600) ?? null,
+      });
+      continue;
+    }
+
+    const relative = `us-tenders/${usTenderId}/${suggestedFilename(attachment.url, `attachment-${index + 1}`)}`;
+    let stored: Awaited<ReturnType<typeof fetchAndStore>>;
+    try {
+      stored = await fetchAndStore(attachment.url, relative, {
+        referer: tender.url,
+        sessionPageUrl: tender.url,
+        userAgent: REALISTIC_USER_AGENT,
+        headers: { Accept: RESOURCE_FETCH_ACCEPT },
+      });
+    } catch (error) {
+      downloadFailures += 1;
+      analysis.push({
+        name: attachment.name,
+        url: attachment.url,
+        status: "download_failed",
+        error: error instanceof Error ? error.message.slice(0, 500) : "Download fehlgeschlagen",
+      });
+      continue;
+    }
+
+    const normalizedPath = ensureExtension(stored.storagePath, stored.contentType);
+    if (normalizedPath !== stored.storagePath) {
+      const original = objectAbsolutePath(stored.storagePath);
+      const target = objectAbsolutePath(normalizedPath);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.copyFileSync(original, target);
+      fs.unlinkSync(original);
+    }
+
+    let extractedText: string | null = null;
+    let pageCount: number | null = null;
+    let parseStatus = "empty";
+    let parseError: string | null = null;
+    try {
+      const extracted = await extractTextFromFile(objectAbsolutePath(normalizedPath), stored.contentType);
+      const pageText = extracted.pages.length > 0
+        ? extracted.pages.map((page, pageIndex) => `[Page ${pageIndex + 1}]\n${page}`).join("\n\n")
+        : extracted.text;
+      extractedText = pageText.slice(0, MAX_DOCUMENT_TEXT_CHARS).trim() || null;
+      pageCount = extracted.pageCount;
+      parseStatus = extractedText && extractedText.length >= 20 ? "parsed" : "empty";
+    } catch (error) {
+      parseStatus = "failed";
+      parseError = error instanceof Error ? error.message.slice(0, 500) : "Parserfehler";
+    }
+
+    const classification = classifyDocumentRole({
+      filename: stored.filename ?? attachment.name,
+      url: attachment.url,
+      linkText: attachment.name,
+      textSample: extractedText?.slice(0, 3000),
+    });
+    const roles = mergeDocumentRoles(classification.roles);
+    const values = {
+      usTenderId,
+      url: attachment.url,
+      storagePath: normalizedPath,
+      sha256: stored.sha256,
+      contentType: stored.contentType,
+      extractedText,
+      downloadStatus: "downloaded" as const,
+      parseStatus,
+      errorMessage: parseError,
+      filename: documentFilename({
+        url: attachment.url,
+        canonicalUrl: attachment.url,
+        label: attachment.name,
+        filename: null,
+        resourceType: "document",
+        roleHints: [],
+        sourcePageUrl: tender.url,
+        discoveryMethod: "us-attachment",
+        method: "GET",
+        contentType: stored.contentType,
+        contentDisposition: stored.contentDisposition ?? null,
+      }, stored.filename, stored.contentType),
+      pageCount,
+      role: primaryDocumentRole(roles),
+      roles,
+      roleSource: classification.source,
+      roleConfidence: classification.confidence,
+      updatedAt: new Date(),
+    };
+
+    let documentId = existing?.id ?? null;
+    if (existing) {
+      await db.update(usDocuments).set(values).where(eq(usDocuments.id, existing.id));
+    } else {
+      const inserted = await db.insert(usDocuments).values(values).onConflictDoNothing().returning({ id: usDocuments.id });
+      documentId = inserted[0]?.id ?? null;
+    }
+    if (documentId) {
+      saved += 1;
+      documentRows.push({
+        id: documentId,
+        url: attachment.url,
+        sha256: stored.sha256,
+        storagePath: normalizedPath,
+        contentType: stored.contentType,
+        filename: values.filename ?? null,
+        extractedText,
+        downloadStatus: "downloaded",
+        parseStatus,
+        errorMessage: parseError,
+        updatedAt: new Date(),
+      });
+    }
+    analysis.push({
+      name: attachment.name,
+      url: attachment.url,
+      status: parseStatus,
+      document_id: documentId,
+      content_type: stored.contentType,
+      text_preview: extractedText?.slice(0, 600) ?? null,
+      error: parseError,
+    });
+  }
+
+  metadata.attachments = attachments.map((attachment) => {
+    const item = analysis.find((entry) => entry.url === attachment.url);
+    return { ...attachment, ...(item ? { status: item.status, document_id: item.document_id } : {}) } as JsonValue;
+  });
+  metadata.attachment_analysis = analysis as JsonValue[];
+  metadata.attachment_analysis_at = new Date().toISOString();
+  await db.update(usTenders).set({ metadataJson: metadata, updatedAt: new Date() }).where(eq(usTenders.id, usTenderId));
+
+  if (downloadFailures > 0) {
+    throw new Error(`${downloadFailures} US-Dokumente konnten nicht geladen werden`);
+  }
+  return { us_documents_saved: saved, attachments_discovered: attachments.length, download_failures: 0 };
+};
+
 const runScrapeUsTenders = async (_payload: Record<string, JsonValue>): Promise<Record<string, JsonValue>> => {
   const startedAt = new Date();
   const result = await scrapeAllUsTenders();
@@ -3172,6 +3421,11 @@ const runScrapeUsTenders = async (_payload: Record<string, JsonValue>): Promise<
       } else if (upserted.changed) {
         updated += 1;
         changes.updated += 1;
+      }
+      try {
+        await queueUsDocumentFetch(upserted.id, tender);
+      } catch (error) {
+        console.warn(`[us-scraper] Dokumentjob konnte nicht eingeplant werden (${upserted.id}):`, error);
       }
       changesBySource.set(tender.source, changes);
     } catch (error) {
@@ -3280,6 +3534,7 @@ const handlers: Record<JobType, (payload: Record<string, JsonValue>) => Promise<
   [JOB_CRAWL]: runCrawl,
   [JOB_SCRAPE_PUBLIC]: runScrapePublicTenders,
   [JOB_FETCH_DOCUMENTS]: runFetchDocuments,
+  [JOB_FETCH_US_DOCUMENTS]: runFetchUsDocuments,
   [JOB_PARSE]: runParseDocuments,
   [JOB_STRUCTURE]: runStructureTender,
   [JOB_SCORE]: runScoreTender,

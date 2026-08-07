@@ -1,6 +1,6 @@
 import { and, desc, eq, gt, ilike, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { usTenders, type UsTender } from "@/lib/schema";
+import { usDocuments, usTenders, type UsTender } from "@/lib/schema";
 import { parseStringArray } from "@/lib/us/types";
 
 const toMetadata = (value: unknown): Record<string, unknown> =>
@@ -78,4 +78,30 @@ export async function searchUsTenders(params: UsTenderSearchParams): Promise<{ i
 export async function getUsTenderById(id: number): Promise<UsTender | null> {
   const rows = await db.select().from(usTenders).where(eq(usTenders.id, id)).limit(1);
   return rows[0] ?? null;
+}
+
+export async function getUsTenderDocuments(usTenderId: number) {
+  const rows = await db
+    .select({
+      id: usDocuments.id,
+      url: usDocuments.url,
+      filename: usDocuments.filename,
+      contentType: usDocuments.contentType,
+      downloadStatus: usDocuments.downloadStatus,
+      parseStatus: usDocuments.parseStatus,
+      errorMessage: usDocuments.errorMessage,
+      pageCount: usDocuments.pageCount,
+      role: usDocuments.role,
+      roleConfidence: usDocuments.roleConfidence,
+      extractedText: usDocuments.extractedText,
+      updatedAt: usDocuments.updatedAt,
+    })
+    .from(usDocuments)
+    .where(eq(usDocuments.usTenderId, usTenderId))
+    .orderBy(desc(usDocuments.updatedAt), usDocuments.id);
+
+  return rows.map(({ extractedText, ...document }) => ({
+    ...document,
+    textPreview: extractedText?.slice(0, 5_000) ?? null,
+  }));
 }

@@ -27,7 +27,7 @@ export const US_IT_KEYWORDS = [
   "systems development",
 ] as const;
 
-export type UsTenderSource = "sam_gov" | "sba_subnet" | "sba_subcontracting" | "texas_esbd" | "virginia_eva" | "dc_ocp" | "california_eprocure" | "georgia_gpr" | "new_york_ogs";
+export type UsTenderSource = "sam_gov" | "sba_subnet" | "sba_subcontracting" | "texas_esbd" | "virginia_eva" | "dc_ocp" | "california_eprocure" | "georgia_gpr" | "new_york_ogs" | "north_carolina_evp" | "florida_mfmp" | "new_york_contract_reporter";
 
 export interface UsContact {
   name?: string;
@@ -70,6 +70,33 @@ export interface UsPrimeContractor {
 
 export const parseStringArray = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+
+export const normalizeUsAttachmentUrl = (value: unknown, baseUrl?: string): string | null => {
+  if (typeof value !== "string" || !value.trim() || /^(?:#|javascript:|mailto:|tel:|data:|blob:)/i.test(value.trim())) return null;
+
+  try {
+    const url = new URL(value.trim(), baseUrl);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    url.hash = "";
+    return url.href;
+  } catch {
+    return null;
+  }
+};
+
+export const dedupeUsAttachments = (
+  attachments: ReadonlyArray<{ name?: unknown; url?: unknown }>,
+  baseUrl?: string,
+): Array<{ name: string; url: string }> => {
+  const seen = new Set<string>();
+  return attachments.flatMap((attachment) => {
+    const url = normalizeUsAttachmentUrl(attachment.url, baseUrl);
+    if (!url || seen.has(url)) return [];
+    seen.add(url);
+    const name = typeof attachment.name === "string" ? attachment.name.replace(/\s+/g, " ").trim() : "";
+    return [{ name: name || "Attachment", url }];
+  });
+};
 
 const US_STATE_CODES: Record<string, string> = {
   alabama: "AL", alaska: "AK", arizona: "AZ", arkansas: "AR", california: "CA", colorado: "CO", connecticut: "CT", delaware: "DE", florida: "FL", georgia: "GA", hawaii: "HI", idaho: "ID", illinois: "IL", indiana: "IN", iowa: "IA", kansas: "KS", kentucky: "KY", louisiana: "LA", maine: "ME", maryland: "MD", massachusetts: "MA", michigan: "MI", minnesota: "MN", mississippi: "MS", missouri: "MO", montana: "MT", nebraska: "NE", nevada: "NV", "new hampshire": "NH", "new jersey": "NJ", "new mexico": "NM", "new york": "NY", "north carolina": "NC", "north dakota": "ND", ohio: "OH", oklahoma: "OK", oregon: "OR", pennsylvania: "PA", "rhode island": "RI", "south carolina": "SC", "south dakota": "SD", tennessee: "TN", texas: "TX", utah: "UT", vermont: "VT", virginia: "VA", washington: "WA", "west virginia": "WV", wisconsin: "WI", wyoming: "WY", "district of columbia": "DC", "washington dc": "DC",

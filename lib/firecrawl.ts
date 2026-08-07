@@ -103,6 +103,14 @@ export interface ScrapedPage {
   networkResponses: NetworkResponseMetadata[];
 }
 
+export interface BrowserResourceFetch {
+  body: Buffer;
+  status: number;
+  url: string;
+  contentType: string | null;
+  contentDisposition: string | null;
+}
+
 function extractWithReadability(html: string, url: string): string {
   try {
     const dom = new JSDOM(html, { url });
@@ -146,6 +154,60 @@ export function htmlToBasicMarkdown(html: string): string {
     // Collapse 3+ newlines into one blank line
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+/**
+ * Fetch a public resource after opening its source page in the same browser
+ * context. Several procurement portals set a short-lived session cookie before
+ * serving otherwise-public downloads.
+ */
+export async function fetchResourceWithBrowserSession(
+  sourcePageUrl: string,
+  resourceUrl: string,
+  options?: { accept?: string; userAgent?: string; timeoutMs?: number },
+): Promise<BrowserResourceFetch> {
+  const browser = await getBrowser();
+  const context = await browser.newContext({
+    userAgent: options?.userAgent
+      ?? "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36",
+    viewport: { width: 1280, height: 800 },
+  });
+  activeContexts += 1;
+
+  try {
+    const page = await context.newPage();
+    await page.goto(sourcePageUrl, {
+      waitUntil: "domcontentloaded",
+      timeout: options?.timeoutMs ?? 30_000,
+    });
+
+    const response = await context.request.get(resourceUrl, {
+      headers: {
+        Accept: options?.accept ?? "application/pdf,application/octet-stream,*/*;q=0.5",
+        Referer: sourcePageUrl,
+        "User-Agent": options?.userAgent
+          ?? "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36",
+      },
+      maxRedirects: 5,
+      timeout: options?.timeoutMs ?? 30_000,
+    });
+    if (!response.ok()) {
+      throw new Error(`Browser-Download fehlgeschlagen: HTTP ${response.status()}`);
+    }
+
+    const headers = response.headers();
+    return {
+      body: await response.body(),
+      status: response.status(),
+      url: response.url(),
+      contentType: headers["content-type"] ?? null,
+      contentDisposition: headers["content-disposition"] ?? null,
+    };
+  } finally {
+    await context.close().catch(() => {});
+    activeContexts = Math.max(0, activeContexts - 1);
+    scheduleBrowserShutdown();
+  }
 }
 
 export async function scrapeWebsite(

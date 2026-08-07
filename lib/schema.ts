@@ -228,6 +228,37 @@ export const documents = pgTable(
   ]
 );
 
+export const usDocuments = pgTable(
+  "us_documents",
+  {
+    id: serial("id").primaryKey(),
+    usTenderId: integer("us_tender_id")
+      .notNull()
+      .references(() => usTenders.id, { onDelete: "cascade" }),
+    url: text("url").notNull(),
+    storagePath: text("storage_path").notNull(),
+    sha256: text("sha256").notNull(),
+    contentType: text("content_type"),
+    extractedText: text("extracted_text"),
+    downloadStatus: text("download_status").notNull().default("downloaded"),
+    parseStatus: text("parse_status").notNull().default("pending"),
+    errorMessage: text("error_message"),
+    filename: text("filename"),
+    pageCount: integer("page_count"),
+    role: text("role"),
+    roles: jsonb("roles").$type<DocumentRole[]>(),
+    roleSource: text("role_source"),
+    roleConfidence: real("role_confidence"),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("idx_us_documents_tender_sha256").on(table.usTenderId, table.sha256),
+    index("idx_us_documents_tender").on(table.usTenderId),
+  ]
+);
+
 export const tenderResources = pgTable(
   "tender_resources",
   {
@@ -839,6 +870,8 @@ export type BillingSubscription = typeof billingSubscriptions.$inferSelect;
 export type StripeEvent = typeof stripeEvents.$inferSelect;
 export type Document = typeof documents.$inferSelect;
 export type NewDocument = typeof documents.$inferInsert;
+export type UsDocument = typeof usDocuments.$inferSelect;
+export type NewUsDocument = typeof usDocuments.$inferInsert;
 export type TenderResource = typeof tenderResources.$inferSelect;
 export type NewTenderResource = typeof tenderResources.$inferInsert;
 export type StructuredData = typeof structuredData.$inferSelect;

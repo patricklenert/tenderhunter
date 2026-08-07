@@ -18,6 +18,7 @@ export const settings = {
   objectStorePath: path.resolve(process.env.OBJECT_STORE_PATH ?? "data/object_store"),
   defaultSources,
   maxPdfLinksPerTender: parseIntEnv("MAX_PDF_LINKS_PER_TENDER", 20),
+  documentRefreshHours: positiveIntEnv("DOCUMENT_REFRESH_HOURS", 72),
   publicDetailLimit: positiveIntEnv("PUBLIC_DETAIL_LIMIT", 15),
   publicNoticeLimit: positiveIntEnv("PUBLIC_NOTICE_LIMIT", 15),
   publicSearchLimit: positiveIntEnv("PUBLIC_SEARCH_LIMIT", 30),

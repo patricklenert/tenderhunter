@@ -1,6 +1,6 @@
 import * as cheerio from "cheerio";
 import { scrapeWebsite } from "@/lib/firecrawl";
-import { normalizeUsDate, type UsExtractedTender, type UsTenderSource } from "@/lib/us/types";
+import { dedupeUsAttachments, normalizeUsDate, type UsExtractedTender, type UsTenderSource } from "@/lib/us/types";
 
 type PortalDefinition = {
   source: Extract<UsTenderSource, "virginia_eva" | "dc_ocp" | "california_eprocure">;
@@ -10,11 +10,23 @@ type PortalDefinition = {
 };
 
 const cleanText = (value: string): string => value.replace(/\s+/g, " ").trim();
+const ATTACHMENT_HINT = /(?:attachment|download|document|file|addendum|exhibit|appendix|specification|bid[ -]?package|\.pdf(?:$|[?#])|\.docx?(?:$|[?#])|\.xlsx?(?:$|[?#])|\.zip(?:$|[?#]))/i;
+const DETAIL_BATCH_SIZE = 4;
+
+export const parseRenderedPortalAttachments = (html: string, baseUrl: string): Array<{ name: string; url: string }> => {
+  const $ = cheerio.load(html);
+  const candidates = $("a[href]").toArray().flatMap((element) => {
+    const href = $(element).attr("href")?.trim();
+    const name = cleanText($(element).text()) || cleanText($(element).attr("title") ?? "") || "Attachment";
+    return href && ATTACHMENT_HINT.test(`${href} ${name}`) ? [{ name, url: href }] : [];
+  });
+  return dedupeUsAttachments(candidates, baseUrl);
+};
 
 async function fetchRenderedPortal(definition: PortalDefinition): Promise<UsExtractedTender[]> {
   const page = await scrapeWebsite(definition.url, { onlyMainContent: false, useBodyText: true, waitMs: 2_000 });
   const $ = cheerio.load(page.html);
-  const tenders: UsExtractedTender[] = [];
+  const candidates: Array<{ url: string; title: string; description: string; deadlineAt: Date | null; naicsCodes: string[] }> = [];
   const seen = new Set<string>();
 
   $("tr").each((_, row) => {
@@ -26,29 +38,47 @@ async function fetchRenderedPortal(definition: PortalDefinition): Promise<UsExtr
     const url = new URL(link.href, definition.url).href;
     if (seen.has(url)) return;
     seen.add(url);
-    tenders.push({
-      source: definition.source,
-      sourceKey: definition.sourceKey,
+    candidates.push({
       url,
-      externalId: url,
       title: link.title,
       description: text,
-      buyer: null,
-      location: definition.state,
-      state: definition.state,
-      solicitationNumber: null,
-      naicsCodes: [...text.matchAll(/\b(\d{6})\b/g)].map((match) => match[1]),
-      pscCodes: [],
-      setAside: null,
-      contractType: "State and local opportunity",
       deadlineAt: normalizeUsDate(deadlineMatch[0]),
-      contacts: [],
-      attachments: [],
-      metadata: { opportunity_kind: "state_local", rendered_portal: true, source_listing: definition.url },
+      naicsCodes: [...text.matchAll(/\b(\d{6})\b/g)].map((match) => match[1]),
     });
   });
 
-  return tenders;
+  const detailAttachments = new Map<string, Array<{ name: string; url: string }>>();
+  for (let index = 0; index < candidates.length; index += DETAIL_BATCH_SIZE) {
+    const batch = candidates.slice(index, index + DETAIL_BATCH_SIZE);
+    const details = await Promise.allSettled(batch.map(async (candidate) => {
+      const detail = await scrapeWebsite(candidate.url, { onlyMainContent: false, waitMs: 1_000 });
+      return { url: candidate.url, attachments: parseRenderedPortalAttachments(detail.html, detail.url) };
+    }));
+    for (const detail of details) {
+      if (detail.status === "fulfilled") detailAttachments.set(detail.value.url, detail.value.attachments);
+    }
+  }
+
+  return candidates.map((candidate) => ({
+    source: definition.source,
+    sourceKey: definition.sourceKey,
+    url: candidate.url,
+    externalId: candidate.url,
+    title: candidate.title,
+    description: candidate.description,
+    buyer: null,
+    location: definition.state,
+    state: definition.state,
+    solicitationNumber: null,
+    naicsCodes: candidate.naicsCodes,
+    pscCodes: [],
+    setAside: null,
+    contractType: "State and local opportunity",
+    deadlineAt: candidate.deadlineAt,
+    contacts: [],
+    attachments: dedupeUsAttachments(detailAttachments.get(candidate.url) ?? [], candidate.url),
+    metadata: { opportunity_kind: "state_local", rendered_portal: true, source_listing: definition.url },
+  }));
 }
 
 export const fetchVirginiaEvaOpportunities = (): Promise<UsExtractedTender[]> => fetchRenderedPortal({
