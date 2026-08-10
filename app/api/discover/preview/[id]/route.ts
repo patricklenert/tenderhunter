@@ -2,7 +2,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { errorResponse, json } from "@/lib/http";
 import { requireSession } from "@/lib/api-auth";
-import { companyMatchPreviews, companyUrlCache, companyUrlMatchCache } from "@/lib/schema";
+import { companyMatchPreviews, companyUrlCache, companyUrlMatchCache, tenders } from "@/lib/schema";
 import { consumeRateLimit, RateLimitError } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -27,7 +27,9 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
       .where(and(eq(companyMatchPreviews.id, id), eq(companyMatchPreviews.userId, sessionOrResponse.session.user.id))).limit(1);
     if (!rows[0]) return json({ error: "Vorschau nicht gefunden." }, { status: 404 });
     const row = rows[0];
-    const matches = row.cache ? await db.select().from(companyUrlMatchCache).where(eq(companyUrlMatchCache.cacheId, row.cache.id)).orderBy(asc(companyUrlMatchCache.rank)).limit(3) : [];
+    const matches = row.cache ? await db.select({ match: companyUrlMatchCache }).from(companyUrlMatchCache)
+      .innerJoin(tenders, and(eq(tenders.id, companyUrlMatchCache.tenderId), eq(tenders.qualityStatus, "qualified")))
+      .where(eq(companyUrlMatchCache.cacheId, row.cache.id)).orderBy(asc(companyUrlMatchCache.rank)).limit(3) : [];
     const expired = row.preview.expiresAt ? row.preview.expiresAt <= new Date() : false;
     const status = expired && row.preview.status === "completed" ? "expired" : row.preview.status;
     const profile = row.cache?.profileJson && typeof row.cache.profileJson === "object" ? row.cache.profileJson as Record<string, unknown> : null;
@@ -36,7 +38,7 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
         id: row.preview.id,
         status,
         company: profile,
-        matches: status === "completed" ? matches.slice(0, 3).map((match) => ({
+        matches: status === "completed" ? matches.slice(0, 3).map(({ match }) => ({
           rank: match.rank,
           tenderId: match.tenderId,
           title: match.titleSnapshot,

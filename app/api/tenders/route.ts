@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { tenders } from "@/lib/schema";
 import { json } from "@/lib/http";
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { requireSession } from "@/lib/api-auth";
 
 export const runtime = "nodejs";
@@ -26,6 +26,7 @@ export async function GET(request: Request): Promise<Response> {
       updatedAt: tenders.updatedAt,
     })
     .from(tenders)
+    .where(eq(tenders.qualityStatus, "qualified"))
     .orderBy(desc(tenders.id))
     .limit(limit);
 

@@ -71,6 +71,10 @@ export function detectAccessPage(
     /(?:please|bitte)\s+(?:log in|sign in|anmelden)/,
     /zugriff nur nach anmeldung/,
     /authentication required/,
+    /melden sie sich (?:hier )?mit (?:ihrem )?benutzernamen/i,
+    /benutzername:\s*passwort/i,
+    /wenn sie noch kein nutzerkonto besitzen/i,
+    /einladungscode:\s*weiter mit einladungscode/i,
   ]) || /(?:\/|^)(?:login|signin|sign-in|account\/login|auth\/realms)(?:\/|\?|$)/.test(url);
   if (loginRequired) signals.push("login_required");
 

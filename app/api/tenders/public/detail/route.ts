@@ -1,10 +1,10 @@
 import { db } from "@/lib/db";
 import { documents, tenderResources, tenders, structuredData } from "@/lib/schema";
 import { json, errorResponse } from "@/lib/http";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { enqueueJob } from "@/lib/queue";
 import { JOB_CACHE_DETAIL } from "@/lib/types";
-import { pickPublicDescription } from "@/lib/public-tender-scraper";
+import { extractPublicPortalFacts } from "@/lib/public-tender-scraper";
 import { formatDeadlineDE, sanitizeTenderUrl } from "@/lib/date-utils";
 import { detectAccessPage } from "@/lib/access-page-detector";
 import { auth } from "@/lib/auth";
@@ -273,7 +273,7 @@ export async function POST(request: Request): Promise<Response> {
     const rows = await db
       .select()
       .from(tenders)
-      .where(eq(tenders.id, tenderId))
+      .where(and(eq(tenders.id, tenderId), eq(tenders.qualityStatus, "qualified")))
       .limit(1);
 
     if (rows.length === 0) {
@@ -302,6 +302,9 @@ export async function POST(request: Request): Promise<Response> {
       .from(documents)
       .where(eq(documents.tenderId, tenderId));
     const documentAnalysis = buildDocumentAnalysis(documentRows as AnalyzedDocument[]);
+    const publicDocumentAnalysis = hasDocumentsAccess
+      ? documentAnalysis
+      : { ...documentAnalysis, evidence: [] };
     const resourceRows = await db
       .select({
         id: tenderResources.id,
@@ -320,6 +323,14 @@ export async function POST(request: Request): Promise<Response> {
       .from(tenderResources)
       .where(eq(tenderResources.tenderId, tenderId));
     const tenderMeta = readTenderMeta(tender.metadataJson, tender.rawText);
+    const portalFacts = extractPublicPortalFacts([tender.rawText, tenderMeta.description].filter(Boolean).join("\n"));
+    const fallbackFacts = {
+      buyer: portalFacts.client || tenderMeta.client || null,
+      procedure: portalFacts.procedure || tenderMeta.procedure || tender.procedureType || null,
+      deadline: portalFacts.deadline || (tender.deadlineAt ? formatDeadlineDE(tender.deadlineAt) : null),
+      location: portalFacts.location || tenderMeta.location || null,
+      scope: portalFacts.subject || tenderMeta.subject || null,
+    };
     const documentsPayload = documentRows.map((document) => safeDocumentMetadata(document, tender.url, hasDocumentsAccess));
     const resourcesPayload = buildResourceMetadata(
       tender.url,
@@ -359,16 +370,8 @@ export async function POST(request: Request): Promise<Response> {
         if (accessPage.blocked) {
           await db.delete(structuredData).where(eq(structuredData.tenderId, tenderId));
         } else {
-          const publicDescription = pickPublicDescription(blob.description, blob.summary);
-          if (publicDescription) blob.description = publicDescription;
-          else delete blob.description;
-          const publicSummary = pickPublicDescription(blob.summary);
-          if (publicSummary) blob.summary = publicSummary;
-          else delete blob.summary;
-          const normalized = normalizeStructured(blob, tender.title ?? "");
-          blob.requirements = normalized.decision_relevant.requirements;
-          blob.scope = normalized.decision_relevant.scope.join(" ");
-          blob.awardCriteria = normalized.decision_relevant.award_criteria;
+          const normalized = normalizeStructured(blob, tender.title ?? "", fallbackFacts);
+          const cachedMeta = readTenderMeta(blob);
           if (!hasDocumentsAccess) {
             delete blob.pdfUrls;
             delete blob.pdf_urls;
@@ -376,7 +379,7 @@ export async function POST(request: Request): Promise<Response> {
           if (typeof blob.sourceUrl === "string") {
             blob.sourceUrl = sanitizeTenderUrl(blob.sourceUrl, blob.sourceUrl as string) ?? "";
           }
-          const cachedMeta = readTenderMeta(blob);
+          const descriptionMarkdown = normalized.descriptionMarkdown ?? null;
           const cachedResources = buildResourceMetadata(
             tender.url,
             resourceRows,
@@ -388,15 +391,27 @@ export async function POST(request: Request): Promise<Response> {
             documentRows,
             hasDocumentsAccess,
           );
-          return json({
-            ...blob,
+           return json({
+             ...blob,
+             title: normalized.title,
+             summary: normalized.summary,
+             description: normalized.summary,
+             descriptionMarkdown,
+             client: normalized.hard_facts.buyer ?? "",
+             deadline: normalized.hard_facts.deadline,
+             location: normalized.hard_facts.location ?? "",
+             procedure: normalized.procurement.procedure_type,
+             requirements: normalized.decision_relevant.requirements,
+             scope: normalized.decision_relevant.scope.join(" "),
+             awardCriteria: normalized.decision_relevant.award_criteria,
+             commercialBrief: normalized.commercialBrief,
             ...coveragePayload,
             resourceCoverage: cachedResources.coverage,
             resources: cachedResources.resources,
             resourceCandidates: cachedResources.resources,
             readinessStatus: tender.readinessStatus,
             readinessReason: tender.readinessReason,
-            documentAnalysis,
+            documentAnalysis: publicDocumentAnalysis,
             cached: true,
             documentsLocked: !hasDocumentsAccess,
             scrapedAt: cached[0].updatedAt,
@@ -416,20 +431,23 @@ export async function POST(request: Request): Promise<Response> {
     if (accessPage.blocked) {
       console.warn(`[tender-detail] Quelle vorübergehend blockiert für ${tenderId} (${accessPage.reason}), starte Reprocessing`);
     }
+    const fallbackStructured = normalizeStructured(meta, tender.title ?? "", fallbackFacts);
 
     const result = {
-      title: tender.title ?? "",
-      client: tenderMeta.client || "Unbekannt",
+      title: fallbackStructured.title,
+      client: fallbackStructured.hard_facts.buyer || "Unbekannt",
       deadline: tender.deadlineAt ? formatDeadlineDE(tender.deadlineAt) : null,
       deadlineISO: tender.deadlineAt ? new Date(tender.deadlineAt).toISOString() : null,
-      description: tenderMeta.description,
-      requirements: [] as string[],
-      scope: tenderMeta.subject,
+      description: fallbackStructured.summary,
+      descriptionMarkdown: fallbackStructured.descriptionMarkdown ?? null,
+      commercialBrief: fallbackStructured.commercialBrief,
+      requirements: fallbackStructured.decision_relevant.requirements,
+      scope: fallbackStructured.decision_relevant.scope.join(" "),
       contact: "",
-      procedure: tender.procedureType ?? "",
-      awardCriteria: [] as string[],
+      procedure: fallbackStructured.procurement.procedure_type,
+      awardCriteria: fallbackStructured.decision_relevant.award_criteria,
       duration: tender.contractDurationMonths ? `${tender.contractDurationMonths} Monate` : "",
-      location: tenderMeta.location,
+      location: fallbackStructured.hard_facts.location,
       referenceNumber: tenderMeta.referenceNumber,
       pdfUrls: tenderMeta.pdfUrls,
       estimatedValue: tender.contractValueMax ? `${tender.contractValueMax} EUR` : null,
@@ -440,7 +458,7 @@ export async function POST(request: Request): Promise<Response> {
       documentsLocked: !hasDocumentsAccess,
       readinessStatus: tender.readinessStatus,
       readinessReason: tender.readinessReason,
-      documentAnalysis,
+      documentAnalysis: publicDocumentAnalysis,
       ...coveragePayload,
       scrapedAt: new Date().toISOString(),
     };
@@ -450,7 +468,7 @@ export async function POST(request: Request): Promise<Response> {
 
     // 4. Queue background enrichment (LLM extraction) — ALWAYS
     if (tender.url) {
-      enqueueJob(JOB_CACHE_DETAIL, { tender_id: tenderId }, { jobKey: `${JOB_CACHE_DETAIL}:${tenderId}` }).catch((e: unknown) =>
+      enqueueJob(JOB_CACHE_DETAIL, { tender_id: tenderId }, { jobKey: `${JOB_CACHE_DETAIL}:${tenderId}`, dedupeCompleted: false }).catch((e: unknown) =>
         console.error(`[tender-detail] Enqueue failed for ${tenderId}:`, e)
       );
     }

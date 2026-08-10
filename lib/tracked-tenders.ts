@@ -236,7 +236,7 @@ const baseTrackedTenderQuery = (userId: string) =>
       userCompanies,
       and(eq(userCompanies.companyId, trackedTenders.companyId), eq(userCompanies.userId, userId)),
     )
-    .leftJoin(tenders, eq(trackedTenders.tenderId, tenders.id))
+    .innerJoin(tenders, and(eq(trackedTenders.tenderId, tenders.id), eq(tenders.qualityStatus, "qualified")))
     .leftJoin(companyProfiles, eq(trackedTenders.companyId, companyProfiles.id))
     .leftJoin(scores, and(eq(scores.tenderId, trackedTenders.tenderId), eq(scores.companyId, trackedTenders.companyId)))
     .leftJoin(insights, and(eq(insights.tenderId, trackedTenders.tenderId), eq(insights.companyId, trackedTenders.companyId)));

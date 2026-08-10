@@ -3,11 +3,15 @@ import postgres from "postgres";
 import {
   buildPublicAccessLimitedDescription,
   extractPublicPortalFacts,
+  isPublicNavigationSummary,
   isRawPortalDescription,
 } from "../lib/public-tender-scraper";
 import { isParticipationWallText } from "../lib/access-page-detector";
 
 const sql = postgres(process.env.DATABASE_URL ?? "postgresql://tenderhunter:tenderhunter@localhost:5432/tenderhunter");
+const args = new Set(process.argv.slice(2));
+const dryRun = args.has("--dry-run");
+const id = process.argv.find((arg) => arg.startsWith("--id="))?.slice("--id=".length);
 
 async function main(): Promise<void> {
   const rows = await sql<{
@@ -19,6 +23,7 @@ async function main(): Promise<void> {
     SELECT id, title, metadata_json, raw_text
     FROM tenders
     WHERE quality_status <> 'duplicate'
+      AND (${id ? sql`id = ${Number(id)}` : sql`TRUE`})
   `;
 
   let changed = 0;
@@ -35,21 +40,25 @@ async function main(): Promise<void> {
     const isAccessLimited = metadata.access_limited === true
       || isParticipationWallText(rawDescription)
       || isRawPortalDescription(rawDescription);
-    if (!isAccessLimited && !metadataWasString) continue;
+    const isNavigationSummary = isPublicNavigationSummary(rawDescription);
+    const needsSummaryRepair = isAccessLimited || isNavigationSummary;
+    if (!needsSummaryRepair && !metadataWasString) continue;
 
     const facts = extractPublicPortalFacts(rawDescription);
-    const description = isAccessLimited
+    const description = needsSummaryRepair
       ? buildPublicAccessLimitedDescription(row.title, facts)
       : String(metadata.description ?? "");
-    const nextMetadata = isAccessLimited
+    const nextMetadata = needsSummaryRepair
       ? {
-         ...metadata,
-         ...(facts.client ? { client: facts.client } : {}),
-         ...(facts.subject ? { subject: facts.subject } : {}),
-         description,
-        access_limited: true,
-        description_source: "portal_summary",
-      }
+          ...metadata,
+          ...(facts.client ? { client: facts.client } : {}),
+          ...(facts.procedure ? { procedure: facts.procedure } : {}),
+          ...(facts.location ? { location: facts.location } : {}),
+          ...(facts.subject ? { subject: facts.subject } : {}),
+          description,
+          ...(isAccessLimited ? { access_limited: true } : {}),
+          description_source: "portal_summary",
+        }
       : metadata;
     if (
       !metadataWasString
@@ -59,16 +68,18 @@ async function main(): Promise<void> {
       && metadata.access_limited === true
     ) continue;
 
-    await sql`
-      UPDATE tenders
-      SET metadata_json = ${sql.json(nextMetadata as never)},
-          updated_at = NOW()
-      WHERE id = ${row.id}
-    `;
+    if (!dryRun) {
+      await sql`
+        UPDATE tenders
+        SET metadata_json = ${sql.json(nextMetadata as never)},
+            updated_at = NOW()
+        WHERE id = ${row.id}
+      `;
+    }
     changed += 1;
   }
 
-  console.log(JSON.stringify({ scanned: rows.length, changed }));
+  console.log(JSON.stringify({ dryRun, scanned: rows.length, changed }));
   await sql.end();
 }
 

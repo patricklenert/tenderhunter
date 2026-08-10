@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 import { db } from "@/lib/db";
 import { tenders, companyProfiles, scores } from "@/lib/schema";
-import { eq, and, inArray, or, gt, isNull, isNotNull, sql } from "drizzle-orm";
+import { eq, and, or, gt, isNull, isNotNull, sql } from "drizzle-orm";
 import { CATEGORY_SLUGS } from "@/lib/categories";
 import { BUNDESLAND_SLUGS, deriveBundesland, deriveCity } from "@/lib/bundesland";
 import { CITY_SLUG_MAP, ALL_CITY_SLUGS } from "@/lib/cities";
@@ -300,7 +300,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         .from(tenders)
         .where(
           and(
-            inArray(tenders.qualityStatus, ["qualified", "candidate"]),
+            eq(tenders.qualityStatus, "qualified"),
             or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
           ),
         ),
@@ -309,7 +309,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         .from(tenders)
         .where(
           and(
-            inArray(tenders.qualityStatus, ["qualified", "candidate"]),
+            eq(tenders.qualityStatus, "qualified"),
             or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
           ),
         ),
@@ -319,7 +319,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         .innerJoin(scores, eq(scores.companyId, companyProfiles.id))
         .innerJoin(tenders, and(
           eq(scores.tenderId, tenders.id),
-          inArray(tenders.qualityStatus, ["qualified", "candidate"]),
+          eq(tenders.qualityStatus, "qualified"),
         ))
         .where(isNotNull(companyProfiles.slug))
         .groupBy(companyProfiles.id, companyProfiles.slug, companyProfiles.updatedAt, companyProfiles.logoUrl),
@@ -427,7 +427,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       .from(tenders)
       .where(
         and(
-          inArray(tenders.qualityStatus, ["qualified", "candidate"]),
+          eq(tenders.qualityStatus, "qualified"),
           or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
           sql`(${tenders.metadataJson}::jsonb->>'client') IS NOT NULL`,
         ),

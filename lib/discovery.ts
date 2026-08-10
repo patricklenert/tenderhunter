@@ -179,7 +179,7 @@ export async function findPublicProfileMatches(
     .where(and(
       options.qualifiedOnly
         ? eq(tenders.qualityStatus, "qualified")
-        : or(eq(tenders.qualityStatus, "qualified"), eq(tenders.qualityStatus, "candidate")),
+        : eq(tenders.qualityStatus, "qualified"),
       or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, new Date())),
       isNotNull(structuredData.jsonBlob),
     ))

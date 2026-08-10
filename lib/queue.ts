@@ -1,13 +1,53 @@
-import { eq, and, lte, sql, inArray } from "drizzle-orm";
+import { eq, and, lte, sql, inArray, notInArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { jobs, jobAttempts, type Job } from "@/lib/schema";
 import { settings } from "@/lib/config";
-import type { JobType, JsonValue } from "@/lib/types";
+import {
+  JOB_CACHE_DETAIL,
+  JOB_CRAWL,
+  JOB_FETCH_DOCUMENTS,
+  JOB_FETCH_US_DOCUMENTS,
+  JOB_PARSE,
+  JOB_SCORE,
+  JOB_SCRAPE_PUBLIC,
+  JOB_SCRAPE_US,
+  JOB_STRUCTURE,
+  JOB_SYNC_MEILI,
+  type JobType,
+  type JsonValue,
+} from "@/lib/types";
 
 /** Jobs without a heartbeat for this long are considered stale. */
 const STALE_JOB_THRESHOLD_MS = 15 * 60 * 1000;
 
 const ACTIVE_JOB_STATUSES = ["pending", "running"] as const;
+
+export const CRITICAL_JOB_TYPES = [
+  JOB_CRAWL,
+  JOB_SCRAPE_PUBLIC,
+  JOB_SCRAPE_US,
+  JOB_FETCH_DOCUMENTS,
+  JOB_FETCH_US_DOCUMENTS,
+  JOB_PARSE,
+  JOB_STRUCTURE,
+  JOB_SCORE,
+  JOB_CACHE_DETAIL,
+  JOB_SYNC_MEILI,
+] as const;
+
+export type JobLane = "critical" | "background" | "all";
+
+export type ClaimJobOptions = {
+  lane?: JobLane;
+};
+
+export const isCriticalJobType = (jobType: string): boolean =>
+  (CRITICAL_JOB_TYPES as readonly string[]).includes(jobType);
+
+export const shouldReuseCompletedJob = (
+  status: string | null | undefined,
+  dedupeCompleted = true,
+): boolean => dedupeCompleted && status === "done";
 
 export const buildJobKey = (jobType: string, scope: string | number, suffix?: string): string =>
   `${jobType}:${scope}${suffix ? `:${suffix}` : ""}`;
@@ -18,6 +58,8 @@ type EnqueueOptions = {
   jobKey?: string;
   groupKey?: string;
   priority?: number;
+  /** Reuse only active jobs when false; useful for periodic work. */
+  dedupeCompleted?: boolean;
 };
 
 export async function enqueueJob(
@@ -27,6 +69,23 @@ export async function enqueueJob(
 ): Promise<number> {
   const runAfter = opts?.runAfter ?? new Date();
   const maxRetries = opts?.maxRetries ?? settings.maxJobRetries;
+  const dedupeCompleted = opts?.dedupeCompleted ?? true;
+
+  const insertJob = async () => db
+    .insert(jobs)
+    .values({
+      type: jobType,
+      payload: payload,
+      status: "pending",
+      retries: 0,
+      maxRetries,
+      priority: opts?.priority ?? 100,
+      runAfter,
+      jobKey: opts?.jobKey,
+      groupKey: opts?.groupKey,
+    })
+    .onConflictDoNothing()
+    .returning({ id: jobs.id });
 
   if (opts?.jobKey) {
     const active = await db
@@ -46,24 +105,10 @@ export async function enqueueJob(
     // A completed job represents the unchanged work identified by this key.
     // Failed jobs intentionally fall through so a new retry row preserves the
     // old failure history without resetting it.
-    if (latest[0]?.status === "done") return latest[0].id;
+    if (shouldReuseCompletedJob(latest[0]?.status, dedupeCompleted)) return latest[0].id;
   }
 
-  const result = await db
-    .insert(jobs)
-    .values({
-      type: jobType,
-      payload: payload,
-      status: "pending",
-      retries: 0,
-      maxRetries,
-      priority: opts?.priority ?? 100,
-      runAfter,
-      jobKey: opts?.jobKey,
-      groupKey: opts?.groupKey,
-    })
-    .onConflictDoNothing()
-    .returning({ id: jobs.id });
+  const result = await insertJob();
 
   if (result.length > 0) return result[0].id;
 
@@ -90,7 +135,19 @@ export async function enqueueJob(
         .from(jobs)
         .where(eq(jobs.id, completed[0].id))
         .limit(1);
-      if (status[0]?.status === "done") return completed[0].id;
+      if (shouldReuseCompletedJob(status[0]?.status, dedupeCompleted)) return completed[0].id;
+
+      if (status[0]?.status === "done" && !dedupeCompleted) {
+        const retriedInsert = await insertJob();
+        if (retriedInsert.length > 0) return retriedInsert[0].id;
+
+        const racedActive = await db
+          .select({ id: jobs.id })
+          .from(jobs)
+          .where(and(eq(jobs.jobKey, opts.jobKey), inArray(jobs.status, ACTIVE_JOB_STATUSES)))
+          .limit(1);
+        if (racedActive.length > 0) return racedActive[0].id;
+      }
 
       // This is only reachable when a concurrent insert raced with the retry
       // path. Re-queue the failed row without deleting or rewriting history.
@@ -115,20 +172,33 @@ export async function enqueueJob(
   return active[0].id;
 }
 
-export async function claimNextJob(workerId: string): Promise<Job | null> {
+export async function claimNextJob(workerId: string, options: ClaimJobOptions = {}): Promise<Job | null> {
   return await db.transaction(async (tx) => {
-    const rows = await tx
-      .select()
-      .from(jobs)
-      .where(
-        and(
-          eq(jobs.status, "pending"),
-          lte(jobs.runAfter, new Date())
-        )
-      )
-      .orderBy(sql`${jobs.priority} DESC`, jobs.createdAt)
-      .limit(1)
-      .for("update", { skipLocked: true });
+    const selectNext = async (lane: JobLane) => {
+      const conditions = [
+        eq(jobs.status, "pending"),
+        lte(jobs.runAfter, new Date()),
+      ];
+      if (lane === "critical") {
+        conditions.push(inArray(jobs.type, [...CRITICAL_JOB_TYPES]));
+      } else if (lane === "background") {
+        conditions.push(notInArray(jobs.type, [...CRITICAL_JOB_TYPES]));
+      }
+
+      return tx
+        .select()
+        .from(jobs)
+        .where(and(...conditions))
+        .orderBy(sql`${jobs.priority} DESC`, jobs.createdAt, jobs.id)
+        .limit(1)
+        .for("update", { skipLocked: true });
+    };
+
+    const requestedLane = options.lane ?? "all";
+    let rows = await selectNext(requestedLane);
+    if (rows.length === 0 && requestedLane !== "all") {
+      rows = await selectNext("all");
+    }
 
     if (rows.length === 0) return null;
 

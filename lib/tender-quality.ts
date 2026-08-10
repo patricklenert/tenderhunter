@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { StructuredData } from "@/lib/structurer";
+import { classifyOpportunityStatus } from "@/lib/opportunity-status";
 
 /** Parse a date string that might be in German format (DD.MM.YYYY) or ISO format. */
 const parseGermanDate = (value: string): Date | null => {
@@ -115,26 +116,6 @@ const NAVIGATION_URL_PATTERNS = [
   "service.bund.de/content/de/service/suchtipps/",
 ];
 
-// Phrasen die auf bereits vergebene oder nicht mehr verfügbare Aufträge hinweisen
-const AWARDED_PHRASES = [
-  "bereits vergeben",
-  "auftrag wurde bereits vergeben",
-  "vergabeunterlagen können nicht mehr abgerufen werden",
-  "vergabeunterlagen koennen nicht mehr abgerufen werden",
-  "ex-post-bekanntmachung",
-  "ex-post bekanntmachung",
-  "ex-ante-bekanntmachung",
-  "ex-ante bekanntmachung",
-  "vergebenen auftrags",
-  "vergebenen auftrag",
-  "zuschlag erteilt",
-  "zuschlag wurde erteilt",
-  "auftragserteilung",
-  "auftrag vergeben an",
-  "bekanntmachung vergebener aufträge",
-  "bekanntmachung vergebener auftraege",
-];
-
 const compactText = (value: string): string => value.replace(/\s+/g, " ").trim();
 
 const countKeywordMatches = (haystack: string, keywords: readonly string[]): number => {
@@ -174,6 +155,15 @@ export const buildTenderFingerprint = (structured: StructuredData): string | nul
 };
 
 export const assessTenderQuality = (title: string, url: string, rawText: string, structured: StructuredData): TenderQualityAssessment => {
+  const opportunityStatus = classifyOpportunityStatus(title, `${structured.summary}\n${rawText}`);
+  if (opportunityStatus.isAwarded) {
+    return {
+      status: "rejected",
+      reason: opportunityStatus.reason,
+      fingerprint: buildTenderFingerprint(structured),
+    };
+  }
+
   // Reject expired tenders — no value for Unternehmer
   if (structured.hard_facts.deadline) {
     const deadline = parseGermanDate(structured.hard_facts.deadline);
@@ -268,27 +258,6 @@ export const assessTenderQuality = (title: string, url: string, rawText: string,
     return {
       status: "rejected",
       reason: "Vorinformation ohne konkrete Ausschreibung.",
-      fingerprint,
-    };
-  }
-
-  // Reject already-awarded contracts (Ex-post-Bekanntmachung, "bereits vergeben")
-  const combinedText = compactText(`${title} ${structured.summary} ${rawText.slice(0, 3_000)}`).toLowerCase();
-  for (const phrase of AWARDED_PHRASES) {
-    if (combinedText.includes(phrase)) {
-      return {
-        status: "rejected",
-        reason: `Bereits vergebener Auftrag erkannt ("${phrase}").`,
-        fingerprint,
-      };
-    }
-  }
-
-  // Reject if a specific contractor/company is named as winner
-  if (/auftragnehmer:\s*\w/.test(combinedText) || /auftrag vergeben an\s+\w/.test(combinedText)) {
-    return {
-      status: "rejected",
-      reason: "Auftrag wurde bereits an ein Unternehmen vergeben.",
       fingerprint,
     };
   }

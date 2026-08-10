@@ -358,9 +358,11 @@ async function main() {
         revision INTEGER NOT NULL DEFAULT 0,
         synced_revision INTEGER NOT NULL DEFAULT 0,
         sync_running BOOLEAN NOT NULL DEFAULT FALSE,
+        sync_started_at TIMESTAMPTZ,
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `;
+    await client`ALTER TABLE catalog_state ADD COLUMN IF NOT EXISTS sync_started_at TIMESTAMPTZ`;
     await client`INSERT INTO catalog_state (id) VALUES (1) ON CONFLICT (id) DO NOTHING`;
     await client`
       CREATE TABLE IF NOT EXISTS public_scrape_runs (
@@ -439,7 +441,9 @@ async function main() {
      `;
     await client`ALTER TABLE public_source_cursors ADD COLUMN IF NOT EXISTS cursor_version INTEGER NOT NULL DEFAULT 0`;
     await client`ALTER TABLE public_source_cursors ADD COLUMN IF NOT EXISTS continuation_required BOOLEAN NOT NULL DEFAULT FALSE`;
-    await client`UPDATE public_source_cursors SET continuation_required = TRUE WHERE exhausted = FALSE AND continuation_required = FALSE`;
+    // continuation_required is scraper state, not a synonym for exhausted=false.
+    // Promoting every cursor here causes blocked/permanent sources to be retried
+    // on every container restart and creates an endless continuation backlog.
     await client`CREATE INDEX IF NOT EXISTS idx_public_source_cursors_status ON public_source_cursors(exhausted, updated_at)`;
 
     await client`

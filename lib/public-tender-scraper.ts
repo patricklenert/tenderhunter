@@ -7,6 +7,7 @@ import { stripSessionId } from "@/lib/tender-identity";
 import { settings } from "@/lib/config";
 import type { JsonValue } from "@/lib/types";
 import { decodeHtmlEntities } from "@/lib/text-normalization";
+import { buildTenderDescriptionMarkdown, escapeMarkdownText } from "@/lib/tender-description";
 import {
   cursorBoolean,
   cursorNumber,
@@ -64,7 +65,20 @@ function fixBrokenUmlauts(text: string): string {
   return result;
 }
 
-function cleanTenderTitle(raw: string): string {
+const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const stripLeadingReference = (title: string, referenceNumber?: string | null): string => {
+  const reference = typeof referenceNumber === "string"
+    ? decodeHtmlEntities(referenceNumber).replace(/\s+/g, " ").trim()
+    : "";
+  if (!reference) return title;
+
+  const match = title.match(new RegExp(`^${escapeRegExp(reference)}\\s*[:\\-–—]\\s*(.+)$`, "i"));
+  const candidate = match?.[1]?.trim() ?? "";
+  return candidate.length >= 5 ? candidate : title;
+};
+
+export function cleanTenderTitle(raw: string, referenceNumber?: string | null): string {
   let title = decodeHtmlEntities(raw);
   // Remove external IDs like CXS0YYZYT24PNNN6, CXVHY6NYT2K6KVF0
   title = title.replace(/\bCX[A-Z0-9]{6,}\b/g, "");
@@ -80,7 +94,19 @@ function cleanTenderTitle(raw: string): string {
   title = title.replace(/\s+/g, " ").trim();
   // Remove trailing dashes or pipes
   title = title.replace(/[\s|\-]+$/, "").trim();
-  return title;
+  return stripLeadingReference(title, referenceNumber);
+}
+
+/** NetServer pages put the portal heading before the actual notice heading. */
+export function extractNetServerTenderTitle(markdown: string): string | null {
+  const headings = Array.from(markdown.matchAll(/^\s*#{1,6}\s+(.+?)\s*$/gm))
+    .map((match) => cleanTenderTitle(match[1] ?? ""))
+    .filter(Boolean);
+  const noticeIndex = headings.findIndex((heading) => /^bekanntmachung$/i.test(heading));
+  const candidate = noticeIndex >= 0
+    ? headings.slice(noticeIndex + 1).find((heading) => !NON_TENDER_TITLE_PATTERNS.some((pattern) => pattern.test(heading)))
+    : null;
+  return candidate && isLikelyTender(candidate, "") ? candidate : null;
 }
 
 async function fetchWithEncoding(url: string, timeout = 20000): Promise<string> {
@@ -208,6 +234,14 @@ export interface ExtractedTender {
   client: string;
   deadline: string | null;
   description: string;
+  descriptionMarkdown: string;
+  procedure?: string | null;
+  estimatedValue?: string | null;
+  duration?: string | null;
+  requirements?: string[];
+  awardCriteria?: string[];
+  cpvCodes?: string[];
+  scope?: string | null;
   referenceNumber: string | null;
   location: string | null;
   category: TenderCategory;
@@ -228,8 +262,43 @@ interface ExtractionResult {
 export type PublicScraperResult = PublicSourceScrapeResult<ExtractedTender>;
 type PublicScraper = (cursor: PublicSourceCursor | null) => Promise<PublicScraperResult>;
 
+const buildExtractedTenderDescriptionMarkdown = (tender: Pick<ExtractedTender, "client" | "deadline" | "description" | "procedure" | "estimatedValue" | "duration" | "requirements" | "awardCriteria" | "cpvCodes" | "scope" | "referenceNumber" | "location">): string =>
+  buildTenderDescriptionMarkdown({
+    client: tender.client,
+    procedure: tender.procedure,
+    deadline: tender.deadline,
+    location: tender.location,
+    value: tender.estimatedValue,
+    duration: tender.duration,
+    reference: tender.referenceNumber,
+    summary: cleanPublicDescription(tender.description),
+    scope: tender.scope,
+    requirements: tender.requirements,
+    awardCriteria: tender.awardCriteria,
+    cpv: tender.cpvCodes,
+  });
+
+type ExtractedTenderInput = Omit<ExtractedTender, "descriptionMarkdown"> & Partial<Pick<ExtractedTender, "descriptionMarkdown">>;
+
+const isAccessLimitedSummary = (value: unknown): boolean =>
+  typeof value === "string" && (
+    /vollständige Leistungsbeschreibung[\s\S]{0,180}nach Teilnahme/i.test(value)
+    || isParticipationWallText(value)
+  );
+
+const withDescriptionMarkdown = (tender: ExtractedTenderInput): ExtractedTender => {
+  const supplied = tender.descriptionMarkdown?.trim() ?? "";
+  const generated = buildExtractedTenderDescriptionMarkdown(tender);
+  return {
+    ...tender,
+    descriptionMarkdown: isAccessLimitedSummary(tender.description) && supplied
+      ? supplied
+      : generated || supplied,
+  };
+};
+
 const withScrapedResources = (tender: ExtractedTender, page: ScrapedPage): ExtractedTender => ({
-  ...tender,
+  ...withDescriptionMarkdown(tender),
   resources: page.resources,
   subpageCandidates: page.subpageCandidates,
 });
@@ -460,6 +529,13 @@ Format:
       "client": "Name des Auftraggebers - NIEMALS Unbekannt",
       "deadline": "2026-06-15" oder null,
       "description": "VOLLSTAENDIGE Beschreibung aller Details: Auftragsgegenstand, Anforderungen, Zuschlagskriterien, Eignungskriterien, Fristen, Laufzeit, Umfang, Ort. Mindestens 5 Saetze, mehr ist besser.",
+      "procedure": "Verfahrensart" oder null,
+      "scope": "Leistungsumfang" oder null,
+      "requirements": ["Anforderung"] oder [],
+      "awardCriteria": ["Zuschlagskriterium"] oder [],
+      "estimatedValue": "Schaetzwert" oder null,
+      "duration": "Laufzeit" oder null,
+      "cpvCodes": ["CPV-Code"] oder [],
       "referenceNumber": "Aktenzeichen/Referenz" oder null,
       "location": "Stadt/Region" oder null,
       "category": "Winterdienst",
@@ -503,10 +579,16 @@ Antworte NUR mit validem JSON:
   "client": "Auftraggeber - NIEMALS Unbekannt",
   "deadline": "2026-06-15" oder null,
   "description": "VOLLSTAENDIGE Beschreibung: Auftragsgegenstand, Umfang, Anforderungen, Zuschlagskriterien, Eignungskriterien, Fristen, Vertragslaufzeit, Erfuellungsort, Besonderheiten. Mindestens 5 Saetze, so detailliert wie moeglich.",
+  "procedure": "Verfahrensart" oder null,
+  "scope": "Leistungsumfang" oder null,
   "referenceNumber": "Referenz" oder null,
   "location": "Ort/Region" oder null,
   "category": "Kategorie",
   "requirements": ["Anforderung 1", "Anforderung 2"] oder [],
+  "awardCriteria": ["Zuschlagskriterium"] oder [],
+  "estimatedValue": "Schaetzwert" oder null,
+  "duration": "Laufzeit" oder null,
+  "cpvCodes": ["CPV-Code"] oder [],
   "pdfUrls": ["https://..."] oder []
 }`;
 
@@ -733,13 +815,14 @@ const JUNK_PATTERNS = [
 
 export function cleanDescription(text: string): string {
   if (!text || text.length < 20) return text;
+  if (isPublicNavigationSummary(text)) return "";
 
   const normalize = (s: string) => s
     .replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue")
     .replace(/Ä/g, "AE").replace(/Ö/g, "OE").replace(/Ü/g, "UE")
     .replace(/ß/g, "ss");
 
-  let cleaned = text;
+  let cleaned = decodeHtmlEntities(text);
 
   const allPatterns = [...PAYWALL_PATTERNS, ...JUNK_PATTERNS];
   for (const pattern of allPatterns) {
@@ -803,11 +886,30 @@ export function isRawPortalDescription(text: string): boolean {
   return (hasNoticeHeader && markerHits >= 1) || markerHits >= 3 || isParticipationWallText(normalized);
 }
 
+/** Identifies portal navigation/footer text that must never be used as tender prose. */
+export function isPublicNavigationSummary(text: string): boolean {
+  if (!text || text.trim().length < 20) return false;
+  const normalized = decodeHtmlEntities(text).replace(/\s+/g, " ").trim().toLocaleLowerCase("de-DE");
+  const markers = [
+    "service.bund.de - aktuelle ausschreibungen",
+    "haupt-navigations-menü",
+    "haupt-navigations-menu",
+    "meta-navigation",
+    "andere ausschreibungen im bereich",
+    "ausschreibungen abonnieren",
+  ];
+  if (markers.some((marker) => normalized.includes(marker))) return true;
+
+  return normalized.includes("service.bund.de")
+    && normalized.includes("verantwortung für inhalt und richtigkeit")
+    && normalized.includes("ausschreibenden organisation");
+}
+
 /** Cleans a public description and refuses to expose raw procurement forms. */
 export function cleanPublicDescription(text: string): string {
-  if (isRawPortalDescription(text)) return "";
+  if (isRawPortalDescription(text) || isPublicNavigationSummary(text)) return "";
   const cleaned = cleanDescription(text);
-  return isRawPortalDescription(cleaned) ? "" : cleaned;
+  return isRawPortalDescription(cleaned) || isPublicNavigationSummary(cleaned) ? "" : cleaned;
 }
 
 export interface PublicPortalFacts {
@@ -819,17 +921,69 @@ export interface PublicPortalFacts {
 }
 
 export function extractPublicPortalFacts(text: string): PublicPortalFacts {
-  const normalized = decodeHtmlEntities(text).replace(/\s+/g, " ").trim();
+  const fieldText = decodeHtmlEntities(text).replace(/\r/g, "").trim();
+  const normalized = fieldText.replace(/\s+/g, " ").trim();
   const capture = (pattern: RegExp): string | null => normalized.match(pattern)?.[1]?.replace(/\s+/g, " ").trim() || null;
+  const captureField = (patterns: RegExp[]): string | null => {
+    for (const pattern of patterns) {
+      const value = fieldText.match(pattern)?.[1]?.replace(/\s+/g, " ").trim();
+      if (value) return value;
+    }
+    return null;
+  };
+  const lines = fieldText.split("\n").map((line) => line.replace(/\s+/g, " ").trim()).filter(Boolean);
+  const lineValue = (labels: RegExp[], maxLines = 1): string | null => {
+    for (let index = 0; index < lines.length; index += 1) {
+      const line = lines[index];
+      const label = labels.find((pattern) => pattern.test(line));
+      if (!label) continue;
+
+      const inline = line.replace(label, "").replace(/^\s*:?\s*/, "").trim();
+      if (inline) return inline;
+
+      const values: string[] = [];
+      for (let next = index + 1; next < lines.length && values.length < maxLines; next += 1) {
+        const value = lines[next];
+        if (/^(?:karte anschauen|haupt-navigations|meta-navigation|andere ausschreibungen|service\.bund\.de)/i.test(value)) break;
+        if (labels.some((pattern) => pattern.test(value))) break;
+        values.push(value);
+      }
+      if (values.length > 0) return values.join(" ");
+    }
+    return null;
+  };
+
+  const client = captureField([
+    /(?:^|\n|;|:|\b[a-z]\)\s*)(?:Zur Angebotsabgabe\s*\/\s*Teilnahme auffordernde Stelle|Ausschreibende Stelle|Öffentlicher Auftraggeber(?:\s*\(Vergabestelle\))?)\s*(?:Bezeichnung|Name\s+und\s+Anschrift)\s*:?\s*([\s\S]+?)(?=\s*(?:\bVO\b|Vergabeart\b|Vergabeverfahren\b|\b[a-z]\)\s*|Postanschrift|Straße|Ort|Telefon|Fax|E-?Mail|URL|Zuschlag erteilende Stelle|Frist\b|Abgabe(?:frist)?\b|Angebotsfrist\b|Teilnahme(?:frist)?\b|Auftragsgegenstand\b|Leistungsgegenstand\b|$))/i,
+    /(?:^|\n|;|:|\b[a-z]\)\s*)(?:Zur Angebotsabgabe\s*\/\s*Teilnahme auffordernde Stelle|Ausschreibende Stelle|Öffentlicher Auftraggeber(?:\s*\(Vergabestelle\))?)\s*(?:Bezeichnung\s*:?)?\s*([\s\S]+?)(?=\s*(?:\bVO\b|Vergabeart\b|Vergabeverfahren\b|\b[a-z]\)\s*|Postanschrift|Straße|Ort|Telefon|Fax|E-?Mail|URL|Zuschlag erteilende Stelle|Frist\b|Abgabe(?:frist)?\b|Angebotsfrist\b|Teilnahme(?:frist)?\b|Auftragsgegenstand\b|Leistungsgegenstand\b|$))/i,
+    /(?:^|\n|;|:)\s*Auftraggeber\s*\/\s*Ausschreibende Stelle\s*:?\s*([\s\S]+?)(?=\s*(?:#|;|\bAbgabe(?:frist)?\b|Angebotsfrist\b|Postanschrift|Straße|Ort|Telefon|Fax|E-?Mail|URL|Frist\b|Teilnahme(?:frist)?\b|Vergabeart\b|Veröffentlicht\b|Verfahren\b|Vergabeverfahren\b|Status\b|Auftragsgegenstand\b|Leistungsgegenstand\b|$))/i,
+    /(?:^|\n|;|:)\s*Auftraggeber\b\s*:?\s*([\s\S]+?)(?=\s*(?:#|;|\bAbgabe(?:frist)?\b|Angebotsfrist\b|Postanschrift|Straße|Ort|Telefon|Fax|E-?Mail|URL|Frist\b|Teilnahme(?:frist)?\b|Vergabeart\b|Veröffentlicht\b|Verfahren\b|Vergabeverfahren\b|Status\b|Auftragsgegenstand\b|Leistungsgegenstand\b|$))/i,
+  ]);
+  const location = (lineValue([/^(?:Haupterfüllungsort|Erfüllungsort|Ausführungsort|Hauptleistungsort|Leistungsort)\s*:?/i], 3)
+    ?? capture(/(?:\bHaupterfüllungsort\b|\bErfüllungsort\b|\bAusführungsort\b|\bHauptleistungsort\b|\bLeistungsort\b)\s*:?\s*(.+?)(?=\s+(?:Abgabe(?:frist)?|Angebotsfrist|Vergabeart|Auftraggeber|Auftragsgegenstand|Leistungsgegenstand|Zuschlagskriterien|Nebenangebote|Angaben zu den Losen|$))/i)
+      ?.replace(/^Ort\s*/i, "").trim()) || null;
+
+  const procedureType = lineValue([/^Vergabeart\s*:?/i]);
+  const procedureBasis = lineValue([/^(?:Vergabeverfahren|Verfahren)\s*:?/i]);
+  const procedure = procedureType && procedureBasis && !procedureType.includes(procedureBasis)
+    ? `${procedureType} (${procedureBasis})`
+    : (procedureType || procedureBasis)
+      ?? capture(/(?:Vergabeart|Vergabeverfahren|\bVerfahren\b)\s*:?\s*(.+?)(?=\s*(?:#|;|Bekanntmachung|Zur Angebotsabgabe|Die Nachforderung|Veröffentlicht|Teilnahme|Auftraggeber|Abgabefrist|Angebotsfrist|Status|Auftragsgegenstand|Leistungsgegenstand|\b[a-z]\)\s*)|$)/i);
 
   return {
-    client: capture(/(?:Auftraggeber\s*\/\s*Ausschreibende\s*Stelle|Ausschreibende\s*Stelle|Auftraggeber)\s*:?\s*(.+?)(?=\s*(?:#|;|Abgabe(?:frist)?|Angebotsfrist|Teilnahme|Vergabeart|Veröffentlicht|Verfahren|Status|Auftragsgegenstand|Folgende Möglichkeiten)|$)/i),
-    procedure: capture(/(?:Vergabeart|\bVerfahren\b)\s*:?\s*(.+?)(?=\s*(?:#|;|Veröffentlicht|Teilnahme|Auftraggeber|Abgabefrist|Status|Auftragsgegenstand)|$)/i),
-    deadline: capture(/(?:Abgabe(?:frist)?|Angebotsfrist|Teilnahmefrist)\s*:?\s*(\d{1,2}\.\d{1,2}\.\d{4}(?:\s+\d{1,2}:\d{2})?)/i),
-    location: capture(/(?:Erfüllungsort|Ausführungsort|Hauptleistungsort)\s*:?\s*(.+?)(?=\s+(?:Abgabe(?:frist)?|Angebotsfrist|Vergabeart|Auftraggeber)|$)/i),
-    subject: capture(/Auftragsgegenstand\s+(.+?)(?=\s+(?:VMP\s+\d|Systemzeit|Impressum|Datenschutz)|$)/i),
+    client: lineValue([/^Vergabestelle\s*:?/i]) ?? client,
+    procedure,
+    deadline: lineValue([/^(?:Abgabe(?:frist)?|Angebotsfrist|Teilnahmefrist)\s*:?/i])
+      ?? capture(/(?:Abgabe(?:frist)?|Angebotsfrist|Teilnahmefrist)\s*:?\s*(\d{1,2}\.\d{1,2}\.\d{4}(?:\s+\d{1,2}:\d{2})?)/i),
+    location,
+    subject: lineValue([/^(?:Auftragsgegenstand|Leistungsgegenstand|Art und Umfang der Leistung)\s*:?/i], 2)
+      ?? capture(/(?:Auftragsgegenstand|Leistungsgegenstand)\s*:?\s*(.+?)(?=\s*(?:\.|Die vollständige Leistungsbeschreibung|Für\s+[„"]|Öffentlich sichtbar)|$)/i),
   };
 }
+
+const PUBLIC_ACCESS_DOCUMENT_NOTE = "Die vollständige Leistungsbeschreibung und die Vergabeunterlagen sind auf dem Quellportal erst nach Teilnahme am Verfahren zugänglich.";
+const buildPublicAccessNote = (title: string): string =>
+  `Für „${title}“ sind aktuell nur die öffentlich sichtbaren Verfahrensdaten verfügbar. ${PUBLIC_ACCESS_DOCUMENT_NOTE}`;
 
 export function buildPublicAccessLimitedDescription(title: string, facts: PublicPortalFacts): string {
   const details = [
@@ -840,7 +994,19 @@ export function buildPublicAccessLimitedDescription(title: string, facts: Public
     facts.subject ? `Leistungsgegenstand: ${facts.subject}` : "",
   ].filter(Boolean);
   const detailSentence = details.length > 0 ? ` Öffentlich sichtbar sind: ${details.join("; ")}.` : "";
-  return `Für „${title}“ sind aktuell nur die öffentlich sichtbaren Verfahrensdaten verfügbar.${detailSentence} Die vollständige Leistungsbeschreibung und die Vergabeunterlagen sind auf dem Quellportal erst nach Teilnahme am Verfahren zugänglich.`;
+  return `Für „${title}“ sind aktuell nur die öffentlich sichtbaren Verfahrensdaten verfügbar.${detailSentence} ${PUBLIC_ACCESS_DOCUMENT_NOTE}`;
+}
+
+export function buildPublicAccessLimitedDescriptionMarkdown(title: string, facts: PublicPortalFacts): string {
+  const summary = buildTenderDescriptionMarkdown({
+    client: facts.client,
+    procedure: facts.procedure,
+    deadline: facts.deadline,
+    location: facts.location,
+    subject: facts.subject,
+  });
+  const note = `- **Hinweis:** ${escapeMarkdownText(buildPublicAccessNote(title))}`;
+  return [summary, note].filter(Boolean).join("\n");
 }
 
 /** Selects the first usable description, preferring structured values over raw fallbacks. */
@@ -894,11 +1060,18 @@ async function extractTendersFromMarkdown(
         if (!isLikelyTender(t.title, sourceUrl)) return false;
         return true;
       })
-      .map((t) => ({
-        title: cleanTenderTitle(String(t.title).slice(0, 300)),
-        client: (t.client && t.client !== "Unbekannt" && t.client.length > 1) ? t.client : extractClientFromUrl(sourceUrl),
-        deadline: t.deadline ?? null,
-        description: cleanPublicDescription(t.description ?? ""),
+      .map((t) => withDescriptionMarkdown({
+         title: cleanTenderTitle(String(t.title).slice(0, 300), t.referenceNumber),
+         client: (t.client && t.client !== "Unbekannt" && t.client.length > 1) ? t.client : extractClientFromUrl(sourceUrl),
+         deadline: t.deadline ?? null,
+         description: cleanPublicDescription(t.description ?? ""),
+         procedure: typeof t.procedure === "string" ? t.procedure : null,
+         scope: typeof t.scope === "string" ? t.scope : null,
+         estimatedValue: typeof t.estimatedValue === "string" ? t.estimatedValue : null,
+         duration: typeof t.duration === "string" ? t.duration : null,
+         requirements: Array.isArray(t.requirements) ? t.requirements.map(String).filter(Boolean) : [],
+         awardCriteria: Array.isArray(t.awardCriteria) ? t.awardCriteria.map(String).filter(Boolean) : [],
+         cpvCodes: Array.isArray(t.cpvCodes) ? t.cpvCodes.map(String).filter(Boolean) : [],
         referenceNumber: t.referenceNumber ?? null,
         location: t.location ?? null,
         category: TENDER_CATEGORIES.includes(t.category) ? t.category : "Facility Management",
@@ -945,6 +1118,8 @@ async function extractDetailFromMarkdown(
     if (!parsed.title || parsed.title.length < 5) return null;
     if (!isLikelyTender(parsed.title, sourceUrl)) return null;
 
+    const netServerTitle = /\/NetServer\//i.test(sourceUrl) ? extractNetServerTenderTitle(markdown) : null;
+
     const category = TENDER_CATEGORIES.includes(parsed.category) ? parsed.category : "Facility Management";
     if (category === "Sonstiges" && !acceptAllCategories) return null;
 
@@ -952,18 +1127,28 @@ async function extractDetailFromMarkdown(
       ? String(parsed.client)
       : extractClientFromUrl(sourceUrl);
 
-    return {
-      title: cleanTenderTitle(String(parsed.title).slice(0, 300)),
-      client: clientName,
-      deadline: parsed.deadline ? String(parsed.deadline) : null,
-      description: cleanPublicDescription(String(parsed.description ?? "")),
+    return withDescriptionMarkdown({
+       title: netServerTitle ?? cleanTenderTitle(
+         String(parsed.title).slice(0, 300),
+         typeof parsed.referenceNumber === "string" ? parsed.referenceNumber : null,
+       ),
+       client: clientName,
+       deadline: parsed.deadline ? String(parsed.deadline) : null,
+       description: cleanPublicDescription(String(parsed.description ?? "")),
+       procedure: typeof parsed.procedure === "string" ? parsed.procedure : null,
+       scope: typeof parsed.scope === "string" ? parsed.scope : null,
+       estimatedValue: typeof parsed.estimatedValue === "string" ? parsed.estimatedValue : null,
+       duration: typeof parsed.duration === "string" ? parsed.duration : null,
+       requirements: Array.isArray(parsed.requirements) ? parsed.requirements.map(String).filter(Boolean) : [],
+       awardCriteria: Array.isArray(parsed.awardCriteria) ? parsed.awardCriteria.map(String).filter(Boolean) : [],
+       cpvCodes: Array.isArray(parsed.cpvCodes) ? parsed.cpvCodes.map(String).filter(Boolean) : [],
       referenceNumber: parsed.referenceNumber ? String(parsed.referenceNumber) : null,
       location: parsed.location ? String(parsed.location) : null,
       category,
       sourceUrl: (parsed.url && typeof parsed.url === "string" && parsed.url.startsWith("http")) ? parsed.url : sourceUrl,
       source,
       pdfUrls: Array.isArray(parsed.pdfUrls) ? parsed.pdfUrls.filter((u: string) => u.startsWith("http")) : [],
-    };
+    });
   } catch (error) {
     console.error(`[public-scraper] Detail-Extraktionsfehler fuer ${sourceUrl}:`, error);
     throw error;
@@ -1006,8 +1191,10 @@ export function extractBasicDetailFromHtml(
   const titleFromPage = $("title").text().split("|")
     .map((part) => cleanTenderTitle(part))
     .find((part) => part.length >= 5 && !NON_TENDER_TITLE_PATTERNS.some((pattern) => pattern.test(part))) ?? "";
+  const netServerTitle = /\/NetServer\//i.test(sourceUrl) ? extractNetServerTenderTitle(text) : null;
   const title = [
     titleFromDescription,
+    netServerTitle,
     titleFromPage,
     $("h1").first().text().trim(),
     $("h2").first().text().trim(),
@@ -1026,7 +1213,8 @@ export function extractBasicDetailFromHtml(
     /^Bezeichnung:\s*(.*)$/i,
   )
     || text.match(/(?:Name und Anschrift|Name)\s*:?\s*\n?\s*([^\n|]{3,120})/i)?.[1]?.trim()
-    || text.match(/(?:Auftraggeber|Vergabestelle)\s*:?\s*([^\n|]{3,120})/i)?.[1]?.trim()
+    || portalFacts.client
+    || text.match(/(?:Auftraggeber|Vergabestelle)\b\s*:?\s*([^\n|;]{3,120}?)(?=\s+(?:Frist|Angebotsfrist|Abgabefrist|Vergabeart|Verfahren|Auftragsgegenstand|Leistungsgegenstand)\b|$)/i)?.[1]?.trim()
     || extractClientFromUrl(sourceUrl);
   const client = accessPage.blocked && portalFacts.client ? portalFacts.client : parsedClient;
   const location = accessPage.blocked && portalFacts.location
@@ -1038,11 +1226,24 @@ export function extractBasicDetailFromHtml(
   const description = accessPage.blocked
     ? buildPublicAccessLimitedDescription(title, portalFacts)
     : cleanPublicDescription(text.slice(0, 2000));
+  const descriptionMarkdown = accessPage.blocked
+    ? buildPublicAccessLimitedDescriptionMarkdown(title, portalFacts)
+    : buildTenderDescriptionMarkdown({
+      client,
+      procedure: portalFacts.procedure,
+      deadline,
+      location,
+      reference: referenceNumber,
+      summary: description,
+      subject: portalFacts.subject,
+    });
   return {
     title: title.slice(0, 300),
     client,
     deadline: accessPage.blocked && portalFacts.deadline ? portalFacts.deadline : deadline,
     description,
+    descriptionMarkdown,
+    procedure: portalFacts.procedure,
     referenceNumber,
     location,
     category: "Facility Management",
@@ -1248,11 +1449,12 @@ export function parseEvergabeOnlineDetail(html: string, sourceUrl: string): Extr
   const resourceMetadata = extractPublicResourceMetadata(html, sourceUrl);
   const externalId = new URL(sourceUrl).searchParams.get("id");
 
-  return {
+  return withDescriptionMarkdown({
     title,
     client,
     deadline: deadline ?? null,
     description,
+    procedure,
     referenceNumber: referenceNumber ?? null,
     location: location ?? null,
     category: "Sonstiges",
@@ -1262,7 +1464,7 @@ export function parseEvergabeOnlineDetail(html: string, sourceUrl: string): Extr
     pdfUrls: resourceMetadata.pdfUrls,
     resources: resourceMetadata.resources,
     subpageCandidates: resourceMetadata.subpageCandidates,
-  };
+  });
 }
 
 export interface SachsenAnhaltListingRow {
@@ -2880,6 +3082,14 @@ export async function scrapeBerlinHtml(cursor: PublicSourceCursor | null): Promi
             client: "",
             deadline: cleanDeadline || null,
             description: descParts.join(". ") + ".",
+            descriptionMarkdown: buildTenderDescriptionMarkdown({
+              procedure: verfahrensart,
+              deadline: cleanDeadline || null,
+              location: ausfuehrungsort || null,
+              reference: dataId ?? null,
+              summary: descParts.join(". ") + ".",
+            }),
+            procedure: verfahrensart || null,
             referenceNumber: dataId ?? null,
             location: ausfuehrungsort || null,
             category: "Sonstiges",
@@ -3249,7 +3459,9 @@ export async function scrapeNetPortal(config: NetServerConfig, cursor: PublicSou
         bodyText = htmlToBasicMarkdown($detail("body").html() ?? "");
       }
 
-      if (bodyText && bodyText.length > 200 && !detectAccessPage(bodyText, { url: detailUrl }).blocked) {
+      const netServerTitle = /\/NetServer\//i.test(detailUrl) ? extractNetServerTenderTitle(bodyText) : null;
+      const detailAccessCheck = bodyText ? detectAccessPage(bodyText, { url: detailUrl }) : null;
+      if (bodyText && bodyText.length > 200 && !detailAccessCheck?.blocked) {
         let extracted: ExtractedTender | null = null;
         if (openrouterKey && !["bremen", "saarland"].includes(config.name)) {
           try {
@@ -3259,6 +3471,7 @@ export async function scrapeNetPortal(config: NetServerConfig, cursor: PublicSou
           }
         }
         if (extracted) {
+          if (netServerTitle) extracted.title = netServerTitle;
           const isGenericTitle = !extracted.title || extracted.title.length < 5 ||
             /^(Ausschreibung der|Keine Ausschreibung|Keine Details|Zugriff verweigert|Unbekannter Titel|Öffentliche Ausschreibung der)/i.test(extracted.title);
           if (isGenericTitle && row.title.length > 5) extracted.title = cleanTenderTitle(row.title);
@@ -3274,6 +3487,7 @@ export async function scrapeNetPortal(config: NetServerConfig, cursor: PublicSou
           ? extractBasicDetailFromHtml(detailHtml, detailUrl, config.name, [], true)
           : null;
         if (basic) {
+          if (netServerTitle) basic.title = netServerTitle;
           const isGenericBasicTitle = !basic.title || basic.title.length < 5 ||
             /^(?:Bekanntmachungsdetails|Ausschreibungsdetails|Vergabedetails|Ausschreibung der|Öffentliche Ausschreibung der)/i.test(basic.title) ||
             /\bVergabeplattform\b/i.test(basic.title);
@@ -3294,13 +3508,27 @@ export async function scrapeNetPortal(config: NetServerConfig, cursor: PublicSou
       }
 
       if (row.title.length > 5) {
-        const resourceMetadata = detailHtml ? extractPublicResourceMetadata(detailHtml, detailUrl) : null;
+        const isLoginBlocked = detailAccessCheck?.blocked && detailAccessCheck?.reason === "login_required";
+        const hasUsefulRowData = row.client.length > 2 && row.deadline;
+        if (isLoginBlocked && !hasUsefulRowData) {
+          console.log(`[public-scraper] ${config.name}: Login-Seite ohne verwertbare Suchdaten übersprungen (OID ${row.oid})`);
+          return { tender: null };
+        }
+        const resourceMetadata = detailHtml && !isLoginBlocked ? extractPublicResourceMetadata(detailHtml, detailUrl) : null;
         return {
           tender: {
-            title: cleanTenderTitle(row.title),
+            title: netServerTitle ?? cleanTenderTitle(row.title),
             client: row.client || "",
             deadline: row.deadline || null,
             description: row.procedure ? `Verfahrensart: ${row.procedure}` : "",
+            descriptionMarkdown: buildTenderDescriptionMarkdown({
+              client: row.client || "",
+              procedure: row.procedure || null,
+              deadline: row.deadline || null,
+              summary: row.procedure ? `Verfahrensart: ${row.procedure}` : "",
+              reference: row.oid,
+            }),
+            procedure: row.procedure || null,
             referenceNumber: row.oid,
             externalId: reference.externalId ?? row.oid,
             location: null,
@@ -3574,6 +3802,14 @@ async function scrapeSachsenAnhalt(cursor: PublicSourceCursor | null): Promise<P
         client: wrapper.client || "Sachsen-Anhalt",
         deadline: wrapper.deadline,
         description: descriptionParts.join(". "),
+        descriptionMarkdown: buildTenderDescriptionMarkdown({
+          client: wrapper.client || "Sachsen-Anhalt",
+          procedure: wrapper.procedure,
+          deadline: wrapper.deadline,
+          location: wrapper.location,
+          summary: descriptionParts.join(". "),
+        }),
+        procedure: wrapper.procedure,
         referenceNumber: null,
         location: wrapper.location,
         category: "Sonstiges",
@@ -3958,6 +4194,17 @@ async function scrapeBayernApi(cursor: PublicSourceCursor | null): Promise<Publi
         client: item.VSTName || "Freistaat Bayern",
         deadline,
         description,
+        descriptionMarkdown: buildTenderDescriptionMarkdown({
+          client: item.VSTName || "Freistaat Bayern",
+          procedure: item.TTLongName,
+          deadline,
+          location: item.APLZ || "Bayern",
+          reference: item.Aktenzeichen || null,
+          summary: description,
+          cpv: item.CPVCodes ? item.CPVCodes.split(/[,;\s]+/).filter(Boolean) : [],
+        }),
+        procedure: item.TTLongName || null,
+        cpvCodes: item.CPVCodes ? item.CPVCodes.split(/[,;\s]+/).filter(Boolean) : [],
         referenceNumber: item.Aktenzeichen || null,
         location: item.APLZ || "Bayern",
         category,
@@ -4233,6 +4480,12 @@ async function scrapeBundRss(cursor: PublicSourceCursor | null): Promise<PublicS
         client,
         deadline,
         description: descClean.slice(0, 500),
+        descriptionMarkdown: buildTenderDescriptionMarkdown({
+          client,
+          deadline,
+          location,
+          summary: descClean.slice(0, 500),
+        }),
         referenceNumber: null,
         location,
         category: "Sonstiges",
@@ -4385,7 +4638,7 @@ export async function scrapeAllPublicTenders(
         }),
       ]);
       const cursorAdvanced = result.cursorAdvanced ?? result.cursorCommit === "commit";
-      const normalized = result.tenders.map((tender) => ({
+      const normalized = result.tenders.map((tender) => withDescriptionMarkdown({
         ...tender,
         sourceKey: scraper.name,
         externalId: derivePublicExternalId({

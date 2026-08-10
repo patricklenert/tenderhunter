@@ -56,6 +56,7 @@ import type { ViewKey } from "@/components/Shell";
 import { getAllLocationOptions } from "@/lib/bundesland";
 import { formatDeadlineDE, deadlineLabel, deadlineColor, cleanPdfFilename } from "@/lib/date-utils";
 import { PdfDocumentLink } from "@/components/PdfDocumentLink";
+import { SafeMarkdown } from "@/components/SafeMarkdown";
 import { generateTenderSlug } from "@/lib/tender-slug";
 import { PaywallPanel } from "@/components/billing/PaywallPanel";
 
@@ -389,7 +390,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
         >
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography variant="h6" component="p" fontWeight={700} sx={{ color: "#fff", fontSize: { xs: "1rem", sm: "1.25rem" } }}>
-              Mehr Umsatz durch Ausschreibungen für Ihre Firma
+              Langfristige Verträge mit Behörden und Landesbaubetrieben
             </Typography>
           </Box>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1, justifyContent: { xs: "space-between", sm: "flex-end" } }}>
@@ -861,6 +862,11 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
             const deadline = typeof d.deadline === "string" && d.deadline.length > 0 ? d.deadline : t.deadline;
             const deadlineISO = typeof d.deadlineISO === "string" && d.deadlineISO.length > 0 ? d.deadlineISO : t.deadlineISO;
             const description = typeof d.description === "string" && d.description.length > 0 ? d.description : t.description;
+            const descriptionMarkdown = typeof d.descriptionMarkdown === "string" && d.descriptionMarkdown.trim().length > 0 ? d.descriptionMarkdown : null;
+            const markdownHasSection = (label: string): boolean => Boolean(descriptionMarkdown?.includes(`- **${label}:**`));
+            const markdownHasScope = markdownHasSection("Leistungsumfang");
+            const markdownHasRequirements = markdownHasSection("Anforderungen");
+            const markdownHasAwards = markdownHasSection("Zuschlagskriterien");
             const scope = typeof d.scope === "string" && d.scope.length > 0 ? d.scope : null;
             const estimatedValue = typeof d.estimatedValue === "string" && d.estimatedValue.length > 0 ? d.estimatedValue : null;
             const procedure = typeof d.procedure === "string" && d.procedure.length > 0 ? d.procedure : null;
@@ -870,6 +876,12 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
             const awardCriteria = Array.isArray(d.awardCriteria) ? d.awardCriteria as string[] : [];
             const pdfUrls = Array.isArray(d.pdfUrls) ? d.pdfUrls as string[] : t.pdfUrls ?? [];
             const documentsLocked = d.documentsLocked === true;
+            const commercialBrief = d.commercialBrief && typeof d.commercialBrief === "object" && !Array.isArray(d.commercialBrief)
+              ? d.commercialBrief as Record<string, unknown>
+              : null;
+            const briefHeadline = typeof commercialBrief?.headline === "string" ? commercialBrief.headline : null;
+            const briefRationale = typeof commercialBrief?.rationale === "string" ? commercialBrief.rationale : null;
+            const briefNextAction = typeof commercialBrief?.nextAction === "string" ? commercialBrief.nextAction : null;
 
             return (
               <Stack spacing={3}>
@@ -951,20 +963,43 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                   )}
                 </Stack>
 
-                {/* Description */}
-                {description && description.length > 0 && (
-                  <Box>
-                    <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 1, lineHeight: 1.2, color: "#475569", fontSize: "0.75rem" }}>
-                      Beschreibung
+                {briefHeadline && briefRationale && briefNextAction && (
+                  <Box sx={{ p: 2, borderRadius: 2, bgcolor: "#f0f6f8" }}>
+                    <Typography variant="overline" sx={{ fontWeight: 700, letterSpacing: 0.8, display: "block", mb: 0.75, lineHeight: 1.2, color: "#365d6c", fontSize: "0.75rem" }}>
+                      Geschäftsentscheidung
                     </Typography>
-                    <Typography variant="body1" sx={{ lineHeight: 1.5, fontSize: "0.9375rem", color: "#334155" }}>
-                      {description.length > 600 ? description.slice(0, 600) + "..." : description}
+                    <Typography sx={{ color: "#163b4a", fontWeight: 700, lineHeight: 1.4 }}>
+                      {briefHeadline}
+                    </Typography>
+                    <Typography variant="body2" sx={{ mt: 0.75, color: "#38505b", lineHeight: 1.55 }}>
+                      {briefRationale}
+                    </Typography>
+                    <Typography variant="body2" sx={{ mt: 1, color: "#163b4a", fontWeight: 700, lineHeight: 1.5 }}>
+                      Nächster Schritt: {briefNextAction}
                     </Typography>
                   </Box>
                 )}
 
+                {/* Description */}
+                {(descriptionMarkdown || (description && description.length > 0)) && (
+                  <Box>
+                    <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 1, lineHeight: 1.2, color: "#475569", fontSize: "0.75rem" }}>
+                      Beschreibung
+                    </Typography>
+                    <SafeMarkdown
+                      content={descriptionMarkdown}
+                      sx={{ lineHeight: 1.5, fontSize: "0.9375rem", color: "#334155" }}
+                      fallback={
+                        <Typography variant="body1" sx={{ lineHeight: 1.5, fontSize: "0.9375rem", color: "#334155" }}>
+                          {description.length > 600 ? description.slice(0, 600) + "..." : description}
+                        </Typography>
+                      }
+                    />
+                  </Box>
+                )}
+
                 {/* Scope (detailed) */}
-                {scope && scope.length > 0 && scope !== description && (
+                {scope && scope.length > 0 && scope !== description && !markdownHasScope && (
                   <Box>
                     <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 1, lineHeight: 1.2, color: "#475569", fontSize: "0.75rem" }}>
                       Leistungsumfang
@@ -976,7 +1011,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                 )}
 
                 {/* Requirements */}
-                {requirements.length > 0 && (
+                {requirements.length > 0 && !markdownHasRequirements && (
                   <Box>
                     <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 1, lineHeight: 1.2, color: "#475569", fontSize: "0.75rem" }}>
                       Anforderungen
@@ -992,7 +1027,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                 )}
 
                 {/* Award Criteria */}
-                {awardCriteria.length > 0 && (
+                {awardCriteria.length > 0 && !markdownHasAwards && (
                   <Box>
                     <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 1, lineHeight: 1.2, color: "#475569", fontSize: "0.75rem" }}>
                       Zuschlagskriterien

@@ -1,12 +1,10 @@
 import { db } from "@/lib/db";
 import { tenders } from "@/lib/schema";
-import { eq, and, inArray, or, gt, isNull, desc, sql } from "drizzle-orm";
+import { eq, and, or, gt, isNull, desc, sql } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { PROCEDURE_TYPES, ALL_PROCEDURE_TYPE_SLUGS } from "@/lib/procedure-types";
-import { CATEGORY_LABELS, CATEGORY_SLUGS, SLUG_TO_CATEGORY, ALL_CATEGORY_SLUGS } from "@/lib/categories";
-import { generateTenderSlug } from "@/lib/tender-slug";
-import { searchTenders } from "@/lib/meilisearch";
+import { CATEGORY_LABELS, SLUG_TO_CATEGORY, ALL_CATEGORY_SLUGS } from "@/lib/categories";
 import { TaxonomyCategoryContent } from "@/components/seo/TaxonomyCategoryContent";
 
 const PAGE_SIZE = 20;
@@ -79,7 +77,7 @@ export default async function ProcedureCategoryPage({ params, searchParams }: Pa
         and(
           eq(tenders.procedureType, type),
           eq(tenders.category, categoryKey),
-          inArray(tenders.qualityStatus, ["qualified", "candidate"]),
+          eq(tenders.qualityStatus, "qualified"),
           or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
         ),
       );
@@ -104,7 +102,7 @@ export default async function ProcedureCategoryPage({ params, searchParams }: Pa
         and(
           eq(tenders.procedureType, type),
           eq(tenders.category, categoryKey),
-          inArray(tenders.qualityStatus, ["qualified", "candidate"]),
+          eq(tenders.qualityStatus, "qualified"),
           or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
         ),
       )

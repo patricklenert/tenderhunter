@@ -1,21 +1,21 @@
-# Graph Report - tenderhunter  (2026-08-07)
+# Graph Report - tenderhunter  (2026-08-10)
 
 ## Corpus Check
-- 467 files · ~993,465 words
+- 491 files · ~1,005,676 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 3098 nodes · 7183 edges · 247 communities (128 shown, 119 thin omitted)
-- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 76 edges (avg confidence: 0.61)
+- 3366 nodes · 7727 edges · 230 communities (141 shown, 89 thin omitted)
+- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 82 edges (avg confidence: 0.61)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `2f01d2d7`
+- Built from commit: `5481a2d6`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
-- generateTenderSlug
+- buildTenderDescriptionMarkdown
 - dependencies
 - dependencies
 - cn
@@ -29,24 +29,24 @@
 - schema.ts
 - input-group.tsx
 - alert-dialog.tsx
-- app/page.tsx
+- preview/route.ts
 - field.tsx
 - backfill-quality.ts
 - dialog.tsx
 - item.tsx
 - Better Auth Integration Guide
-- test-public-pagination.ts
+- [...params]/page.tsx
 - workflow-studio.tsx
-- debug-collector.js
-- validation.ts
+- backfill-description-markdown.ts
+- commercial-brief.ts
 - compilerOptions
 - devDependencies
 - compilerOptions
-- db.ts
+- sitemap.ts
 - components.json
 - test-scoring.ts
 - download/route.ts
-- crawler.ts
+- SiteFooter.tsx
 - ausschreibungen-site/components.json
 - compilerOptions
 - carousel.tsx
@@ -54,29 +54,29 @@
 - RuegefristRechner.tsx
 - TenderDetailDrawer.tsx
 - document-analysis.ts
-- storage.ts
+- worker.ts
 - chart.tsx
 - drawer.tsx
 - searchTenders
-- test-resource-discovery.ts
-- [...params]/page.tsx
+- opportunity-status.ts
+- bundesland.ts
 - BidPackPanel.tsx
-- AusschreibungenSection.tsx
+- public-pagination.ts
 - firecrawl crawl
 - Button.tsx
 - vite.config.ts
-- Shell.tsx
+- UpgradePage.tsx
 - alert.tsx
-- entitlements.ts
+- repository.ts
 - meilisearch.ts
 - us/types.ts
-- enqueueJob
+- json
 - index.ts
 - app/layout.tsx
 - tenders.ts
 - opencode.json
 - indexnow/route.ts
-- p/[slug]/page.tsx
+- AusschreibungenSection.tsx
 - funktionen/opengraph-image.tsx
 - lib/scoring.ts
 - us/layout.tsx
@@ -84,38 +84,38 @@
 - graphify.js
 - test-parser.ts
 - migrate-tender-descriptions.ts
-- tender-sources.ts
-- class-variance-authority
-- clsx
-- SiteFooter.tsx
-- embla-carousel-react
-- TrackedTendersSection.tsx
-- @radix-ui/react-tabs
+- extractPublicPortalFacts
+- alerts.ts
+- Hero 01: Der Ausschreibungsstapel
+- entitlements.ts
+- lib/types.ts
+- analyze/route.ts
+- test-document-pipeline.ts
 - input-otp
 - lucide-react
-- nanoid
-- next-themes
+- debug-collector.js
+- region/[slug]/[kategorie]/page.tsx
 - Design Ideas for Real Estate Tender Website
-- navigation-menu.tsx
+- clsx
 - Tenderhunter Next.js Base Version README
 - @radix-ui/react-accordion
-- UpgradePage.tsx
+- schwellenwert-rechner/page.tsx
 - @radix-ui/react-aspect-ratio
-- @radix-ui/react-avatar
-- @radix-ui/react-checkbox
+- TrackedTendersSection.tsx
+- processUsAlerts
 - @radix-ui/react-collapsible
 - CompaniesSection.tsx
-- scrape-gala-bau.ts
+- crawler.ts
 - TendersSection.tsx
 - docker-entrypoint.sh
 - @radix-ui/react-dialog
 - @radix-ui/react-dropdown-menu
 - postcss.config.mjs
 - @radix-ui/react-hover-card
-- @radix-ui/react-label
+- usaspending.ts
 - @radix-ui/react-menubar
-- @radix-ui/react-navigation-menu
-- @radix-ui/react-popover
+- express
+- @radix-ui/react-separator
 - @radix-ui/react-progress
 - Create Auth Skill Guide
 - Firecrawl Agent Skill
@@ -148,123 +148,103 @@
 - @radix-ui/react-radio-group
 - @radix-ui/react-scroll-area
 - @radix-ui/react-select
-- @radix-ui/react-slot
-- @radix-ui/react-switch
+- @radix-ui/react-slider
+- @radix-ui/react-tooltip
 - @radix-ui/react-toggle
-- @radix-ui/react-toggle-group
-- react
+- clsx
 - react-day-picker
 - react-dom
 - react-hook-form
 - react-resizable-panels
 - recharts
 - sonner
-- streamdown
 - tailwind-merge
 - tailwindcss-animate
 - AGENTS.md
 - vaul
-- wouter
-- schwellenwert-rechner/page.tsx
+- db.ts
 - stadt/[slug]/[kategorie]/page.tsx
-- zod
 - pursuit/route.ts
-- pnpm
-- TenderCard.tsx
+- detail/route.ts
 - tracked-tenders.ts
-- tender-meta.ts
-- @tailwindcss/vite
-- @better-auth/utils
+- p/[slug]/page.tsx
+- SiteFooter
 - structurer.ts
-- framer-motion
-- esbuild
-- postcss
-- json
-- cmdk
+- TenderCard.tsx
+- Shell.tsx
 - devDependencies
-- firecrawl.ts
+- empty.tsx
 - company-evidence.ts
-- better-auth
 - scripts
 - resource-discovery.ts
-- boneyard-js
-- CompanyProfileHeader.tsx
-- alerts.ts
-- prettier
-- SiteFooter
-- preview.ts
-- typescript
-- pnpm
-- pipeline.ts
-- axios
-- vite-plugin-manus-runtime
-- @vitejs/plugin-react
-- vitest
+- Positioning
+- @better-auth/utils
+- cheerio
+- date-utils.ts
 - drizzle-orm
+- pipeline.ts
+- RecommendationsSection.tsx
+- Stages
 - discover/route.ts
 - ausschreibungen-site/package.json
-- @tailwindcss/typography
+- @mozilla/readability
 - apple-icon.tsx
 - icon.tsx
 - app/opengraph-image.tsx
-- jsdom
-- meilisearch
+- document-classifier.ts
+- next
 - public-source-registry.ts
-- discovery.ts
-- zod
+- embla-carousel-react
 - dedupe-public-tenders.ts
-- tsx
+- navigation-menu.tsx
 - extractResourcesFromNetworkResponses
-- @mui/material
-- clsx
-- scripts
+- Marketing Brand System
+- Video Provider Notes
 - dedupe-public-identities.ts
 - bid-packs.ts
 - UsCompanyProfileForm.tsx
 - normalizeUrl
 - rankSubpages
-- empty.tsx
-- react
-- @types/express
-- package.json
-- @types/node
+- better-sqlite3
+- cleanPublicDescription
+- lexikon/[slug]/page.tsx
+- tender-meta.ts
 - parser.ts
 - replay-public-cursors.ts
-- stripe
-- analyze/route.ts
-- @types/react-dom
-- resend
-- @tailwindcss/postcss
-- preview/route.ts
-- tw-animate-css
+- categorize.ts
+- preview.ts
+- lucide-react
+- Tenderhunter Marketing Workspace
+- Marketing Backlog
+- Claims Ledger
 - generate-bones.mjs
-- access-page-detector.ts
-- vite
-- lexikon/[slug]/page.tsx
+- tender-quality.ts
+- CompanyProfileHeader.tsx
+- tailwindcss
+- zod
 - callLLM
-- @emotion/styled
-- PaywallPanel.tsx
-- RecommendationsSection.tsx
-- date-utils.ts
-- scrapeWebsite
-- CompanySelector.tsx
+- @radix-ui/react-tabs
+- queue.ts
+- package.json
+- postcss
+- react-dom
+- react
+- detectAccessPage
 - @hookform/resolvers
 
 ## God Nodes (most connected - your core abstractions)
 1. `cn()` - 274 edges
 2. `json()` - 120 edges
-3. `errorResponse()` - 64 edges
-4. `db` - 63 edges
-5. `searchTenders()` - 57 edges
-6. `requirePremiumSession()` - 51 edges
+3. `db` - 65 edges
+4. `errorResponse()` - 64 edges
+5. `scripts` - 59 edges
+6. `searchTenders()` - 58 edges
 7. `generateTenderSlug()` - 50 edges
-8. `scripts` - 47 edges
-9. `scrapeWebsite()` - 44 edges
-10. `enqueueJob()` - 42 edges
+8. `requirePremiumSession()` - 49 edges
+9. `enqueueJob()` - 48 edges
+10. `scrapeWebsite()` - 44 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `scoreAllTenders()` --indirect_call--> `structured()`  [INFERRED]
-  app/api/v1/analyze/route.ts → scripts/test-scoring.ts
 - `Tenderhunter Logo` --conceptually_related_to--> `Tenderhunter Next.js Base Version README`  [INFERRED]
   tenderhunter-logo.webp → README.md
 - `Public Logo Image` --conceptually_related_to--> `Tenderhunter Next.js Base Version README`  [INFERRED]
@@ -273,23 +253,25 @@
   app/api/health/route.ts → lib/http.ts
 - `GET()` --calls--> `json()`  [EXTRACTED]
   app/api/jobs/route.ts → lib/http.ts
+- `GET()` --calls--> `json()`  [EXTRACTED]
+  app/api/us/sources/route.ts → lib/http.ts
 
 ## Import Cycles
 - None detected.
 
-## Communities (247 total, 119 thin omitted)
+## Communities (230 total, 89 thin omitted)
 
-### Community 0 - "generateTenderSlug"
-Cohesion: 0.06
-Nodes (35): AuftraggeberPage(), PageProps, PageProps, CpvPage(), PageProps, PageProps, PageProps, ProcedureTypePage() (+27 more)
+### Community 0 - "buildTenderDescriptionMarkdown"
+Cohesion: 0.16
+Nodes (25): getAccessLimitedCacheResult(), buildPublicAccessLimitedDescriptionMarkdown(), buildPublicAccessNote(), addBullet(), asNumber(), asRecord(), buildTenderDescriptionMarkdown(), directText() (+17 more)
 
 ### Community 1 - "dependencies"
-Cohesion: 0.15
-Nodes (13): dependencies, express, @radix-ui/react-alert-dialog, @radix-ui/react-context-menu, @radix-ui/react-separator, @radix-ui/react-slider, @radix-ui/react-tooltip, express (+5 more)
+Cohesion: 0.05
+Nodes (41): dependencies, axios, class-variance-authority, cmdk, framer-motion, nanoid, next-themes, @radix-ui/react-alert-dialog (+33 more)
 
 ### Community 2 - "dependencies"
 Cohesion: 0.05
-Nodes (39): @better-auth/core, @better-auth/passkey, better-sqlite3, cheerio, @emotion/react, @mozilla/readability, @mui/icons-material, next (+31 more)
+Nodes (43): better-auth, @better-auth/core, @better-auth/passkey, boneyard-js, @emotion/react, @emotion/styled, jsdom, meilisearch (+35 more)
 
 ### Community 3 - "cn"
 Cohesion: 0.03
@@ -301,11 +283,11 @@ Nodes (13): CATEGORY_DESCRIPTIONS, metadata, VorlagenHubPage(), CopyButton(), Co
 
 ### Community 5 - "DashboardSection.tsx"
 Cohesion: 0.06
-Nodes (37): buildSteps(), buildTenderSearchText(), DashboardSection(), DashboardSectionProps, DiscoverSession, DiscoverStartResponse, DiscoverStatusResponse, DiscoveryStatus (+29 more)
+Nodes (40): CompanySelector(), CompanySelectorProps, UserCompany, buildSteps(), buildTenderSearchText(), DashboardSection(), DashboardSectionProps, DiscoverSession (+32 more)
 
 ### Community 6 - "public-tender-scraper.ts"
-Cohesion: 0.05
-Nodes (64): BayernTender, buildPublicAccessLimitedDescription(), cleanDescription(), cleanPublicDescription(), DetailOutcome, enrichFromOeffentlicheVergabe(), EvergabeOnlineRow, extractBasicDetailFromHtml() (+56 more)
+Cohesion: 0.04
+Nodes (76): BayernTender, buildExtractedTenderDescriptionMarkdown(), cleanTenderTitle(), DetailOutcome, enrichFromOeffentlicheVergabe(), escapeRegExp(), EvergabeOnlineRow, extractBasicDetailFromHtml() (+68 more)
 
 ### Community 7 - "Home.tsx"
 Cohesion: 0.06
@@ -320,12 +302,12 @@ Cohesion: 0.07
 Nodes (14): Checkbox(), HoverCardContent(), PopoverContent(), Progress(), ResizableHandle(), ResizablePanelGroup(), Slider(), Spinner() (+6 more)
 
 ### Community 10 - "categories.ts"
-Cohesion: 0.05
-Nodes (39): BauportalCategoryPage(), PageProps, DtvpCategoryPage(), PageProps, EvergabeCategoryPage(), PageProps, size, CategoryPage() (+31 more)
+Cohesion: 0.07
+Nodes (23): BauportalCategoryPage(), PageProps, PageProps, DtvpCategoryPage(), PageProps, EvergabeCategoryPage(), PageProps, size (+15 more)
 
 ### Community 11 - "schema.ts"
-Cohesion: 0.03
-Nodes (58): GET(), GET(), account, passkey, session, user, verification, ApiJob (+50 more)
+Cohesion: 0.04
+Nodes (56): GET(), account, passkey, session, user, verification, ApiJob, BidPack (+48 more)
 
 ### Community 12 - "input-group.tsx"
 Cohesion: 0.12
@@ -335,9 +317,9 @@ Nodes (21): loadMapScript(), MapView(), MapViewProps, Window, useDialogCompositi
 Cohesion: 0.11
 Nodes (19): AlertDialogAction(), AlertDialogCancel(), AlertDialogContent(), AlertDialogDescription(), AlertDialogFooter(), AlertDialogHeader(), AlertDialogOverlay(), AlertDialogTitle() (+11 more)
 
-### Community 14 - "app/page.tsx"
+### Community 14 - "preview/route.ts"
 Cohesion: 0.16
-Nodes (11): metadata, AusschreibungenSection, DashboardSection, InteractiveApp(), TrackedTendersSection, UsTendersSection, faqs, SeoFooter() (+3 more)
+Nodes (19): DELETE(), GET(), handleError(), Params, parseId(), handleError(), Params, parseId() (+11 more)
 
 ### Community 15 - "field.tsx"
 Cohesion: 0.10
@@ -359,37 +341,37 @@ Nodes (17): ButtonGroup(), ButtonGroupSeparator(), ButtonGroupText(), buttonGrou
 Cohesion: 0.11
 Nodes (18): Better Auth Integration Guide, CLI Commands, Client, Common Gotchas, Core Config Options, Database, Email Flows, Environment Variables (+10 more)
 
-### Community 20 - "test-public-pagination.ts"
-Cohesion: 0.12
-Nodes (20): UpsertTenderInput, createPublicSourceCursorV2(), cursorStrategy(), encodeDtvpSearchHash(), PublicCursorCommit, PublicDetailReference, PublicSourceCursor, PublicSourceCursorV2 (+12 more)
+### Community 20 - "[...params]/page.tsx"
+Cohesion: 0.09
+Nodes (29): AuftraggeberPage(), generateMetadata(), PageProps, generateMetadata(), PageProps, parseParams(), TenderDetailPage(), CpvPage() (+21 more)
 
 ### Community 21 - "workflow-studio.tsx"
 Cohesion: 0.12
 Nodes (22): clamp(), CompanyFormState, CompanyOption, CrawlFormState, feedbackClass(), FeedbackState, FeedbackTone, formatPercent() (+14 more)
 
-### Community 22 - "debug-collector.js"
-Cohesion: 0.25
-Nodes (14): compactText(), describeElement(), elText(), formatArg(), formatArgs(), getInputValueSafe(), installUiEventListeners(), isSensitiveField() (+6 more)
+### Community 22 - "backfill-description-markdown.ts"
+Cohesion: 0.15
+Nodes (24): TenderDescriptionFacts, args, buildRowDescriptionMarkdown(), canonicalMarkdown(), cleanFactText(), dryRun, firstList(), firstString() (+16 more)
 
-### Community 23 - "validation.ts"
-Cohesion: 0.11
-Nodes (21): GET(), isUsProfile(), POST(), TrackingEventType, BID_PACK_DECISION_STATUSES, BID_PACK_REQUIREMENT_STATUSES, BID_PACK_TASK_STATUSES, TRACKED_TENDER_STATUS_LABELS (+13 more)
+### Community 23 - "commercial-brief.ts"
+Cohesion: 0.12
+Nodes (29): asAction(), asRecord(), CommercialBriefAction, CommercialBriefValidation, createCommercialBriefFallback(), fallbackFromFacts(), fieldLabels, isGroundedNarrative() (+21 more)
 
 ### Community 24 - "compilerOptions"
 Cohesion: 0.07
 Nodes (29): ausschreibungen-site, es2022, .next/dev/types/**/*.ts, next-env.d.ts, .next/types/**/*.ts, **/*.ts, **/*.tsx, compilerOptions (+21 more)
 
 ### Community 25 - "devDependencies"
-Cohesion: 0.15
-Nodes (13): add, devDependencies, add, autoprefixer, @builder.io/vite-plugin-jsx-loc, tailwindcss, @types/google.maps, @types/react (+5 more)
+Cohesion: 0.04
+Nodes (45): add, devDependencies, add, autoprefixer, @builder.io/vite-plugin-jsx-loc, esbuild, pnpm, postcss (+37 more)
 
 ### Community 26 - "compilerOptions"
 Cohesion: 0.07
 Nodes (30): compilerOptions, allowImportingTsExtensions, baseUrl, esModuleInterop, incremental, jsx, lib, module (+22 more)
 
-### Community 27 - "db.ts"
-Cohesion: 0.10
-Nodes (27): { GET, POST }, GET(), POST(), TENDER_STAGES, buildResourceMetadata(), isActiveTender(), legacyPdfCandidates(), normalizedResourceKey() (+19 more)
+### Community 27 - "sitemap.ts"
+Cohesion: 0.13
+Nodes (14): PageProps, ProcedureTypePage(), metadata, ArticlePage(), extractFaqFromContent(), PageProps, renderContent(), ALL_ARTICLE_SLUGS (+6 more)
 
 ### Community 28 - "components.json"
 Cohesion: 0.11
@@ -397,15 +379,15 @@ Nodes (17): aliases, components, hooks, lib, ui, utils, registries, @retroui (+9
 
 ### Community 29 - "test-scoring.ts"
 Cohesion: 0.10
-Nodes (20): bavariaTender, berlinTender, cleaningTenderForPropertyCompany, educationTender, fallbackProfile, landscapingCompany, localTender, misclassifiedCpvConstructionTender (+12 more)
+Nodes (19): bavariaTender, berlinTender, cleaningTenderForPropertyCompany, educationTender, fallbackProfile, landscapingCompany, localTender, misclassifiedCpvConstructionTender (+11 more)
 
 ### Community 30 - "download/route.ts"
-Cohesion: 0.20
-Nodes (19): allowedLegacyUrls(), canonicalDownloadUrl(), contentTypeForDocument(), DOCS_DIR, extensionForContentType(), extractContentDispositionFilename(), fetchAllowlistedResource(), GET() (+11 more)
+Cohesion: 0.22
+Nodes (18): allowedLegacyUrls(), canonicalDownloadUrl(), contentTypeForDocument(), extensionForContentType(), extractContentDispositionFilename(), fetchAllowlistedResource(), GET(), isDocumentLikeResource() (+10 more)
 
-### Community 31 - "crawler.ts"
-Cohesion: 0.21
-Nodes (19): DiscoveredTender, discoverGenericTenders(), discoverTendersFromSource(), discoverWithRules(), DiscoveryRules, extractBundExternalId(), extractDtvpExternalId(), extractTedExternalId() (+11 more)
+### Community 31 - "SiteFooter.tsx"
+Cohesion: 0.14
+Nodes (20): BauportalPage(), generateMetadata(), DtvpPage(), generateMetadata(), EvergabePage(), generateMetadata(), HUB_FAQS, hubFaqJsonLd (+12 more)
 
 ### Community 32 - "ausschreibungen-site/components.json"
 Cohesion: 0.12
@@ -428,16 +410,16 @@ Cohesion: 0.24
 Nodes (9): metadata, addiereTage(), formatDeDatum(), istWochenende(), MONATE, naechsterWerktag(), RuegefristRechner(), tageZwischen() (+1 more)
 
 ### Community 37 - "TenderDetailDrawer.tsx"
-Cohesion: 0.18
-Nodes (10): FollowState, MetricBar(), MetricColor, resolveMetricColor(), TenderDetailDrawer(), TenderDetailDrawerProps, TenderDetailItem, toDateInputValue() (+2 more)
+Cohesion: 0.13
+Nodes (14): TrackingEventType, FollowState, MetricBar(), MetricColor, resolveMetricColor(), TenderDetailDrawer(), TenderDetailDrawerProps, TenderDetailItem (+6 more)
 
 ### Community 38 - "document-analysis.ts"
-Cohesion: 0.05
-Nodes (55): AnalyzedDocument, buildDocumentAnalysis(), DOCUMENT_ROLES, DocumentAnalysis, DocumentAnalysisEvidence, DocumentCoverageStatus, DocumentRoleCoverage, documentRoles() (+47 more)
+Cohesion: 0.08
+Nodes (36): AnalyzedDocument, buildDocumentAnalysis(), DOCUMENT_ROLES, DocumentAnalysis, DocumentAnalysisEvidence, DocumentCoverageStatus, DocumentRoleCoverage, documentRoles() (+28 more)
 
-### Community 39 - "storage.ts"
-Cohesion: 0.13
-Nodes (25): boundedHeaderValue(), bufStartsWith(), buildSafeRequestHeaders(), CANONICAL_REQUEST_HEADERS, fetchAndStore(), fetchAndStoreDirect(), FetchAndStoreOptions, hashBytes() (+17 more)
+### Community 39 - "worker.ts"
+Cohesion: 0.06
+Nodes (57): summaryChipSx, summaryLabelSx, TenderSectionHeader(), TenderSectionHeaderProps, defaultSources, parseIntEnv(), positiveIntEnv(), Settings (+49 more)
 
 ### Community 40 - "chart.tsx"
 Cohesion: 0.25
@@ -448,24 +430,24 @@ Cohesion: 0.18
 Nodes (6): DrawerContent(), DrawerDescription(), DrawerFooter(), DrawerHeader(), DrawerOverlay(), DrawerTitle()
 
 ### Community 42 - "searchTenders"
-Cohesion: 0.06
-Nodes (37): BauportalRegionPage(), generateMetadata(), PageProps, BauportalCityPage(), generateMetadata(), PageProps, DtvpRegionPage(), generateMetadata() (+29 more)
+Cohesion: 0.07
+Nodes (35): BauportalRegionPage(), generateMetadata(), PageProps, BauportalCityPage(), generateMetadata(), PageProps, DtvpRegionPage(), generateMetadata() (+27 more)
 
-### Community 43 - "test-resource-discovery.ts"
+### Community 43 - "opportunity-status.ts"
+Cohesion: 0.16
+Nodes (15): AwardSignal, classifyOpportunityStatus(), decodeGermanHtmlEntities(), DEFINITIVE_AWARD_SIGNALS, findAwardedZuschlag(), findAwardSignal(), HTML_ENTITY_REPLACEMENTS, normalizeText() (+7 more)
+
+### Community 44 - "bundesland.ts"
 Cohesion: 0.15
-Nodes (13): asString(), classifyResourceType(), getPathAndQuery(), isApiContentType(), isDocumentContentType(), normalizedContentType(), candidates, download (+5 more)
-
-### Community 44 - "[...params]/page.tsx"
-Cohesion: 0.11
-Nodes (34): generateMetadata(), generateMetadata(), PageProps, parseParams(), TenderDetailPage(), sitemap(), clientMatchesSlug(), normalizeAgencySlug() (+26 more)
+Nodes (25): sitemap(), Bundesland, BUNDESLAND_ALIASES, CITY_ALIASES, CITY_TO_BUNDESLAND, deriveBundesland(), deriveBundeslandFromPostalCode(), deriveCity() (+17 more)
 
 ### Community 45 - "BidPackPanel.tsx"
 Cohesion: 0.13
 Nodes (19): BidPackItem, BidPackPanel(), BidPackPanelProps, BidPackRequirement, BidPackResponse, BidPackTask, CompanyEvidence, DECISION_LABELS (+11 more)
 
-### Community 46 - "AusschreibungenSection.tsx"
-Cohesion: 0.23
-Nodes (11): ApiTender, AusschreibungenSection(), TenderCard(), PdfDocumentLink(), PdfDocumentLinkProps, STATUS_LABELS, ViewKey, BUNDESLAENDER (+3 more)
+### Community 46 - "public-pagination.ts"
+Cohesion: 0.09
+Nodes (30): createPublicSourceCursorV2(), cursorStrategy(), cursorValue(), encodeDtvpSearchHash(), isJsonObject(), isPermanentPublicSourceError(), PublicCursorCommit, PublicDetailReference (+22 more)
 
 ### Community 47 - "firecrawl crawl"
 Cohesion: 0.29
@@ -479,29 +461,29 @@ Nodes (4): Button, buttonVariants, IButtonProps, cn()
 Cohesion: 0.28
 Nodes (7): ensureLogDir(), LOG_DIR, LogSource, plugins, TRIM_TARGET_BYTES, trimLogFile(), writeToLogFile()
 
-### Community 50 - "Shell.tsx"
-Cohesion: 0.16
-Nodes (13): AuthModal(), AuthModalProps, AuthTab, AnalyseIcon(), SearchLocationIcon(), HASH_TO_VIEW, NAV_ITEMS, NavItem (+5 more)
+### Community 50 - "UpgradePage.tsx"
+Cohesion: 0.11
+Nodes (15): metadata, AuthModal(), AuthModalProps, AuthTab, BENEFITS, BillingStatusResponse, CheckoutResponse, FAQS (+7 more)
 
 ### Community 51 - "alert.tsx"
 Cohesion: 0.50
 Nodes (4): Alert(), AlertDescription(), AlertTitle(), alertVariants
 
-### Community 52 - "entitlements.ts"
-Cohesion: 0.22
-Nodes (15): POST(), POST(), GET(), getBillingSiteUrl(), getStripe(), getStripePriceId(), BillingStatus, ENTITLED_STATUSES (+7 more)
+### Community 52 - "repository.ts"
+Cohesion: 0.29
+Nodes (12): GET(), generateMetadata(), Props, UsTenderPage(), usDocuments, UsTender, getUsTenderById(), getUsTenderDocuments() (+4 more)
 
 ### Community 53 - "meilisearch.ts"
-Cohesion: 0.24
-Nodes (16): acquireCatalogSync(), finishCatalogSync(), getCatalogState(), releaseCatalogSync(), configureMeiliIndex(), configureMeiliIndexOnce(), disableEmbeddingsForProcess(), getMeiliClient() (+8 more)
+Cohesion: 0.22
+Nodes (18): acquireCatalogSync(), finishCatalogSync(), getCatalogState(), releaseCatalogSync(), configureIndex(), configureMeiliIndex(), configureMeiliIndexOnce(), deleteTenderFromMeili() (+10 more)
 
 ### Community 54 - "us/types.ts"
-Cohesion: 0.05
-Nodes (82): summaryChipSx, summaryLabelSx, TenderSectionHeader(), TenderSectionHeaderProps, defaultSources, parseIntEnv(), positiveIntEnv(), Settings (+74 more)
-
-### Community 55 - "enqueueJob"
 Cohesion: 0.06
-Nodes (56): POST(), matchesApiKey(), POST(), TenderWorkflowDraft, TrackedTenderItem, cleanupExpiredUsTenders(), processNextJob(), asNumber() (+48 more)
+Nodes (72): BROWSER_ARGS, captureFloridaDetail(), cellTexts(), cleanText(), fetchFloridaMfmpOpportunities(), FloridaMfmpDetail, FloridaMfmpListing, parseFloridaMfmpDetailAttachments() (+64 more)
+
+### Community 55 - "json"
+Cohesion: 0.07
+Nodes (61): bidPackErrorResponse(), Params, parseId(), PATCH(), bidPackErrorResponse(), Params, parseId(), POST() (+53 more)
 
 ### Community 58 - "app/layout.tsx"
 Cohesion: 0.12
@@ -515,13 +497,13 @@ Nodes (4): categories, locations, Tender, tenders
 Cohesion: 0.50
 Nodes (3): plugin, $schema, .opencode/plugins/graphify.js
 
-### Community 62 - "p/[slug]/page.tsx"
-Cohesion: 0.18
-Nodes (15): mapProfileMatch(), normalizeProfileLocation(), PageProps, PublicProfilePage(), PageFooter(), TenderCard(), findPublicProfileMatches(), buildProfileSummary() (+7 more)
+### Community 62 - "AusschreibungenSection.tsx"
+Cohesion: 0.19
+Nodes (11): ApiTender, PdfDocumentLink(), PdfDocumentLinkProps, STATUS_LABELS, allowedElements, markdownBaseSx, SafeMarkdown(), SafeMarkdownProps (+3 more)
 
 ### Community 64 - "lib/scoring.ts"
-Cohesion: 0.12
-Nodes (32): scoreAllTenders(), LocationEligibility, LocationEligibilityStatus, TenderLocationInput, buildTenderMatchDocument(), CAPABILITY_GROUPS, CapabilityGroup, capabilityMatch() (+24 more)
+Cohesion: 0.13
+Nodes (30): LocationEligibilityStatus, TenderLocationInput, runScoreTender(), buildTenderMatchDocument(), CAPABILITY_GROUPS, CapabilityGroup, capabilityMatch(), clamp() (+22 more)
 
 ### Community 66 - "PipelineSection.tsx"
 Cohesion: 0.29
@@ -535,229 +517,277 @@ Nodes (10): jspdf, ExtractedDocument, parseXlsxToText(), jspdf, xlsx, main(), ma
 Cohesion: 0.21
 Nodes (11): args, asRecord(), CandidateRow, dryRun, idArgument, isAffected(), JsonRecord, limitArgument (+3 more)
 
-### Community 72 - "tender-sources.ts"
-Cohesion: 0.31
-Nodes (12): buildDefaultTenderSources(), dedupeSources(), DEFAULT_SOURCE_KEYS, getTenderSourceDefinition(), normalizeHost(), parseConfiguredTenderSources(), resolveConfiguredToken(), resolveSourceItem() (+4 more)
+### Community 72 - "extractPublicPortalFacts"
+Cohesion: 0.27
+Nodes (8): deduplicateParsedDocuments(), documentFingerprint(), ParsedTenderDocument, extractPublicPortalFacts(), main(), rawText, main(), rawText
 
-### Community 75 - "SiteFooter.tsx"
-Cohesion: 0.15
-Nodes (16): BauportalPage(), generateMetadata(), DtvpPage(), generateMetadata(), EvergabePage(), generateMetadata(), HUB_FAQS, hubFaqJsonLd (+8 more)
+### Community 73 - "alerts.ts"
+Cohesion: 0.20
+Nodes (12): GET(), POST(), GET(), getClient(), sendEmail(), usAlertSubscriptions, AlertFilters, confirmAlertSubscription() (+4 more)
 
-### Community 77 - "TrackedTendersSection.tsx"
-Cohesion: 0.22
-Nodes (9): CompanyOption, progressColor(), STATUS_FILTER_OPTIONS, StatusBadge(), statusChipColor(), TrackedStatusFilter, TrackedTenderCard(), TrackedTendersResponse (+1 more)
+### Community 74 - "Hero 01: Der Ausschreibungsstapel"
+Cohesion: 0.07
+Nodes (28): 06-14 seconds, 0-06 seconds, 14-24 seconds, 24-35 seconds, 35-47 seconds, 47-54 seconds, 54-60 seconds, Asset Checklist (+20 more)
+
+### Community 75 - "entitlements.ts"
+Cohesion: 0.12
+Nodes (29): POST(), POST(), GET(), findUserIdByCustomer(), POST(), processEvent(), syncSubscription(), toDate() (+21 more)
+
+### Community 76 - "lib/types.ts"
+Cohesion: 0.14
+Nodes (16): TenderWorkflowDraft, TrackedTenderItem, TrackedTenderStatus, TrackingEventType, ListTrackedTendersOptions, TrackedTenderListItem, CompanyProfileCreate, CrawlRequest (+8 more)
+
+### Community 77 - "analyze/route.ts"
+Cohesion: 0.10
+Nodes (36): AnalyzeBody, ApiAnalysisQueuePayload, enqueueApiAnalysis(), equivalentSchemeUrl(), findCompanyProfileByUrl(), getTopTenders(), normalizeUrl(), POST() (+28 more)
+
+### Community 78 - "test-document-pipeline.ts"
+Cohesion: 0.11
+Nodes (29): boundedResourceText(), buildResourceFingerprint(), cleanUrl(), discoverTenderResources(), findPdfLinks(), fingerprintResource(), isFetchableResourceCandidate(), isPersistableResourceCandidate() (+21 more)
+
+### Community 81 - "debug-collector.js"
+Cohesion: 0.25
+Nodes (14): compactText(), describeElement(), elText(), formatArg(), formatArgs(), getInputValueSafe(), installUiEventListeners(), isSensitiveField() (+6 more)
+
+### Community 82 - "region/[slug]/[kategorie]/page.tsx"
+Cohesion: 0.16
+Nodes (10): generateMetadata(), generateRegionCategoryFaq(), PageProps, RegionCategoryPage(), generateMetadata(), PageProps, REGION_INTRO, RegionPage() (+2 more)
 
 ### Community 83 - "Design Ideas for Real Estate Tender Website"
 Cohesion: 0.67
 Nodes (3): Hero Architecture Photo, Design Ideas for Real Estate Tender Website, Modern Building Photo
 
-### Community 84 - "navigation-menu.tsx"
-Cohesion: 0.22
-Nodes (9): NavigationMenu(), NavigationMenuContent(), NavigationMenuIndicator(), NavigationMenuItem(), NavigationMenuLink(), NavigationMenuList(), NavigationMenuTrigger(), navigationMenuTriggerStyle (+1 more)
-
 ### Community 85 - "Tenderhunter Next.js Base Version README"
 Cohesion: 0.67
 Nodes (3): Public Logo Image, Tenderhunter Next.js Base Version README, Tenderhunter Logo
 
-### Community 87 - "UpgradePage.tsx"
-Cohesion: 0.08
-Nodes (27): findUserIdByCustomer(), POST(), processEvent(), syncSubscription(), toDate(), metadata, BillingStatusResponse, CheckoutResponse (+19 more)
-
-### Community 94 - "scrape-gala-bau.ts"
-Cohesion: 0.40
-Nodes (5): GALA_BAU_CPV, main(), PORTALS, scrapeDetail(), ScrapedTender
-
-### Community 155 - "schwellenwert-rechner/page.tsx"
+### Community 87 - "schwellenwert-rechner/page.tsx"
 Cohesion: 0.28
 Nodes (6): metadata, formatEUR(), Leistungstyp, SchwelleConfig, SCHWELLEN, SchwellenwertRechner()
 
+### Community 90 - "TrackedTendersSection.tsx"
+Cohesion: 0.22
+Nodes (9): CompanyOption, progressColor(), STATUS_FILTER_OPTIONS, StatusBadge(), statusChipColor(), TrackedStatusFilter, TrackedTenderCard(), TrackedTendersResponse (+1 more)
+
+### Community 91 - "processUsAlerts"
+Cohesion: 0.52
+Nodes (6): escapeXml(), formatDeadline(), GET(), processUsAlerts(), getUsTenderMetadata(), searchUsTenders()
+
+### Community 94 - "crawler.ts"
+Cohesion: 0.21
+Nodes (19): DiscoveredTender, discoverGenericTenders(), discoverTendersFromSource(), discoverWithRules(), DiscoveryRules, extractBundExternalId(), extractDtvpExternalId(), extractTedExternalId() (+11 more)
+
+### Community 101 - "usaspending.ts"
+Cohesion: 0.47
+Nodes (5): UsPrimeContractor, asNumber(), asString(), Award, findUsPrimeContractors()
+
+### Community 155 - "db.ts"
+Cohesion: 0.06
+Nodes (44): { GET, POST }, GET(), POST(), TENDER_STAGES, GET(), GET(), Params, getOpenAI() (+36 more)
+
 ### Community 156 - "stadt/[slug]/[kategorie]/page.tsx"
-Cohesion: 0.14
-Nodes (14): AusschreibungenPage(), CityCategoryPage(), generateCityCategoryFaq(), generateMetadata(), PageProps, size, CityPage(), generateMetadata() (+6 more)
+Cohesion: 0.12
+Nodes (16): AusschreibungenPage(), CityCategoryPage(), generateCityCategoryFaq(), generateMetadata(), PageProps, size, CityPage(), generateMetadata() (+8 more)
 
 ### Community 158 - "pursuit/route.ts"
-Cohesion: 0.06
-Nodes (52): GET(), GET(), escapeXml(), formatDeadline(), GET(), generateMetadata(), Props, UsTenderPage() (+44 more)
+Cohesion: 0.16
+Nodes (20): GET(), CompanyProfile, buildUsPursuitChecklist(), CompanyProfileForPursuit, getRequiredSetAside(), REQUIRED_STATUS, scoreUsTender(), toLowerStrings() (+12 more)
 
-### Community 159 - "pnpm"
-Cohesion: 0.40
-Nodes (5): tailwindcss>nanoid, wouter@3.7.1, pnpm, overrides, patchedDependencies
-
-### Community 160 - "TenderCard.tsx"
-Cohesion: 0.26
-Nodes (9): DeadlineStatus(), DeadlineStatusProps, FitScore(), FitScoreProps, getFitPalette(), palette, metaChipSx, TenderCardProps (+1 more)
+### Community 160 - "detail/route.ts"
+Cohesion: 0.25
+Nodes (13): buildResourceMetadata(), isActiveTender(), legacyPdfCandidates(), normalizedResourceKey(), POST(), resourceStatus(), SafeDocumentMetadata, SafeResourceMetadata (+5 more)
 
 ### Community 161 - "tracked-tenders.ts"
 Cohesion: 0.16
 Nodes (24): AttributionEvent, attributionEvents, ACTIVE_TRACKED_TENDER_STATUSES, mapTrackedStatusToTrackingEvent(), baseTrackedTenderQuery(), buildCompanyOptions(), buildSummary(), createOrUpdateTrackedTender() (+16 more)
 
-### Community 162 - "tender-meta.ts"
-Cohesion: 0.30
-Nodes (10): asString(), asStringArray(), mergeResourceMeta(), optionalString(), readResourceArray(), readTenderMeta(), resourceFromValue(), TenderMeta (+2 more)
+### Community 162 - "p/[slug]/page.tsx"
+Cohesion: 0.19
+Nodes (14): mapProfileMatch(), normalizeProfileLocation(), PageProps, PublicProfilePage(), PageFooter(), PublicProfileMatch, buildProfileSummary(), cleanLabel() (+6 more)
+
+### Community 163 - "SiteFooter"
+Cohesion: 0.09
+Nodes (14): metadata, faqs, features, metadata, steps, metadata, metadata, ToolMeta (+6 more)
 
 ### Community 165 - "structurer.ts"
-Cohesion: 0.17
-Nodes (23): AwardCriterion, buildSummary(), compactSpaces(), detectContractType(), detectProcedureType(), extractBudget(), extractContractValue(), extractCpvCodes() (+15 more)
+Cohesion: 0.13
+Nodes (32): CommercialBrief, CommercialBriefFacts, AwardCriterion, buildStructuredDescriptionMarkdown(), buildSummary(), commercialBriefFacts(), compactSpaces(), detectContractType() (+24 more)
 
-### Community 169 - "json"
-Cohesion: 0.09
-Nodes (48): bidPackErrorResponse(), Params, parseId(), PATCH(), bidPackErrorResponse(), Params, parseId(), POST() (+40 more)
+### Community 168 - "TenderCard.tsx"
+Cohesion: 0.23
+Nodes (10): DeadlineStatus(), DeadlineStatusProps, FitScore(), FitScoreProps, getFitPalette(), palette, metaChipSx, TenderCard() (+2 more)
+
+### Community 169 - "Shell.tsx"
+Cohesion: 0.11
+Nodes (19): metadata, AnalyseIcon(), SearchLocationIcon(), AusschreibungenSection, DashboardSection, InteractiveApp(), TrackedTendersSection, UsTendersSection (+11 more)
 
 ### Community 171 - "devDependencies"
 Cohesion: 0.07
 Nodes (29): drizzle-kit, eslint, eslint-config-next, devDependencies, autoprefixer, class-variance-authority, drizzle-kit, eslint (+21 more)
 
-### Community 172 - "firecrawl.ts"
-Cohesion: 0.12
-Nodes (26): BROWSER_ARGS, BrowserResourceFetch, clearBrowserIdleTimer(), extractWithReadability(), fetchResourceWithBrowserSession(), getBrowser(), scheduleBrowserShutdown(), ScrapedPage (+18 more)
+### Community 172 - "empty.tsx"
+Cohesion: 0.29
+Nodes (7): Empty(), EmptyContent(), EmptyDescription(), EmptyHeader(), EmptyMedia(), emptyMediaVariants, EmptyTitle()
 
 ### Community 173 - "company-evidence.ts"
-Cohesion: 0.08
-Nodes (50): DELETE(), GET(), handleError(), Params, parseId(), DELETE(), handleError(), Params (+42 more)
+Cohesion: 0.10
+Nodes (40): DELETE(), handleError(), Params, parseId(), PATCH(), GET(), handleError(), Params (+32 more)
 
 ### Community 175 - "scripts"
-Cohesion: 0.04
-Nodes (46): scripts, audit:public-quality, backfill:document-roles, backfill:location-scores, backfill:public-access-summaries, backfill:public-identities, backfill-quality, backfill:readiness (+38 more)
+Cohesion: 0.03
+Nodes (58): scripts, audit:public-quality, backfill:description-markdown, backfill:document-roles, backfill:location-scores, backfill:public-access-summaries, backfill:public-identities, backfill-quality (+50 more)
 
 ### Community 176 - "resource-discovery.ts"
-Cohesion: 0.10
-Nodes (30): asCandidateResource(), boundedHeader(), boundedText(), DEFAULT_SUBPAGE_KEYWORDS, elementLinks(), elementText(), extractResourcesFromNetworkMetadata(), extractStructuredLinksFromHtml() (+22 more)
+Cohesion: 0.06
+Nodes (68): BROWSER_ARGS, BrowserResourceFetch, clearBrowserIdleTimer(), extractWithReadability(), fetchResourceWithBrowserSession(), getBrowser(), htmlToBasicMarkdown(), scheduleBrowserShutdown() (+60 more)
 
-### Community 178 - "CompanyProfileHeader.tsx"
-Cohesion: 0.33
-Nodes (5): CompanyLogo(), CompanyLogoProps, chipSx, CompanyProfileHeader(), CompanyProfileHeaderProps
+### Community 177 - "Positioning"
+Cohesion: 0.11
+Nodes (18): 1. Outcome, 2. Mechanism, 3. Product Promise, 4. Proof, 5. Call To Action, Core Problem, "Ein Score kann nicht fuer uns entscheiden.", Language Guardrails (+10 more)
 
-### Community 179 - "alerts.ts"
-Cohesion: 0.20
-Nodes (12): GET(), POST(), GET(), getClient(), sendEmail(), usAlertSubscriptions, AlertFilters, confirmAlertSubscription() (+4 more)
-
-### Community 181 - "SiteFooter"
-Cohesion: 0.09
-Nodes (14): metadata, faqs, features, metadata, steps, metadata, metadata, ToolMeta (+6 more)
-
-### Community 182 - "preview.ts"
-Cohesion: 0.25
-Nodes (12): runPreviewCompanyUrl(), asStringList(), canonicalizePreviewUrl(), companyRow(), isPreviewRequestAllowed(), isPrivateAddress(), parseStructured(), previewReason() (+4 more)
+### Community 181 - "date-utils.ts"
+Cohesion: 0.22
+Nodes (16): GET(), AusschreibungenSection(), TenderCard(), berlinDateTimeFormatter, dateFromBerlinParts(), daysUntil(), deadlineColor(), deadlineLabel() (+8 more)
 
 ### Community 185 - "pipeline.ts"
-Cohesion: 0.05
-Nodes (103): markCatalogDirty(), withEvidenceValues(), classifyDocumentRole(), rolePriority(), deleteTenderFromMeili(), extractTextFromFile(), appendBoundedTenderText(), boundedResourceText() (+95 more)
+Cohesion: 0.07
+Nodes (74): markCatalogDirty(), rolePriority(), appendBoundedTenderText(), AttributionScore, buildFetchDocumentsJobKey(), buildFetchUsDocumentsJobKey(), buildUsAttachmentFingerprint(), classifyResourceCandidate() (+66 more)
+
+### Community 186 - "RecommendationsSection.tsx"
+Cohesion: 0.14
+Nodes (14): PaywallPanel(), PaywallPanelProps, DashboardMetrics, CompanyOption, formatDate(), formatPercent(), parseJsonArray(), RecommendationItem (+6 more)
+
+### Community 190 - "Stages"
+Cohesion: 0.12
+Nodes (16): 1. Brief, 2. Script, 3. Storyboard, 4. Style And Key Art, 5. Short Clip Generation, 6. Assembly, 7. Review, 8. Export (+8 more)
 
 ### Community 191 - "discover/route.ts"
 Cohesion: 0.27
 Nodes (14): ACTIVE_JOB_STATUSES, DiscoverBody, GET(), getSessionSources(), listCachedTenders(), listMatchedTenders(), normalizeScoreDetails(), normalizeUrl() (+6 more)
 
 ### Community 192 - "ausschreibungen-site/package.json"
-Cohesion: 0.33
-Nodes (5): license, name, packageManager, type, version
+Cohesion: 0.11
+Nodes (17): license, name, tailwindcss>nanoid, packageManager, wouter@3.7.1, pnpm, overrides, patchedDependencies (+9 more)
+
+### Community 197 - "document-classifier.ts"
+Cohesion: 0.10
+Nodes (22): classifyDocumentRole(), ClassifyInput, ClassifyResult, isGenericUrlMatch(), ROLE_KEYWORDS, ROLE_LABELS_DE, ROLE_PRIORITY, ROLE_SIGNAL_WEIGHTS (+14 more)
 
 ### Community 199 - "public-source-registry.ts"
-Cohesion: 0.09
-Nodes (31): parseDeadline(), runScrapePublicTenders(), canonicalPublicTenderUrl(), derivePublicExternalId(), DYNAMIC_SOURCES, FIXED_SOURCES, getPublicSourceDefinition(), HOST_SOURCE_RULES (+23 more)
-
-### Community 204 - "discovery.ts"
-Cohesion: 0.19
-Nodes (14): fallbackStructured(), parseStructured(), PublicProfileMatch, PublicProfileMatchOptions, scoreKnownTenders(), firstItems(), generateInsight(), InsightResult (+6 more)
+Cohesion: 0.15
+Nodes (17): canonicalPublicTenderUrl(), derivePublicExternalId(), DYNAMIC_SOURCES, FIXED_SOURCES, getPublicSourceDefinition(), HOST_SOURCE_RULES, hostMatches(), HostSourceRule (+9 more)
 
 ### Community 206 - "dedupe-public-tenders.ts"
 Cohesion: 0.29
 Nodes (8): extractPortalProjectId(), stripSessionId(), applyChanges, completenessScore(), getStableIdentity(), main(), PORTAL_SOURCES, TenderRow
 
-### Community 211 - "scripts"
-Cohesion: 0.29
-Nodes (7): scripts, build, check, dev, format, preview, start
+### Community 207 - "navigation-menu.tsx"
+Cohesion: 0.22
+Nodes (9): NavigationMenu(), NavigationMenuContent(), NavigationMenuIndicator(), NavigationMenuItem(), NavigationMenuLink(), NavigationMenuList(), NavigationMenuTrigger(), navigationMenuTriggerStyle (+1 more)
+
+### Community 209 - "Marketing Brand System"
+Cohesion: 0.20
+Nodes (9): Accessibility, Brand Personality, Cartoon Direction, Character System, Marketing Brand System, Reference Boundary, Typography And Captions, Visual Bridge To The Product (+1 more)
+
+### Community 210 - "Video Provider Notes"
+Cohesion: 0.22
+Nodes (8): Benchmark Shots, Decision, Provider Comparison, Run Log, Scoring Rubric, Security Rules, Source Links, Video Provider Notes
 
 ### Community 212 - "dedupe-public-identities.ts"
 Cohesion: 0.50
 Nodes (4): applyChanges, completenessScore(), main(), TenderRow
 
 ### Community 213 - "bid-packs.ts"
-Cohesion: 0.08
-Nodes (57): csv(), filename(), GET(), handleError(), Params, parseId(), DELETE(), handleError() (+49 more)
+Cohesion: 0.09
+Nodes (54): csv(), filename(), GET(), handleError(), Params, parseId(), DELETE(), handleError() (+46 more)
 
 ### Community 214 - "UsCompanyProfileForm.tsx"
 Cohesion: 0.47
 Nodes (3): SOCIO_ECONOMIC_OPTIONS, splitValues(), UsCompanyProfileForm()
 
-### Community 217 - "empty.tsx"
-Cohesion: 0.29
-Nodes (7): Empty(), EmptyContent(), EmptyDescription(), EmptyHeader(), EmptyMedia(), emptyMediaVariants, EmptyTitle()
+### Community 218 - "cleanPublicDescription"
+Cohesion: 0.11
+Nodes (22): AccessPageDetection, AccessPageReason, DetectAccessPageOptions, hasAny(), isParticipationWallText(), PARTICIPATION_WALL_PATTERNS, stripMarkup(), buildPublicAccessLimitedDescription() (+14 more)
 
-### Community 220 - "package.json"
-Cohesion: 0.50
-Nodes (3): name, private, version
+### Community 219 - "lexikon/[slug]/page.tsx"
+Cohesion: 0.20
+Nodes (9): CATEGORY_DESCRIPTIONS, LexikonHubPage(), metadata, ALL_GLOSSARY_SLUGS, getGlossaryByCategory(), GLOSSARY, GLOSSARY_CATEGORIES, GLOSSARY_MAP (+1 more)
+
+### Community 221 - "tender-meta.ts"
+Cohesion: 0.28
+Nodes (11): asString(), asStringArray(), firstString(), mergeResourceMeta(), optionalString(), readResourceArray(), readTenderMeta(), resourceFromValue() (+3 more)
 
 ### Community 222 - "parser.ts"
-Cohesion: 0.16
-Nodes (17): adm-zip, boundedText(), decodeXmlEntities(), detectHtmlEncoding(), extractDocxXmlText(), ExtractionMethod, fetchWithTimeout(), MAX_DOCUMENT_TEXT_CHARS (+9 more)
+Cohesion: 0.18
+Nodes (18): adm-zip, boundedText(), decodeXmlEntities(), detectHtmlEncoding(), extractDocxXmlText(), ExtractionMethod, extractTextFromFile(), fetchWithTimeout() (+10 more)
 
 ### Community 223 - "replay-public-cursors.ts"
 Cohesion: 0.33
 Nodes (6): apply, args, CursorRow, loadRows(), main(), sql
 
-### Community 225 - "analyze/route.ts"
-Cohesion: 0.17
-Nodes (22): AnalyzeBody, ApiAnalysisQueuePayload, enqueueApiAnalysis(), equivalentSchemeUrl(), findCompanyProfileByUrl(), getTopTenders(), normalizeUrl(), POST() (+14 more)
+### Community 224 - "categorize.ts"
+Cohesion: 0.18
+Nodes (10): SearchResponse, US_STATES, UsTenderItem, usTenders, categorizeUsTender(), KEYWORD_PATTERNS, NAICS_SECTOR_MAP, US_CATEGORIES (+2 more)
 
-### Community 230 - "preview/route.ts"
-Cohesion: 0.20
-Nodes (14): handleError(), Params, parseId(), POST(), Params, handleError(), POST(), clientIp() (+6 more)
+### Community 225 - "preview.ts"
+Cohesion: 0.25
+Nodes (12): runPreviewCompanyUrl(), asStringList(), canonicalizePreviewUrl(), companyRow(), isPreviewRequestAllowed(), isPrivateAddress(), parseStructured(), previewReason() (+4 more)
+
+### Community 228 - "Tenderhunter Marketing Workspace"
+Cohesion: 0.29
+Nodes (6): Default Campaign Workflow, Definition Of Done, File Map, OpenCode Working Rules, Scope, Tenderhunter Marketing Workspace
+
+### Community 229 - "Marketing Backlog"
+Cohesion: 0.40
+Nodes (4): Later, Marketing Backlog, Now, Rejected Or Restricted Ideas
 
 ### Community 233 - "generate-bones.mjs"
 Cohesion: 0.18
 Nodes (10): heroKill, heroWin, jobFeed, pipelineOverview, queueLanes, recommendations, recommendationsTable, registryEntries (+2 more)
 
-### Community 236 - "access-page-detector.ts"
-Cohesion: 0.19
-Nodes (10): AccessPageDetection, AccessPageReason, DetectAccessPageOptions, hasAny(), isParticipationWallText(), PARTICIPATION_WALL_PATTERNS, stripMarkup(), main() (+2 more)
+### Community 234 - "tender-quality.ts"
+Cohesion: 0.18
+Nodes (16): evaluateTenderQuality(), assessTenderQuality(), buildFingerprintSeed(), buildTenderFingerprint(), compactText(), countKeywordMatches(), ERROR_TITLE_PATTERNS, NAVIGATION_TITLE_PATTERNS (+8 more)
 
-### Community 240 - "lexikon/[slug]/page.tsx"
-Cohesion: 0.20
-Nodes (9): CATEGORY_DESCRIPTIONS, LexikonHubPage(), metadata, ALL_GLOSSARY_SLUGS, getGlossaryByCategory(), GLOSSARY, GLOSSARY_CATEGORIES, GLOSSARY_MAP (+1 more)
+### Community 235 - "CompanyProfileHeader.tsx"
+Cohesion: 0.33
+Nodes (5): CompanyLogo(), CompanyLogoProps, chipSx, CompanyProfileHeader(), CompanyProfileHeaderProps
 
 ### Community 241 - "callLLM"
-Cohesion: 0.24
-Nodes (14): callLLM(), isProviderAuthError(), isRateLimitError(), MODEL_CASCADE, rateLimitCooldownUntil(), resetLLMCooldownsForTests(), CompanyProfile, extractCompanyProfile() (+6 more)
+Cohesion: 0.26
+Nodes (13): callLLM(), isProviderAuthError(), isRateLimitError(), MODEL_CASCADE, rateLimitCooldownUntil(), resetLLMCooldownsForTests(), CompanyProfile, extractCompanyProfile() (+5 more)
 
-### Community 247 - "PaywallPanel.tsx"
-Cohesion: 0.24
-Nodes (6): PaywallPanel(), PaywallPanelProps, DashboardMetrics, CompanyProfileOption, PursuitData, UsPursuitPanel()
+### Community 244 - "queue.ts"
+Cohesion: 0.14
+Nodes (16): parseLimit(), POST(), processNextJob(), runBatch(), ACTIVE_JOB_STATUSES, ClaimJobOptions, claimNextJob(), CRITICAL_JOB_TYPES (+8 more)
 
-### Community 249 - "RecommendationsSection.tsx"
-Cohesion: 0.31
-Nodes (8): CompanyOption, formatDate(), formatPercent(), parseJsonArray(), RecommendationItem, RecommendationsSection(), TRACKING_ACTIONS, TrackingEventType
-
-### Community 252 - "date-utils.ts"
-Cohesion: 0.31
-Nodes (11): berlinDateTimeFormatter, dateFromBerlinParts(), daysUntil(), deadlineColor(), getBerlinDateTimeParts(), getBerlinMidnightUnixSeconds(), getBerlinOffsetMilliseconds(), getDeadlineState() (+3 more)
-
-### Community 256 - "scrapeWebsite"
-Cohesion: 0.25
-Nodes (43): detectAccessPage(), htmlToBasicMarkdown(), scrapeWebsite(), cursorBoolean(), cursorNumber(), cursorPendingDetails(), cursorPosition(), cursorString() (+35 more)
-
-### Community 257 - "CompanySelector.tsx"
+### Community 245 - "package.json"
 Cohesion: 0.50
-Nodes (3): CompanySelector(), CompanySelectorProps, UserCompany
+Nodes (3): name, private, version
+
+### Community 256 - "detectAccessPage"
+Cohesion: 0.28
+Nodes (38): detectAccessPage(), searchTenders(), cursorBoolean(), cursorNumber(), cursorPendingDetails(), cursorPosition(), cursorString(), extractDetailFromMarkdown() (+30 more)
 
 ## Knowledge Gaps
-- **914 isolated node(s):** `$schema`, `.opencode/plugins/graphify.js`, `{ GET, POST }`, `Params`, `Params` (+909 more)
+- **1057 isolated node(s):** `$schema`, `.opencode/plugins/graphify.js`, `{ GET, POST }`, `Params`, `Params` (+1052 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **119 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **89 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `dependencies` connect `dependencies` to `stripe`, `resend`, `@better-auth/utils`, `jsdom`, `test-parser.ts`, `meilisearch`, `app/layout.tsx`, `@tailwindcss/postcss`, `drizzle-orm`, `better-auth`, `zod`, `boneyard-js`, `clsx`, `@emotion/styled`, `@mui/material`, `react`, `package.json`, `parser.ts`?**
-  _High betweenness centrality (0.125) - this node is a cross-community bridge._
+- **Why does `dependencies` connect `dependencies` to `react-dom`, `@mozilla/readability`, `lucide-react`, `test-parser.ts`, `next`, `clsx`, `tailwindcss`, `zod`, `@better-auth/utils`, `cheerio`, `package.json`, `postcss`, `react`, `drizzle-orm`, `better-sqlite3`, `app/layout.tsx`, `parser.ts`?**
+  _High betweenness centrality (0.120) - this node is a cross-community bridge._
 - **Why does `devDependencies` connect `devDependencies` to `package.json`?**
-  _High betweenness centrality (0.107) - this node is a cross-community bridge._
-- **Why does `devDependencies` connect `devDependencies` to `pnpm`, `@tailwindcss/vite`, `esbuild`, `postcss`, `devDependencies`, `prettier`, `typescript`, `pnpm`, `vite-plugin-manus-runtime`, `@vitejs/plugin-react`, `vitest`, `ausschreibungen-site/package.json`, `@tailwindcss/typography`, `tsx`, `@types/express`, `@types/node`, `@types/react-dom`, `tw-animate-css`, `vite`?**
-  _High betweenness centrality (0.096) - this node is a cross-community bridge._
+  _High betweenness centrality (0.097) - this node is a cross-community bridge._
+- **Why does `devDependencies` connect `devDependencies` to `ausschreibungen-site/package.json`, `devDependencies`?**
+  _High betweenness centrality (0.086) - this node is a cross-community bridge._
 - **What connects `$schema`, `.opencode/plugins/graphify.js`, `{ GET, POST }` to the rest of the system?**
-  _914 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `generateTenderSlug` be split into smaller, more focused modules?**
-  _Cohesion score 0.06019871420222092 - nodes in this community are weakly interconnected._
+  _1057 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `dependencies` be split into smaller, more focused modules?**
-  _Cohesion score 0.05128205128205128 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.04878048780487805 - nodes in this community are weakly interconnected._
+- **Should `dependencies` be split into smaller, more focused modules?**
+  _Cohesion score 0.046511627906976744 - nodes in this community are weakly interconnected._
 - **Should `cn` be split into smaller, more focused modules?**
   _Cohesion score 0.03493840985442329 - nodes in this community are weakly interconnected._

@@ -85,7 +85,7 @@ export async function POST(request: Request): Promise<Response> {
     const jobId = await enqueueJob(JOB_SCRAPE_PUBLIC, {
       source: sourceKey,
       ...(body.reset_cursor ? { reset_cursor: true } : {}),
-    }, { jobKey: `reprocess:${JOB_SCRAPE_PUBLIC}:${sourceKey}`, groupKey: `public-source:${sourceKey}`, priority: 130 });
+    }, { jobKey: `reprocess:${JOB_SCRAPE_PUBLIC}:${sourceKey}`, groupKey: `public-source:${sourceKey}`, priority: 130, dedupeCompleted: false });
     return Response.json({ requeued: true, jobId, source: sourceKey, resetCursor: body.reset_cursor === true });
   } catch (error) {
     console.error("[jobs/reprocess] Fehler:", error);

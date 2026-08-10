@@ -1,6 +1,16 @@
 import OpenAI from "openai";
 import { callLLM } from "@/lib/llm";
 import type { DocumentAnalysis } from "@/lib/document-analysis";
+import { buildTenderDescriptionMarkdown } from "@/lib/tender-description";
+import { isPublicNavigationSummary } from "@/lib/public-tender-scraper";
+import { decodeHtmlEntities } from "@/lib/text-normalization";
+import {
+  createCommercialBriefFallback,
+  validateCommercialBrief,
+  type CommercialBrief,
+  type CommercialBriefFacts,
+} from "@/lib/commercial-brief";
+import { classifyOpportunityStatus } from "@/lib/opportunity-status";
 
 const openrouterKey = process.env.OPENROUTER_API_KEY ?? "";
 
@@ -21,6 +31,16 @@ const CPV_PATTERN = /\b(\d{8}(?:-\d)?)\b/g;
 const DURATION_PATTERN = /(?:laufzeit|vertragslaufzeit|dauer|zeitraum)\s*[:\-]?\s*(\d+)\s*(?:monat|jahr|tag)/i;
 
 const compactSpaces = (value: string): string => value.split(/\s+/).join(" ").trim();
+
+const uniqueTextValues = (values: string[]): string[] => {
+  const seen = new Set<string>();
+  return values.filter((value) => {
+    const key = compactSpaces(value).toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
 
 const normalizeUmlauts = (value: string): string =>
   value.replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss").replace(/Ä/g, "Ae").replace(/Ö/g, "Oe").replace(/Ü/g, "Ue");
@@ -50,10 +70,24 @@ export const looksMangled = (text: string): boolean => {
   return false;
 };
 
+const isLabelLine = (line: string, keyword: string): boolean => {
+  const normalized = normalizeUmlauts(line.toLowerCase());
+  const index = normalized.indexOf(keyword);
+  if (index < 0) return false;
+
+  const before = normalized.slice(0, index).trim();
+  if (!/^(?:(?:[a-z]\)|\d+[.)]|[•-])\s*)?(?:oeffentlicher\s+)?$/i.test(before)) {
+    return false;
+  }
+
+  // Exact buyer labels must not match prose such as "Auftraggebers".
+  const exactBuyerKeyword = ["auftraggeber", "vergabestelle", "beschaffer"].includes(keyword);
+  return !exactBuyerKeyword || !/^[a-z]/i.test(normalized.slice(index + keyword.length));
+};
+
 const firstMatchingLine = (lines: string[], keywords: string[]): string | null => {
   for (let i = 0; i < lines.length; i++) {
-    const lower = normalizeUmlauts(lines[i].toLowerCase());
-    if (!keywords.some((keyword) => lower.includes(keyword))) continue;
+    if (!keywords.some((keyword) => isLabelLine(lines[i], keyword))) continue;
 
     // Try the next 1-3 lines (label-on-own-line format like "e) Ort der Ausführung")
     for (let j = i + 1; j < Math.min(i + 4, lines.length); j++) {
@@ -66,6 +100,7 @@ const firstMatchingLine = (lines: string[], keywords: string[]): string | null =
       if (["auftraggeber", "vergabestelle", "beschaffer", "frist", "deadline"].some(kw => nextLower.includes(kw))) break;
       // Clean up common prefixes from the next line
       const cleaned = nextLine.replace(/^(Name|Stra[ßs]e|Plz,?\s*Ort|Telefon|Fax|E-Mail|Internet|Bezeichnung|Haupterf[üu]llungsort|Auftragsgegenstand)\s*/i, "").trim();
+      if (/^(?:bezeichnung|name|name\s+und\s+anschrift|auftraggeber|vergabestelle)\s*:?[\s]*$/i.test(nextLine)) continue;
       const candidate = cleaned.length > 2 ? cleaned : nextLine;
       // Reject obviously mangled candidates (whitespace lost between HTML elements)
       if (looksMangled(candidate)) break;
@@ -273,6 +308,7 @@ export interface AwardCriterion {
 
 export interface StructuredData {
   title: string;
+  descriptionMarkdown?: string;
   hard_facts: {
     deadline: string | null;
     budget: string | null;
@@ -296,8 +332,80 @@ export interface StructuredData {
   };
   summary: string;
   confidence: number;
+  commercialBrief?: CommercialBrief;
   document_analysis?: DocumentAnalysis;
 }
+
+export interface StructuredFallbackFacts {
+  buyer?: string | null;
+  deadline?: string | null;
+  location?: string | null;
+  procedure?: string | null;
+  scope?: string | null;
+}
+
+const commercialBriefFacts = (structured: Pick<StructuredData, "title" | "hard_facts" | "decision_relevant" | "procurement">, awarded = false): CommercialBriefFacts => {
+  const documentedScope = uniqueTextValues(structured.decision_relevant.scope ?? []);
+  const documentedWinRequirements = uniqueTextValues([
+    ...(structured.decision_relevant.requirements ?? []),
+    ...(structured.procurement.participation_requirements ?? []),
+    ...(structured.decision_relevant.mandatory_documents ?? []),
+  ]);
+  const hasAwardCriteria = (structured.decision_relevant.award_criteria?.length ?? 0) > 0
+    || (structured.procurement.award_criteria_detailed?.length ?? 0) > 0;
+
+  return {
+    title: structured.title,
+    awarded,
+    // The official title is usable as a clearly marked scope fallback, but it
+    // does not turn missing LV/Mengen into documented detail.
+    whatIsBeingBought: documentedScope.length > 0 ? documentedScope : [structured.title],
+    documentedWinRequirements,
+    deliveryRequirements: [],
+    risks: [],
+    unknowns: [
+      ...(documentedScope.length > 0 ? [] : ["Detaillierter Leistungsumfang und Mengen sind nicht dokumentiert."]),
+      ...(hasAwardCriteria ? [] : ["Zuschlagskriterien sind nicht dokumentiert."]),
+    ],
+    buyer: structured.hard_facts.buyer,
+    procedure: structured.procurement.procedure_type,
+    deadline: structured.hard_facts.deadline,
+    location: structured.hard_facts.location,
+  };
+};
+
+export const buildStructuredDescriptionMarkdown = (
+  structured: StructuredData,
+  reference?: unknown,
+): string => {
+  const hardFacts = structured.hard_facts ?? {};
+  const decisionRelevant = structured.decision_relevant ?? {};
+  const procurement = structured.procurement ?? {};
+  const extra = structured as unknown as Record<string, unknown>;
+  const detailedAwardCriteria = procurement.award_criteria_detailed ?? [];
+  const requirements = uniqueTextValues([
+    ...(decisionRelevant.requirements ?? []),
+    ...(procurement.participation_requirements ?? []),
+  ]);
+
+  return buildTenderDescriptionMarkdown({
+    client: hardFacts.buyer,
+    procedure: procurement.procedure_type,
+    deadline: hardFacts.deadline,
+    location: hardFacts.location,
+    value: procurement.contract_value,
+    duration: procurement.contract_duration,
+    reference: reference ?? extra.referenceNumber ?? extra.reference_number,
+    summary: structured.summary,
+    scope: decisionRelevant.scope,
+    requirements,
+    mandatoryDocuments: decisionRelevant.mandatory_documents,
+    awardCriteria: detailedAwardCriteria.length > 0
+      ? detailedAwardCriteria
+      : decisionRelevant.award_criteria,
+    cpv: procurement.cpv_codes,
+  });
+};
 
 const PORTAL_TEXT_MARKERS = [
   "vergabeplattform",
@@ -311,46 +419,71 @@ const PORTAL_TEXT_MARKERS = [
 
 export const sanitizeTenderText = (value: unknown): string => {
   if (typeof value !== "string") return "";
-  const text = value.replace(/\s+/g, " ").trim();
-  if (!text || text.length > 1_600) return "";
+  const text = decodeHtmlEntities(value).replace(/\s+/g, " ").trim();
+  if (!text || text.length > 1_600 || isPublicNavigationSummary(text)) return "";
 
   const lower = text.toLowerCase();
+  if (/\bvergabeplattform\b/i.test(text)) return "";
   const markerCount = PORTAL_TEXT_MARKERS.filter((marker) => lower.includes(marker)).length;
   return markerCount >= 2 ? "" : text;
 };
 
-export function normalizeStructured(raw: unknown, fallbackTitle: string): StructuredData {
+export function normalizeStructured(raw: unknown, fallbackTitle: string, fallbackFacts: StructuredFallbackFacts = {}): StructuredData {
   const obj = raw as Record<string, unknown>;
   if (obj && typeof obj === "object" && obj.decision_relevant) {
     const structured = raw as unknown as StructuredData;
-    return {
+    const normalized = {
       ...structured,
-      summary: sanitizeTenderText(structured.summary) || fallbackTitle,
+      title: sanitizeTenderText(structured.title) || decodeHtmlEntities(fallbackTitle).trim(),
+      summary: sanitizeTenderText(structured.summary) || sanitizeTenderText(fallbackFacts.scope) || decodeHtmlEntities(fallbackTitle).trim(),
+      hard_facts: {
+        ...structured.hard_facts,
+        // Parsed portal labels are more reliable than legacy cache fragments
+        // such as "## Kurzinfo" or a lone postal code.
+        buyer: sanitizeTenderText(fallbackFacts.buyer) || sanitizeTenderText(structured.hard_facts?.buyer) || null,
+        deadline: sanitizeTenderText(fallbackFacts.deadline) || sanitizeTenderText(structured.hard_facts?.deadline) || null,
+        location: sanitizeTenderText(fallbackFacts.location) || sanitizeTenderText(structured.hard_facts?.location) || null,
+      },
       decision_relevant: {
         ...structured.decision_relevant,
-        scope: (structured.decision_relevant.scope ?? []).map(sanitizeTenderText).filter(Boolean),
-        requirements: (structured.decision_relevant.requirements ?? []).map(sanitizeTenderText).filter(Boolean),
-        mandatory_documents: (structured.decision_relevant.mandatory_documents ?? []).map(sanitizeTenderText).filter(Boolean),
+        scope: uniqueTextValues((structured.decision_relevant.scope ?? []).map(sanitizeTenderText).filter(Boolean)),
+        requirements: uniqueTextValues((structured.decision_relevant.requirements ?? []).map(sanitizeTenderText).filter(Boolean)),
+        mandatory_documents: uniqueTextValues((structured.decision_relevant.mandatory_documents ?? []).map(sanitizeTenderText).filter(Boolean)),
+      },
+      procurement: {
+        ...structured.procurement,
+        procedure_type: sanitizeTenderText(fallbackFacts.procedure)
+          || sanitizeTenderText(structured.procurement?.procedure_type)
+          || "",
       },
     };
+    const canonical = {
+      ...normalized,
+      descriptionMarkdown: buildStructuredDescriptionMarkdown(normalized, obj.referenceNumber ?? obj.reference_number),
+      commercialBrief: normalized.commercialBrief
+        ? validateCommercialBrief(normalized.commercialBrief, commercialBriefFacts(normalized)).brief
+        : createCommercialBriefFallback(commercialBriefFacts(normalized)),
+    };
+    delete (canonical as Record<string, unknown>).description_markdown;
+    return canonical;
   }
   const flat = obj as Record<string, unknown>;
   const scopeStr = sanitizeTenderText(flat.scope);
   const descStr = sanitizeTenderText(flat.description);
   const reqArr = Array.isArray(flat.requirements) ? (flat.requirements as string[]).map(sanitizeTenderText).filter(Boolean) : [];
   const awardArr = Array.isArray(flat.awardCriteria) ? (flat.awardCriteria as string[]) : [];
-  const titleStr = typeof flat.title === "string" ? flat.title : fallbackTitle;
+  const titleStr = sanitizeTenderText(flat.title) || decodeHtmlEntities(fallbackTitle).trim();
 
-  return {
+  const normalized = {
     title: titleStr,
-    summary: descStr || scopeStr || titleStr,
+    summary: descStr || scopeStr || sanitizeTenderText(fallbackFacts.scope) || titleStr,
     confidence: 0.5,
     hard_facts: {
-      location: typeof flat.location === "string" ? flat.location : null,
-      deadline: (flat.deadline as string | null) ?? null,
+      location: sanitizeTenderText(flat.location) || sanitizeTenderText(fallbackFacts.location) || null,
+      deadline: sanitizeTenderText(flat.deadline) || sanitizeTenderText(fallbackFacts.deadline) || null,
       budget: (flat.estimatedValue as string | null) ?? null,
-      buyer: typeof flat.client === "string" ? flat.client : null,
-      contract_type: typeof flat.procedure === "string" ? flat.procedure : null,
+      buyer: sanitizeTenderText(flat.client) || sanitizeTenderText(fallbackFacts.buyer) || null,
+      contract_type: sanitizeTenderText(flat.procedure) || sanitizeTenderText(fallbackFacts.procedure) || null,
     },
     decision_relevant: {
       scope: [...scopeStr.split(/\s+/).filter((w) => w.length > 3), ...titleStr.split(/\s+/).filter((w) => w.length > 3)],
@@ -364,8 +497,26 @@ export function normalizeStructured(raw: unknown, fallbackTitle: string): Struct
       award_criteria_detailed: [],
       participation_requirements: [],
       cpv_codes: [],
-      procedure_type: typeof flat.procedure === "string" ? flat.procedure : "offen",
+      procedure_type: sanitizeTenderText(fallbackFacts.procedure) || sanitizeTenderText(flat.procedure),
     },
+  };
+  return {
+    ...normalized,
+    descriptionMarkdown: buildTenderDescriptionMarkdown({
+      client: normalized.hard_facts.buyer,
+      procedure: normalized.procurement.procedure_type,
+      deadline: normalized.hard_facts.deadline,
+      location: normalized.hard_facts.location,
+      value: flat.estimatedValue ?? flat.value,
+      duration: flat.duration,
+      reference: flat.referenceNumber ?? flat.reference_number,
+      summary: descStr || scopeStr,
+      scope: scopeStr,
+      requirements: reqArr,
+      awardCriteria: awardArr,
+      cpv: flat.cpvCodes ?? flat.cpv_codes,
+    }),
+    commercialBrief: createCommercialBriefFallback(commercialBriefFacts(normalized)),
   };
 }
 
@@ -377,6 +528,7 @@ interface LLMExtractionResult {
   participation_requirements: string[];
   cpv_codes: string[];
   procedure_type: string;
+  commercial_brief: unknown;
 }
 
 const LLM_STRUCTURE_PROMPT = `Du bist ein Experte für öffentliche Ausschreibungen in Deutschland.
@@ -391,7 +543,13 @@ Antworte NUR mit einem JSON-Objekt (kein Markdown, kein Text davor/danach):
   "award_criteria": [],
   "participation_requirements": [],
   "cpv_codes": [],
-  "procedure_type": "offen"
+  "procedure_type": "offen",
+  "commercial_brief": {
+    "action": "verify",
+    "headline": "",
+    "rationale": "",
+    "nextAction": ""
+  }
 }
 
 Regeln:
@@ -402,6 +560,7 @@ Regeln:
 - participation_requirements: Teilnahmevoraussetzungen (Eignungsnachweise, Referenzen, etc.)
 - cpv_codes: CPV-Codes (8-stellig, z.B. "90910000")
 - procedure_type: "offen", "beschränkt", "verhandelt", "dialog", "innovation"
+- commercial_brief: Eine knappe, geschäftliche Entscheidung für den Bieter. action ist immer "verify". Formuliere headline und rationale ausschließlich aus dokumentierten Fakten; nenne dabei mindestens den Titel oder einen dokumentierten Leistungsumfang beziehungsweise eine dokumentierte Anforderung wörtlich. Gib keine Listen für Anforderungen, Risiken oder offene Punkte aus.
 
 Der Text kann mit [ROLLE: ...] markierte Abschnitte enthalten, die den Dokumenttyp kennzeichnen:
 - [ROLLE: leistungsbeschreibung] → Leistungsumfang, Art und Umfang der Leistung
@@ -455,6 +614,7 @@ async function extractWithLLM(title: string, rawText: string): Promise<LLMExtrac
       procedure_type: ["offen", "beschränkt", "verhandelt", "dialog", "innovation"].includes(parsed.procedure_type)
         ? parsed.procedure_type
         : "offen",
+      commercial_brief: parsed.commercial_brief,
     };
   } catch (error) {
     console.error("[structurer] LLM-Extraktion fehlgeschlagen:", error);
@@ -465,7 +625,7 @@ async function extractWithLLM(title: string, rawText: string): Promise<LLMExtrac
 // Build a clean, human-readable summary from the structured text.
 // Avoids the previous bug where `rawText.slice(0, 3000)` dumped mangled
 // single-line captions (labels glued to values) into the summary field.
-// Picks up to 8 well-formed lines (>=40 chars, not mangled) up to 1500 chars total.
+// Picks at most two well-formed lines, never a portal/PDF dump.
 const buildSummary = (lines: string[], rawText: string): string => {
   const picked: string[] = [];
   let total = 0;
@@ -474,47 +634,71 @@ const buildSummary = (lines: string[], rawText: string): string => {
     if (looksMangled(line)) continue;
     picked.push(line);
     total += line.length + 1;
-    if (picked.length >= 8 || total >= 1500) break;
+    if (picked.length >= 2 || total >= 420) break;
   }
   if (picked.length === 0) {
     // Last resort: keep the old behaviour but only if the input does not look mangled.
-    const head = rawText.slice(0, 600).trim();
+    const head = rawText.slice(0, 420).trim();
     return looksMangled(head) ? "" : head;
   }
-  return picked.join("\n").slice(0, 1_500);
+  return picked.join(" ").slice(0, 420);
 };
 
 export const extractStructuredData = async (
   title: string,
   rawText: string,
-  options: { useLLM?: boolean } = {},
+  options: { useLLM?: boolean; reference?: string | null } = {},
 ): Promise<StructuredData> => {
-  const lines = rawText
+  const normalizedRawText = decodeHtmlEntities(rawText);
+  const opportunityStatus = classifyOpportunityStatus(title, normalizedRawText);
+  const lines = normalizedRawText
     .split("\n")
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
 
   const deadline = extractDeadline(lines);
-  const budget = extractBudget(rawText);
+  const budget = extractBudget(normalizedRawText);
   const location = firstMatchingLine(lines, ["ort der ausf", "ort der leistung", "ausfuehrungsort", "ausfuhrungsort", "erfuellungsort", "erfuellungsort"]);
-  const buyer = firstMatchingLine(lines, ["auftraggeber", "vergabestelle", "beschaffer"]);
+  const buyer = firstMatchingLine(lines, [
+    "zur angebotsabgabe / teilnahme auffordernde stelle",
+    "ausschreibende stelle",
+    "oeffentlicher auftraggeber",
+    "auftraggeber",
+    "vergabestelle",
+    "beschaffer",
+  ]);
   const contractType = detectContractType(rawText);
 
-  const requirements = matchingLines(lines, ["eignung", "mindestanforderung", "fachkunde", "leistungsfaehigkeit"]);
+  const requirements = uniqueTextValues(matchingLines(lines, ["eignung", "mindestanforderung", "fachkunde", "leistungsfaehigkeit"])
+    .filter((value) => !/^[a-z]\)\s*(?:beurteilung der eignung|zuschlagskriterien)$/i.test(value)));
   const scope = matchingLinesWithContext(lines, ["art und umfang der leistung", "leistungsbeschreibung", "leistungsumfang", "gegenstand der ausschreibung", "art und umfang", "umfang der leistung", "beschreibung der leistung", "auftragsgegenstand"])
     .map(sanitizeTenderText)
+    .map((value) => value
+      .replace(/^Art der Leistung:\s*/i, "")
+      .replace(/\s+Umfang der Leistung:\s*/i, " ")
+      .replace(/(?:^|\s+)Vergabe nach Losen\s+(?:Ja|Nein)\s*$/i, "")
+      .trim())
+    .filter((value, index, values) => !values.some((other, otherIndex) =>
+      otherIndex !== index && other.length > value.length && other.includes(value)))
     .filter(Boolean);
-  const awardCriteria = matchingLines(lines, ["zuschlagskriter", "bewertung", "gewichtung"]);
-  const mandatoryDocuments = matchingLines(lines, ["nachweis", "zertifikat", "referenz", "pflichtunterlage", "muss"]);
+  const awardCriteria = uniqueTextValues(matchingLinesWithContext(lines, ["zuschlagskriter", "bewertung", "gewichtung"], 4, 1_000)
+    .map(sanitizeTenderText)
+    .map((value) => value.replace(/^[a-z]\)\s*zuschlagskriterien\s*/i, "").trim())
+    .filter(Boolean)
+    .filter((value, index, values) => !values.some((other, otherIndex) =>
+      otherIndex !== index && other.length > value.length && other.includes(value))));
+  const mandatoryDocuments = uniqueTextValues(matchingLines(lines, ["nachweis", "zertifikat", "referenz", "pflichtunterlage", "muss"]));
 
   // Regex-based procurement data
-  const contractValueRegex = extractContractValue(rawText);
-  const contractDurationRegex = extractDuration(rawText);
-  const cpvCodesRegex = extractCpvCodes(rawText);
-  const procedureTypeRegex = detectProcedureType(rawText);
+  const contractValueRegex = extractContractValue(normalizedRawText);
+  const contractDurationRegex = extractDuration(normalizedRawText);
+  const cpvCodesRegex = extractCpvCodes(normalizedRawText);
+  const procedureTypeRegex = detectProcedureType(normalizedRawText);
 
   // LLM-based extraction for enhanced data
-  const llmResult = options.useLLM === false ? null : await extractWithLLM(title, rawText);
+  const llmResult = options.useLLM === false || opportunityStatus.isAwarded
+    ? null
+    : await extractWithLLM(title, normalizedRawText);
 
   // Merge regex and LLM results without allowing a valid-but-empty model
   // response to erase deterministic signals.
@@ -553,8 +737,10 @@ export const extractStructuredData = async (
   const present = coveragePoints.reduce((sum, item) => (hasValue(item) ? sum + 1 : sum), 0);
   const confidence = Math.min(1, Number((present / 7).toFixed(2)));
 
-  return {
+  const summary = sanitizeTenderText(scope[0]) || sanitizeTenderText(buildSummary(lines, normalizedRawText)) || title;
+  const structured: StructuredData = {
     title,
+    descriptionMarkdown: "",
     hard_facts: {
       deadline,
       budget,
@@ -569,7 +755,14 @@ export const extractStructuredData = async (
       mandatory_documents: mandatoryDocuments,
     },
     procurement,
-    summary: sanitizeTenderText(buildSummary(lines, rawText)) || title,
+    summary,
     confidence,
   };
+  structured.descriptionMarkdown = buildStructuredDescriptionMarkdown(structured, options.reference);
+  const facts = commercialBriefFacts(structured, opportunityStatus.isAwarded);
+  const briefValidation = validateCommercialBrief(llmResult?.commercial_brief, facts);
+  structured.commercialBrief = briefValidation.valid
+    ? briefValidation.brief
+    : createCommercialBriefFallback(facts);
+  return structured;
 };

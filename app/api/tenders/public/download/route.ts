@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "node:fs";
 import path from "node:path";
-import crypto from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { documents, tenderResources, tenders } from "@/lib/schema";
 import { requirePremiumSession } from "@/lib/entitlements";
@@ -12,7 +11,6 @@ import { normalizeResourceUrl } from "@/lib/resource-discovery";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const DOCS_DIR = path.join(process.cwd(), "public", "docs");
 const MAX_SIZE = 50 * 1024 * 1024;
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
@@ -211,45 +209,14 @@ const legacyShareResponse = async (url: string, allowedUrls: Set<string>): Promi
   const headerFilename = extractContentDispositionFilename(response.headers.get("content-disposition"));
   const urlFilename = sanitizeFilename(path.basename(new URL(finalUrl).pathname));
   const filename = withExtension(headerFilename || (urlFilename === "" ? "dokument" : urlFilename), contentType);
-  const hash = crypto.createHash("sha256").update(finalUrl).digest("hex").slice(0, 12);
-  const safeName = `${hash}-${filename}`.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120);
-  await fs.promises.mkdir(DOCS_DIR, { recursive: true });
-  const filePath = path.join(DOCS_DIR, safeName);
-
-  let size: number;
-  try {
-    size = (await fs.promises.stat(filePath)).size;
-    if (size > MAX_SIZE) return NextResponse.json({ error: "file too large (max 50MB)" }, { status: 413 });
-  } catch {
-    const temporary = `${filePath}.${process.pid}.${Date.now()}.tmp`;
-    let file: Awaited<ReturnType<typeof fs.promises.open>> | null = null;
-    size = 0;
-    try {
-      file = await fs.promises.open(temporary, "w");
-      const reader = response.body.getReader();
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        size += value.byteLength;
-        if (size > MAX_SIZE) {
-          await reader.cancel();
-          throw new Error("file too large (max 50MB)");
-        }
-        await file.write(value);
-      }
-      await file.close();
-      file = null;
-      await fs.promises.rename(temporary, filePath);
-    } catch (error) {
-      if (file) await file.close().catch(() => undefined);
-      await fs.promises.rm(temporary, { force: true }).catch(() => undefined);
-      throw error;
-    }
-  }
-
-  const publicBaseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://palemaz.com";
-  const publicUrl = `${publicBaseUrl.replace(/\/$/, "")}/api/docs/${safeName}`;
-  return NextResponse.json({ url: publicUrl, filename, size });
+  return new NextResponse(response.body, {
+    headers: {
+      "Content-Type": contentTypeForDocument(contentType, filename),
+      "Content-Disposition": `attachment; filename="${filename}"`,
+      "Cache-Control": "private, no-store",
+      "X-Content-Type-Options": "nosniff",
+    },
+  });
 };
 
 export async function GET(req: NextRequest): Promise<Response> {
@@ -276,6 +243,7 @@ export async function GET(req: NextRequest): Promise<Response> {
           downloadStatus: documents.downloadStatus,
         })
         .from(documents)
+        .innerJoin(tenders, and(eq(tenders.id, documents.tenderId), eq(tenders.qualityStatus, "qualified")))
         .where(eq(documents.id, documentId))
         .limit(1);
       if (rows.length === 0) return NextResponse.json({ error: "document not found" }, { status: 404 });
@@ -295,7 +263,7 @@ export async function GET(req: NextRequest): Promise<Response> {
     const tenderRows = await db
       .select({ url: tenders.url })
       .from(tenders)
-      .where(eq(tenders.id, tenderId))
+      .where(and(eq(tenders.id, tenderId), eq(tenders.qualityStatus, "qualified")))
       .limit(1);
     if (tenderRows.length === 0) return NextResponse.json({ error: "tender not found" }, { status: 404 });
 

@@ -8,21 +8,38 @@ export const BILLING_PLANS: Record<
   {
     label: string;
     price: string;
+    currency: string;
     cadence: string;
     description: string;
+    features: string[];
   }
 > = {
   weekly: {
     label: "Wöchentlich",
-    price: "$12",
+    price: "12",
+    currency: "€",
     cadence: "pro Woche",
     description: "Flexibel starten und jederzeit über Stripe verwalten.",
+    features: [
+      "Alle Pro-Arbeitsansichten",
+      "Fit-Score und Muss-Kriterien",
+      "Risiken und nächste Schritte",
+      "Wöchentlich kündbar",
+    ],
   },
   quarterly: {
     label: "3 Monate",
-    price: "$39",
+    price: "39",
+    currency: "€",
     cadence: "pro 3 Monate",
     description: "Mehr Zeit für die Recherche, ohne dich langfristig zu binden.",
+    features: [
+      "Alle Pro-Arbeitsansichten",
+      "Fit-Score und Muss-Kriterien",
+      "Risiken und nächste Schritte",
+      "Brief- und Matrix-Exporte",
+      "73 % günstiger als der Wochenplan",
+    ],
   },
 };
 

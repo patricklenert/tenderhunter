@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { documents, tenderResources, tenders, structuredData, scores, companyProfiles } from "@/lib/schema";
-import { eq, and, ne, or, gt, isNull, inArray, desc } from "drizzle-orm";
+import { eq, and, ne, or, gt, isNull, desc } from "drizzle-orm";
 import { notFound, redirect } from "next/navigation";
 import { headers } from "next/headers";
 import type { Metadata } from "next";
@@ -30,8 +30,8 @@ import {
   CheckCircle2,
   LockKeyhole,
 } from "lucide-react";
-import { cleanDescription } from "@/lib/public-tender-scraper";
-import { looksMangled } from "@/lib/structurer";
+import { extractPublicPortalFacts, pickPublicDescription } from "@/lib/public-tender-scraper";
+import { looksMangled, normalizeStructured } from "@/lib/structurer";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 import { deriveBundesland, deriveCity, BUNDESLAND_SLUGS } from "@/lib/bundesland";
 import { CITY_SLUG_MAP } from "@/lib/cities";
@@ -39,12 +39,14 @@ import { normalizeAgencySlug } from "@/lib/agencies";
 import { generateTenderSlug } from "@/lib/tender-slug";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 import { PdfDocumentLink } from "@/components/PdfDocumentLink";
+import { SafeMarkdown } from "@/components/SafeMarkdown";
 import { auth } from "@/lib/auth";
 import { getBillingStatus } from "@/lib/entitlements";
 import { buildDocumentAnalysis, type AnalyzedDocument } from "@/lib/document-analysis";
 import { ROLE_LABELS_DE } from "@/lib/document-classifier";
 import { normalizeResourceUrl } from "@/lib/resource-discovery";
 import { readTenderMeta } from "@/lib/tender-meta";
+import { buildTenderDescriptionMarkdown } from "@/lib/tender-description";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -82,7 +84,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       qualityStatus: tenders.qualityStatus,
     })
     .from(tenders)
-    .where(eq(tenders.id, numericId))
+    .where(and(eq(tenders.id, numericId), eq(tenders.qualityStatus, "qualified")))
     .limit(1);
 
   if (rows.length === 0) return { title: "Ausschreibung nicht gefunden", robots: { index: false, follow: true } };
@@ -135,7 +137,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
     .select()
     .from(tenders)
     .leftJoin(structuredData, eq(structuredData.tenderId, tenders.id))
-    .where(eq(tenders.id, numericId))
+    .where(and(eq(tenders.id, numericId), eq(tenders.qualityStatus, "qualified")))
     .limit(1);
 
   if (rows.length === 0) notFound();
@@ -166,10 +168,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
     .where(eq(documents.tenderId, tender.id));
   const documentAnalysis = buildDocumentAnalysis(documentRows as AnalyzedDocument[]);
 
-  // Status-Page statt Redirect: expired/rejected Tenders bleiben indexable,
-  // erhalten aber einen prominenten Status-Banner und Cross-Links zu aktiven Tenders.
   const isExpired = Boolean(tender.deadlineAt && new Date(tender.deadlineAt) < new Date());
-  const isRejected = tender.qualityStatus === "rejected" || tender.qualityStatus === "duplicate";
   const readinessLabel: Record<string, string> = {
     pending: "Analyse wartet",
     partial: "Analyse teilweise verfügbar",
@@ -188,8 +187,17 @@ export default async function TenderDetailPage({ params }: PageProps) {
   const meta = (typeof tender.metadataJson === "object" && tender.metadataJson !== null
     ? tender.metadataJson
     : {}) as Record<string, unknown>;
-
+  const tenderMeta = readTenderMeta(meta, tender.rawText);
+  const portalFacts = extractPublicPortalFacts([tender.rawText, tenderMeta.description].filter(Boolean).join("\n"));
+  const fallbackFacts = {
+    buyer: portalFacts.client || tenderMeta.client || null,
+    procedure: portalFacts.procedure || tenderMeta.procedure || tender.procedureType || null,
+    deadline: portalFacts.deadline || (tender.deadlineAt ? tender.deadlineAt.toLocaleString("de-DE") : null),
+    location: portalFacts.location || tenderMeta.location || null,
+    scope: portalFacts.subject || tenderMeta.subject || null,
+  };
   const blob = sd?.jsonBlob as Record<string, unknown> | null;
+  const normalizedStructured = normalizeStructured(blob ?? meta, tender.title ?? "", fallbackFacts);
   const resourceRows = await db
     .select({
       id: tenderResources.id,
@@ -207,8 +215,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
     })
     .from(tenderResources)
     .where(eq(tenderResources.tenderId, tender.id));
-  const tenderMeta = readTenderMeta(meta, tender.rawText);
-  const structuredMeta = readTenderMeta(blob);
+  const structuredMeta = readTenderMeta(normalizedStructured);
   const resourceUrl = (value: string | null | undefined): string | null => normalizeResourceUrl(value, tender.url);
   const resourceKey = (value: string | null | undefined): string | null => resourceUrl(value);
   type DisplayResource = {
@@ -352,15 +359,12 @@ export default async function TenderDetailPage({ params }: PageProps) {
     return "";
   };
 
-  // Description: prefer the LLM-extracted `meta.description` (clean prose) over
-  // `blob.summary` (which historically echoed `rawText.slice(0, 3000)`).
-  const description = cleanDescription(
-    pickFirstClean(blob?.description, meta.description, blob?.summary, tender.rawText),
-  );
-  const scope = String(blob?.scope ?? "").trim();
-  const hardFacts = (blob?.hard_facts ?? {}) as Record<string, unknown>;
+  const description = pickPublicDescription(normalizedStructured.summary) || title;
+  const hardFacts = normalizedStructured.hard_facts as Record<string, unknown>;
+  const decisionRelevant = normalizedStructured.decision_relevant as Record<string, unknown>;
+  const procurement = normalizedStructured.procurement as Record<string, unknown>;
   const client = pickFirstClean(
-    blob?.client,
+    normalizedStructured.hard_facts.buyer,
     typeof hardFacts.buyer === "string" ? hardFacts.buyer : null,
     meta.client,
   )
@@ -369,15 +373,17 @@ export default async function TenderDetailPage({ params }: PageProps) {
     .replace(/\s+Ausschreibungs-?\s*$/, "")
     .trim();
   const location = pickFirstClean(
-    blob?.location,
+    normalizedStructured.hard_facts.location,
     typeof hardFacts.location === "string" ? hardFacts.location : null,
     meta.location,
   );
   const contactInfo = String(blob?.contact ?? "").trim();
-  const estimatedValue = String(blob?.estimatedValue ?? "").trim();
-  const referenceNumber = String(blob?.referenceNumber ?? "").trim();
-  const procedure = String(blob?.procedure ?? tender.procedureType ?? "").trim();
-  const duration = String(blob?.duration ?? "").trim();
+  const estimatedValue = String(blob?.estimatedValue ?? hardFacts.budget ?? "").trim();
+  const referenceNumber = pickFirstClean(blob?.referenceNumber, tenderMeta.referenceNumber);
+  const procedure = pickFirstClean(normalizedStructured.procurement.procedure_type, tender.procedureType);
+  const duration = pickFirstClean(blob?.duration, (procurement.contract_duration as Record<string, unknown> | undefined)?.months
+    ? `${(procurement.contract_duration as Record<string, unknown>).months} Monate`
+    : null);
 
   // SEO: Canonical slug from DB (stable, never drifts). Fallback to live computation for legacy rows.
   const expectedSlug = tender.slug ?? generateTenderSlug(title, location);
@@ -385,12 +391,18 @@ export default async function TenderDetailPage({ params }: PageProps) {
     redirect(`/ausschreibung/${tender.id}/${expectedSlug}`);
   }
 
-  const requirements = Array.isArray(blob?.requirements)
-    ? (blob.requirements as string[]).filter((r) => r.trim().length > 5)
-    : [];
-  const awardCriteria = Array.isArray(blob?.awardCriteria)
-    ? (blob.awardCriteria as string[]).filter((r) => r.trim().length > 5)
-    : [];
+  const requirements = [
+    ...(Array.isArray(decisionRelevant.requirements) ? decisionRelevant.requirements : []),
+    ...(Array.isArray(decisionRelevant.mandatory_documents) ? decisionRelevant.mandatory_documents : []),
+    ...(Array.isArray(procurement.participation_requirements) ? procurement.participation_requirements : []),
+  ].filter((value, index, values): value is string => typeof value === "string" && value.trim().length > 5 && values.indexOf(value) === index);
+  const awardCriteria = [
+    ...(Array.isArray(decisionRelevant.award_criteria) ? decisionRelevant.award_criteria : []),
+  ].filter((value, index, values): value is string => typeof value === "string" && value.trim().length > 5 && values.indexOf(value) === index);
+  const scope = pickFirstClean(
+    Array.isArray(decisionRelevant.scope) ? decisionRelevant.scope.join(" ") : null,
+    portalFacts.subject,
+  );
   const deadline = tender.deadlineAt
     ? new Date(tender.deadlineAt).toLocaleDateString("de-DE", {
         day: "2-digit",
@@ -412,6 +424,27 @@ export default async function TenderDetailPage({ params }: PageProps) {
   const contractValue = estimatedValue
     || (tender.contractValueMax ? `${tender.contractValueMax.toLocaleString("de-DE", { maximumFractionDigits: 0 })} EUR` : "");
 
+  const descriptionMarkdown = normalizedStructured.descriptionMarkdown
+    || buildTenderDescriptionMarkdown({
+      client,
+      procedure,
+      deadline: typeof hardFacts.deadline === "string" ? hardFacts.deadline : deadline,
+      location,
+      value: contractValue,
+      duration,
+      reference: referenceNumber,
+      summary: description,
+      scope,
+      requirements,
+      awardCriteria,
+      cpv: (procurement.cpv_codes ?? procurement.cpvCodes) as unknown,
+    });
+  const markdownHasSection = (label: string): boolean => descriptionMarkdown.includes(`- **${label}:**`);
+  const markdownHasScope = markdownHasSection("Leistungsumfang");
+  const markdownHasRequirements = markdownHasSection("Anforderungen");
+  const markdownHasAwards = markdownHasSection("Zuschlagskriterien");
+  const commercialBrief = normalizedStructured.commercialBrief;
+
   const now = new Date();
 
   const similarRows = await db
@@ -429,7 +462,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
       and(
         eq(tenders.category, tender.category ?? "Sonstiges"),
         ne(tenders.id, tender.id),
-        inArray(tenders.qualityStatus, ["qualified", "candidate"]),
+        eq(tenders.qualityStatus, "qualified"),
         or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
       ),
     )
@@ -583,13 +616,11 @@ export default async function TenderDetailPage({ params }: PageProps) {
     lineHeight: 1.25,
   };
   const sectionSx = { mb: { xs: 4, md: 5 }, scrollMarginTop: 24 };
-  const tenderStatus = isRejected
-    ? { label: "Prüfhinweis", color: "#991b1b", background: "#fef2f2" }
-    : isExpired
-      ? { label: "Frist abgelaufen", color: "#92400e", background: "#fffbeb" }
-      : deadline
-        ? { label: "Offene Frist", color: "#b34d3d", background: "#f8d8d2" }
-        : { label: "Frist unbekannt", color: "#667288", background: "#e8eff5" };
+  const tenderStatus = isExpired
+    ? { label: "Frist abgelaufen", color: "#92400e", background: "#fffbeb" }
+    : deadline
+      ? { label: "Offene Frist", color: "#b34d3d", background: "#f8d8d2" }
+      : { label: "Frist unbekannt", color: "#667288", background: "#e8eff5" };
   const missingRolesLabel = documentAnalysis.coverage.missingRoles
     .map((role) => ROLE_LABELS_DE[role] ?? role)
     .join(", ");
@@ -683,7 +714,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
                     fontWeight: 700,
                   }}
                 >
-                  {isExpired || isRejected ? <AlertCircle size={14} aria-hidden="true" /> : <CheckCircle2 size={14} aria-hidden="true" />}
+                  {isExpired ? <AlertCircle size={14} aria-hidden="true" /> : <CheckCircle2 size={14} aria-hidden="true" />}
                   {tenderStatus.label}
                 </Box>
               </Stack>
@@ -731,7 +762,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
                 )}
               </Stack>
 
-              {(isExpired || isRejected) && (
+              {isExpired && (
                 <Box
                   sx={{
                     display: "flex",
@@ -745,12 +776,10 @@ export default async function TenderDetailPage({ params }: PageProps) {
                   <AlertCircle size={18} color={tenderStatus.color} aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
                   <Box>
                     <Typography sx={{ color: tenderStatus.color, fontSize: "0.875rem", fontWeight: 700 }}>
-                      {isRejected ? "Verfahrensinformation nicht abschließend bewertet" : "Angebotsfrist abgelaufen"}
+                      Angebotsfrist abgelaufen
                     </Typography>
                     <Typography variant="body2" sx={{ mt: 0.25, color: tenderStatus.color, lineHeight: 1.55 }}>
-                      {isRejected
-                        ? "Diese Ausschreibung wurde aus dem qualifizierten Bestand entfernt. Die Originaldaten bleiben aus Transparenzgründen verfügbar."
-                        : `Diese Ausschreibung endete am ${deadline ?? "unbekanntem Datum"}. Die Angaben dienen als Archiv.`}
+                      {`Diese Ausschreibung endete am ${deadline ?? "unbekanntem Datum"}. Die Angaben dienen als Archiv.`}
                     </Typography>
                     {categorySlug && (
                       <Link
@@ -904,18 +933,45 @@ export default async function TenderDetailPage({ params }: PageProps) {
             </Paper>
 
             <Box sx={{ gridColumn: { lg: "1" }, minWidth: 0 }}>
-              {description && (
+              {commercialBrief && (
+                <Box component="section" aria-labelledby="geschaeftsentscheidung-heading" sx={{ ...sectionSx, bgcolor: "#f0f6f8", borderRadius: 2.5, p: { xs: 2, sm: 2.5 } }}>
+                  <Typography id="geschaeftsentscheidung-heading" component="h2" sx={sectionHeadingSx}>
+                    Geschäftsentscheidung
+                  </Typography>
+                  <Typography sx={{ color: "#163b4a", fontSize: "1.0625rem", fontWeight: 700, lineHeight: 1.4 }}>
+                    {commercialBrief.headline}
+                  </Typography>
+                  <Typography sx={{ mt: 0.75, maxWidth: "72ch", color: "#38505b", lineHeight: 1.65 }}>
+                    {commercialBrief.rationale}
+                  </Typography>
+                  <Typography sx={{ mt: 1.25, color: "#163b4a", fontWeight: 700, lineHeight: 1.5 }}>
+                    Nächster Schritt: {commercialBrief.nextAction}
+                  </Typography>
+                  {commercialBrief.unknowns.length > 0 && (
+                    <Typography variant="body2" sx={{ mt: 1, color: "#667288", lineHeight: 1.5 }}>
+                      Offen: {commercialBrief.unknowns.join(" ")}
+                    </Typography>
+                  )}
+                </Box>
+              )}
+              {(descriptionMarkdown || description) && (
                 <Box component="section" aria-labelledby="beschreibung-heading" sx={sectionSx}>
                   <Typography id="beschreibung-heading" component="h2" sx={sectionHeadingSx}>
                     Beschreibung
                   </Typography>
-                  <Typography sx={{ maxWidth: "72ch", color: "#4b5565", fontSize: "1rem", lineHeight: 1.7, whiteSpace: "pre-line" }}>
-                    {description}
-                  </Typography>
+                  <SafeMarkdown
+                    content={descriptionMarkdown}
+                    sx={{ maxWidth: "72ch", color: "#4b5565", fontSize: "1rem", lineHeight: 1.7 }}
+                    fallback={
+                      <Typography sx={{ maxWidth: "72ch", color: "#4b5565", fontSize: "1rem", lineHeight: 1.7, whiteSpace: "pre-line" }}>
+                        {description}
+                      </Typography>
+                    }
+                  />
                 </Box>
               )}
 
-              {scope && scope !== description && (
+              {scope && scope !== description && !markdownHasScope && (
                 <Box component="section" aria-labelledby="leistungsumfang-heading" sx={sectionSx}>
                   <Typography id="leistungsumfang-heading" component="h2" sx={sectionHeadingSx}>
                     Leistungsumfang
@@ -956,13 +1012,13 @@ export default async function TenderDetailPage({ params }: PageProps) {
                 </Box>
               )}
 
-              {(requirements.length > 0 || awardCriteria.length > 0 || contactInfo) && (
+              {((requirements.length > 0 && !markdownHasRequirements) || (awardCriteria.length > 0 && !markdownHasAwards) || contactInfo) && (
                 <Box component="section" aria-labelledby="vergabedetails-section-heading" sx={sectionSx}>
                   <Typography id="vergabedetails-section-heading" component="h2" sx={sectionHeadingSx}>
                     Vergabedetails
                   </Typography>
                   <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" }, gap: { xs: 3, md: 4 }, p: { xs: 2, sm: 2.5 }, borderRadius: 2.5, bgcolor: "#fbfcfd" }}>
-                    {requirements.length > 0 && (
+                    {requirements.length > 0 && !markdownHasRequirements && (
                       <Box>
                         <Typography component="h3" sx={{ color: "#2d3544", fontSize: "1rem", fontWeight: 700, mb: 1 }}>
                           Anforderungen
@@ -976,7 +1032,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
                         </Box>
                       </Box>
                     )}
-                    {awardCriteria.length > 0 && (
+                    {awardCriteria.length > 0 && !markdownHasAwards && (
                       <Box>
                         <Typography component="h3" sx={{ color: "#2d3544", fontSize: "1rem", fontWeight: 700, mb: 1 }}>
                           Zuschlagskriterien
@@ -1083,7 +1139,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
                             ))}
                           </Stack>
                         </Box>
-                        <Button component={Link} href="/upgrade" variant="contained" endIcon={<ArrowRight size={16} />} sx={{ flexShrink: 0, alignSelf: { xs: "flex-start", sm: "center" } }}>
+                        <Button component="a" href="/upgrade" variant="contained" endIcon={<ArrowRight size={16} />} sx={{ flexShrink: 0, alignSelf: { xs: "flex-start", sm: "center" } }}>
                           Unterlagen freischalten
                         </Button>
                       </Box>

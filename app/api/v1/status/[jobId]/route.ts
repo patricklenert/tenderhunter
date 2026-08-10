@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
-import { apiJobs } from "@/lib/schema";
+import { apiJobs, tenders } from "@/lib/schema";
 import { requireApiKey } from "@/lib/api-auth";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
 export const runtime = "nodejs";
 
@@ -45,10 +45,20 @@ export async function GET(
     return Response.json({ jobId: job.id, status: "failed", error: job.error ?? "Analyse fehlgeschlagen." });
   }
 
+  const snapshot = Array.isArray(job.tendersJson) ? job.tendersJson : [];
+  const tenderIds = snapshot
+    .map((item) => item && typeof item === "object" ? (item as Record<string, unknown>).id : null)
+    .filter((id): id is number => typeof id === "number" && Number.isSafeInteger(id));
+  const visibleIds = tenderIds.length > 0
+    ? new Set((await db.select({ id: tenders.id }).from(tenders)
+      .where(and(inArray(tenders.id, tenderIds), eq(tenders.qualityStatus, "qualified")))).map((row) => row.id))
+    : new Set<number>();
+  const visibleTenders = snapshot.filter((item) => item && typeof item === "object" && visibleIds.has((item as Record<string, unknown>).id as number));
+
   return Response.json({
     jobId: job.id,
     status: "completed",
     profileUrl: job.profileUrl,
-    tenders: job.tendersJson ?? [],
+    tenders: visibleTenders,
   });
 }

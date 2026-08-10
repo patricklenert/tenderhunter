@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { tenders, structuredData } from "@/lib/schema";
-import { eq, and, inArray, or, gt, isNull, desc, sql } from "drizzle-orm";
+import { eq, and, or, gt, isNull, desc, sql } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -92,7 +92,7 @@ export default async function CpvPage({ params, searchParams }: PageProps) {
       .innerJoin(structuredData, eq(structuredData.tenderId, tenders.id))
       .where(
         and(
-          inArray(tenders.qualityStatus, ["qualified", "candidate"]),
+          eq(tenders.qualityStatus, "qualified"),
           or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
           sql`(${structuredData.jsonBlob}->'procurement'->'cpv_codes')::jsonb ?| array[${code}, ${divisionPrefix + "000000"}]`,
         ),
@@ -117,7 +117,7 @@ export default async function CpvPage({ params, searchParams }: PageProps) {
       .innerJoin(structuredData, eq(structuredData.tenderId, tenders.id))
       .where(
         and(
-          inArray(tenders.qualityStatus, ["qualified", "candidate"]),
+          eq(tenders.qualityStatus, "qualified"),
           or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
           sql`(${structuredData.jsonBlob}->'procurement'->'cpv_codes')::jsonb ?| array[${code}, ${divisionPrefix + "000000"}]`,
         ),

@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { tenders, structuredData } from "@/lib/schema";
 import { json, errorResponse } from "@/lib/http";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { scrapeWebsite } from "@/lib/firecrawl";
 import { cleanPublicDescription, pickPublicDescription } from "@/lib/public-tender-scraper";
 import { formatDeadlineDE } from "@/lib/date-utils";
@@ -72,7 +72,7 @@ export async function POST(request: Request): Promise<Response> {
     const rows = await db
       .select()
       .from(tenders)
-      .where(eq(tenders.id, tenderId))
+      .where(and(eq(tenders.id, tenderId), eq(tenders.qualityStatus, "qualified")))
       .limit(1);
 
     if (rows.length === 0) {
@@ -80,13 +80,11 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const tender = rows[0];
-    if (tender.qualityStatus !== "qualified" || tender.readinessStatus !== "ready") {
+    if (tender.readinessStatus !== "ready") {
       return json({
-        error: "Ausschreibung ist noch nicht vollständig analysiert",
+        error: "Ausschreibung nicht gefunden",
         code: "READINESS_NOT_MET",
-        readinessStatus: tender.readinessStatus,
-        readinessReason: tender.readinessReason,
-      }, { status: 409 });
+      }, { status: 404 });
     }
 
     // 2. If no companyProfile provided, try to load from localStorage via client

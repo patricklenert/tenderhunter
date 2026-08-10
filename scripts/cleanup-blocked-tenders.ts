@@ -86,7 +86,7 @@ async function main(): Promise<void> {
     console.log("[cleanup-blocked] Keine Daten geändert. Mit --apply erneut ausführen.");
   }
   if (applyChanges && changed > 0) {
-    await enqueueJob(JOB_SYNC_MEILI, {}, { jobKey: JOB_SYNC_MEILI });
+    await enqueueJob(JOB_SYNC_MEILI, {}, { jobKey: JOB_SYNC_MEILI, dedupeCompleted: false });
     console.log("[cleanup-blocked] Meilisearch-Synchronisierung eingereiht.");
   }
 }

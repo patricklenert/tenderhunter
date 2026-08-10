@@ -9,8 +9,8 @@ assert.equal(parseBillingPlan("weekly"), "weekly");
 assert.equal(parseBillingPlan("quarterly"), "quarterly");
 assert.equal(parseBillingPlan("yearly"), null);
 assert.equal(parseBillingPlan("monthly"), null);
-assert.equal(BILLING_PLANS.weekly.price, "$12");
-assert.equal(BILLING_PLANS.quarterly.price, "$39");
+assert.equal(BILLING_PLANS.weekly.price, "12");
+assert.equal(BILLING_PLANS.quarterly.price, "39");
 
 assert.equal(isSubscriptionEntitled({ plan: "weekly", status: "active", currentPeriodEnd: future }), true);
 assert.equal(isSubscriptionEntitled({ plan: "quarterly", status: "trialing", currentPeriodEnd: future }), true);

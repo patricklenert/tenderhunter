@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { tenders } from "@/lib/schema";
-import { eq, and, inArray, or, gt, isNull, desc, sql } from "drizzle-orm";
+import { eq, and, or, gt, isNull, desc, sql } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -88,7 +88,7 @@ export default async function ProcedureTypePage({ params, searchParams }: PagePr
       .where(
         and(
           eq(tenders.procedureType, type),
-          inArray(tenders.qualityStatus, ["qualified", "candidate"]),
+          eq(tenders.qualityStatus, "qualified"),
           or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
         ),
       );
@@ -112,7 +112,7 @@ export default async function ProcedureTypePage({ params, searchParams }: PagePr
       .where(
         and(
           eq(tenders.procedureType, type),
-          inArray(tenders.qualityStatus, ["qualified", "candidate"]),
+          eq(tenders.qualityStatus, "qualified"),
           or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
         ),
       )

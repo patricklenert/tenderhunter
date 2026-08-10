@@ -40,7 +40,7 @@ export async function HomeSeoContent() {
     .from(tenders)
     .where(
       and(
-        or(eq(tenders.qualityStatus, "qualified"), eq(tenders.qualityStatus, "candidate")),
+        eq(tenders.qualityStatus, "qualified"),
         or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
       ),
     )

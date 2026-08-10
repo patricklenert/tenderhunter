@@ -674,9 +674,10 @@ export const jobAttempts = pgTable(
 export const catalogState = pgTable("catalog_state", {
   id: integer("id").primaryKey().default(1),
   revision: integer("revision").notNull().default(0),
-  syncedRevision: integer("synced_revision").notNull().default(0),
-  syncRunning: boolean("sync_running").notNull().default(false),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    syncedRevision: integer("synced_revision").notNull().default(0),
+    syncRunning: boolean("sync_running").notNull().default(false),
+    syncStartedAt: timestamp("sync_started_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const publicScrapeRuns = pgTable(

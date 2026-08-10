@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { db } from "@/lib/db";
 import { tenders } from "@/lib/schema";
-import { and, inArray, or, isNull, gt, sql, desc } from "drizzle-orm";
+import { and, eq, or, isNull, gt, sql, desc } from "drizzle-orm";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 import { normalizeAgencySlug } from "@/lib/agencies";
 import { generateTenderSlug } from "@/lib/tender-slug";
@@ -51,7 +51,7 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
       .from(tenders)
       .where(
         and(
-          inArray(tenders.qualityStatus, ["qualified", "candidate"]),
+          eq(tenders.qualityStatus, "qualified"),
           or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
           sql`(${tenders.metadataJson}::jsonb->>'client') IS NOT NULL`,
         ),
@@ -68,7 +68,7 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
       .from(tenders)
       .where(
         and(
-          inArray(tenders.qualityStatus, ["qualified", "candidate"]),
+          eq(tenders.qualityStatus, "qualified"),
           or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
           sql`(${tenders.metadataJson}::jsonb->>'client') = ${matchingClient}`,
         ),
@@ -113,7 +113,7 @@ export default async function AuftraggeberPage({ params, searchParams }: PagePro
     .from(tenders)
     .where(
       and(
-        inArray(tenders.qualityStatus, ["qualified", "candidate"]),
+        eq(tenders.qualityStatus, "qualified"),
         or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
         sql`(${tenders.metadataJson}::jsonb->>'client') IS NOT NULL`,
       ),
@@ -140,7 +140,7 @@ export default async function AuftraggeberPage({ params, searchParams }: PagePro
       .from(tenders)
       .where(
         and(
-          inArray(tenders.qualityStatus, ["qualified", "candidate"]),
+          eq(tenders.qualityStatus, "qualified"),
           or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
           sql`(${tenders.metadataJson}::jsonb->>'client') = ${matchingClient}`,
         ),
@@ -153,7 +153,7 @@ export default async function AuftraggeberPage({ params, searchParams }: PagePro
       .from(tenders)
       .where(
         and(
-          inArray(tenders.qualityStatus, ["qualified", "candidate"]),
+          eq(tenders.qualityStatus, "qualified"),
           or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
           sql`(${tenders.metadataJson}::jsonb->>'client') = ${matchingClient}`,
         ),
@@ -164,7 +164,7 @@ export default async function AuftraggeberPage({ params, searchParams }: PagePro
       .from(tenders)
       .where(
         and(
-          inArray(tenders.qualityStatus, ["qualified", "candidate"]),
+          eq(tenders.qualityStatus, "qualified"),
           sql`(${tenders.metadataJson}::jsonb->>'client') = ${matchingClient}`,
         ),
       )
@@ -175,7 +175,7 @@ export default async function AuftraggeberPage({ params, searchParams }: PagePro
       .from(tenders)
       .where(
         and(
-          inArray(tenders.qualityStatus, ["qualified", "candidate"]),
+          eq(tenders.qualityStatus, "qualified"),
           or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
           sql`(${tenders.metadataJson}::jsonb->>'client') = ${matchingClient}`,
         ),

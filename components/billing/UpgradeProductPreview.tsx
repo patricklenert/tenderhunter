@@ -1,217 +1,224 @@
+import { Box, Chip, Stack, Typography } from "@mui/material";
 import {
-  Box,
-  Divider,
-  Paper,
-  Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
-  Typography,
-} from "@mui/material";
-import { ClipboardCheck, FileText, ListChecks, ShieldAlert } from "lucide-react";
+  CheckCircle2,
+  ClipboardCheck,
+  FileText,
+  ListChecks,
+  ShieldAlert,
+} from "lucide-react";
 
-const REVIEW_ROWS = [
+const REVIEW_ITEMS = [
   {
     icon: ClipboardCheck,
-    label: "Passung zum Unternehmensprofil",
-    status: "Profil abgleichen",
-    detail: "Leistungsumfang der Gebäudereinigung mit Kapazitäten, Referenzen und Einsatzgebiet abgleichen.",
+    label: "Profil-Passung",
+    value: "85 %",
+    detail: "Leistungsumfang und Referenzen passen sehr gut.",
+    color: "#2e7d32",
   },
   {
-    icon: ListChecks,
-    label: "Fehlende Muss-Kriterien",
-    status: "Nachweise prüfen",
-    detail: "Referenzen für öffentliche Auftraggeber und geforderte Unterlagen in den Vergabeunterlagen verifizieren.",
+    icon: CheckCircle2,
+    label: "Muss-Kriterien",
+    value: "3 von 4",
+    detail: "Nur Umweltzertifizierung fehlt.",
+    color: "#ed6c02",
   },
   {
     icon: ShieldAlert,
-    label: "Erkennbare Risiken",
-    status: "Risiken klären",
-    detail: "Fristen, Reinigungsumfang und Haftungsanforderungen vor einer Zusage aus den Unterlagen prüfen.",
+    label: "Risiken",
+    value: "Niedrig",
+    detail: "Fristen realistisch, Haftung im Rahmen.",
+    color: "#2e7d32",
   },
   {
     icon: ListChecks,
-    label: "Priorisierte nächste Schritte",
-    status: "Zuerst bearbeiten",
-    detail: "Offene Muss-Kriterien und Profilabgleich vor der Go-/No-Go-Entscheidung zusammenführen.",
-  },
-] as const;
-
-const NEXT_STEPS = [
-  {
-    title: "Muss-Kriterien aus den Unterlagen prüfen",
-    detail: "Ausschlussgründe und notwendige Nachweise zuerst klären.",
-  },
-  {
-    title: "Unternehmensprofil dagegen halten",
-    detail: "Kapazitäten, Referenzen und Einsatzgebiet mit der Leistung abgleichen.",
-  },
-  {
-    title: "Go-/No-Go vorbereiten",
-    detail: "Risiken und offene Punkte für die Teamentscheidung zusammenführen.",
+    label: "Nächste Schritte",
+    value: "2 offen",
+    detail: "Zertifizierung klären, Kalkulation vorbereiten.",
+    color: "#ed6c02",
   },
 ] as const;
 
 export function UpgradeProductPreview() {
   return (
-    <Paper
-      component="figure"
-      variant="outlined"
-      aria-labelledby="product-preview-title"
+    <Box
       sx={{
-        m: 0,
+        borderRadius: 3,
         overflow: "hidden",
-        borderRadius: 2.5,
+        boxShadow: "0 25px 60px rgba(45,53,68,0.10), 0 4px 16px rgba(45,53,68,0.06)",
+        border: 1,
+        borderColor: "divider",
         bgcolor: "background.paper",
       }}
     >
-      <Box component="figcaption" sx={{ p: { xs: 2, sm: 2.75 } }}>
-        <Typography variant="overline" color="primary.main" fontWeight={800} letterSpacing="0.1em">
-          Tenderhunter Pro · Arbeitsbeispiel
-        </Typography>
-        <Typography id="product-preview-title" component="h2" variant="h5" fontWeight={700} sx={{ mt: 0.35, maxWidth: 780 }}>
-          Sie sehen nicht nur die Ausschreibung, sondern erhalten eine prüfbare Entscheidungsvorlage.
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.85, maxWidth: 720, lineHeight: 1.55 }}>
-          Eine illustrative Arbeitsansicht zeigt, wie Tenderhunter Vergabeunterlagen und Unternehmensprofil in konkrete Prüfpunkte und nächste Schritte übersetzt.
+      <Box
+        sx={{
+          px: 2,
+          py: 1,
+          bgcolor: "#2d3544",
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
+        }}
+      >
+        <Box sx={{ display: "flex", gap: 0.75 }}>
+          <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: "#ff5f57" }} />
+          <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: "#febc2e" }} />
+          <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: "#28c840" }} />
+        </Box>
+        <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.5)", ml: 1, fontSize: "0.7rem" }}>
+          tenderhunter.com/pro/tender/6674
         </Typography>
       </Box>
 
-      <Divider />
-
-      <Box sx={{ p: { xs: 2, sm: 2.75 } }}>
-        <Stack direction={{ xs: "column", md: "row" }} spacing={{ xs: 1.5, md: 3 }} justifyContent="space-between" alignItems={{ md: "flex-start" }}>
-          <Box sx={{ minWidth: 0 }}>
-            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-              <Typography variant="overline" color="primary.main" fontWeight={800} letterSpacing="0.1em">
-                Beispiel-Ausschreibung
-              </Typography>
-              <Typography variant="caption" color="text.secondary" fontWeight={600}>
-                Illustratives Beispiel
-              </Typography>
-            </Stack>
-            <Typography component="h3" variant="h6" fontWeight={700} sx={{ mt: 0.3, overflowWrap: "anywhere" }}>
+      <Box sx={{ p: { xs: 2, sm: 3 } }}>
+        <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ sm: "center" }} spacing={1.5}>
+          <Box>
+            <Typography variant="overline" sx={{ color: "primary.main", fontWeight: 800, letterSpacing: "0.1em", fontSize: "0.65rem" }}>
+              Arbeitsansicht · Gebäudereinigung
+            </Typography>
+            <Typography variant="h6" fontWeight={700} sx={{ mt: 0.25, fontSize: { xs: "1rem", sm: "1.15rem" } }}>
               Gebäudereinigung für öffentliche Einrichtungen
             </Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.45 }}>
-              Vergabeunterlagen und Unternehmensprofil in einer Arbeitsansicht.
+          </Box>
+          <Chip
+            label="Go"
+            size="small"
+            sx={{
+              bgcolor: "#e8f5e9",
+              color: "#2e7d32",
+              fontWeight: 800,
+              fontSize: "0.8rem",
+              height: 28,
+              px: 0.5,
+            }}
+          />
+        </Stack>
+
+        <Stack direction="row" alignItems="center" spacing={2} sx={{ mt: 2 }}>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 1,
+              px: 2,
+              py: 1,
+              borderRadius: 2,
+              bgcolor: "#f1f8e9",
+              border: 1,
+              borderColor: "#c5e1a5",
+            }}
+          >
+            <Typography variant="caption" fontWeight={800} sx={{ color: "#33691e", fontSize: "0.7rem" }}>
+              Fit-Score
+            </Typography>
+            <Typography variant="h5" fontWeight={800} sx={{ color: "#33691e", lineHeight: 1, fontSize: "1.5rem" }}>
+              82
             </Typography>
           </Box>
-          <Stack direction="row" spacing={1} alignItems="flex-start" sx={{ flexShrink: 0, maxWidth: { xs: "100%", md: 250 } }}>
-            <ShieldAlert size={18} color="currentColor" aria-hidden="true" style={{ marginTop: 2, flexShrink: 0 }} />
-            <Box>
-              <Typography variant="overline" color="text.secondary" fontWeight={800} letterSpacing="0.08em">
-                Entscheidungsstatus
+          <Box sx={{ flex: 1 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem" }}>
+              Profil passt gut · 2 offene Punkte klären
+            </Typography>
+          </Box>
+        </Stack>
+
+        <Box sx={{ mt: 2.5, display: "grid", gridTemplateColumns: { xs: "1fr 1fr", sm: "repeat(4, 1fr)" }, gap: 1.5 }}>
+          {REVIEW_ITEMS.map(({ icon: Icon, label, value, detail, color }) => (
+            <Box
+              key={label}
+              sx={{
+                p: 1.5,
+                borderRadius: 2,
+                border: 1,
+                borderColor: "divider",
+                bgcolor: "background.default",
+              }}
+            >
+              <Stack direction="row" spacing={0.75} alignItems="center">
+                <Icon size={14} style={{ color, flexShrink: 0 }} />
+                <Typography variant="caption" fontWeight={700} sx={{ fontSize: "0.7rem", lineHeight: 1.3 }}>
+                  {label}
+                </Typography>
+              </Stack>
+              <Typography variant="h6" fontWeight={800} sx={{ mt: 0.5, color, lineHeight: 1, fontSize: "1.1rem" }}>
+                {value}
               </Typography>
-              <Typography variant="body2" fontWeight={700} sx={{ lineHeight: 1.35 }}>
-                Weitere Prüfung erforderlich
+              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.25, fontSize: "0.65rem", lineHeight: 1.3 }}>
+                {detail}
               </Typography>
             </Box>
+          ))}
+        </Box>
+
+        <Box sx={{ mt: 2.5, pt: 2, borderTop: 1, borderColor: "divider" }}>
+          <Typography variant="caption" fontWeight={700} sx={{ fontSize: "0.7rem", color: "text.secondary" }}>
+            Nächste Schritte
+          </Typography>
+          <Stack spacing={1} sx={{ mt: 1 }}>
+            {[
+              "Umweltzertifizierung bei zuständiger Stelle anfragen",
+              "Angebotskalkulation auf Basis der Leistungsbeschreibung",
+            ].map((step, i) => (
+              <Stack key={step} direction="row" spacing={1} alignItems="center">
+                <Box
+                  sx={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: "50%",
+                    bgcolor: "primary.light",
+                    color: "primary.dark",
+                    display: "grid",
+                    placeItems: "center",
+                    fontSize: "0.65rem",
+                    fontWeight: 800,
+                    flexShrink: 0,
+                  }}
+                >
+                  {i + 1}
+                </Box>
+                <Typography variant="caption" sx={{ fontSize: "0.7rem", lineHeight: 1.3 }}>
+                  {step}
+                </Typography>
+              </Stack>
+            ))}
           </Stack>
+        </Box>
+
+        <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
+          <Box
+            sx={{
+              px: 1.5,
+              py: 0.5,
+              borderRadius: 1,
+              border: 1,
+              borderColor: "divider",
+              display: "flex",
+              alignItems: "center",
+              gap: 0.5,
+              opacity: 0.5,
+            }}
+          >
+            <FileText size={12} />
+            <Typography variant="caption" sx={{ fontSize: "0.65rem" }}>Brief-Export</Typography>
+          </Box>
+          <Box
+            sx={{
+              px: 1.5,
+              py: 0.5,
+              borderRadius: 1,
+              border: 1,
+              borderColor: "divider",
+              display: "flex",
+              alignItems: "center",
+              gap: 0.5,
+              opacity: 0.5,
+            }}
+          >
+            <ListChecks size={12} />
+            <Typography variant="caption" sx={{ fontSize: "0.65rem" }}>Matrix-Export</Typography>
+          </Box>
         </Stack>
       </Box>
-
-      <Divider />
-
-      <Box sx={{ display: "grid", minWidth: 0, gridTemplateColumns: { xs: "1fr", md: "minmax(0, 1.35fr) minmax(260px, 0.65fr)" } }}>
-        <Box component="section" aria-labelledby="preview-results-title" sx={{ minWidth: 0, p: { xs: 2, sm: 2.75 } }}>
-          <Typography id="preview-results-title" component="h3" variant="subtitle1" fontWeight={700}>
-            Ergebnisübersicht
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35, mb: 1.5, lineHeight: 1.5 }}>
-            Die Prüfung macht sichtbar, was vor einer Angebotsentscheidung geklärt werden muss.
-          </Typography>
-
-          <Box sx={{ display: { xs: "block", md: "none" } }}>
-            {REVIEW_ROWS.map(({ icon: Icon, label, status, detail }, index) => (
-              <Box key={label} sx={{ pt: index === 0 ? 0 : 1.5, mt: index === 0 ? 0 : 1.5, borderTop: index === 0 ? 0 : 1, borderColor: "divider" }}>
-                <Stack direction="row" spacing={0.9} alignItems="flex-start">
-                  <Icon size={16} color="currentColor" aria-hidden="true" style={{ marginTop: 2, flexShrink: 0 }} />
-                  <Box sx={{ minWidth: 0 }}>
-                    <Typography variant="body2" fontWeight={700} sx={{ lineHeight: 1.4 }}>{label}</Typography>
-                    <Typography variant="caption" color="primary.dark" fontWeight={700}>{status}</Typography>
-                  </Box>
-                </Stack>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, ml: 2.5, lineHeight: 1.45 }}>{detail}</Typography>
-              </Box>
-            ))}
-          </Box>
-
-          <Table aria-label="Illustrative Tenderhunter-Ergebnisübersicht" size="small" sx={{ display: { xs: "none", md: "table" }, tableLayout: "fixed", width: "100%", "& .MuiTableCell-root": { borderColor: "divider", verticalAlign: "top", wordBreak: "break-word" }, "& .MuiTableCell-head": { color: "text.secondary", fontSize: "0.68rem", fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase" } }}>
-            <TableHead>
-              <TableRow>
-                <TableCell sx={{ width: { xs: "34%", sm: "30%" }, pl: 0 }}>Prüfbereich</TableCell>
-                <TableCell sx={{ width: { xs: "25%", sm: "24%" } }}>Arbeitsstand</TableCell>
-                <TableCell sx={{ pr: 0 }}>Was sichtbar wird</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {REVIEW_ROWS.map(({ icon: Icon, label, status, detail }) => (
-                <TableRow key={label}>
-                  <TableCell component="th" scope="row" sx={{ pl: 0 }}>
-                    <Stack direction="row" spacing={0.9} alignItems="flex-start">
-                      <Icon size={16} color="currentColor" aria-hidden="true" style={{ marginTop: 2, flexShrink: 0 }} />
-                      <Typography variant="body2" fontWeight={700} sx={{ lineHeight: 1.4 }}>{label}</Typography>
-                    </Stack>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="caption" fontWeight={700} sx={{ lineHeight: 1.4 }}>{status}</Typography>
-                  </TableCell>
-                  <TableCell sx={{ pr: 0 }}>
-                    <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.45 }}>{detail}</Typography>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Box>
-
-        <Box component="section" aria-labelledby="preview-next-steps-title" sx={{ minWidth: 0, borderTop: { xs: 1, md: 0 }, borderLeft: { md: 1 }, borderColor: "divider", bgcolor: "rgba(232,239,245,0.32)", p: { xs: 2, sm: 2.75 } }}>
-          <Typography id="preview-next-steps-title" component="h3" variant="subtitle1" fontWeight={700}>
-            Priorisierte nächste Schritte
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35, lineHeight: 1.5 }}>
-            Aus den offenen Punkten entsteht eine nachvollziehbare Reihenfolge für die Angebotsarbeit.
-          </Typography>
-
-          <Stack component="ol" spacing={1.7} sx={{ listStyle: "none", p: 0, m: 0, mt: 2 }}>
-            {NEXT_STEPS.map(({ title, detail }, index) => (
-              <Stack component="li" key={title} direction="row" spacing={1.1} alignItems="flex-start">
-                <Box sx={{ display: "grid", placeItems: "center", width: 24, height: 24, flexShrink: 0, borderRadius: "50%", bgcolor: "primary.light", color: "primary.dark", fontSize: "0.75rem", fontWeight: 800 }}>
-                  {index + 1}
-                </Box>
-                <Box sx={{ minWidth: 0 }}>
-                  <Typography variant="body2" fontWeight={700} sx={{ lineHeight: 1.4 }}>{title}</Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.2, lineHeight: 1.45 }}>{detail}</Typography>
-                </Box>
-              </Stack>
-            ))}
-          </Stack>
-
-          <Box sx={{ mt: 2.5, pt: 1.5, borderTop: 1, borderColor: "divider" }}>
-            <Typography variant="caption" color="text.secondary" fontWeight={700}>
-              Weitere Arbeitsausgaben
-            </Typography>
-            <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap sx={{ mt: 0.75 }}>
-              <Stack direction="row" spacing={0.55} alignItems="center">
-                <FileText size={15} aria-hidden="true" />
-                <Typography variant="caption">Brief-Export</Typography>
-              </Stack>
-              <Stack direction="row" spacing={0.55} alignItems="center">
-                <ListChecks size={15} aria-hidden="true" />
-                <Typography variant="caption">Anforderungsmatrix-Export</Typography>
-              </Stack>
-            </Stack>
-          </Box>
-        </Box>
-      </Box>
-
-      <Divider />
-      <Typography variant="caption" color="text.secondary" sx={{ display: "block", p: { xs: 2, sm: 2.75 }, pt: { xs: 1.5, sm: 1.75 }, lineHeight: 1.5 }}>
-        Konkrete Werte und Hinweise hängen von der ausgewählten Ausschreibung und Ihrem Unternehmensprofil ab.
-      </Typography>
-    </Paper>
+    </Box>
   );
 }

@@ -158,7 +158,7 @@ const basePackQuery = (userId: string) =>
       and(eq(userCompanies.companyId, trackedTenders.companyId), eq(userCompanies.userId, userId)),
     )
     .leftJoin(companyProfiles, eq(companyProfiles.id, trackedTenders.companyId))
-    .leftJoin(tenders, eq(tenders.id, trackedTenders.tenderId))
+    .innerJoin(tenders, and(eq(tenders.id, trackedTenders.tenderId), eq(tenders.qualityStatus, "qualified")))
     .leftJoin(scores, and(eq(scores.tenderId, trackedTenders.tenderId), eq(scores.companyId, trackedTenders.companyId)))
     .leftJoin(insights, and(eq(insights.tenderId, trackedTenders.tenderId), eq(insights.companyId, trackedTenders.companyId)))
     .leftJoin(structuredData, eq(structuredData.tenderId, trackedTenders.tenderId));
@@ -353,7 +353,7 @@ export async function createBidPack(input: {
         userCompanies,
         and(eq(userCompanies.companyId, trackedTenders.companyId), eq(userCompanies.userId, input.userId)),
       )
-      .leftJoin(tenders, eq(tenders.id, trackedTenders.tenderId))
+      .innerJoin(tenders, and(eq(tenders.id, trackedTenders.tenderId), eq(tenders.qualityStatus, "qualified")))
       .leftJoin(structuredData, eq(structuredData.tenderId, trackedTenders.tenderId))
       .leftJoin(scores, and(eq(scores.tenderId, trackedTenders.tenderId), eq(scores.companyId, trackedTenders.companyId)))
       .leftJoin(insights, and(eq(insights.tenderId, trackedTenders.tenderId), eq(insights.companyId, trackedTenders.companyId)))

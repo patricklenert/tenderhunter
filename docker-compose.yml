@@ -73,6 +73,9 @@ services:
       US_PORTAL_MAX_PAGES: ${US_PORTAL_MAX_PAGES:-2}
       MAX_PDF_LINKS_PER_TENDER: ${MAX_PDF_LINKS_PER_TENDER:-20}
       DOCUMENT_REFRESH_HOURS: ${DOCUMENT_REFRESH_HOURS:-72}
+      MAX_PENDING_JOBS: ${MAX_PENDING_JOBS:-5000}
+      MAX_CRITICAL_JOB_AGE_MINUTES: ${MAX_CRITICAL_JOB_AGE_MINUTES:-30}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-https://palemaz.com}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
@@ -98,8 +101,8 @@ services:
     container_name: tenderhunter-worker
     restart: always
     init: true
-    mem_limit: 1g
-    memswap_limit: 1g
+    mem_limit: 2g
+    memswap_limit: 2g
     pids_limit: 256
     command: ["worker"]
     environment:
@@ -119,6 +122,10 @@ services:
       US_PORTAL_MAX_PAGES: ${US_PORTAL_MAX_PAGES:-2}
       MAX_PDF_LINKS_PER_TENDER: ${MAX_PDF_LINKS_PER_TENDER:-20}
       DOCUMENT_REFRESH_HOURS: ${DOCUMENT_REFRESH_HOURS:-72}
+      MAX_PENDING_JOBS: ${MAX_PENDING_JOBS:-5000}
+      MAX_CRITICAL_JOB_AGE_MINUTES: ${MAX_CRITICAL_JOB_AGE_MINUTES:-30}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-1}
+      NODE_OPTIONS: ${NODE_OPTIONS:---max-old-space-size=1536}
       SEARXNG_URL: http://searxng:8080
       MEILI_HOST: http://meilisearch:7700
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-meili-default-dev-key-change-me}

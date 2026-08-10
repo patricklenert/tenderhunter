@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { json } from "@/lib/http";
+import { settings } from "@/lib/config";
 import { sql } from "drizzle-orm";
 
 export const runtime = "nodejs";
@@ -13,7 +14,18 @@ export async function GET(): Promise<Response> {
       SELECT
         count(*) FILTER (WHERE status = 'pending') AS pending,
         count(*) FILTER (WHERE status = 'failed') AS failed_recent,
-        count(*) FILTER (WHERE status = 'running' AND heartbeat_at < now() - interval '5 minutes') AS stale_running
+        count(*) FILTER (WHERE status = 'running' AND heartbeat_at < now() - interval '5 minutes') AS stale_running,
+        count(*) FILTER (WHERE status = 'pending' AND type IN (
+          'crawl_sources', 'scrape_public_tenders', 'scrape_us_tenders',
+          'fetch_documents', 'fetch_us_documents', 'parse_documents',
+          'structure_tender', 'score_tender', 'cache_detail', 'sync_meilisearch'
+        )) AS critical_pending,
+        max(EXTRACT(EPOCH FROM (now() - created_at))) FILTER (WHERE status = 'pending') AS oldest_pending_age_seconds,
+        max(EXTRACT(EPOCH FROM (now() - created_at))) FILTER (WHERE status = 'pending' AND type IN (
+          'crawl_sources', 'scrape_public_tenders', 'scrape_us_tenders',
+          'fetch_documents', 'fetch_us_documents', 'parse_documents',
+          'structure_tender', 'score_tender', 'cache_detail', 'sync_meilisearch'
+        )) AS oldest_critical_age_seconds
       FROM jobs
       WHERE status IN ('pending', 'running')
          OR (status = 'failed' AND created_at > now() - interval '24 hours')
@@ -22,6 +34,22 @@ export async function GET(): Promise<Response> {
     const pending = Number(row.pending ?? 0);
     const failed24h = Number(row.failed_recent ?? 0);
     const staleRunning = Number(row.stale_running ?? 0);
+    const criticalPending = Number(row.critical_pending ?? 0);
+    const oldestPendingAgeSeconds = Number(row.oldest_pending_age_seconds ?? 0);
+    const oldestCriticalAgeSeconds = Number(row.oldest_critical_age_seconds ?? 0);
+    const backlogExceeded = pending > settings.maxPendingJobs;
+    const criticalBacklogStale = oldestCriticalAgeSeconds > settings.maxCriticalJobAgeMinutes * 60;
+
+    const pendingByTypeResult = await db.execute(sql`
+      SELECT type, count(*) AS pending
+      FROM jobs
+      WHERE status = 'pending'
+      GROUP BY type
+      ORDER BY count(*) DESC, type
+    `);
+    const pendingByType = Object.fromEntries(
+      pendingByTypeResult.map((pendingRow) => [String(pendingRow.type), Number(pendingRow.pending ?? 0)]),
+    );
 
     const sourceResult = await db.execute(sql`
       SELECT
@@ -75,12 +103,26 @@ export async function GET(): Promise<Response> {
       && continuationMissingSources === 0
       && lastFullRun.status === "success"
       && !fullRunStale
+      && !backlogExceeded
+      && !criticalBacklogStale
       ? "ok"
       : "degraded";
     return json({
       status,
       database,
-      queue: { pending, failed24h, staleRunning },
+       queue: {
+         pending,
+         pendingByType,
+         criticalPending,
+         oldestPendingAgeSeconds,
+         oldestCriticalAgeSeconds,
+         backlogExceeded,
+         criticalBacklogStale,
+         maxPendingJobs: settings.maxPendingJobs,
+         maxCriticalJobAgeMinutes: settings.maxCriticalJobAgeMinutes,
+         failed24h,
+         staleRunning,
+       },
       sources: {
         failed24h: sourceFailures24h,
         partial24h: sourcePartial24h,

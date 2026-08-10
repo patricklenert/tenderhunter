@@ -409,7 +409,7 @@ export async function POST(request: Request): Promise<Response> {
 
     await enqueueJob(JOB_CRAWL, {
       sources: serializeSourceItems(getSessionSources()),
-    }, { jobKey: JOB_CRAWL, groupKey: discoveryGroup });
+    }, { jobKey: JOB_CRAWL, groupKey: discoveryGroup, dedupeCompleted: false });
     const scoreJobId = await enqueueJob(
       JOB_DISCOVER_COMPANY,
       { company_id: companyId, discovery_id: discoveryId },

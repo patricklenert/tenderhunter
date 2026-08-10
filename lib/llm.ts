@@ -2,7 +2,7 @@ import OpenAI from "openai";
 
 // Try free models first and use paid Laguna only as the final fallback.
 export const MODEL_CASCADE = [
-  "inclusionai/ling-3.0-flash:free",
+  "inclusionai/ling-3.0-tiny:free",
   "poolside/laguna-s-2.1:free",
   "poolside/laguna-xs-2.1:free",
   "nvidia/nemotron-3-ultra-550b-a55b:free",

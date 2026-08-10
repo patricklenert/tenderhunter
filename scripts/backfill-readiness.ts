@@ -72,7 +72,7 @@ const run = async () => {
 
   if (apply) {
     await markCatalogDirty();
-    await enqueueJob(JOB_SYNC_MEILI, {}, { jobKey: JOB_SYNC_MEILI });
+    await enqueueJob(JOB_SYNC_MEILI, {}, { jobKey: JOB_SYNC_MEILI, dedupeCompleted: false });
   }
 
   console.log(`${apply ? "Angewendet" : "Dry-run"}: ${tenderRows.length} Tender`);

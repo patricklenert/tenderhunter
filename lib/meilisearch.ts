@@ -1,7 +1,7 @@
 import { Meilisearch, type SearchResponse } from "meilisearch";
 import { db } from "@/lib/db";
 import { structuredData, tenders } from "@/lib/schema";
-import { and, eq, gt, isNull, or } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, or } from "drizzle-orm";
 import { cleanPublicDescription } from "@/lib/public-tender-scraper";
 import { deriveBundesland, deriveCity } from "@/lib/bundesland";
 import { acquireCatalogSync, finishCatalogSync, getCatalogState, releaseCatalogSync } from "@/lib/catalog";
@@ -11,6 +11,7 @@ const MEILI_KEY = process.env.MEILI_MASTER_KEY ?? "";
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY ?? "";
 const MEILI_EMBEDDINGS_ENABLED = process.env.MEILI_EMBEDDINGS_ENABLED === "true";
 const INDEX_NAME = "tenders";
+const SYNC_INDEX_NAME = `${INDEX_NAME}_sync`;
 
 let clientInstance: Meilisearch | null = null;
 let configurePromise: Promise<void> | null = null;
@@ -56,22 +57,10 @@ async function waitForMeiliTask(task: { taskUid: number }, operation: string): P
   throw new Error(`${operation} fehlgeschlagen: ${failed.error?.message ?? failed.status}`);
 }
 
-export function configureMeiliIndex(): Promise<void> {
-  if (configurePromise) return configurePromise;
-  configurePromise = configureMeiliIndexOnce().catch((error) => {
-    configurePromise = null;
-    throw error;
-  });
-  return configurePromise;
-}
-
-async function configureMeiliIndexOnce(): Promise<void> {
-  const client = getMeiliClient();
-
-  await client.createIndex(INDEX_NAME, { primaryKey: "id" }).catch(() => {});
-
-  const index = client.index(INDEX_NAME);
-
+const configureIndex = async (
+  index: ReturnType<Meilisearch["index"]>,
+  resetEmbedders = false,
+): Promise<void> => {
   await index.updateSearchableAttributes([
     "title", "description", "client", "category",
   ]);
@@ -109,7 +98,7 @@ async function configureMeiliIndexOnce(): Promise<void> {
       .catch((err) => {
         console.warn("[meilisearch] Embedder-Setup fehlgeschlagen:", err);
       });
-  } else {
+  } else if (resetEmbedders) {
     if (!MEILI_EMBEDDINGS_ENABLED) {
       await waitForMeiliTask(await index.resetEmbedders(), "Embedder-Reset");
     }
@@ -126,10 +115,27 @@ async function configureMeiliIndexOnce(): Promise<void> {
   ]);
 
   // Meilisearch defaults maxTotalHits to 1000, which caps estimatedTotalHits and pagination.
-  // Lift the cap so all qualified tenders are searchable/counted.
   await index.updatePagination({ maxTotalHits: 1_000_000 }).catch((err) => {
     console.warn("[meilisearch] Pagination-Setting fehlgeschlagen:", err);
   });
+};
+
+export function configureMeiliIndex(): Promise<void> {
+  if (configurePromise) return configurePromise;
+  configurePromise = configureMeiliIndexOnce().catch((error) => {
+    configurePromise = null;
+    throw error;
+  });
+  return configurePromise;
+}
+
+async function configureMeiliIndexOnce(): Promise<void> {
+  const client = getMeiliClient();
+
+  await client.createIndex(INDEX_NAME, { primaryKey: "id" }).catch(() => {});
+
+  const index = client.index(INDEX_NAME);
+  await configureIndex(index, true);
 
   console.log("[meilisearch] Index konfiguriert");
 }
@@ -152,22 +158,30 @@ async function disableEmbeddingsForProcess(index: ReturnType<Meilisearch["index"
 
 export async function syncTendersToMeili(): Promise<{ indexed: number; skipped: number }> {
   const client = getMeiliClient();
-  const index = client.index(INDEX_NAME);
   const syncRevision = await acquireCatalogSync();
   if (syncRevision === null) {
     throw new Error("Meilisearch-Sync läuft bereits; erneuter Versuch erforderlich.");
   }
 
   try {
-    const batchSize = 250;
+    const batchSize = 50;
     let targetRevision = syncRevision;
+    let lastIndexed = 0;
     for (let attempt = 0; attempt < 4; attempt += 1) {
+      // Build off to the side. A worker crash must not leave the live index
+      // empty or partially rebuilt.
+      await client.deleteIndexIfExists(SYNC_INDEX_NAME).catch((error) => {
+        console.warn("[meilisearch] Alter Sync-Index konnte nicht entfernt werden:", error);
+      });
+      await waitForMeiliTask(
+        await client.createIndex(SYNC_INDEX_NAME, { primaryKey: "id" }),
+        "Erstellen des Sync-Index",
+      );
+      const syncIndex = client.index(SYNC_INDEX_NAME);
+      await configureIndex(syncIndex);
       const now = new Date();
       let lastId = 0;
       let indexed = 0;
-
-      // Clear first so deleted, expired, and disqualified tenders cannot remain searchable.
-      await waitForMeiliTask(await index.deleteAllDocuments(), "Löschen des alten Index");
 
       while (true) {
         const items = await db
@@ -232,19 +246,28 @@ export async function syncTendersToMeili(): Promise<{ indexed: number; skipped: 
           };
         });
         try {
-          await waitForMeiliTask(await index.addDocuments(docs), `Indizieren von Batch ab Tender ${docs[0].id}`);
+          await waitForMeiliTask(await syncIndex.addDocuments(docs), `Indizieren von Batch ab Tender ${docs[0].id}`);
         } catch (error) {
           if (!MEILI_EMBEDDINGS_ENABLED || embeddingsUnavailable || !isEmbeddingFailure(error)) throw error;
-          await disableEmbeddingsForProcess(index);
-          await waitForMeiliTask(await index.addDocuments(docs), `Erneutes Indizieren von Batch ab Tender ${docs[0].id}`);
+          await disableEmbeddingsForProcess(syncIndex);
+          await waitForMeiliTask(await syncIndex.addDocuments(docs), `Erneutes Indizieren von Batch ab Tender ${docs[0].id}`);
         }
         indexed += docs.length;
         lastId = items[items.length - 1].id;
       }
+      lastIndexed = indexed;
 
       const state = await getCatalogState();
       const currentRevision = state?.revision ?? targetRevision;
       if (currentRevision <= targetRevision) {
+        await waitForMeiliTask(
+          // Meilisearch v1.13 accepts only `indexes`; the SDK type still requires `rename`.
+          await client.swapIndexes([{ indexes: [INDEX_NAME, SYNC_INDEX_NAME] } as never]),
+          "Veröffentlichen des Sync-Index",
+        );
+        await client.deleteIndexIfExists(SYNC_INDEX_NAME).catch((error) => {
+          console.warn("[meilisearch] Alter Live-Index konnte nach dem Austausch nicht entfernt werden:", error);
+        });
         await finishCatalogSync(currentRevision);
         console.log(`[meilisearch] Sync abgeschlossen: ${indexed} Dokumente in Batches indiziert (Revision ${currentRevision})`);
         return { indexed, skipped: 0 };
@@ -252,8 +275,20 @@ export async function syncTendersToMeili(): Promise<{ indexed: number; skipped: 
       targetRevision = currentRevision;
       console.log(`[meilisearch] Katalog während des Syncs geändert (Revision ${currentRevision}), wiederhole.`);
     }
-    throw new Error("Meilisearch-Sync konnte wegen fortlaufender Katalogänderungen nicht stabil abgeschlossen werden.");
+    await waitForMeiliTask(
+      await client.swapIndexes([{ indexes: [INDEX_NAME, SYNC_INDEX_NAME] } as never]),
+      "Veröffentlichen des letzten Sync-Snapshots",
+    );
+    await client.deleteIndexIfExists(SYNC_INDEX_NAME).catch((error) => {
+      console.warn("[meilisearch] Alter Live-Index konnte nach dem Austausch nicht entfernt werden:", error);
+    });
+    await finishCatalogSync(targetRevision);
+    console.warn(`[meilisearch] Sync-Snapshot abgeschlossen, obwohl der Katalog weiter geändert wurde (Revision ${targetRevision}).`);
+    return { indexed: lastIndexed, skipped: 0 };
   } catch (error) {
+    await client.deleteIndexIfExists(SYNC_INDEX_NAME).catch((cleanupError) => {
+      console.warn("[meilisearch] Temporärer Sync-Index konnte nicht bereinigt werden:", cleanupError);
+    });
     await releaseCatalogSync().catch(() => undefined);
     throw error;
   }
@@ -334,14 +369,38 @@ export async function searchTenders(
     searchParams.sort = ["deadlineAt:asc"];
   }
 
-  const response: SearchResponse<TenderDocument> = await index.search(
-    params.query ?? "",
-    searchParams,
-  );
+  let response: SearchResponse<TenderDocument>;
+  try {
+    response = await index.search(
+      params.query ?? "",
+      searchParams,
+    );
+  } catch (error) {
+    if (!searchParams.hybrid || embeddingsUnavailable || !isEmbeddingFailure(error)) throw error;
+
+    await disableEmbeddingsForProcess(index);
+    delete searchParams.hybrid;
+    response = await index.search(
+      params.query ?? "",
+      searchParams,
+    );
+  }
+
+  const hits = response.hits ?? [];
+  const qualifiedIds = hits.length > 0
+    ? new Set((await db
+      .select({ id: tenders.id })
+      .from(tenders)
+      .where(and(inArray(tenders.id, hits.map((hit) => hit.id)), eq(tenders.qualityStatus, "qualified"))))
+      .map((row) => row.id))
+    : new Set<number>();
+  const visibleHits = hits.filter((hit) => qualifiedIds.has(hit.id));
 
   return {
-    hits: response.hits ?? [],
-    estimatedTotalHits: response.estimatedTotalHits ?? response.hits?.length ?? 0,
+    hits: visibleHits,
+    // `visibleHits` contains only the requested page and is capped at 30.
+    // Preserve Meilisearch's filtered total for pagination and result counts.
+    estimatedTotalHits: response.estimatedTotalHits ?? visibleHits.length,
     processingTimeMs: response.processingTimeMs ?? 0,
   };
 }

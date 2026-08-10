@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { tenders } from "@/lib/schema";
-import { eq, and, inArray, or, gt, isNull, desc, sql } from "drizzle-orm";
+import { eq, and, or, gt, isNull, desc, sql } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -65,7 +65,7 @@ export async function generateMetadata({
       .where(
         and(
           eq(tenders.category, categoryKey),
-          inArray(tenders.qualityStatus, ["qualified", "candidate"]),
+          eq(tenders.qualityStatus, "qualified"),
           or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
         ),
       );
@@ -133,7 +133,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
       .where(
         and(
           eq(tenders.category, categoryKey),
-          inArray(tenders.qualityStatus, ["qualified", "candidate"]),
+          eq(tenders.qualityStatus, "qualified"),
           or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
         ),
       );
@@ -158,7 +158,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
       .where(
         and(
           eq(tenders.category, categoryKey),
-          inArray(tenders.qualityStatus, ["qualified", "candidate"]),
+          eq(tenders.qualityStatus, "qualified"),
           or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
         ),
       )
@@ -203,7 +203,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
       .from(tenders)
       .where(
         and(
-          inArray(tenders.qualityStatus, ["qualified", "candidate"]),
+          eq(tenders.qualityStatus, "qualified"),
           or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
           sql`${tenders.category} IS NOT NULL`,
         ),

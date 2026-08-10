@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { tenders } from "@/lib/schema";
-import { eq, and, inArray, or, gt, isNull, desc } from "drizzle-orm";
+import { eq, and, or, gt, isNull, desc } from "drizzle-orm";
 import { CATEGORY_LABELS } from "@/lib/categories";
 import { generateTenderSlug } from "@/lib/tender-slug";
 
@@ -46,7 +46,7 @@ export async function GET() {
       .from(tenders)
       .where(
         and(
-          inArray(tenders.qualityStatus, ["qualified", "candidate"]),
+          eq(tenders.qualityStatus, "qualified"),
           or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
         ),
       )

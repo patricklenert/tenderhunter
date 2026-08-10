@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { companyProfiles, scores, tenders, structuredData } from "@/lib/schema";
-import { eq, and, or, desc, gt } from "drizzle-orm";
+import { eq, and, desc, gt } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -161,7 +161,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
       eq(scores.companyId, company.id),
       gt(scores.fit, 10),
       eq(scores.killSwitch, false),
-      or(eq(tenders.qualityStatus, "qualified"), eq(tenders.qualityStatus, "candidate")),
+      eq(tenders.qualityStatus, "qualified"),
     ))
     .orderBy(desc(scores.winProbability), desc(scores.fit))
     .limit(50);

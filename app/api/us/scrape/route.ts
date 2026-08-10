@@ -18,7 +18,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
-    const jobId = await enqueueJob(JOB_SCRAPE_US, {}, { jobKey: JOB_SCRAPE_US });
+    const jobId = await enqueueJob(JOB_SCRAPE_US, {}, { jobKey: JOB_SCRAPE_US, dedupeCompleted: false });
     return json({ enqueuedJobId: jobId }, { status: 202 });
   } catch {
     return json({ error: "Unable to queue U.S. scrape." }, { status: 500 });

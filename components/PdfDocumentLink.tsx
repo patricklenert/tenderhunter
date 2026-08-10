@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Box, Typography, Button, CircularProgress } from "@mui/material";
-import { FileText, ArrowUpRight, Share2, Check } from "lucide-react";
+import { Box, Typography, Button } from "@mui/material";
+import { FileText, ArrowUpRight } from "lucide-react";
 import { cleanPdfFilename } from "@/lib/date-utils";
 import { ROLE_LABELS_DE } from "@/lib/document-classifier";
 
@@ -30,45 +29,14 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export function PdfDocumentLink({ url, documentId, tenderId, index, label, filename, roles = [], status, variant = "default" }: PdfDocumentLinkProps) {
-  const [loading, setLoading] = useState(false);
-  const [publicUrl, setPublicUrl] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-
   const isStoredDocument = typeof documentId === "number" && Number.isSafeInteger(documentId) && documentId > 0;
   const displayName = filename || label || (url ? cleanPdfFilename(url) : `Dokument ${index + 1}`);
   const documentUrl = isStoredDocument ? `/api/tenders/public/download?documentId=${documentId}` : null;
+  const legacyDocumentUrl = !isStoredDocument && url && tenderId
+    ? `/api/tenders/public/download?${new URLSearchParams({ url, tenderId: String(tenderId) }).toString()}`
+    : null;
   const isUnavailable = status === "failed" || status === "blocked";
-  const openUrl = documentUrl || (isUnavailable ? null : url);
-
-  const handleDownload = async () => {
-    if (!url || !tenderId) {
-      setError("Für dieses Dokument ist kein sicherer Tender-Bezug vorhanden.");
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams({ url, tenderId: String(tenderId) });
-      const resp = await fetch(`/api/tenders/public/download?${params.toString()}`);
-      const data = await resp.json();
-      if (!resp.ok) throw new Error(data.error ?? "Download fehlgeschlagen");
-      setPublicUrl(data.url);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Fehler");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCopy = async () => {
-    if (!publicUrl) return;
-    try {
-      await navigator.clipboard.writeText(publicUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {}
-  };
+  const openUrl = isUnavailable ? null : documentUrl ?? legacyDocumentUrl;
 
   return (
     <Box
@@ -108,29 +76,8 @@ export function PdfDocumentLink({ url, documentId, tenderId, index, label, filen
             {[...roles.map((role) => ROLE_LABELS_DE[role] ?? role), status ? STATUS_LABELS[status] ?? status : ""].filter(Boolean).join(" · ")}
           </Typography>
         )}
-        {publicUrl && (
-          <Typography variant="caption" color="success.main" sx={{ wordBreak: "break-all", display: "block", mt: 0.5 }}>
-            {publicUrl}
-          </Typography>
-        )}
-        {error && (
-          <Typography variant="caption" color="error.main" sx={{ display: "block", mt: 0.5 }}>
-            {error}
-          </Typography>
-        )}
       </Box>
-      {publicUrl ? (
-        <Button
-          size="small"
-          variant="outlined"
-          color="success"
-          startIcon={copied ? <Check size={14} /> : <Share2 size={14} />}
-          onClick={handleCopy}
-          sx={{ flexShrink: 0, textTransform: "none" }}
-        >
-          {copied ? "Kopiert!" : "Link kopieren"}
-        </Button>
-      ) : isStoredDocument ? (
+      {isStoredDocument ? (
         <Button
           component="a"
           href={documentUrl ?? undefined}
@@ -146,19 +93,22 @@ export function PdfDocumentLink({ url, documentId, tenderId, index, label, filen
         >
           {isUnavailable ? "Nicht verfügbar" : "Herunterladen"}
         </Button>
-      ) : (
+      ) : legacyDocumentUrl ? (
         <Button
+          component="a"
+          href={legacyDocumentUrl}
+          target="_blank"
+          rel="nofollow noopener noreferrer"
           size="small"
           variant="outlined"
           color="primary"
-          startIcon={loading ? <CircularProgress size={14} /> : <Share2 size={14} />}
-          onClick={handleDownload}
-          disabled={loading || isUnavailable || !tenderId || !url}
+          startIcon={<ArrowUpRight size={14} />}
+          disabled={isUnavailable}
           sx={{ flexShrink: 0, textTransform: "none" }}
         >
-          {loading ? "Lädt..." : tenderId && url ? "Teilen" : "Nur Quelle"}
+          Herunterladen
         </Button>
-      )}
+      ) : null}
     </Box>
   );
 }

@@ -51,4 +51,6 @@ assert.ok(participationWallItem);
 assert.equal(participationWallItem.client, "Leibniz-Zentrum für Archäologie");
 assert.equal(participationWallItem.deadline, "03.08.2026 08:00");
 assert.match(participationWallItem.description, /vollständige Leistungsbeschreibung/);
+assert.match(participationWallItem.descriptionMarkdown ?? "", /- \*\*Auftraggeber:\*\* Leibniz-Zentrum für Archäologie/);
+assert.match(participationWallItem.descriptionMarkdown ?? "", /- \*\*Hinweis:\*\*.*vollständige Leistungsbeschreibung/);
 console.log("Public detail fallback tests passed.");

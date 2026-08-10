@@ -1,11 +1,10 @@
 import { db } from "@/lib/db";
 import { tenders, structuredData } from "@/lib/schema";
-import { eq, and, inArray, or, gt, isNull, desc, sql } from "drizzle-orm";
+import { eq, and, or, gt, isNull, desc, sql } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { CPV_CODES, ALL_CPV_CODES } from "@/lib/cpv-codes";
-import { CATEGORY_LABELS, CATEGORY_SLUGS, SLUG_TO_CATEGORY, ALL_CATEGORY_SLUGS } from "@/lib/categories";
-import { generateTenderSlug } from "@/lib/tender-slug";
+import { CATEGORY_LABELS, SLUG_TO_CATEGORY, ALL_CATEGORY_SLUGS } from "@/lib/categories";
 import { TaxonomyCategoryContent } from "@/components/seo/TaxonomyCategoryContent";
 
 const PAGE_SIZE = 20;
@@ -80,7 +79,7 @@ export default async function CpvCategoryPage({ params, searchParams }: PageProp
       .where(
         and(
           eq(tenders.category, categoryKey),
-          inArray(tenders.qualityStatus, ["qualified", "candidate"]),
+          eq(tenders.qualityStatus, "qualified"),
           or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
           sql`(${structuredData.jsonBlob}->'procurement'->'cpv_codes')::jsonb ?| array[${code}, ${divisionPrefix + "000000"}]`,
         ),
@@ -106,7 +105,7 @@ export default async function CpvCategoryPage({ params, searchParams }: PageProp
       .where(
         and(
           eq(tenders.category, categoryKey),
-          inArray(tenders.qualityStatus, ["qualified", "candidate"]),
+          eq(tenders.qualityStatus, "qualified"),
           or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
           sql`(${structuredData.jsonBlob}->'procurement'->'cpv_codes')::jsonb ?| array[${code}, ${divisionPrefix + "000000"}]`,
         ),

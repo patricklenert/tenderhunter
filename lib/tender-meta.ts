@@ -6,9 +6,11 @@ import { pickPublicDescription } from "@/lib/public-tender-scraper";
 
 export interface TenderMeta {
   description: string;
+  descriptionMarkdown: string;
   subject: string;
   client: string;
   location: string;
+  procedure: string;
   referenceNumber: string | null;
   pdfUrls: string[];
   resources: TenderResourceMeta[];
@@ -36,6 +38,13 @@ export interface TenderResourceMeta {
 }
 
 const asString = (value: unknown): string => (typeof value === "string" ? value : "");
+
+const firstString = (...values: unknown[]): string => {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+};
 
 const asStringArray = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((u): u is string => typeof u === "string") : [];
@@ -128,9 +137,20 @@ export const readTenderMeta = (
   metadataJson: unknown,
   rawText?: string | null,
 ): TenderMeta => {
-  const meta = (typeof metadataJson === "object" && metadataJson !== null
-    ? metadataJson
-    : {}) as Record<string, unknown>;
+  const meta = typeof metadataJson === "string"
+    ? (() => {
+      try {
+        const parsed = JSON.parse(metadataJson);
+        return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+          ? parsed as Record<string, unknown>
+          : {};
+      } catch {
+        return {};
+      }
+    })()
+    : (typeof metadataJson === "object" && metadataJson !== null && !Array.isArray(metadataJson)
+      ? metadataJson
+      : {}) as Record<string, unknown>;
   const refNum = meta.reference_number ?? meta.referenceNumber;
   const refTrimmed = typeof refNum === "string" ? refNum.trim() : "";
   const resources = readResourceArray(meta, ["resources"]);
@@ -143,9 +163,11 @@ export const readTenderMeta = (
   ]);
   return {
     description: pickPublicDescription(meta.description, rawText),
+    descriptionMarkdown: firstString(meta.descriptionMarkdown, meta.description_markdown),
     subject: asString(meta.subject ?? meta.scope),
     client: asString(meta.client),
     location: asString(meta.location),
+    procedure: asString(meta.procedure ?? meta.procedure_type),
     referenceNumber: refTrimmed ? refTrimmed : null,
     pdfUrls: asStringArray(meta.pdf_urls ?? meta.pdfUrls),
     resources,

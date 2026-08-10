@@ -58,7 +58,7 @@ export async function POST(request: Request): Promise<Response> {
       await enqueueJob(
         JOB_DISCOVER_COMPANY,
         { company_id: companyId },
-        { jobKey: `${JOB_DISCOVER_COMPANY}:${companyId}:profile-update` },
+        { jobKey: `${JOB_DISCOVER_COMPANY}:${companyId}:profile-update`, dedupeCompleted: false },
       );
     }
 

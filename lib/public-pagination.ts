@@ -77,6 +77,24 @@ export const cursorPendingDetails = (
   });
 };
 
+export const isPermanentPublicSourceError = (error: string | null | undefined): boolean =>
+  Boolean(error && /\b(?:403|404)\b|not found|nicht gefunden/iu.test(error));
+
+export const shouldSchedulePublicContinuation = (
+  cursor: PublicSourceCursor | null | undefined,
+  exhausted: boolean,
+  continuationRequired: boolean,
+  lastStatus: string | null | undefined,
+  lastError: string | null | undefined,
+): boolean => {
+  if (exhausted || !continuationRequired) return false;
+  const pendingDetails = cursorPendingDetails(cursor);
+  const hasRetryableDetails = pendingDetails.some((reference) => reference.blocked !== true);
+  if (hasRetryableDetails) return true;
+  if (isPermanentPublicSourceError(lastError)) return false;
+  return pendingDetails.length === 0 && lastStatus !== "success";
+};
+
 export const isPublicSourceCursorV2 = (
   cursor: PublicSourceCursor | null | undefined,
 ): cursor is PublicSourceCursorV2 => (

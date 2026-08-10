@@ -30,10 +30,10 @@ import {
 } from "@/lib/schema";
 import { generateInsight } from "@/lib/insights";
 import { extractTextFromFile } from "@/lib/parser";
-import { buildJobKey, claimNextJob, enqueueJob, heartbeatJob, markDone, markFailed } from "@/lib/queue";
-import { buildTenderMatchDocument, computeScores, getDomainEligibility, getLocationEligibility, llmBatchDomainMatch, type CompanyRow } from "@/lib/scoring";
+import { buildJobKey, claimNextJob, enqueueJob, heartbeatJob, markDone, markFailed, type ClaimJobOptions } from "@/lib/queue";
+import { buildTenderMatchDocument, computeScores, getDomainEligibility, getLocationEligibility, llmBatchDomainMatch, type CompanyRow, type ScoreResult } from "@/lib/scoring";
 import { ensureExtension, fetchAndStore, objectAbsolutePath, suggestedFilename } from "@/lib/storage";
-import { extractStructuredData, normalizeStructured, type StructuredData } from "@/lib/structurer";
+import { buildStructuredDescriptionMarkdown, extractStructuredData, normalizeStructured, type StructuredData } from "@/lib/structurer";
 import { assessTenderQuality } from "@/lib/tender-quality";
 import { resolveSourceItem } from "@/lib/tender-sources";
 import { canonicalPublicSourceKey, scrapeAllPublicTenders, type ExtractedTender } from "@/lib/public-tender-scraper";
@@ -43,7 +43,14 @@ import { scrapeAllUsTenders, type UsExtractedTender } from "@/lib/us-tender-scra
 import { dedupeUsAttachments } from "@/lib/us/types";
 import { categorizeUsTender } from "@/lib/us/categorize";
 import { processUsAlerts } from "@/lib/us/alerts";
-import { enrichFromOeffentlicheVergabe, cleanPublicDescription, type OeffentlicheVergabeDetails } from "@/lib/public-tender-scraper";
+import {
+  buildPublicAccessLimitedDescriptionMarkdown,
+  enrichFromOeffentlicheVergabe,
+  cleanPublicDescription,
+  extractPublicPortalFacts,
+  type OeffentlicheVergabeDetails,
+} from "@/lib/public-tender-scraper";
+import { buildTenderDescriptionMarkdown } from "@/lib/tender-description";
 import { generateTenderSlug } from "@/lib/tender-slug";
 import { scoreKnownTenders } from "@/lib/discovery";
 import { configureMeiliIndex, syncTendersToMeili } from "@/lib/meilisearch";
@@ -63,9 +70,10 @@ import {
   type ResourceType,
 } from "@/lib/resource-discovery";
 import { processCompanyUrlPreview } from "@/lib/preview";
-import { markCatalogDirty } from "@/lib/catalog";
+import { getCatalogState, markCatalogDirty } from "@/lib/catalog";
 import { classifyDocumentRole, rolePriority } from "@/lib/document-classifier";
 import { buildDocumentAnalysis, withEvidenceValues, type AnalyzedDocument } from "@/lib/document-analysis";
+import { deduplicateParsedDocuments, type ParsedTenderDocument } from "@/lib/document-aggregation";
 import { evaluateTenderReadiness } from "@/lib/tender-readiness";
 import { runApiAnalysisJob } from "@/app/api/v1/analyze/route";
 import {
@@ -361,6 +369,9 @@ const mergeMetadata = (
     if (isEmpty) continue;
     merged[key] = value;
   }
+  if (typeof incoming.descriptionMarkdown === "string" && incoming.descriptionMarkdown.trim()) {
+    delete merged.description_markdown;
+  }
   return merged as Record<string, JsonValue>;
 };
 
@@ -632,7 +643,10 @@ const queueTenderStage = async (
   return enqueueJob(
     jobType,
     { tender_id: tenderId, ...payload },
-    { jobKey: buildJobKey(jobType, tenderId, keySuffix) },
+    {
+      jobKey: buildJobKey(jobType, tenderId, keySuffix),
+      dedupeCompleted: jobType !== JOB_NOTIFY,
+    },
   );
 };
 
@@ -1241,12 +1255,22 @@ const getAccessLimitedCacheResult = (
 
   if (metadata.access_limited !== true || description.length < 80) return null;
 
+  const existingDescriptionMarkdown = [metadata.descriptionMarkdown, metadata.description_markdown]
+    .find((value): value is string => typeof value === "string" && value.trim().length > 0)
+    ?? "";
+  const portalFacts = extractPublicPortalFacts([
+    tender.rawText,
+    metadata.description,
+  ].filter((value): value is string => typeof value === "string" && value.length > 0).join(" "));
+  const descriptionMarkdown = existingDescriptionMarkdown || buildPublicAccessLimitedDescriptionMarkdown(tender.title ?? "", portalFacts);
+
   return {
     cached: true,
     detail_cached: false,
     access_limited: true,
     blocked: true,
     blocked_reason: detection.reason ?? "participation_required",
+    descriptionMarkdown,
   };
 };
 
@@ -1756,7 +1780,7 @@ const runParseDocuments = async (payload: Record<string, JsonValue>): Promise<Re
 
   // Parse every document before applying the aggregate text budget. Otherwise
   // an early, unclassified attachment could hide a later Leistungsbeschreibung.
-  const parsedDocs: Array<{ id: number; role: DocumentRole; roles: DocumentRole[]; text: string }> = [];
+  const parsedDocumentCandidates: ParsedTenderDocument[] = [];
   let partial = false;
 
   for (const doc of docs) {
@@ -1793,7 +1817,7 @@ const runParseDocuments = async (payload: Record<string, JsonValue>): Promise<Re
       effectiveRole = primaryDocumentRole(effectiveRoles);
 
       if (bounded.trim().length >= 20) {
-        parsedDocs.push({ id: doc.id, role: effectiveRole, roles: effectiveRoles, text: bounded });
+        parsedDocumentCandidates.push({ id: doc.id, role: effectiveRole, roles: effectiveRoles, text: bounded });
       } else {
         partial = true;
       }
@@ -1827,6 +1851,7 @@ const runParseDocuments = async (payload: Record<string, JsonValue>): Promise<Re
 
   // Sort by role priority (Leistungsbeschreibung first) and tag sections so the
   // structurer knows which document type each text block comes from.
+  const parsedDocs = deduplicateParsedDocuments(parsedDocumentCandidates);
   parsedDocs.sort((a, b) => rolePriority(a.role) - rolePriority(b.role) || a.id - b.id);
   let remainingText = MAX_TENDER_TEXT_CHARS;
   const mergedParts: string[] = [];
@@ -1893,7 +1918,13 @@ const runStructureTender = async (payload: Record<string, JsonValue>): Promise<R
     return { blocked: true, blocked_reason: accessPage.reason ?? "unknown" };
   }
 
-  const structured = await extractStructuredData(tender.title ?? "Unbenannte Ausschreibung", tender.rawText);
+  const tenderMetadata = parseRecord(tender.metadataJson as string);
+  const reference = typeof tenderMetadata.reference_number === "string"
+    ? tenderMetadata.reference_number
+    : typeof tenderMetadata.referenceNumber === "string"
+      ? tenderMetadata.referenceNumber
+      : null;
+  const structured = await extractStructuredData(tender.title ?? "Unbenannte Ausschreibung", tender.rawText, { reference });
 
   const documentRows = await db
     .select({
@@ -1927,6 +1958,7 @@ const runStructureTender = async (payload: Record<string, JsonValue>): Promise<R
     const mi = String(d.getMinutes()).padStart(2, "0");
     structured.hard_facts.deadline = `${dd}.${mm}.${yyyy}, ${hh}:${mi} Uhr`;
   }
+  structured.descriptionMarkdown = buildStructuredDescriptionMarkdown(structured, reference);
 
   await db
     .insert(structuredData)
@@ -1979,7 +2011,7 @@ const runStructureTender = async (payload: Record<string, JsonValue>): Promise<R
     .where(eq(tenders.id, tenderId));
   const readiness = await refreshTenderReadiness(tenderId);
   await markCatalogDirty();
-  await enqueueJob(JOB_SYNC_MEILI, {}, { jobKey: JOB_SYNC_MEILI });
+  await enqueueJob(JOB_SYNC_MEILI, {}, { jobKey: JOB_SYNC_MEILI, dedupeCompleted: false });
 
   if (quality.status !== "qualified") {
     await clearTenderScoring(tenderId);
@@ -2048,7 +2080,7 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
   // Check if already cached with good content
   const existing = await db.select().from(structuredData).where(eq(structuredData.tenderId, tenderId)).limit(1);
   if (existing.length > 0) {
-    const blob = existing[0].jsonBlob as Record<string, unknown>;
+    const blob = parseRecord(existing[0].jsonBlob as string);
     const cachedAccessPage = detectAccessPage(JSON.stringify(blob), { title: tender.title ?? undefined, url: sourceUrl });
     if (cachedAccessPage.blocked) {
       console.warn(`[cache-detail] Entferne blockierten Cache fuer Tender ${tenderId} (${cachedAccessPage.reason})`);
@@ -2073,13 +2105,23 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
 
     // Skip if we have good flat data OR rich nested data with deadline + scope
     if ((hasFlatDescription && hasKeyFields) || (hasNestedDeadline && hasNestedScope)) {
+      const normalizedCached = normalizeStructured(blob, tender.title ?? "");
+      const cachedDescriptionMarkdown = typeof normalizedCached.descriptionMarkdown === "string"
+        ? normalizedCached.descriptionMarkdown
+        : "";
+      const existingDescriptionMarkdown = [blob.descriptionMarkdown, blob.description_markdown]
+        .find((value): value is string => typeof value === "string" && value.trim().length > 0)
+        ?? "";
+      if (cachedDescriptionMarkdown || existingDescriptionMarkdown) {
+        blob.descriptionMarkdown = cachedDescriptionMarkdown || existingDescriptionMarkdown;
+        delete blob.description_markdown;
+        await db.update(structuredData).set({ jsonBlob: blob, updatedAt: new Date() }).where(eq(structuredData.tenderId, tenderId));
+      }
       return { cached: true, detail_cached: true };
     }
   }
 
-  const meta = typeof tender.metadataJson === "object" && tender.metadataJson !== null
-    ? tender.metadataJson as Record<string, unknown>
-    : {};
+  const meta = parseRecord(tender.metadataJson as string);
 
   // Build detail from existing metadata (instant, no API calls)
   const description = cleanPublicDescription(String(meta.description ?? ""));
@@ -2460,6 +2502,20 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
   if (result && typeof result.description === "string") {
     result.description = cleanPublicDescription(result.description);
   }
+  result.descriptionMarkdown = buildTenderDescriptionMarkdown({
+    client: result.client,
+    procedure: result.procedure,
+    deadline: result.deadline,
+    location: result.location,
+    value: result.estimatedValue,
+    duration: result.duration,
+    reference: result.referenceNumber,
+    summary: typeof result.description === "string" ? result.description : "",
+    scope: result.scope,
+    requirements: result.requirements,
+    awardCriteria: result.awardCriteria,
+    cpv: result.cpvCodes ?? result.cpv_codes,
+  });
 
   const resultAccessPage = detectAccessPage(
     `${String(result.title ?? "")} ${String(result.description ?? "")} ${String(result.scope ?? "")}`,
@@ -2484,7 +2540,7 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
   let scoringInputChanged = true;
 
   if (existingStructured.length > 0) {
-    const existing = existingStructured[0].jsonBlob as Record<string, unknown>;
+    const existing = parseRecord(existingStructured[0].jsonBlob as string);
     const existingConfidence = existingStructured[0].confidence ?? 0.5;
 
     // Start from the existing structured data (preserves hard_facts, decision_relevant, procurement)
@@ -2533,6 +2589,19 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
       mergedBlob.summary = result.description.slice(0, 3000);
     }
 
+    const existingDescriptionMarkdown = [mergedBlob.descriptionMarkdown, mergedBlob.description_markdown]
+      .find((value): value is string => typeof value === "string" && value.trim().length > 0)
+      ?? "";
+    const newDescriptionMarkdown = typeof result.descriptionMarkdown === "string"
+      ? result.descriptionMarkdown
+      : "";
+    if (newDescriptionMarkdown && newDescriptionMarkdown.length > existingDescriptionMarkdown.length) {
+      mergedBlob.descriptionMarkdown = newDescriptionMarkdown;
+    } else if (existingDescriptionMarkdown) {
+      mergedBlob.descriptionMarkdown = existingDescriptionMarkdown;
+    }
+    delete mergedBlob.description_markdown;
+
     // Boost confidence since we now have more data
     mergedConfidence = Math.min(1, existingConfidence + 0.1);
     scoringInputChanged = scoringInputSignature(existing) !== scoringInputSignature(mergedBlob);
@@ -2564,6 +2633,7 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
         cpv_codes: [],
         procedure_type: result.procedure ?? "offen",
       },
+      descriptionMarkdown: result.descriptionMarkdown ?? "",
     };
     mergedConfidence = 0.85;
   }
@@ -2605,6 +2675,84 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
 
   console.log(`[cache-detail] Tender ${tenderId} details cached`);
   return { cached: true, detail_cached: true };
+};
+
+type AttributionScore = {
+  fit: number;
+  winProbability: number;
+  effort: number;
+  requirementCoverage: number;
+  killSwitch: boolean;
+  details: unknown;
+};
+
+const recordShownAttribution = async (
+  tenderId: number,
+  companyId: number,
+  score: AttributionScore,
+): Promise<void> => {
+  if (score.killSwitch) return;
+
+  const existing = await db
+    .select({ id: attributionEvents.id })
+    .from(attributionEvents)
+    .where(and(
+      eq(attributionEvents.tenderId, tenderId),
+      eq(attributionEvents.companyId, companyId),
+      eq(attributionEvents.eventType, "shown"),
+    ))
+    .limit(1);
+  if (existing.length > 0) return;
+
+  await db.insert(attributionEvents).values({
+    tenderId,
+    companyId,
+    eventType: "shown",
+    metadataJson: { stage: "notify_company", created_at: new Date().toISOString() },
+    scoreSnapshotJson: {
+      fit: score.fit,
+      win_probability: score.winProbability,
+      effort: score.effort,
+      requirement_coverage: score.requirementCoverage,
+      kill_switch: score.killSwitch,
+      details: score.details,
+    },
+  });
+};
+
+const persistInsight = async (
+  tenderId: number,
+  companyId: number,
+  score: ScoreResult,
+  structured: StructuredData,
+): Promise<void> => {
+  const insight = generateInsight(score, structured);
+  await db
+    .insert(insights)
+    .values({
+      tenderId,
+      companyId,
+      explanation: insight.explanation,
+      actionsJson: insight.actions,
+      missingItemsJson: insight.missing_items,
+    })
+    .onConflictDoUpdate({
+      target: [insights.tenderId, insights.companyId],
+      set: {
+        explanation: insight.explanation,
+        actionsJson: insight.actions,
+        missingItemsJson: insight.missing_items,
+        updatedAt: new Date(),
+      },
+    });
+  await recordShownAttribution(tenderId, companyId, {
+    fit: score.fit,
+    winProbability: score.win_probability,
+    effort: score.effort,
+    requirementCoverage: score.requirement_coverage,
+    killSwitch: score.kill_switch,
+    details: score.details,
+  });
 };
 
 const runScoreTender = async (payload: Record<string, JsonValue>): Promise<Record<string, JsonValue>> => {
@@ -2714,7 +2862,7 @@ const runScoreTender = async (payload: Record<string, JsonValue>): Promise<Recor
         },
       });
 
-    await queueTenderStage(JOB_INSIGHT, tenderId, { company_id: company.id }, String(company.id));
+    await persistInsight(tenderId, company.id, result, structured);
     scored += 1;
   }
 
@@ -2769,7 +2917,7 @@ const runGenerateInsight = async (payload: Record<string, JsonValue>): Promise<R
     .limit(1);
 
   if (scoreRows.length === 0 || structuredRows.length === 0) {
-    throw new Error("Score oder strukturierte Daten fehlen");
+    return { skipped: true, reason: "Score oder strukturierte Daten fehlen" };
   }
 
   const scoreRow = scoreRows[0];
@@ -2837,8 +2985,14 @@ const runGenerateInsight = async (payload: Record<string, JsonValue>): Promise<R
         updatedAt: new Date(),
       },
     });
-
-  await queueTenderStage(JOB_NOTIFY, tenderId, { company_id: companyId }, String(companyId));
+  await recordShownAttribution(tenderId, companyId, {
+    fit: scoreRow.fit,
+    winProbability: scoreRow.winProbability,
+    effort: scoreRow.effort,
+    requirementCoverage: scoreRow.requirementCoverage,
+    killSwitch: scoreRow.killSwitch,
+    details,
+  });
   return { generated: true };
 };
 
@@ -2863,22 +3017,15 @@ const runNotifyCompany = async (payload: Record<string, JsonValue>): Promise<Rec
     .limit(1);
 
   const score = scoreRows[0];
+  if (!score) return { skipped: true, reason: "Score fehlt" };
 
-  await db.insert(attributionEvents).values({
-    tenderId,
-    companyId,
-    eventType: "shown",
-    metadataJson: { stage: "notify_company", created_at: new Date().toISOString() },
-    scoreSnapshotJson: score
-      ? {
-          fit: score.fit,
-          win_probability: score.winProbability,
-          effort: score.effort,
-          requirement_coverage: score.requirementCoverage,
-          kill_switch: score.killSwitch,
-          details: parseRecord(score.detailsJson as string)
-        }
-      : null,
+  await recordShownAttribution(tenderId, companyId, {
+    fit: score.fit,
+    winProbability: score.winProbability,
+    effort: score.effort,
+    requirementCoverage: score.requirementCoverage,
+    killSwitch: score.killSwitch,
+    details: parseRecord(score.detailsJson as string),
   });
 
   return { notified: true };
@@ -2961,8 +3108,10 @@ const runScrapePublicTenders = async (payload: Record<string, JsonValue>): Promi
         const tenderMetadata: Record<string, JsonValue> = {
           client: tender.client,
           description: tender.description,
+          ...(tender.descriptionMarkdown ? { descriptionMarkdown: tender.descriptionMarkdown } : {}),
           reference_number: tender.referenceNumber,
           location: tender.location,
+          ...(tender.procedure ? { procedure: tender.procedure } : {}),
           pdf_urls: tender.pdfUrls ?? [],
           discovered_at: new Date().toISOString(),
           scraper: "public_tender_scraper",
@@ -3142,6 +3291,7 @@ const runScrapePublicTenders = async (payload: Record<string, JsonValue>): Promi
           groupKey: `public-source:${sourceKey}`,
           priority: 140,
           runAfter: new Date(Date.now() + 30_000),
+          dedupeCompleted: false,
         });
         await db.update(publicSourceRuns).set({ continuationScheduled: true }).where(and(
           eq(publicSourceRuns.runId, runId),
@@ -3153,7 +3303,7 @@ const runScrapePublicTenders = async (payload: Record<string, JsonValue>): Promi
     }
 
     try {
-      await enqueueJob(JOB_SYNC_MEILI, {}, { jobKey: JOB_SYNC_MEILI, priority: 130 });
+      await enqueueJob(JOB_SYNC_MEILI, {}, { jobKey: JOB_SYNC_MEILI, priority: 130, dedupeCompleted: false });
     } catch (error) {
       console.error("[public-scraper] Meilisearch-Sync konnte nicht eingeplant werden:", error);
     }
@@ -3570,8 +3720,8 @@ export const processJobById = async (jobId: number): Promise<JobProcessResult> =
   return { job_id: row.id, job_type: row.type as JobType, status: "done", result };
 };
 
-export const processNextJob = async (workerId: string): Promise<JobProcessResult | null> => {
-  const job = await claimNextJob(workerId);
+export const processNextJob = async (workerId: string, options: ClaimJobOptions = {}): Promise<JobProcessResult | null> => {
+  const job = await claimNextJob(workerId, options);
   if (!job) {
     return null;
   }
@@ -3594,6 +3744,19 @@ export const processNextJob = async (workerId: string): Promise<JobProcessResult
     const result = await handler(payload);
     clearInterval(heartbeat);
     await markDone(job.id, workerId);
+    if (jobType === JOB_SYNC_MEILI) {
+      const catalog = await getCatalogState();
+      if (catalog && catalog.revision > catalog.syncedRevision) {
+        await enqueueJob(JOB_SYNC_MEILI, {}, {
+          jobKey: JOB_SYNC_MEILI,
+          priority: 130,
+          runAfter: new Date(Date.now() + 30_000),
+          dedupeCompleted: false,
+        }).catch((error: unknown) => {
+          console.warn("[pipeline] Folge-Sync für geänderten Katalog konnte nicht eingereiht werden:", error);
+        });
+      }
+    }
     return {
       job_id: job.id,
       job_type: jobType,
@@ -3659,7 +3822,7 @@ export const cleanupExpiredTenders = async (): Promise<{ deleted: number }> => {
 
   // Enqueue a full Meilisearch sync to ensure orphaned documents are removed
   try {
-     await enqueueJob(JOB_SYNC_MEILI, {}, { jobKey: JOB_SYNC_MEILI, priority: 130 });
+      await enqueueJob(JOB_SYNC_MEILI, {}, { jobKey: JOB_SYNC_MEILI, priority: 130, dedupeCompleted: false });
      console.log(`[cleanup] sync_meilisearch Job eingereiht nach ${deleted} Löschungen.`);
   } catch (err) {
     console.warn("[cleanup] Konnte sync_meilisearch nicht einreihen:", err);
