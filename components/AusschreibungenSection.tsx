@@ -56,9 +56,10 @@ import type { ViewKey } from "@/components/Shell";
 import { getAllLocationOptions } from "@/lib/bundesland";
 import { formatDeadlineDE, deadlineLabel, deadlineColor, cleanPdfFilename } from "@/lib/date-utils";
 import { PdfDocumentLink } from "@/components/PdfDocumentLink";
+import { TenderQuickCheck } from "@/components/TenderQuickCheck";
+import type { TenderCheck } from "@/lib/tender-check";
 import { SafeMarkdown } from "@/components/SafeMarkdown";
 import { generateTenderSlug } from "@/lib/tender-slug";
-import { PaywallPanel } from "@/components/billing/PaywallPanel";
 
 interface ApiTender {
   id: number;
@@ -875,7 +876,64 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
             const requirements = Array.isArray(d.requirements) ? d.requirements as string[] : [];
             const awardCriteria = Array.isArray(d.awardCriteria) ? d.awardCriteria as string[] : [];
             const pdfUrls = Array.isArray(d.pdfUrls) ? d.pdfUrls as string[] : t.pdfUrls ?? [];
-            const documentsLocked = d.documentsLocked === true;
+            const documentRows = Array.isArray(d.documents)
+              ? d.documents.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object" && !Array.isArray(item)))
+              : [];
+            const resourceRows = Array.isArray(d.resources)
+              ? d.resources.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object" && !Array.isArray(item)))
+              : [];
+            const documentLinks = [
+              ...documentRows.map((document) => ({
+                documentId: typeof document.id === "number" ? document.id : null,
+                url: typeof document.url === "string" ? document.url : null,
+                label: typeof document.filename === "string" ? document.filename : null,
+                filename: typeof document.filename === "string" ? document.filename : null,
+                roles: Array.isArray(document.roles) ? document.roles.filter((role): role is string => typeof role === "string") : [],
+                status: typeof document.downloadStatus === "string" ? document.downloadStatus : null,
+                parseStatus: typeof document.parseStatus === "string" ? document.parseStatus : null,
+                summary: typeof document.summary === "string" ? document.summary : null,
+              })),
+              ...resourceRows
+                .filter((resource) => resource.resourceType === "document" || resource.resourceType === "download")
+                .map((resource) => ({
+                  documentId: typeof resource.documentId === "number" ? resource.documentId : null,
+                  url: typeof resource.url === "string" ? resource.url : null,
+                  label: typeof resource.label === "string" ? resource.label : null,
+                  filename: typeof resource.filename === "string" ? resource.filename : null,
+                  roles: Array.isArray(resource.roleHints) ? resource.roleHints.filter((role): role is string => typeof role === "string") : [],
+                  status: typeof resource.status === "string" ? resource.status : null,
+                  parseStatus: null,
+                  summary: null,
+                })),
+              ...pdfUrls.map((url) => ({
+                documentId: null,
+                url,
+                label: null,
+                filename: null,
+                roles: [],
+                status: "discovered",
+                parseStatus: null,
+                summary: null,
+              })),
+            ]
+              .filter((document) => document.documentId !== null || document.url !== null)
+              .filter((document, index, documents) => documents.findIndex((candidate) =>
+                document.documentId !== null
+                  ? candidate.documentId === document.documentId
+                  : candidate.documentId === null && candidate.url === document.url,
+              ) === index);
+            const documentAnalysis = d.documentAnalysis && typeof d.documentAnalysis === "object" && !Array.isArray(d.documentAnalysis)
+              ? d.documentAnalysis as Record<string, unknown>
+              : null;
+            const tenderCheck = d.documentCheck && typeof d.documentCheck === "object" && !Array.isArray(d.documentCheck)
+              ? d.documentCheck as TenderCheck
+              : null;
+            const analysisCoverage = documentAnalysis?.coverage && typeof documentAnalysis.coverage === "object" && !Array.isArray(documentAnalysis.coverage)
+              ? documentAnalysis.coverage as Record<string, unknown>
+              : null;
+            const analysisEvidence = Array.isArray(documentAnalysis?.evidence)
+              ? documentAnalysis.evidence.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object" && !Array.isArray(item)))
+              : [];
             const commercialBrief = d.commercialBrief && typeof d.commercialBrief === "object" && !Array.isArray(d.commercialBrief)
               ? d.commercialBrief as Record<string, unknown>
               : null;
@@ -980,6 +1038,8 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                   </Box>
                 )}
 
+                <TenderQuickCheck key={`quick-check-${t.id}`} tenderId={t.id} initialCheck={tenderCheck} />
+
                 {/* Description */}
                 {(descriptionMarkdown || (description && description.length > 0)) && (
                   <Box>
@@ -1055,24 +1115,44 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                 )}
 
                 {/* PDFs */}
-                {(pdfUrls.length > 0 || documentsLocked) && (
+                {documentLinks.length > 0 && (
                   <Box>
                     <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 1, lineHeight: 1.2, color: "#475569", fontSize: "0.75rem" }}>
                       Dokumente
                     </Typography>
-                    {documentsLocked ? (
-                      <PaywallPanel
-                        feature="Dokumente"
-                        title="Vergabeunterlagen freischalten"
-                        description="Die Originalunterlagen sind nur die Quelle. Pro prüft die Ausschreibung gegen dein Unternehmen und macht Go-/No-Go, offene Anforderungen und nächste Schritte sichtbar."
-                      />
-                    ) : (
-                      <Stack spacing={1}>
-                        {pdfUrls.map((url, i) => (
-                          <PdfDocumentLink key={i} url={url} index={i} />
-                        ))}
-                      </Stack>
-                    )}
+                    <Stack spacing={1}>
+                      {documentLinks.map((document, index) => (
+                        <PdfDocumentLink
+                          key={`${document.documentId ?? document.url}-${index}`}
+                          url={document.url}
+                          documentId={document.documentId}
+                          tenderId={t.id}
+                          index={index}
+                          label={document.label}
+                          filename={document.filename}
+                           roles={document.roles}
+                           status={document.status}
+                           parseStatus={document.parseStatus}
+                           initialSummary={document.summary}
+                         />
+                      ))}
+                    </Stack>
+                  </Box>
+                )}
+
+                {documentAnalysis && analysisCoverage && (typeof analysisCoverage.discovered === "number" || analysisEvidence.length > 0) && (
+                  <Box>
+                    <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 1, lineHeight: 1.2, color: "#475569", fontSize: "0.75rem" }}>
+                      Dokumentenanalyse
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: "#334155", lineHeight: 1.5 }}>
+                      {typeof analysisCoverage.parsed === "number" ? analysisCoverage.parsed : 0}/{typeof analysisCoverage.discovered === "number" ? analysisCoverage.discovered : 0} Dokumente analysiert
+                    </Typography>
+                    {analysisEvidence.slice(0, 4).map((evidence, index) => (
+                      <Typography key={`${String(evidence.field)}-${String(evidence.documentId)}-${index}`} variant="caption" sx={{ display: "block", mt: 0.75, color: "#475569", lineHeight: 1.5 }}>
+                        {typeof evidence.field === "string" ? `${evidence.field}: ` : ""}{typeof evidence.quote === "string" ? `„${evidence.quote}”` : ""}{typeof evidence.page === "number" ? ` (Seite ${evidence.page})` : ""}
+                      </Typography>
+                    ))}
                   </Box>
                 )}
               </Stack>

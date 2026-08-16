@@ -26,6 +26,7 @@ import {
 } from "@mui/icons-material";
 import { TRACKED_TENDER_STATUSES, TRACKED_TENDER_STATUS_LABELS, type TrackedTenderStatus } from "@/lib/tracked-tender-types";
 import { BidPackPanel } from "@/components/BidPackPanel";
+import { TenderQuickCheck } from "@/components/TenderQuickCheck";
 
 export interface TenderDetailItem {
   id: number;
@@ -585,6 +586,8 @@ export function TenderDetailDrawer({
                 ) : null}
               </Box>
             ) : null}
+
+            <TenderQuickCheck key={`quick-check-${tender.id}`} tenderId={tender.id} />
 
             <BidPackPanel
               companyId={companyId}

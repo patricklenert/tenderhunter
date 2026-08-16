@@ -68,6 +68,12 @@ export const trackedTenderUpdateSchema = z
     message: "mindestens ein Feld ist erforderlich",
   });
 
+export const tenderCheckStateUpdateSchema = z.object({
+  tender_id: z.number().int().positive(),
+  item_key: z.string().trim().min(3).max(400),
+  done: z.boolean(),
+});
+
 export const bidPackCreateSchema = z.object({
   tracked_tender_id: z.number().int().positive(),
   decision_status: z.enum(BID_PACK_DECISION_STATUSES).optional(),

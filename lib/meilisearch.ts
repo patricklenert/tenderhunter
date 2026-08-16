@@ -11,11 +11,9 @@ const MEILI_KEY = process.env.MEILI_MASTER_KEY ?? "";
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY ?? "";
 const MEILI_EMBEDDINGS_ENABLED = process.env.MEILI_EMBEDDINGS_ENABLED === "true";
 const INDEX_NAME = "tenders";
-const SYNC_INDEX_NAME = `${INDEX_NAME}_sync`;
 
 let clientInstance: Meilisearch | null = null;
 let configurePromise: Promise<void> | null = null;
-let embeddingsUnavailable = false;
 
 export function getMeiliClient(): Meilisearch {
   if (clientInstance) return clientInstance;
@@ -59,7 +57,6 @@ async function waitForMeiliTask(task: { taskUid: number }, operation: string): P
 
 const configureIndex = async (
   index: ReturnType<Meilisearch["index"]>,
-  resetEmbedders = false,
 ): Promise<void> => {
   await index.updateSearchableAttributes([
     "title", "description", "client", "category",
@@ -79,8 +76,7 @@ const configureIndex = async (
 
   if (MEILI_EMBEDDINGS_ENABLED && OPENROUTER_API_KEY) {
     console.log("[meilisearch] Konfiguriere REST Embedder (OpenRouter gemini-embedding-2)...");
-    await index
-      .updateEmbedders({
+    await index.updateEmbedders({
         default: {
           source: "rest",
           url: "https://openrouter.ai/api/v1/embeddings",
@@ -95,14 +91,7 @@ const configureIndex = async (
           },
         } as never,
       })
-      .catch((err) => {
-        console.warn("[meilisearch] Embedder-Setup fehlgeschlagen:", err);
-      });
-  } else if (resetEmbedders) {
-    if (!MEILI_EMBEDDINGS_ENABLED) {
-      await waitForMeiliTask(await index.resetEmbedders(), "Embedder-Reset");
-    }
-    console.warn("[meilisearch] Embeddings deaktiviert — nur Keyword-Suche verfügbar");
+      .then((task) => waitForMeiliTask(task, "Embedder-Setup"));
   }
 
   await index.updateRankingRules([
@@ -135,25 +124,9 @@ async function configureMeiliIndexOnce(): Promise<void> {
   await client.createIndex(INDEX_NAME, { primaryKey: "id" }).catch(() => {});
 
   const index = client.index(INDEX_NAME);
-  await configureIndex(index, true);
+  await configureIndex(index);
 
   console.log("[meilisearch] Index konfiguriert");
-}
-
-const isEmbeddingFailure = (error: unknown): boolean => {
-  const message = error instanceof Error ? error.message : String(error);
-  return /embed|embedding|authenticate|401|user not found/i.test(message);
-};
-
-async function disableEmbeddingsForProcess(index: ReturnType<Meilisearch["index"]>): Promise<void> {
-  if (embeddingsUnavailable) return;
-  embeddingsUnavailable = true;
-  try {
-    await waitForMeiliTask(await index.resetEmbedders(), "Embedder-Deaktivierung");
-    console.warn("[meilisearch] Embeddings nicht verfügbar — Sync und Suche wechseln auf Keyword-Modus");
-  } catch (error) {
-    console.warn("[meilisearch] Embeddings konnten nicht deaktiviert werden:", error);
-  }
 }
 
 export async function syncTendersToMeili(): Promise<{ indexed: number; skipped: number }> {
@@ -164,24 +137,30 @@ export async function syncTendersToMeili(): Promise<{ indexed: number; skipped: 
   }
 
   try {
+    const index = client.index(INDEX_NAME);
+    const currentState = await getCatalogState();
+    const stats = await index.getStats();
+    if (
+      currentState
+      && currentState.revision <= currentState.syncedRevision
+      && stats.numberOfDocuments > 0
+      && stats.numberOfEmbeddedDocuments === stats.numberOfDocuments
+    ) {
+      await finishCatalogSync(currentState.revision);
+      console.log(`[meilisearch] Kein Sync erforderlich: ${stats.numberOfDocuments} Dokumente und Embeddings bereits aktuell (Revision ${currentState.revision})`);
+      return { indexed: 0, skipped: stats.numberOfDocuments };
+    }
+
     const batchSize = 50;
     let targetRevision = syncRevision;
-    let lastIndexed = 0;
+    let lastProcessed = 0;
     for (let attempt = 0; attempt < 4; attempt += 1) {
-      // Build off to the side. A worker crash must not leave the live index
-      // empty or partially rebuilt.
-      await client.deleteIndexIfExists(SYNC_INDEX_NAME).catch((error) => {
-        console.warn("[meilisearch] Alter Sync-Index konnte nicht entfernt werden:", error);
-      });
-      await waitForMeiliTask(
-        await client.createIndex(SYNC_INDEX_NAME, { primaryKey: "id" }),
-        "Erstellen des Sync-Index",
-      );
-      const syncIndex = client.index(SYNC_INDEX_NAME);
-      await configureIndex(syncIndex);
+      // Keep the live index in place so Meilisearch can reuse cached embeddings
+      // for documents whose embedded content did not change.
       const now = new Date();
       let lastId = 0;
       let indexed = 0;
+      const desiredIds = new Set<number>();
 
       while (true) {
         const items = await db
@@ -212,6 +191,7 @@ export async function syncTendersToMeili(): Promise<{ indexed: number; skipped: 
           .limit(batchSize);
 
         if (items.length === 0) break;
+        for (const item of items) desiredIds.add(item.id);
         const docs: TenderDocument[] = items.map((item) => {
           const meta =
             typeof item.metadataJson === "object" && item.metadataJson !== null
@@ -245,50 +225,47 @@ export async function syncTendersToMeili(): Promise<{ indexed: number; skipped: 
             slug: item.slug ?? null,
           };
         });
-        try {
-          await waitForMeiliTask(await syncIndex.addDocuments(docs), `Indizieren von Batch ab Tender ${docs[0].id}`);
-        } catch (error) {
-          if (!MEILI_EMBEDDINGS_ENABLED || embeddingsUnavailable || !isEmbeddingFailure(error)) throw error;
-          await disableEmbeddingsForProcess(syncIndex);
-          await waitForMeiliTask(await syncIndex.addDocuments(docs), `Erneutes Indizieren von Batch ab Tender ${docs[0].id}`);
-        }
+        await waitForMeiliTask(await index.addDocuments(docs), `Indizieren von Batch ab Tender ${docs[0].id}`);
         indexed += docs.length;
         lastId = items[items.length - 1].id;
       }
-      lastIndexed = indexed;
+      lastProcessed = indexed;
 
       const state = await getCatalogState();
       const currentRevision = state?.revision ?? targetRevision;
       if (currentRevision <= targetRevision) {
-        await waitForMeiliTask(
-          // Meilisearch v1.13 accepts only `indexes`; the SDK type still requires `rename`.
-          await client.swapIndexes([{ indexes: [INDEX_NAME, SYNC_INDEX_NAME] } as never]),
-          "Veröffentlichen des Sync-Index",
-        );
-        await client.deleteIndexIfExists(SYNC_INDEX_NAME).catch((error) => {
-          console.warn("[meilisearch] Alter Live-Index konnte nach dem Austausch nicht entfernt werden:", error);
-        });
+        const existingIds = new Set<number>();
+        let offset = 0;
+        while (true) {
+          const page = await index.getDocuments<{ id: number }>({
+            limit: 1_000,
+            offset,
+            fields: ["id"],
+          });
+          for (const document of page.results) {
+            const id = Number(document.id);
+            if (Number.isInteger(id)) existingIds.add(id);
+          }
+          if (page.results.length < 1_000) break;
+          offset += page.results.length;
+        }
+
+        const staleIds = [...existingIds].filter((id) => !desiredIds.has(id));
+        for (let offset = 0; offset < staleIds.length; offset += 1_000) {
+          const batch = staleIds.slice(offset, offset + 1_000);
+          await waitForMeiliTask(await index.deleteDocuments(batch), `Löschen veralteter Tender ab ${batch[0]}`);
+        }
         await finishCatalogSync(currentRevision);
-        console.log(`[meilisearch] Sync abgeschlossen: ${indexed} Dokumente in Batches indiziert (Revision ${currentRevision})`);
-        return { indexed, skipped: 0 };
+        console.log(`[meilisearch] Sync abgeschlossen: ${indexed} Dokumente abgeglichen, ${staleIds.length} veraltete entfernt (Revision ${currentRevision})`);
+        return { indexed, skipped: staleIds.length };
       }
       targetRevision = currentRevision;
       console.log(`[meilisearch] Katalog während des Syncs geändert (Revision ${currentRevision}), wiederhole.`);
     }
-    await waitForMeiliTask(
-      await client.swapIndexes([{ indexes: [INDEX_NAME, SYNC_INDEX_NAME] } as never]),
-      "Veröffentlichen des letzten Sync-Snapshots",
-    );
-    await client.deleteIndexIfExists(SYNC_INDEX_NAME).catch((error) => {
-      console.warn("[meilisearch] Alter Live-Index konnte nach dem Austausch nicht entfernt werden:", error);
-    });
     await finishCatalogSync(targetRevision);
-    console.warn(`[meilisearch] Sync-Snapshot abgeschlossen, obwohl der Katalog weiter geändert wurde (Revision ${targetRevision}).`);
-    return { indexed: lastIndexed, skipped: 0 };
+    console.warn(`[meilisearch] Sync abgeschlossen, obwohl der Katalog weiter geändert wurde (Revision ${targetRevision}).`);
+    return { indexed: lastProcessed, skipped: 0 };
   } catch (error) {
-    await client.deleteIndexIfExists(SYNC_INDEX_NAME).catch((cleanupError) => {
-      console.warn("[meilisearch] Temporärer Sync-Index konnte nicht bereinigt werden:", cleanupError);
-    });
     await releaseCatalogSync().catch(() => undefined);
     throw error;
   }
@@ -361,7 +338,7 @@ export async function searchTenders(
     searchParams.filter = filterStr;
   }
 
-  if (hasQuery && MEILI_EMBEDDINGS_ENABLED && OPENROUTER_API_KEY && !embeddingsUnavailable) {
+  if (hasQuery && MEILI_EMBEDDINGS_ENABLED && OPENROUTER_API_KEY) {
     searchParams.hybrid = { embedder: "default", semanticRatio: 0.5 };
   }
 
@@ -369,22 +346,10 @@ export async function searchTenders(
     searchParams.sort = ["deadlineAt:asc"];
   }
 
-  let response: SearchResponse<TenderDocument>;
-  try {
-    response = await index.search(
-      params.query ?? "",
-      searchParams,
-    );
-  } catch (error) {
-    if (!searchParams.hybrid || embeddingsUnavailable || !isEmbeddingFailure(error)) throw error;
-
-    await disableEmbeddingsForProcess(index);
-    delete searchParams.hybrid;
-    response = await index.search(
-      params.query ?? "",
-      searchParams,
-    );
-  }
+  const response: SearchResponse<TenderDocument> = await index.search(
+    params.query ?? "",
+    searchParams,
+  );
 
   const hits = response.hits ?? [];
   const qualifiedIds = hits.length > 0

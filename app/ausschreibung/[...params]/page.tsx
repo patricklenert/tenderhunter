@@ -1,8 +1,7 @@
 import { db } from "@/lib/db";
 import { documents, tenderResources, tenders, structuredData, scores, companyProfiles } from "@/lib/schema";
 import { eq, and, ne, or, gt, isNull, desc } from "drizzle-orm";
-import { notFound, redirect } from "next/navigation";
-import { headers } from "next/headers";
+import { notFound, permanentRedirect } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
@@ -28,7 +27,6 @@ import {
   ChevronRight,
   AlertCircle,
   CheckCircle2,
-  LockKeyhole,
 } from "lucide-react";
 import { extractPublicPortalFacts, pickPublicDescription } from "@/lib/public-tender-scraper";
 import { looksMangled, normalizeStructured } from "@/lib/structurer";
@@ -39,14 +37,16 @@ import { normalizeAgencySlug } from "@/lib/agencies";
 import { generateTenderSlug } from "@/lib/tender-slug";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 import { PdfDocumentLink } from "@/components/PdfDocumentLink";
+import { TenderQuickCheck } from "@/components/TenderQuickCheck";
 import { SafeMarkdown } from "@/components/SafeMarkdown";
-import { auth } from "@/lib/auth";
-import { getBillingStatus } from "@/lib/entitlements";
 import { buildDocumentAnalysis, type AnalyzedDocument } from "@/lib/document-analysis";
+import { buildTenderCheck } from "@/lib/tender-check";
 import { ROLE_LABELS_DE } from "@/lib/document-classifier";
 import { normalizeResourceUrl } from "@/lib/resource-discovery";
 import { readTenderMeta } from "@/lib/tender-meta";
 import { buildTenderDescriptionMarkdown } from "@/lib/tender-description";
+import { hasQueryParameters, NOINDEX_FOLLOW, type SeoSearchParams } from "@/lib/seo-indexability";
+import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -57,6 +57,7 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palema
 // Old numeric-only URLs redirect (301) to keyword-rich slug URLs for better long-tail SEO.
 interface PageProps {
   params: Promise<{ params: string[] }>;
+  searchParams: Promise<SeoSearchParams>;
 }
 
 function parseParams(params: { params: string[] }): { id: string; slug: string | null } {
@@ -66,10 +67,15 @@ function parseParams(params: { params: string[] }): { id: string; slug: string |
   return { id: arr[0], slug: arr[1] };
 }
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+function parseTenderId(id: string): number {
+  return /^\d+$/.test(id) ? Number(id) : Number.NaN;
+}
+
+export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
   const { id, slug } = parseParams(await params);
-  const numericId = parseInt(id, 10);
-  if (!Number.isFinite(numericId)) return { title: "Ausschreibung nicht gefunden", robots: { index: false, follow: true } };
+  const resolvedSearchParams = await searchParams;
+  const numericId = parseTenderId(id);
+  if (!Number.isFinite(numericId)) notFound();
 
   const rows = await db
     .select({
@@ -87,7 +93,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     .where(and(eq(tenders.id, numericId), eq(tenders.qualityStatus, "qualified")))
     .limit(1);
 
-  if (rows.length === 0) return { title: "Ausschreibung nicht gefunden", robots: { index: false, follow: true } };
+  if (rows.length === 0) notFound();
 
   const row = rows[0];
   const meta = (typeof row.metadataJson === "object" && row.metadataJson !== null
@@ -109,13 +115,16 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const description = `${rawTitle}. ${descParts ? descParts + ". " : ""}Öffentliche Ausschreibung aus ${row.source}. Alle Details, Anforderungen und Fristen.`;
 
   // Canonical slug: prefer persisted DB slug, fall back to live computation for legacy rows
-  const expectedSlug = row.slug ?? generateTenderSlug(rawTitle, location);
-  const canonicalSlug = slug || expectedSlug;
+  const canonicalSlug = getCanonicalTenderSlug(row.slug, rawTitle, row.metadataJson);
+  if (!slug || slug !== canonicalSlug) {
+    permanentRedirect(`/ausschreibung/${id}/${canonicalSlug}`);
+  }
 
   return {
     title,
     description,
     alternates: { canonical: `/ausschreibung/${id}/${canonicalSlug}`, languages: { "de-DE": `/ausschreibung/${id}/${canonicalSlug}` } },
+    robots: hasQueryParameters(resolvedSearchParams) ? NOINDEX_FOLLOW : undefined,
     openGraph: {
       title,
       description,
@@ -130,7 +139,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function TenderDetailPage({ params }: PageProps) {
   const { id, slug } = parseParams(await params);
-  const numericId = parseInt(id, 10);
+  const numericId = parseTenderId(id);
   if (!Number.isFinite(numericId)) notFound();
 
   const rows = await db
@@ -145,9 +154,12 @@ export default async function TenderDetailPage({ params }: PageProps) {
   const row = rows[0];
   const tender = row.tenders;
   const sd = row.structured_data;
-  const requestHeaders = await headers();
-  const session = await auth.api.getSession({ headers: requestHeaders });
-  const hasPremiumDocuments = session?.user?.id ? (await getBillingStatus(session.user.id)).active : false;
+
+  const expectedSlug = getCanonicalTenderSlug(tender.slug, tender.title, tender.metadataJson);
+  if (!slug || slug !== expectedSlug) {
+    permanentRedirect(`/ausschreibung/${tender.id}/${expectedSlug}`);
+  }
+
   const documentRows = await db
     .select({
       id: documents.id,
@@ -163,6 +175,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
       extractedText: documents.extractedText,
       pageCount: documents.pageCount,
       roleConfidence: documents.roleConfidence,
+      aiSummary: documents.aiSummary,
     })
     .from(documents)
     .where(eq(documents.tenderId, tender.id));
@@ -198,6 +211,14 @@ export default async function TenderDetailPage({ params }: PageProps) {
   };
   const blob = sd?.jsonBlob as Record<string, unknown> | null;
   const normalizedStructured = normalizeStructured(blob ?? meta, tender.title ?? "", fallbackFacts);
+  const tenderCheck = buildTenderCheck({
+    tenderId: tender.id,
+    tenderDeadlineAt: tender.deadlineAt,
+    structured: normalizedStructured,
+    rawText: tender.rawText,
+    documents: documentRows as AnalyzedDocument[],
+    documentAnalysis,
+  });
   const resourceRows = await db
     .select({
       id: tenderResources.id,
@@ -229,11 +250,13 @@ export default async function TenderDetailPage({ params }: PageProps) {
     status: string;
     sourcePageUrl: string | null;
     contentType: string | null;
+    summary: string | null;
+    parseStatus: string | null;
   };
-  const documentByUrl = new Map<string, { id: number; filename: string | null }>();
+  const documentByUrl = new Map<string, { id: number; filename: string | null; summary: string | null; parseStatus: string | null }>();
   for (const document of documentRows) {
     const key = resourceKey(document.url);
-    if (key) documentByUrl.set(key, { id: document.id, filename: document.filename });
+    if (key) documentByUrl.set(key, { id: document.id, filename: document.filename, summary: document.aiSummary, parseStatus: document.parseStatus });
   }
   const resourceByUrl = new Map<string, DisplayResource>();
   const addResource = (resource: DisplayResource): void => {
@@ -249,6 +272,8 @@ export default async function TenderDetailPage({ params }: PageProps) {
     existing.resourceType = existing.resourceType === "unknown" ? resource.resourceType : existing.resourceType;
     existing.roles = [...existing.roles, ...resource.roles].filter((role, index, roles) => roles.indexOf(role) === index);
     existing.documentId ||= resource.documentId;
+    existing.summary ||= resource.summary;
+    existing.parseStatus ||= resource.parseStatus;
     if (existing.status === "discovered" || existing.status === "unknown") existing.status = resource.status;
   };
   for (const document of documentRows) {
@@ -267,6 +292,8 @@ export default async function TenderDetailPage({ params }: PageProps) {
       status: document.downloadStatus ?? "unknown",
       sourcePageUrl: null,
       contentType: document.contentType,
+      summary: document.aiSummary,
+      parseStatus: document.parseStatus,
     });
   }
   for (const resource of resourceRows) {
@@ -284,6 +311,8 @@ export default async function TenderDetailPage({ params }: PageProps) {
       status: resource.status || "discovered",
       sourcePageUrl: resourceUrl(resource.sourcePageUrl),
       contentType: resource.contentType,
+      summary: document?.summary ?? null,
+      parseStatus: document?.parseStatus ?? null,
     });
   }
   for (const resource of [
@@ -305,6 +334,8 @@ export default async function TenderDetailPage({ params }: PageProps) {
       status: typeof resource.status === "string" ? resource.status : "discovered",
       sourcePageUrl: resourceUrl(resource.sourcePageUrl),
       contentType: resource.contentType,
+      summary: document?.summary ?? null,
+      parseStatus: document?.parseStatus ?? null,
     });
   }
   const allResources = [...resourceByUrl.values()]
@@ -384,12 +415,6 @@ export default async function TenderDetailPage({ params }: PageProps) {
   const duration = pickFirstClean(blob?.duration, (procurement.contract_duration as Record<string, unknown> | undefined)?.months
     ? `${(procurement.contract_duration as Record<string, unknown>).months} Monate`
     : null);
-
-  // SEO: Canonical slug from DB (stable, never drifts). Fallback to live computation for legacy rows.
-  const expectedSlug = tender.slug ?? generateTenderSlug(title, location);
-  if (!slug || slug !== expectedSlug) {
-    redirect(`/ausschreibung/${tender.id}/${expectedSlug}`);
-  }
 
   const requirements = [
     ...(Array.isArray(decisionRelevant.requirements) ? decisionRelevant.requirements : []),
@@ -832,14 +857,14 @@ export default async function TenderDetailPage({ params }: PageProps) {
                     </Typography>
                   </Box>
                 </Box>
-                {(tender.readinessReason && readinessStatus !== "ready") || (hasPremiumDocuments && documentAnalysis.evidence.length > 0) ? (
+                {(tender.readinessReason && readinessStatus !== "ready") || documentAnalysis.evidence.length > 0 ? (
                   <Box sx={{ mt: 1.5, pt: 1.5, borderTop: "1px solid rgba(102, 114, 136, 0.22)" }}>
                     {tender.readinessReason && readinessStatus !== "ready" && (
                       <Typography variant="body2" sx={{ color: readinessTone.text, lineHeight: 1.55 }}>
                         {tender.readinessReason}
                       </Typography>
                     )}
-                    {hasPremiumDocuments && documentAnalysis.evidence.length > 0 && (
+                    {documentAnalysis.evidence.length > 0 && (
                       <Stack spacing={0.5} sx={{ mt: tender.readinessReason && readinessStatus !== "ready" ? 1 : 0 }}>
                         {documentAnalysis.evidence.slice(0, 4).map((evidence) => (
                           <Typography key={`${evidence.field}-${evidence.documentId}`} variant="caption" sx={{ color: "#4b5565", lineHeight: 1.5 }}>
@@ -954,6 +979,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
                   )}
                 </Box>
               )}
+              <TenderQuickCheck key={`quick-check-${tender.id}`} tenderId={tender.id} initialCheck={tenderCheck} />
               {(descriptionMarkdown || description) && (
                 <Box component="section" aria-labelledby="beschreibung-heading" sx={sectionSx}>
                   <Typography id="beschreibung-heading" component="h2" sx={sectionHeadingSx}>
@@ -1065,86 +1091,45 @@ export default async function TenderDetailPage({ params }: PageProps) {
                   <Typography id="unterlagen-heading" component="h2" sx={sectionHeadingSx}>
                     Vergabeunterlagen
                   </Typography>
-                  {hasPremiumDocuments ? (
-                    <Box sx={{ overflow: "hidden", borderRadius: 2.5, bgcolor: "#fbfcfd" }}>
-                      <Stack divider={<Divider flexItem sx={{ borderColor: "rgba(102, 114, 136, 0.16)" }} />}>
-                        {downloadableResources.map((resource, i) => (
-                          <PdfDocumentLink
-                            key={`${resource.documentId ?? resource.id ?? resource.url}-${i}`}
-                            variant="detail"
-                            url={resource.url}
-                            documentId={resource.documentId}
-                            tenderId={tender.id}
-                            index={i}
-                            label={resource.label}
-                            filename={resource.filename}
-                            roles={resource.roles}
-                            status={resource.status}
-                          />
-                        ))}
-                        {discoveredPageResources.slice(0, 8).map((resource, i) => (
-                          <Box
-                            key={`${resource.id ?? resource.url}-${i}`}
-                            component="a"
-                            href={resource.url ?? undefined}
-                            target="_blank"
-                            rel="nofollow noopener noreferrer"
-                            sx={{ p: 1.5, color: "text.primary", textDecoration: "none", "&:hover": { bgcolor: "action.hover" } }}
-                          >
-                            <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                              {resource.label || resource.filename || resource.url}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {[...resource.roles.map((role) => ROLE_LABELS_DE[role] ?? role), resourceStatusLabel[resource.status] ?? resource.status].filter(Boolean).join(" · ")}
-                            </Typography>
-                          </Box>
-                        ))}
-                      </Stack>
-                    </Box>
-                  ) : (
-                    <>
-                      <Typography sx={{ maxWidth: "68ch", color: "#4b5565", fontSize: "0.9375rem", lineHeight: 1.6 }}>
-                        {allResources.length} Ressource{allResources.length === 1 ? "" : "n"} entdeckt. Verfügbarkeit: {coverageStatusLabel[resourceCoverageStatus] ?? "unbekannt"}.
-                      </Typography>
-                      <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ mt: 1.5 }}>
-                        {allResources.slice(0, 8).map((resource, i) => (
-                          <Chip
-                            key={`${resource.url}-${i}`}
-                            size="small"
-                            label={[resource.label || resource.filename || "Ressource", ...resource.roles.map((role) => ROLE_LABELS_DE[role] ?? role)].join(" · ")}
-                            sx={{ maxWidth: "100%", bgcolor: "#e8eff5", color: "#4b5565", borderRadius: 1.5, ".MuiChip-label": { overflow: "hidden", textOverflow: "ellipsis" } }}
-                          />
-                        ))}
-                      </Stack>
-                      <Box sx={{ display: "flex", alignItems: { sm: "center" }, flexDirection: { xs: "column", sm: "row" }, gap: 2, mt: 2.5, p: { xs: 2, sm: 2.5 }, borderRadius: 2.5, bgcolor: "#e8eff5" }}>
-                        <Box sx={{ width: 40, height: 40, display: "grid", placeItems: "center", flexShrink: 0, borderRadius: 2, bgcolor: "#fbfcfd", color: "#4b5565" }}>
-                          <LockKeyhole size={19} aria-hidden="true" />
+                  <Box
+                    sx={{ overflow: "hidden", borderRadius: 2.5, bgcolor: "#fbfcfd" }}
+                  >
+                    <Stack divider={<Divider flexItem sx={{ borderColor: "rgba(102, 114, 136, 0.16)" }} />}>
+                      {downloadableResources.map((resource, i) => (
+                        <PdfDocumentLink
+                          key={`${resource.documentId ?? resource.id ?? resource.url}-${i}`}
+                          variant="detail"
+                          url={resource.url}
+                          documentId={resource.documentId}
+                          tenderId={tender.id}
+                          index={i}
+                          label={resource.label}
+                          filename={resource.filename}
+                          roles={resource.roles}
+                          status={resource.status}
+                          parseStatus={resource.parseStatus}
+                          initialSummary={resource.summary}
+                        />
+                      ))}
+                      {discoveredPageResources.slice(0, 8).map((resource, i) => (
+                        <Box
+                          key={`${resource.id ?? resource.url}-${i}`}
+                          component="a"
+                          href={resource.url ?? undefined}
+                          target="_blank"
+                          rel="nofollow noopener noreferrer"
+                          sx={{ p: 1.5, color: "text.primary", textDecoration: "none", "&:hover": { bgcolor: "action.hover" } }}
+                        >
+                          <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                            {resource.label || resource.filename || resource.url}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {[...resource.roles.map((role) => ROLE_LABELS_DE[role] ?? role), resourceStatusLabel[resource.status] ?? resource.status].filter(Boolean).join(" · ")}
+                          </Typography>
                         </Box>
-                        <Box sx={{ flex: 1 }}>
-                          <Typography variant="overline" sx={{ color: "#667288", fontWeight: 700, letterSpacing: "0.06em" }}>
-                            Tenderhunter Pro
-                          </Typography>
-                          <Typography component="h3" sx={{ mt: -0.5, color: "#2d3544", fontSize: "1.0625rem", fontWeight: 700 }}>
-                            Unterlagen in eine klare Entscheidung übersetzen
-                          </Typography>
-                          <Typography variant="body2" sx={{ mt: 0.5, color: "#4b5565", lineHeight: 1.55 }}>
-                            Prüfen Sie Go/No-Go, fehlende Anforderungen und die nächsten Schritte direkt anhand der Originalunterlagen.
-                          </Typography>
-                          <Stack direction="row" spacing={1.25} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
-                            {['Originalunterlagen', 'Go-/No-Go-Check', 'Offene Anforderungen'].map((benefit) => (
-                              <Stack key={benefit} direction="row" spacing={0.4} alignItems="center">
-                                <CheckCircle2 size={14} color="#4b5565" aria-hidden="true" />
-                                <Typography variant="caption" sx={{ color: "#4b5565", fontWeight: 700 }}>{benefit}</Typography>
-                              </Stack>
-                            ))}
-                          </Stack>
-                        </Box>
-                        <Button component="a" href="/upgrade" variant="contained" endIcon={<ArrowRight size={16} />} sx={{ flexShrink: 0, alignSelf: { xs: "flex-start", sm: "center" } }}>
-                          Unterlagen freischalten
-                        </Button>
-                      </Box>
-                    </>
-                  )}
+                      ))}
+                    </Stack>
+                  </Box>
                 </Box>
               )}
 

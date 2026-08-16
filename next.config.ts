@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  async redirects() {
+    return [{ source: "/us", destination: "/#us", permanent: true }];
+  },
   experimental: {
     optimizePackageImports: ["@mui/material", "@mui/icons-material", "lucide-react"],
     cpus: 2,

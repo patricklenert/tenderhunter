@@ -320,6 +320,8 @@ interface DetailQueueResult {
 
 const retryDelayMs = (attempts: number): number => Math.min(60 * 60 * 1000, 2 ** Math.min(attempts, 10) * 1000);
 
+const MAX_DETAIL_ATTEMPTS = 10;
+
 async function processDetailQueue(
   references: PublicDetailReference[],
   limit: number,
@@ -347,6 +349,12 @@ async function processDetailQueue(
     if (detailAttempted >= limit) {
       pendingDetails.push(...references.slice(index));
       break;
+    }
+
+    if (reference.attempts >= MAX_DETAIL_ATTEMPTS) {
+      pendingDetails.push({ ...reference, blocked: true, nextAttemptAt: undefined });
+      detailFailed += 1;
+      continue;
     }
 
     const attempt = { ...reference, attempts: reference.attempts + 1 };
@@ -504,6 +512,8 @@ Ignoriere dabei:
 - Werbebanner, Navigation, Fusszeilen
 - Ausschreibungen die eindeutig abgelaufen sind (Deadline liegt in der Vergangenheit)
 - Nicht-relevante Eintraege (z.B. Stellenanzeigen)
+- VHB-Formblätter, GAEB-Anleitungen, Bietercockpit-Handbuch-Text
+- PDF-Formular-Vorlagen und deren Feldbeschreibungen
 
 Kategorisiere jede Ausschreibung in genau EINE dieser Kategorien:
 - Bauarbeiten (Neubau, Umbau, Instandsetzung, Trockenbau, Dacharbeiten, Malerarbeiten, Fenstereinbau, Fassade)
@@ -557,6 +567,13 @@ WICHTIG - Suche explizit und gruendlich nach:
 - PDFs: Suche nach Links zu PDF-Dateien (.pdf) die zur Ausschreibung gehoeren. Extrahiere die vollstaendigen URLs.
 
 Ignoriere Werbung, Navigation, Footer.
+
+KRITISCH - Ignoriere diese Inhalte VOLLSTAENDIG:
+- VHB-Formblätter (Eigenerklärung, Eignungserklärung, Formblatt 124, etc.)
+- GAEB-Software-Anleitungen (wingaeb.xml, Kalkulationsprogramm, Bietercockpit)
+- Anleitungen zur Angebotsabgabe im Bietercockpit
+- PDF-Formular-Vorlagen und deren Feldbeschreibungen
+- Nur den TATSaECHLICHEN Auftragsgegenstand beschreiben, NICHT die Formulare
 
 Kategorie (waehle genau EINE):
 - Bauarbeiten (Neubau, Umbau, Instandsetzung, Trockenbau, Dacharbeiten, Malerarbeiten, Fenstereinbau, Fassade)
@@ -869,21 +886,57 @@ export function cleanDescription(text: string): string {
 }
 
 const PORTAL_FORM_MARKERS = [
-  /(?:^|\s)a\)\s*öffentlicher\s+auftraggeber/i,
+  /(?:^|\s)a\)\s*oeffentlicher\s+auftraggeber/i,
   /vergabestelle/i,
   /(?:^|\s)(?:telefon|fax|e-?mail|internet)\s*[A-ZÄÖÜ]/i,
   /(?:^|\s)(?:name|straße|strasse)\s*[A-ZÄÖÜ]/i,
-  /angebotsfrist|teilnahmefrist|ausführungsort|erfüllungsort/i,
+  /angebotsfrist|teilnahmefrist|ausführungsort|erfuellungsort/i,
+];
+
+const PDF_FORM_MARKERS = [
+  /VHB\s*-\s*Bund\s*-\s*Ausgabe/i,
+  /Eigenerklärung\s+(?:zur\s+)?Eignung/i,
+  /Eigenerklärung\s+fuer\s+nicht\s+praequalifizierte/i,
+  /\d+\s*\(Eigenerklärung\s+zur\s+Eignung\)/i,
+  /Angaben?\s+zu\s+Arbeitskraeften/i,
+  /Angabe\s+zur\s+Mitgliedschaft\s+bei\s+der\s+Berufsgenossenschaft/i,
+  /Seite\s+\d+\s+von\s+\d+\s+Eigenerklärung/i,
+  /AI\s+Bietercockpit\s+\d+\s+Registerkarte/i,
+  /GAEB\s*-\s*Kalkulationssoftware/i,
+  /wingaeb\.xml/i,
+  /Bietercockpit\s+\d+\s+Fuer\s+die\s+Bearbeitung/i,
+  /Angebotsabgabe\s+abschliessen\s+gelangen\s+Sie/i,
+  /Eingangsbestaetigung\s+beinhaltet\s+die\s+Uebermittlung/i,
+  /Button\s+Abgeben\s+hat\s+sich\s+geaendert/i,
+  /Register\s+Anbotsunterlagen\s+\(zur\s+Bearbeitung\)/i,
+  /VHB\s+\d+.*?©\s*VHB/i,
+  /Ausgabe\s+\d{4}\s+Stand\s+\d{4}/i,
+  /nicht\s+praequalifizierte\s+Unternehmen\s+in\s+folgendem\s+Vergabeverfahren/i,
+  /Massnahmennummer\s+Vergabenummer\s+Vergabeart/i,
+  /Oeffentliche\s+Ausschreibung\s+Offenes\s+Verfahren/i,
+  /Beschraenkte\s+Ausschreibung\s+Nichtoffenes\s+Verfahren/i,
+  /Freihaendige\s+Vergabe\s+Verhandlungsverfahren/i,
+  /NATO\s*-\s*Ausschreibung\s+Wettbewerblicher\s+Dialog/i,
+  /Baumassnahme\s+Leistung\s+Bewerber/i,
+  /Mitglied\s+der\s+Bewerber\s*-\s*bzw\.\s+Bietergemeinschaft/i,
 ];
 
 /** Returns true for portal forms accidentally persisted as tender descriptions. */
 export function isRawPortalDescription(text: string): boolean {
   if (!text || text.trim().length < 20) return false;
   const normalized = text.replace(/\s+/g, " ").trim();
-  const hasNoticeHeader = /bekanntmachung\s+öffentliche\s+ausschreibung/i.test(normalized);
+  const hasNoticeHeader = /bekanntmachung\s+oeffentliche\s+ausschreibung/i.test(normalized);
   const markerHits = PORTAL_FORM_MARKERS.filter((pattern) => pattern.test(normalized)).length;
 
   return (hasNoticeHeader && markerHits >= 1) || markerHits >= 3 || isParticipationWallText(normalized);
+}
+
+/** Returns true if text is primarily PDF form boilerplate (VHB, GAEB, Bietercockpit). */
+export function isPdfFormBoilerplate(text: string): boolean {
+  if (!text || text.trim().length < 30) return false;
+  const normalized = text.replace(/\s+/g, " ").trim();
+  const hits = PDF_FORM_MARKERS.filter((pattern) => pattern.test(normalized)).length;
+  return hits >= 2;
 }
 
 /** Identifies portal navigation/footer text that must never be used as tender prose. */
@@ -907,9 +960,9 @@ export function isPublicNavigationSummary(text: string): boolean {
 
 /** Cleans a public description and refuses to expose raw procurement forms. */
 export function cleanPublicDescription(text: string): string {
-  if (isRawPortalDescription(text) || isPublicNavigationSummary(text)) return "";
+  if (isRawPortalDescription(text) || isPublicNavigationSummary(text) || isPdfFormBoilerplate(text)) return "";
   const cleaned = cleanDescription(text);
-  return isRawPortalDescription(cleaned) || isPublicNavigationSummary(cleaned) ? "" : cleaned;
+  return isRawPortalDescription(cleaned) || isPublicNavigationSummary(cleaned) || isPdfFormBoilerplate(cleaned) ? "" : cleaned;
 }
 
 export interface PublicPortalFacts {

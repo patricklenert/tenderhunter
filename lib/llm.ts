@@ -1,14 +1,16 @@
 import OpenAI from "openai";
 
-// Try free models first and use paid Laguna only as the final fallback.
+// Try free models first; use paid models only as the final fallbacks.
+// inclusionai/ling-3.0-tiny:free removed — 404 on OpenRouter.
 export const MODEL_CASCADE = [
-  "inclusionai/ling-3.0-tiny:free",
   "poolside/laguna-s-2.1:free",
   "poolside/laguna-xs-2.1:free",
   "nvidia/nemotron-3-ultra-550b-a55b:free",
   "nvidia/nemotron-3-super-120b-a12b:free",
   "google/gemma-4-31b-it:free",
   "inclusionai/ling-2.6-flash",
+  "inclusionai/ling-3.0-flash",
+  "qwen/qwen3.7-flash",
 ] as const;
 
 let rateLimitUntil = 0;
@@ -60,6 +62,7 @@ export async function callLLM(
   }
   const temperature = options.temperature ?? 0.1;
   let lastError: unknown = null;
+  let lastRateLimitError: unknown = null;
 
   for (const model of MODEL_CASCADE) {
     try {
@@ -75,9 +78,9 @@ export async function callLLM(
       return content;
     } catch (error) {
       if (isRateLimitError(error)) {
-        rateLimitUntil = Math.max(rateLimitUntil, rateLimitCooldownUntil(error));
-        console.warn(`[llm] ${model} rate-limited; stopping model cascade.`);
-        throw error;
+        lastRateLimitError = error;
+        console.warn(`[llm] ${model} rate-limited; continuing model cascade.`);
+        continue;
       }
       if (isProviderAuthError(error)) {
         providerUnavailableUntil = Math.max(providerUnavailableUntil, Date.now() + 60 * 60 * 1000);
@@ -89,5 +92,9 @@ export async function callLLM(
     }
   }
 
-  throw lastError ?? new Error("[llm] Alle Modelle in der Kaskade fehlgeschlagen");
+  if (lastRateLimitError) {
+    rateLimitUntil = Math.max(rateLimitUntil, rateLimitCooldownUntil(lastRateLimitError));
+  }
+
+  throw lastError ?? lastRateLimitError ?? new Error("[llm] Alle Modelle in der Kaskade fehlgeschlagen");
 }

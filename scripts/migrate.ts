@@ -171,6 +171,7 @@ async function main() {
     await client`ALTER TABLE documents ADD COLUMN IF NOT EXISTS roles JSONB`;
     await client`ALTER TABLE documents ADD COLUMN IF NOT EXISTS role_source TEXT`;
     await client`ALTER TABLE documents ADD COLUMN IF NOT EXISTS role_confidence REAL`;
+    await client`ALTER TABLE documents ADD COLUMN IF NOT EXISTS ai_summary TEXT`;
     await client`
       CREATE TABLE IF NOT EXISTS us_documents (
         id SERIAL PRIMARY KEY,
@@ -460,6 +461,18 @@ async function main() {
         UNIQUE(company_id, tender_id)
       )
     `;
+
+    await client`
+      CREATE TABLE IF NOT EXISTS tender_check_states (
+        id SERIAL PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+        tender_id INTEGER NOT NULL REFERENCES tenders(id) ON DELETE CASCADE,
+        states_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE(user_id, tender_id)
+      )
+    `;
+    await client`CREATE INDEX IF NOT EXISTS idx_tender_check_states_tender ON tender_check_states(tender_id)`;
 
     await client`
       DO $$

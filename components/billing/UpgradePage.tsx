@@ -197,19 +197,50 @@ export function UpgradePage() {
             </Typography>
           </Box>
 
-          <Stack spacing={1.5}>
-            {BENEFITS.map(({ icon: Icon, title, desc }) => (
-              <Stack key={title} direction="row" spacing={1.5} alignItems="flex-start">
-                <Box sx={{ width: 36, height: 36, borderRadius: 2, bgcolor: "primary.light", color: "primary.dark", display: "grid", placeItems: "center", flexShrink: 0 }}>
-                  <Icon size={18} />
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" },
+              gap: { xs: 2, sm: 0 },
+            }}
+          >
+            {BENEFITS.map(({ icon: Icon, title, desc }, index) => (
+              <Stack
+                key={title}
+                alignItems="center"
+                spacing={1.5}
+                sx={{
+                  textAlign: "center",
+                  px: { sm: 3 },
+                  py: 2,
+                  borderRight: { sm: index < 2 ? "1px solid" : "none" },
+                  borderColor: { sm: "divider" },
+                }}
+              >
+                <Box
+                  sx={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 2.5,
+                    bgcolor: "primary.light",
+                    display: "grid",
+                    placeItems: "center",
+                    boxShadow: "0 4px 12px rgba(233,100,77,0.15)",
+                  }}
+                >
+                  <Icon size={22} style={{ color: "var(--mui-palette-primary-main)" }} />
                 </Box>
                 <Box>
-                  <Typography variant="body2" fontWeight={700}>{title}</Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.5 }}>{desc}</Typography>
+                  <Typography variant="body2" fontWeight={700} sx={{ lineHeight: 1.3 }}>
+                    {title}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.4, display: "block", mt: 0.25 }}>
+                    {desc}
+                  </Typography>
                 </Box>
               </Stack>
             ))}
-          </Stack>
+          </Box>
 
           <UpgradeProductPreview />
 
@@ -239,16 +270,16 @@ export function UpgradePage() {
               </Alert>
             )}
 
-            <Stack spacing={1.5} sx={{ mt: 2.5 }} role="group" aria-label="Tenderhunter Pro Pläne">
+            <Stack spacing={1.25} sx={{ mt: 2.25 }} role="group" aria-label="Tenderhunter Pro Pläne">
               <PlanOption plan="quarterly" recommended onSelect={startCheckout} loading={loadingPlan === "quarterly"} disabled={plansDisabled} />
               <PlanOption plan="weekly" onSelect={startCheckout} loading={loadingPlan === "weekly"} disabled={plansDisabled} />
             </Stack>
 
-            <Stack direction="row" spacing={2} justifyContent="center" flexWrap="wrap" useFlexGap sx={{ mt: 2 }}>
+            <Stack direction="row" spacing={{ xs: 1.25, sm: 1.75 }} justifyContent="center" flexWrap="wrap" useFlexGap sx={{ mt: 1.5, color: "text.secondary", opacity: 0.82 }}>
               {["Jederzeit kündbar", "Sicherer Checkout", "Inkl. MwSt."].map((t) => (
-                <Stack key={t} direction="row" spacing={0.5} alignItems="center" sx={{ color: "text.secondary" }}>
-                  <Check size={14} aria-hidden="true" />
-                  <Typography variant="caption" fontWeight={600}>{t}</Typography>
+                <Stack key={t} direction="row" spacing={0.45} alignItems="center">
+                  <Check size={13} aria-hidden="true" />
+                  <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.68rem" }}>{t}</Typography>
                 </Stack>
               ))}
             </Stack>
@@ -297,50 +328,67 @@ function PlanOption({
   disabled: boolean;
 }) {
   const details = BILLING_PLANS[plan];
+  const isQuarterly = plan === "quarterly";
+  const features = isQuarterly
+    ? ["Alle Pro-Funktionen", "Brief- und Matrix-Export"]
+    : ["Alle Pro-Funktionen", "Wöchentlich kündbar"];
 
   return (
     <Box
       component="article"
       sx={{
-        p: { xs: 2, sm: 2.5 },
-        border: recommended ? 2 : 1,
-        borderColor: recommended ? "primary.main" : "divider",
+        p: { xs: 2, sm: 2.25 },
+        border: "1px solid",
+        borderColor: recommended ? "rgba(233,100,77,0.34)" : "divider",
         borderRadius: 2.5,
-        bgcolor: recommended ? "primary.light" : "background.paper",
+        bgcolor: recommended ? "rgba(233,100,77,0.035)" : "background.paper",
+        boxShadow: recommended ? "0 8px 24px rgba(45,53,68,0.05)" : "none",
         textAlign: "left",
         position: "relative",
         transition: "border-color 0.15s, box-shadow 0.15s",
-        "&:hover": { borderColor: recommended ? "primary.dark" : "text.secondary" },
+        "&:hover": { borderColor: recommended ? "rgba(233,100,77,0.55)" : "text.secondary" },
       }}
     >
-      <Stack spacing={1}>
+      <Stack spacing={1.15} sx={{ minHeight: { xs: 218, sm: 224 }, justifyContent: "space-between" }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center">
-          <Typography variant="overline" color="text.secondary" fontWeight={800} letterSpacing="0.08em" sx={{ fontSize: "0.7rem" }}>
+          <Typography variant="overline" color="text.secondary" fontWeight={800} letterSpacing="0.08em" sx={{ fontSize: "0.68rem" }}>
             {details.label}
           </Typography>
           {recommended && (
-            <Box sx={{ px: 1, py: 0.2, borderRadius: 999, bgcolor: "primary.main", color: "primary.contrastText" }}>
-              <Typography component="span" variant="caption" fontWeight={800} sx={{ whiteSpace: "nowrap", fontSize: "0.65rem" }}>
+            <Box sx={{ px: 0.9, py: 0.2, borderRadius: 999, bgcolor: "rgba(233,100,77,0.08)", border: "1px solid rgba(233,100,77,0.2)", color: "primary.dark" }}>
+              <Typography component="span" variant="caption" fontWeight={800} sx={{ whiteSpace: "nowrap", fontSize: "0.6rem", letterSpacing: "0.01em" }}>
                 Empfohlen
               </Typography>
             </Box>
           )}
         </Stack>
 
-        <Stack direction="row" alignItems="baseline" spacing={0.5}>
-          <Typography variant="h4" fontWeight={800} letterSpacing="-0.04em" sx={{ fontSize: { xs: "1.75rem", sm: "2rem" } }}>
-            {details.price} {details.currency}
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            {details.cadence}
-          </Typography>
+        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+          <Box>
+            <Typography variant="h4" fontWeight={800} letterSpacing="-0.05em" sx={{ fontSize: { xs: "1.8rem", sm: "2.05rem" }, lineHeight: 1 }}>
+              {details.price} {details.currency}
+            </Typography>
+            <Typography variant="body2" fontWeight={700} sx={{ mt: 0.55, lineHeight: 1.2 }}>
+              {isQuarterly ? "für 3 Monate" : "pro Woche"}
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.35, lineHeight: 1.3 }}>
+              {isQuarterly ? "≈ 3,25 € / Woche" : "Maximale Flexibilität"}
+            </Typography>
+          </Box>
+          {isQuarterly && (
+            <Box sx={{ px: 1, py: 0.55, borderRadius: 1.5, bgcolor: "rgba(233,100,77,0.1)", color: "primary.dark", flexShrink: 0 }}>
+              <Typography variant="caption" fontWeight={800} sx={{ fontSize: "0.65rem", whiteSpace: "nowrap" }}>
+                73 % günstiger als der Wochenplan
+              </Typography>
+            </Box>
+          )}
         </Stack>
 
-        <Stack component="ul" spacing={0.75} sx={{ listStyle: "none", p: 0, m: 0 }}>
-          {details.features.map((f) => (
+        <Stack component="ul" spacing={0.65} sx={{ listStyle: "none", p: 0, m: 0 }}>
+          {features.map((f) => (
             <Stack key={f} component="li" direction="row" spacing={1} alignItems="center">
-              <Check size={14} style={{ flexShrink: 0, color: "var(--mui-palette-primary-main)" }} />
-              <Typography variant="caption" sx={{ lineHeight: 1.4 }}>{f}</Typography>
+              <Check size={13} style={{ flexShrink: 0, color: isQuarterly ? "var(--mui-palette-primary-main)" : "var(--mui-palette-text-secondary)" }} />
+              <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.35, fontSize: "0.7rem" }}>{f}</Typography>
             </Stack>
           ))}
         </Stack>
@@ -352,7 +400,14 @@ function PlanOption({
           disabled={disabled || loading}
           aria-busy={loading}
           endIcon={loading ? <CircularProgress size={16} color="inherit" /> : <ArrowRight size={16} />}
-          sx={{ mt: 0.5, py: 1, fontSize: "0.875rem" }}
+          sx={[
+            { mt: 0.5, py: 0.9, fontSize: "0.85rem" },
+            !recommended && {
+              color: "text.secondary",
+              borderColor: "divider",
+              "&:hover": { borderColor: "text.secondary", bgcolor: "action.hover" },
+            },
+          ]}
         >
           {loading ? "Wird geöffnet ..." : recommended ? "Jetzt Pro freischalten" : "Flexibel starten"}
         </Button>

@@ -1,11 +1,12 @@
 import { db } from "@/lib/db";
 import { tenders } from "@/lib/schema";
-import { eq, and, or, gt, isNull, desc, sql } from "drizzle-orm";
+import { eq, and, or, gt, isNull, desc, sql, inArray } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { PROCEDURE_TYPES, ALL_PROCEDURE_TYPE_SLUGS } from "@/lib/procedure-types";
+import { PROCEDURE_TYPES, ALL_PROCEDURE_TYPE_SLUGS, getProcedureDatabaseValues } from "@/lib/procedure-types";
 import { CATEGORY_LABELS, SLUG_TO_CATEGORY, ALL_CATEGORY_SLUGS } from "@/lib/categories";
 import { TaxonomyCategoryContent } from "@/components/seo/TaxonomyCategoryContent";
+import { getListingRobots, getPageNumber, type SeoSearchParams } from "@/lib/seo-indexability";
 
 const PAGE_SIZE = 20;
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
@@ -26,11 +27,12 @@ export async function generateStaticParams() {
 
 interface PageProps {
   params: Promise<{ type: string; kategorie: string }>;
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<SeoSearchParams>;
 }
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
   const { type, kategorie } = await params;
+  const resolvedSearchParams = await searchParams;
   const procType = PROCEDURE_TYPES[type];
   const categoryKey = SLUG_TO_CATEGORY[kategorie];
   if (!procType || !categoryKey) return { title: "Seite nicht gefunden", robots: { index: false, follow: true } };
@@ -39,11 +41,32 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const title = `${label} im ${procType.label} – Aktuelle Ausschreibungen`;
   const description = `Aktuelle ${label}-Ausschreibungen im Vergabeverfahren ${procType.label}. Öffentliche Vergaben mit Fristen und Auftraggebern — täglich aktualisiert.`;
   const canonicalPath = `/ausschreibungen/verfahren/${type}/${kategorie}`;
+  let count = 0;
+  try {
+    const countRow = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(tenders)
+      .where(and(
+        inArray(tenders.procedureType, getProcedureDatabaseValues(type)),
+        eq(tenders.category, categoryKey),
+        eq(tenders.qualityStatus, "qualified"),
+        or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, new Date())),
+      ));
+    count = countRow[0]?.count ?? 0;
+  } catch {
+    return {
+      title,
+      description,
+      alternates: { canonical: canonicalPath, languages: { "de-DE": canonicalPath } },
+      robots: { index: false, follow: true },
+    };
+  }
 
   return {
     title,
     description,
     alternates: { canonical: canonicalPath, languages: { "de-DE": canonicalPath } },
+    robots: getListingRobots(resolvedSearchParams, count),
     openGraph: { title, description, type: "website", locale: "de_DE" },
   };
 }
@@ -51,7 +74,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function ProcedureCategoryPage({ params, searchParams }: PageProps) {
   const { type, kategorie } = await params;
   const { page: pageParam } = await searchParams;
-  const currentPage = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
+  const currentPage = getPageNumber(pageParam);
   const procType = PROCEDURE_TYPES[type];
   const categoryKey = SLUG_TO_CATEGORY[kategorie];
   if (!procType || !categoryKey) notFound();
@@ -75,7 +98,7 @@ export default async function ProcedureCategoryPage({ params, searchParams }: Pa
       .from(tenders)
       .where(
         and(
-          eq(tenders.procedureType, type),
+          inArray(tenders.procedureType, getProcedureDatabaseValues(type)),
           eq(tenders.category, categoryKey),
           eq(tenders.qualityStatus, "qualified"),
           or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
@@ -100,7 +123,7 @@ export default async function ProcedureCategoryPage({ params, searchParams }: Pa
       .from(tenders)
       .where(
         and(
-          eq(tenders.procedureType, type),
+          inArray(tenders.procedureType, getProcedureDatabaseValues(type)),
           eq(tenders.category, categoryKey),
           eq(tenders.qualityStatus, "qualified"),
           or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),

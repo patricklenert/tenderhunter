@@ -41,3 +41,10 @@ export function normalizeAgencySlug(client: string): string {
 export function clientMatchesSlug(client: string, slug: string): boolean {
   return normalizeAgencySlug(client) === slug;
 }
+
+/** Exclude scraped field labels and placeholders from public agency pages. */
+export function isIndexableAgencyName(value: string | null | undefined): value is string {
+  const name = value?.trim() ?? "";
+  if (name.length < 5 || !/[\p{L}]/u.test(name)) return false;
+  return !/^(?:client|auftraggeber|vergabestelle|ausschreibungsstelle|n\/a|na|unknown|unbekannt|none|null|-)\s*:?[\s-]*$/iu.test(name);
+}

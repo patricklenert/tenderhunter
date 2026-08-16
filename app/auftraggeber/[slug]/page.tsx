@@ -20,9 +20,10 @@ import { db } from "@/lib/db";
 import { tenders } from "@/lib/schema";
 import { and, eq, or, isNull, gt, sql, desc } from "drizzle-orm";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
-import { normalizeAgencySlug } from "@/lib/agencies";
+import { isIndexableAgencyName, normalizeAgencySlug } from "@/lib/agencies";
 import { generateTenderSlug } from "@/lib/tender-slug";
 import { SiteFooter } from "@/components/seo/SiteFooter";
+import { getListingRobots, getPageNumber, type SeoSearchParams } from "@/lib/seo-indexability";
 
 // SEO: Agency/Auftraggeber landing pages for long-tail keywords like "Ausschreibungen Stadt München"
 export const revalidate = 3600;
@@ -33,13 +34,13 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palema
 
 interface PageProps {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<SeoSearchParams>;
 }
 
 export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const { page: pageParam } = await searchParams;
-  const currentPage = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
+  const resolvedSearchParams = await searchParams;
+  const currentPage = getPageNumber(resolvedSearchParams.page);
 
   try {
     const now = new Date();
@@ -56,10 +57,9 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
           sql`(${tenders.metadataJson}::jsonb->>'client') IS NOT NULL`,
         ),
       )
-      .groupBy(sql`(${tenders.metadataJson}::jsonb->>'client')`)
-      .limit(500);
+      .groupBy(sql`(${tenders.metadataJson}::jsonb->>'client')`);
 
-    const matchingClient = rows.find((r) => r.client && normalizeAgencySlug(r.client) === slug)?.client;
+    const matchingClient = rows.find((r) => isIndexableAgencyName(r.client) && normalizeAgencySlug(r.client) === slug)?.client;
     if (!matchingClient) return { title: "Auftraggeber nicht gefunden", robots: { index: false, follow: true } };
 
     // Count tenders for this client
@@ -86,13 +86,15 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
       description,
       keywords: [`${matchingClient} Ausschreibungen`, `${matchingClient} Vergabe`, `öffentliche Aufträge ${matchingClient}`],
       alternates: { canonical: canonicalPath, languages: { "de-DE": canonicalPath } },
-      robots: count === 0 ? { index: false, follow: true } : undefined,
+      robots: getListingRobots(resolvedSearchParams, count),
       openGraph: { title, description, type: "website", locale: "de_DE" },
     };
   } catch {
+    const canonicalPath = `/auftraggeber/${slug}`;
     return {
       title: "Auftraggeber",
       description: "Öffentliche Ausschreibungen dieses Auftraggebers.",
+      alternates: { canonical: canonicalPath, languages: { "de-DE": canonicalPath } },
       robots: { index: false, follow: true },
     };
   }
@@ -101,7 +103,7 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
 export default async function AuftraggeberPage({ params, searchParams }: PageProps) {
   const { slug } = await params;
   const { page: pageParam } = await searchParams;
-  const currentPage = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
+  const currentPage = getPageNumber(pageParam);
 
   const now = new Date();
 
@@ -118,10 +120,9 @@ export default async function AuftraggeberPage({ params, searchParams }: PagePro
         sql`(${tenders.metadataJson}::jsonb->>'client') IS NOT NULL`,
       ),
     )
-    .groupBy(sql`(${tenders.metadataJson}::jsonb->>'client')`)
-    .limit(500);
+    .groupBy(sql`(${tenders.metadataJson}::jsonb->>'client')`);
 
-  const matchingClient = clientRows.find((r) => r.client && normalizeAgencySlug(r.client) === slug)?.client;
+  const matchingClient = clientRows.find((r) => isIndexableAgencyName(r.client) && normalizeAgencySlug(r.client) === slug)?.client;
   if (!matchingClient) notFound();
 
   // Fetch tenders for this client with pagination, plus category counts for cross-links

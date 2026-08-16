@@ -6,6 +6,7 @@ import type { Metadata } from "next";
 import { CPV_CODES, ALL_CPV_CODES } from "@/lib/cpv-codes";
 import { CATEGORY_LABELS, SLUG_TO_CATEGORY, ALL_CATEGORY_SLUGS } from "@/lib/categories";
 import { TaxonomyCategoryContent } from "@/components/seo/TaxonomyCategoryContent";
+import { getListingRobots, getPageNumber, type SeoSearchParams } from "@/lib/seo-indexability";
 
 const PAGE_SIZE = 20;
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
@@ -26,11 +27,12 @@ export async function generateStaticParams() {
 
 interface PageProps {
   params: Promise<{ code: string; kategorie: string }>;
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<SeoSearchParams>;
 }
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
   const { code, kategorie } = await params;
+  const resolvedSearchParams = await searchParams;
   const cpvEntry = CPV_CODES[code];
   const categoryKey = SLUG_TO_CATEGORY[kategorie];
   if (!cpvEntry || !categoryKey) return { title: "Seite nicht gefunden", robots: { index: false, follow: true } };
@@ -39,11 +41,34 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const title = `${label} – CPV ${code} ${cpvEntry.label} Ausschreibungen`;
   const description = `Aktuelle ${label}-Ausschreibungen nach CPV ${code} (${cpvEntry.label}). Öffentliche Vergaben — täglich aktualisiert.`;
   const canonicalPath = `/ausschreibungen/cpv/${code}/${kategorie}`;
+  const divisionPrefix = code.slice(0, 2);
+  let count = 0;
+  try {
+    const countRow = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(tenders)
+      .innerJoin(structuredData, eq(structuredData.tenderId, tenders.id))
+      .where(and(
+        eq(tenders.category, categoryKey),
+        eq(tenders.qualityStatus, "qualified"),
+        or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, new Date())),
+        sql`(${structuredData.jsonBlob}->'procurement'->'cpv_codes')::jsonb ?| array[${code}, ${divisionPrefix + "000000"}]`,
+      ));
+    count = countRow[0]?.count ?? 0;
+  } catch {
+    return {
+      title,
+      description,
+      alternates: { canonical: canonicalPath, languages: { "de-DE": canonicalPath } },
+      robots: { index: false, follow: true },
+    };
+  }
 
   return {
     title,
     description,
     alternates: { canonical: canonicalPath, languages: { "de-DE": canonicalPath } },
+    robots: getListingRobots(resolvedSearchParams, count),
     openGraph: { title, description, type: "website", locale: "de_DE" },
   };
 }
@@ -51,7 +76,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function CpvCategoryPage({ params, searchParams }: PageProps) {
   const { code, kategorie } = await params;
   const { page: pageParam } = await searchParams;
-  const currentPage = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
+  const currentPage = getPageNumber(pageParam);
   const cpvEntry = CPV_CODES[code];
   const categoryKey = SLUG_TO_CATEGORY[kategorie];
   if (!cpvEntry || !categoryKey) notFound();

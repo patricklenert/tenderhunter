@@ -218,6 +218,7 @@ export const documents = pgTable(
     roles: jsonb("roles").$type<DocumentRole[]>(),
     roleSource: text("role_source"),
     roleConfidence: real("role_confidence"),
+    aiSummary: text("ai_summary"),
     version: integer("version").notNull().default(1),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -523,6 +524,25 @@ export const trackedTenders = pgTable(
     index("idx_tracked_tenders_status_updated").on(table.status, table.updatedAt),
     index("idx_tracked_tenders_deadline").on(table.deadlineAt),
   ]
+);
+
+export const tenderCheckStates = pgTable(
+  "tender_check_states",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    tenderId: integer("tender_id")
+      .notNull()
+      .references(() => tenders.id, { onDelete: "cascade" }),
+    statesJson: jsonb("states_json").notNull().default({}),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("idx_tender_check_states_user_tender").on(table.userId, table.tenderId),
+    index("idx_tender_check_states_tender").on(table.tenderId),
+  ],
 );
 
 export const bidPacks = pgTable(
@@ -894,6 +914,8 @@ export type AttributionEvent = typeof attributionEvents.$inferSelect;
 export type NewAttributionEvent = typeof attributionEvents.$inferInsert;
 export type TrackedTender = typeof trackedTenders.$inferSelect;
 export type NewTrackedTender = typeof trackedTenders.$inferInsert;
+export type TenderCheckState = typeof tenderCheckStates.$inferSelect;
+export type NewTenderCheckState = typeof tenderCheckStates.$inferInsert;
 export type BidPack = typeof bidPacks.$inferSelect;
 export type NewBidPack = typeof bidPacks.$inferInsert;
 export type BidPackRequirement = typeof bidPackRequirements.$inferSelect;

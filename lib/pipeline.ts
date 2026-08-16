@@ -1485,6 +1485,7 @@ const upsertDownloadedDocument = async (
     roles: classification.roles,
     roleSource: classification.roleSource,
     roleConfidence: classification.roleConfidence,
+    aiSummary: null,
     updatedAt: new Date(),
   };
 
@@ -1553,6 +1554,7 @@ const upsertFailedDocument = async (
     roles: classification.roles,
     roleSource: classification.roleSource,
     roleConfidence: classification.roleConfidence,
+    aiSummary: null,
     updatedAt: new Date(),
   };
 
@@ -2045,6 +2047,14 @@ WICHTIG:
 - "description" MUSS eine ausfuehrliche Zusammenfassung der Ausschreibung sein (mindestens 200 Zeichen).
 - "scope" MUSS den Leistungsumfang beschreiben.
 
+KRITISCH - Ignoriere diese Inhalte VOLLSTAENDIG:
+- VHB-Formblätter (Eigenerklärung, Eignungserklärung, Formblatt 124, etc.)
+- GAEB-Software-Anleitungen (wingaeb.xml, Kalkulationsprogramm, Bietercockpit)
+- Anleitungen zur Angebotsabgabe im Bietercockpit
+- PDF-Formular-Vorlagen und deren Feldbeschreibungen
+- Rechtliche Hinweise/AGB, die NICHT spezifisch fuer diese Ausschreibung sind
+- Nur den TATSaECHLICHEN Auftragsgegenstand beschreiben, NICHT die Formulare
+
 Antworte NUR mit validem JSON:
 {
   "title": "Titel",
@@ -2160,9 +2170,33 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
   }
 
   // Use raw_text (PDF/document content) if it's significantly richer than the scraped page
+  // But skip rawText if it's mostly PDF form boilerplate (VHB, GAEB, Bietercockpit)
   if (rawText.length > fullContent.length + 500) {
-    console.log(`[cache-detail] Nutze raw_text (${rawText.length} Zeichen) statt gescrapter Seite (${fullContent.length} Zeichen)`);
-    fullContent = rawText.slice(0, 30000);
+    const formMarkerHits = [
+      /VHB\s*-\s*Bund\s*-\s*Ausgabe/i,
+      /Eigenerklärung\s+(?:zur\s+)?Eignung/i,
+      /Eigenerklärung\s+fuer\s+nicht\s+praequalifizierte/i,
+      /Angaben?\s+zu\s+Arbeitskraeften/i,
+      /Angabe\s+zur\s+Mitgliedschaft\s+bei\s+der\s+Berufsgenossenschaft/i,
+      /AI\s+Bietercockpit/i,
+      /GAEB\s*-\s*Kalkulationssoftware/i,
+      /wingaeb\.xml/i,
+      /Massnahmennummer\s+Vergabenummer\s+Vergabeart/i,
+      /Oeffentliche\s+Ausschreibung\s+Offenes\s+Verfahren/i,
+      /Beschraenkte\s+Ausschreibung\s+Nichtoffenes\s+Verfahren/i,
+      /Freihaendige\s+Vergabe\s+Verhandlungsverfahren/i,
+      /NATO\s*-\s*Ausschreibung/i,
+      /Baumassnahme\s+Leistung\s+Bewerber/i,
+      /nicht\s+praequalifizierte\s+Unternehmen/i,
+      /VHB\s+\d+.*?©\s*VHB/i,
+    ].filter((p) => p.test(rawText)).length;
+
+    if (formMarkerHits >= 2) {
+      console.log(`[cache-detail] rawText uebersprungen: ${formMarkerHits} PDF-Formular-Marker erkannt`);
+    } else {
+      console.log(`[cache-detail] Nutze raw_text (${rawText.length} Zeichen) statt gescrapter Seite (${fullContent.length} Zeichen)`);
+      fullContent = rawText.slice(0, 30000);
+    }
   }
 
   const scrapedAccessPage = detectAccessPage(fullContent, { title: tender.title ?? undefined, url: sourceUrl });
@@ -3616,9 +3650,7 @@ const runScrapeUsTenders = async (_payload: Record<string, JsonValue>): Promise<
 };
 
 const runSyncMeili = async (_payload: Record<string, JsonValue>): Promise<Record<string, JsonValue>> => {
-  await configureMeiliIndex().catch((err) => {
-    console.warn("[pipeline] Meilisearch Index-Config fehlgeschlagen:", err);
-  });
+  await configureMeiliIndex();
   const result = await syncTendersToMeili();
   return { indexed: result.indexed, skipped: result.skipped };
 };

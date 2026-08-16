@@ -23,6 +23,7 @@ import { CITY_SLUG_MAP, ALL_CITY_SLUGS, CITY_LABEL_MAP, generateCityFaq, CITIES 
 import { BUNDESLAND_SLUGS } from "@/lib/bundesland";
 import { generateTenderSlug } from "@/lib/tender-slug";
 import { SiteFooter } from "@/components/seo/SiteFooter";
+import { getListingRobots, getPageNumber, type SeoSearchParams } from "@/lib/seo-indexability";
 
 // SEO: City landing pages for long-tail keywords like "Ausschreibungen München"
 export const revalidate = 3600;
@@ -34,7 +35,7 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palema
 
 interface PageProps {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<SeoSearchParams>;
 }
 
 export async function generateStaticParams() {
@@ -44,7 +45,7 @@ export async function generateStaticParams() {
 export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
   const { slug } = await params;
   const { page: pageParam } = await searchParams;
-  const currentPage = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
+  const currentPage = getPageNumber(pageParam);
   const city = CITY_SLUG_MAP[slug];
   if (!city) return { title: "Stadt nicht gefunden", robots: { index: false, follow: true } };
 
@@ -61,7 +62,7 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
       title,
       description,
       alternates: { canonical: canonicalPath, languages: { "de-DE": canonicalPath } },
-      robots: count === 0 ? { index: false, follow: true } : undefined,
+      robots: getListingRobots(await searchParams, count),
       openGraph: { title, description, type: "website", locale: "de_DE" },
     };
   } catch {
@@ -78,7 +79,7 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
 export default async function CityPage({ params, searchParams }: PageProps) {
   const { slug } = await params;
   const { page: pageParam } = await searchParams;
-  const currentPage = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
+  const currentPage = getPageNumber(pageParam);
   const city = CITY_SLUG_MAP[slug];
   if (!city) notFound();
 

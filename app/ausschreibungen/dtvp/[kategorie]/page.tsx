@@ -4,6 +4,7 @@ import { PORTALS } from "@/lib/portal-content";
 import { CATEGORY_LABELS, SLUG_TO_CATEGORY, ALL_CATEGORY_SLUGS } from "@/lib/categories";
 import { searchTenders } from "@/lib/meilisearch";
 import { PortalCategoryContent } from "@/components/seo/PortalCategoryContent";
+import { getListingRobots, type SeoSearchParams } from "@/lib/seo-indexability";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
 const portal = PORTALS["dtvp"];
@@ -18,11 +19,12 @@ export async function generateStaticParams() {
 
 interface PageProps {
   params: Promise<{ kategorie: string }>;
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<SeoSearchParams>;
 }
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
   const { kategorie } = await params;
+  const resolvedSearchParams = await searchParams;
   const categoryKey = SLUG_TO_CATEGORY[kategorie];
   if (!categoryKey) return { title: "Kategorie nicht gefunden", robots: { index: false, follow: true } };
 
@@ -30,11 +32,23 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const title = `${label} auf ${portal.label} – Aktuelle Ausschreibungen`;
   const description = `Aktuelle ${label}-Ausschreibungen aus dem ${portal.label}. Öffentliche Vergabeverfahren mit Fristen und Auftraggebern — täglich aktualisiert auf Tenderhunter.`;
   const canonicalPath = `/ausschreibungen/dtvp/${kategorie}`;
+  let count = 0;
+  try {
+    count = (await searchTenders({ query: "", source: portal.sourceValues, category: categoryKey, limit: 1 })).estimatedTotalHits;
+  } catch {
+    return {
+      title,
+      description,
+      alternates: { canonical: canonicalPath, languages: { "de-DE": canonicalPath } },
+      robots: { index: false, follow: true },
+    };
+  }
 
   return {
     title,
     description,
     alternates: { canonical: canonicalPath, languages: { "de-DE": canonicalPath } },
+    robots: getListingRobots(resolvedSearchParams, count),
     openGraph: { title, description, type: "website", locale: "de_DE" },
   };
 }

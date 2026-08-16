@@ -161,3 +161,16 @@ export const PROCEDURE_TYPES: Record<string, ProcedureTypeEntry> = {
 };
 
 export const ALL_PROCEDURE_TYPE_SLUGS = Object.keys(PROCEDURE_TYPES);
+
+const PROCEDURE_DATABASE_VALUES: Record<string, string[]> = {
+  offen: ["offen"],
+  // Older scraper records keep the German umlaut while the route uses an ASCII slug.
+  beschraenkt: ["beschraenkt", "beschränkt"],
+  verhandelt: ["verhandelt"],
+  dialog: ["dialog"],
+  innovation: ["innovation"],
+};
+
+export function getProcedureDatabaseValues(slug: string): string[] {
+  return PROCEDURE_DATABASE_VALUES[slug] ?? [slug];
+}

@@ -4,6 +4,7 @@ import { PORTALS } from "@/lib/portal-content";
 import { CITIES } from "@/lib/cities";
 import { searchTenders } from "@/lib/meilisearch";
 import { PortalLocationContent } from "@/components/seo/PortalLocationContent";
+import { getListingRobots, getPageNumber, type SeoSearchParams } from "@/lib/seo-indexability";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
 const portal = PORTALS["dtvp"];
@@ -18,11 +19,12 @@ export async function generateStaticParams() {
 
 interface PageProps {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<SeoSearchParams>;
 }
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
   const { slug } = await params;
+  const resolvedSearchParams = await searchParams;
   const city = CITIES.find((c) => c.slug === slug);
   if (!city) return { title: "Stadt nicht gefunden", robots: { index: false, follow: true } };
 
@@ -37,7 +39,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       title,
       description,
       alternates: { canonical: canonicalPath, languages: { "de-DE": canonicalPath } },
-      robots: count === 0 ? { index: false, follow: true } : undefined,
+      robots: getListingRobots(resolvedSearchParams, count),
       openGraph: { title, description, type: "website", locale: "de_DE" },
     };
   } catch {
@@ -56,7 +58,7 @@ const PAGE_SIZE = 20;
 export default async function DtvpCityPage({ params, searchParams }: PageProps) {
   const { slug } = await params;
   const { page: pageParam } = await searchParams;
-  const currentPage = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
+  const currentPage = getPageNumber(pageParam);
   const city = CITIES.find((c) => c.slug === slug);
   if (!city) notFound();
 

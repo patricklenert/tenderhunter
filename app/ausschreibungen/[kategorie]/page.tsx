@@ -27,6 +27,7 @@ import { CITIES } from "@/lib/cities";
 import { ARTICLES } from "@/lib/articles";
 import { generateTenderSlug } from "@/lib/tender-slug";
 import { SiteFooter } from "@/components/seo/SiteFooter";
+import { getListingRobots, getPageNumber, type SeoSearchParams } from "@/lib/seo-indexability";
 
 // SEO: Pagination for category pages — 20 tenders per page
 const PAGE_SIZE = 20;
@@ -38,7 +39,7 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palema
 
 interface PageProps {
   params: Promise<{ kategorie: string }>;
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<SeoSearchParams>;
 }
 
 export async function generateStaticParams() {
@@ -51,7 +52,7 @@ export async function generateMetadata({
 }: PageProps): Promise<Metadata> {
   const { kategorie } = await params;
   const { page: pageParam } = await searchParams;
-  const currentPage = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
+  const currentPage = getPageNumber(pageParam);
   const categoryKey = SLUG_TO_CATEGORY[kategorie];
   if (!categoryKey) return { title: "Kategorie nicht gefunden", robots: { index: false, follow: true } };
 
@@ -81,7 +82,7 @@ export async function generateMetadata({
       title,
       description,
       alternates: { canonical: canonicalPath, languages: { "de-DE": canonicalPath } },
-      robots: count === 0 ? { index: false, follow: true } : undefined,
+      robots: getListingRobots(await searchParams, count, true),
       openGraph: {
         title,
         description,
@@ -102,7 +103,7 @@ export async function generateMetadata({
 export default async function CategoryPage({ params, searchParams }: PageProps) {
   const { kategorie } = await params;
   const { page: pageParam } = await searchParams;
-  const currentPage = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
+  const currentPage = getPageNumber(pageParam);
   const categoryKey = SLUG_TO_CATEGORY[kategorie];
   if (!categoryKey) notFound();
 

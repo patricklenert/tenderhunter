@@ -31,6 +31,7 @@
     "test:parser": "tsx scripts/test-parser.ts",
     "test:classifier": "tsx scripts/test-document-classifier.ts",
     "test:document-analysis": "tsx scripts/test-document-analysis.ts",
+    "test:tender-check": "tsx scripts/test-tender-check.ts",
     "test:readiness": "tsx scripts/test-readiness.ts",
     "test:public-pagination": "tsx scripts/test-public-pagination.ts",
     "test:public-source-registry": "tsx scripts/test-public-source-registry.ts",

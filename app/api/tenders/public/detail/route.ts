@@ -7,9 +7,8 @@ import { JOB_CACHE_DETAIL } from "@/lib/types";
 import { extractPublicPortalFacts } from "@/lib/public-tender-scraper";
 import { formatDeadlineDE, sanitizeTenderUrl } from "@/lib/date-utils";
 import { detectAccessPage } from "@/lib/access-page-detector";
-import { auth } from "@/lib/auth";
-import { hasPremiumAccess } from "@/lib/entitlements";
 import { buildDocumentAnalysis, type AnalyzedDocument } from "@/lib/document-analysis";
+import { buildTenderCheck } from "@/lib/tender-check";
 import { normalizeStructured } from "@/lib/structurer";
 import { normalizeResourceUrl } from "@/lib/resource-discovery";
 import { readTenderMeta, type TenderResourceMeta } from "@/lib/tender-meta";
@@ -52,6 +51,7 @@ interface SafeDocumentMetadata {
   roleConfidence: number | null;
   pageCount: number | null;
   available: boolean;
+  summary: string | null;
   downloadUrl?: string;
 }
 
@@ -68,9 +68,9 @@ const safeDocumentMetadata = (
     roleSource: string | null;
     roleConfidence: number | null;
     pageCount: number | null;
+    aiSummary: string | null;
   },
   tenderUrl: string,
-  hasDocumentsAccess: boolean,
 ): SafeDocumentMetadata => {
   const roles = [
     ...(Array.isArray(document.roles) ? document.roles : []),
@@ -79,7 +79,7 @@ const safeDocumentMetadata = (
     .filter((role, index, values) => values.indexOf(role) === index);
   const metadata: SafeDocumentMetadata = {
     id: document.id,
-    url: hasDocumentsAccess ? safeResourceUrl(document.url, tenderUrl) : null,
+    url: safeResourceUrl(document.url, tenderUrl),
     filename: document.filename,
     contentType: document.contentType,
     downloadStatus: document.downloadStatus,
@@ -90,8 +90,9 @@ const safeDocumentMetadata = (
     roleConfidence: document.roleConfidence,
     pageCount: document.pageCount,
     available: document.downloadStatus === "downloaded",
+    summary: document.aiSummary,
   };
-  if (hasDocumentsAccess && metadata.available) {
+  if (metadata.available) {
     metadata.downloadUrl = `/api/tenders/public/download?documentId=${document.id}`;
   }
   return metadata;
@@ -137,7 +138,6 @@ const buildResourceMetadata = (
   }>,
   candidates: TenderResourceMeta[],
   documents: Array<{ id: number; url: string | null; filename: string | null }>,
-  hasDocumentsAccess: boolean,
 ): { resources: SafeResourceMetadata[]; coverage: Record<string, number | string> } => {
   const documentByUrl = new Map<string, { id: number; filename: string | null }>();
   for (const document of documents) {
@@ -221,15 +221,7 @@ const buildResourceMetadata = (
         : "partial";
 
   return {
-    resources: resources.map((resource) => {
-      if (hasDocumentsAccess || !["document", "download"].includes(resource.resourceType)) return resource;
-      return {
-        ...resource,
-        url: null,
-        canonicalUrl: null,
-        sourcePageUrl: null,
-      };
-    }),
+    resources,
     coverage: {
       status,
       discovered: resources.length,
@@ -281,8 +273,6 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const tender = rows[0];
-    const session = await auth.api.getSession({ headers: request.headers });
-    const hasDocumentsAccess = session?.user?.id ? await hasPremiumAccess(session.user.id) : false;
     const documentRows = await db
       .select({
         id: documents.id,
@@ -298,13 +288,11 @@ export async function POST(request: Request): Promise<Response> {
         extractedText: documents.extractedText,
         pageCount: documents.pageCount,
         roleConfidence: documents.roleConfidence,
+        aiSummary: documents.aiSummary,
       })
       .from(documents)
       .where(eq(documents.tenderId, tenderId));
     const documentAnalysis = buildDocumentAnalysis(documentRows as AnalyzedDocument[]);
-    const publicDocumentAnalysis = hasDocumentsAccess
-      ? documentAnalysis
-      : { ...documentAnalysis, evidence: [] };
     const resourceRows = await db
       .select({
         id: tenderResources.id,
@@ -331,13 +319,12 @@ export async function POST(request: Request): Promise<Response> {
       location: portalFacts.location || tenderMeta.location || null,
       scope: portalFacts.subject || tenderMeta.subject || null,
     };
-    const documentsPayload = documentRows.map((document) => safeDocumentMetadata(document, tender.url, hasDocumentsAccess));
+    const documentsPayload = documentRows.map((document) => safeDocumentMetadata(document, tender.url));
     const resourcesPayload = buildResourceMetadata(
       tender.url,
       resourceRows,
       [...tenderMeta.resourceCandidates, ...legacyPdfCandidates(tenderMeta.pdfUrls)],
       documentRows,
-      hasDocumentsAccess,
     );
     const coveragePayload = {
       documentCoverage: {
@@ -372,48 +359,52 @@ export async function POST(request: Request): Promise<Response> {
         } else {
           const normalized = normalizeStructured(blob, tender.title ?? "", fallbackFacts);
           const cachedMeta = readTenderMeta(blob);
-          if (!hasDocumentsAccess) {
-            delete blob.pdfUrls;
-            delete blob.pdf_urls;
-          }
           if (typeof blob.sourceUrl === "string") {
             blob.sourceUrl = sanitizeTenderUrl(blob.sourceUrl, blob.sourceUrl as string) ?? "";
           }
           const descriptionMarkdown = normalized.descriptionMarkdown ?? null;
-          const cachedResources = buildResourceMetadata(
+           const cachedResources = buildResourceMetadata(
             tender.url,
             resourceRows,
             [
               ...tenderMeta.resourceCandidates,
               ...cachedMeta.resourceCandidates,
-              ...legacyPdfCandidates(hasDocumentsAccess ? cachedMeta.pdfUrls : []),
+              ...legacyPdfCandidates(cachedMeta.pdfUrls),
             ],
-            documentRows,
-            hasDocumentsAccess,
-          );
+             documentRows,
+           );
+           const documentCheck = buildTenderCheck({
+             tenderId,
+             tenderDeadlineAt: tender.deadlineAt,
+             structured: normalized,
+             rawText: tender.rawText,
+             documents: documentRows as AnalyzedDocument[],
+             documentAnalysis,
+           });
            return json({
-             ...blob,
-             title: normalized.title,
-             summary: normalized.summary,
-             description: normalized.summary,
-             descriptionMarkdown,
-             client: normalized.hard_facts.buyer ?? "",
-             deadline: normalized.hard_facts.deadline,
-             location: normalized.hard_facts.location ?? "",
-             procedure: normalized.procurement.procedure_type,
-             requirements: normalized.decision_relevant.requirements,
-             scope: normalized.decision_relevant.scope.join(" "),
-             awardCriteria: normalized.decision_relevant.award_criteria,
-             commercialBrief: normalized.commercialBrief,
+            ...blob,
+            title: normalized.title,
+            summary: normalized.summary,
+            description: normalized.summary,
+            descriptionMarkdown,
+            client: normalized.hard_facts.buyer ?? "",
+            deadline: normalized.hard_facts.deadline,
+            location: normalized.hard_facts.location ?? "",
+            procedure: normalized.procurement.procedure_type,
+            requirements: normalized.decision_relevant.requirements,
+            scope: normalized.decision_relevant.scope.join(" "),
+            awardCriteria: normalized.decision_relevant.award_criteria,
+            commercialBrief: normalized.commercialBrief,
             ...coveragePayload,
             resourceCoverage: cachedResources.coverage,
             resources: cachedResources.resources,
             resourceCandidates: cachedResources.resources,
             readinessStatus: tender.readinessStatus,
-            readinessReason: tender.readinessReason,
-            documentAnalysis: publicDocumentAnalysis,
-            cached: true,
-            documentsLocked: !hasDocumentsAccess,
+             readinessReason: tender.readinessReason,
+             documentAnalysis,
+             documentCheck,
+             cached: true,
+            documentsLocked: false,
             scrapedAt: cached[0].updatedAt,
           });
         }
@@ -432,6 +423,14 @@ export async function POST(request: Request): Promise<Response> {
       console.warn(`[tender-detail] Quelle vorübergehend blockiert für ${tenderId} (${accessPage.reason}), starte Reprocessing`);
     }
     const fallbackStructured = normalizeStructured(meta, tender.title ?? "", fallbackFacts);
+    const documentCheck = buildTenderCheck({
+      tenderId,
+      tenderDeadlineAt: tender.deadlineAt,
+      structured: fallbackStructured,
+      rawText: tender.rawText,
+      documents: documentRows as AnalyzedDocument[],
+      documentAnalysis,
+    });
 
     const result = {
       title: fallbackStructured.title,
@@ -455,17 +454,14 @@ export async function POST(request: Request): Promise<Response> {
       sourceUrl: sanitizeTenderUrl(tender.url, tenderMeta.sourceUrl) ?? "",
       cached: false,
       enriching: true,
-      documentsLocked: !hasDocumentsAccess,
+      documentsLocked: false,
       readinessStatus: tender.readinessStatus,
       readinessReason: tender.readinessReason,
-      documentAnalysis: publicDocumentAnalysis,
+      documentAnalysis,
+      documentCheck,
       ...coveragePayload,
       scrapedAt: new Date().toISOString(),
     };
-    const responsePayload = hasDocumentsAccess
-      ? result
-      : Object.fromEntries(Object.entries(result).filter(([key]) => key !== "pdfUrls"));
-
     // 4. Queue background enrichment (LLM extraction) — ALWAYS
     if (tender.url) {
       enqueueJob(JOB_CACHE_DETAIL, { tender_id: tenderId }, { jobKey: `${JOB_CACHE_DETAIL}:${tenderId}`, dedupeCompleted: false }).catch((e: unknown) =>
@@ -473,7 +469,7 @@ export async function POST(request: Request): Promise<Response> {
       );
     }
 
-    return json(responsePayload);
+    return json(result);
   } catch (error) {
     console.error("[tender-detail] Fehler:", error);
     return errorResponse(error);

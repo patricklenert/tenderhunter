@@ -23,6 +23,7 @@ import {
 import { generateTenderSlug } from "@/lib/tender-slug";
 import { CPV_CODES, ALL_CPV_CODES } from "@/lib/cpv-codes";
 import { SiteFooter } from "@/components/seo/SiteFooter";
+import { getListingRobots, getPageNumber, type SeoSearchParams } from "@/lib/seo-indexability";
 
 const PAGE_SIZE = 20;
 
@@ -38,13 +39,13 @@ export async function generateStaticParams() {
 
 interface PageProps {
   params: Promise<{ code: string }>;
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<SeoSearchParams>;
 }
 
 export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
   const { code } = await params;
   const { page: pageParam } = await searchParams;
-  const currentPage = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
+  const currentPage = getPageNumber(pageParam);
   const cpvEntry = CPV_CODES[code];
   if (!cpvEntry) return { title: "CPV-Code nicht gefunden", robots: { index: false, follow: true } };
 
@@ -57,6 +58,7 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
     title,
     description,
     alternates: { canonical: canonicalPath, languages: { "de-DE": canonicalPath } },
+    robots: getListingRobots(await searchParams, 1, true),
     openGraph: { title, description, type: "website", locale: "de_DE" },
   };
 }
@@ -64,7 +66,7 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
 export default async function CpvPage({ params, searchParams }: PageProps) {
   const { code } = await params;
   const { page: pageParam } = await searchParams;
-  const currentPage = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
+  const currentPage = getPageNumber(pageParam);
   const cpvEntry = CPV_CODES[code];
   if (!cpvEntry) notFound();
 

@@ -24,6 +24,7 @@ import { CITY_SLUG_MAP, ALL_CITY_SLUGS, CITY_LABEL_MAP } from "@/lib/cities";
 import { BUNDESLAND_SLUGS } from "@/lib/bundesland";
 import { generateTenderSlug } from "@/lib/tender-slug";
 import { SiteFooter } from "@/components/seo/SiteFooter";
+import { getListingRobots, getPageNumber, type SeoSearchParams } from "@/lib/seo-indexability";
 
 // SEO: Auto-generated FAQ for city×category pages — targets long-tail queries like "Ausschreibungen München IT"
 function generateCityCategoryFaq(cityLabel: string, categoryLabel: string): Array<{ question: string; answer: string }> {
@@ -52,7 +53,7 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palema
 
 interface PageProps {
   params: Promise<{ slug: string; kategorie: string }>;
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<SeoSearchParams>;
 }
 
 export async function generateStaticParams() {
@@ -68,7 +69,7 @@ export async function generateStaticParams() {
 export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
   const { slug, kategorie } = await params;
   const { page: pageParam } = await searchParams;
-  const currentPage = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
+  const currentPage = getPageNumber(pageParam);
   const city = CITY_SLUG_MAP[slug];
   const categoryKey = SLUG_TO_CATEGORY[kategorie];
   if (!city || !categoryKey) return { title: "Seite nicht gefunden", robots: { index: false, follow: true } };
@@ -88,7 +89,7 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
       title,
       description,
       alternates: { canonical: canonicalPath, languages: { "de-DE": canonicalPath } },
-      robots: count === 0 ? { index: false, follow: true } : undefined,
+      robots: getListingRobots(await searchParams, count),
       openGraph: { title, description, type: "website", locale: "de_DE" },
     };
   } catch {
@@ -105,7 +106,7 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
 export default async function CityCategoryPage({ params, searchParams }: PageProps) {
   const { slug, kategorie } = await params;
   const { page: pageParam } = await searchParams;
-  const currentPage = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
+  const currentPage = getPageNumber(pageParam);
   const city = CITY_SLUG_MAP[slug];
   const categoryKey = SLUG_TO_CATEGORY[kategorie];
   if (!city || !categoryKey) notFound();

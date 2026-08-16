@@ -50,11 +50,12 @@ services:
     container_name: tenderhunter
     restart: always
     command: ["app"]
+    env_file:
+      - .env
     ports:
       - "3025:3000"
     environment:
       DATABASE_URL: postgresql://tenderhunter:tenderhunter@postgres:5432/tenderhunter
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       SAM_API_KEY: ${SAM_API_KEY:-}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-alerts@tenderhunter.us}
@@ -105,9 +106,10 @@ services:
     memswap_limit: 2g
     pids_limit: 256
     command: ["worker"]
+    env_file:
+      - .env
     environment:
       DATABASE_URL: postgresql://tenderhunter:tenderhunter@postgres:5432/tenderhunter
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       SAM_API_KEY: ${SAM_API_KEY:-}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-alerts@tenderhunter.us}

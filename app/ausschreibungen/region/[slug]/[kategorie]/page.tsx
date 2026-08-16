@@ -26,6 +26,7 @@ import { CITIES } from "@/lib/cities";
 import { searchTenders } from "@/lib/meilisearch";
 import { generateTenderSlug } from "@/lib/tender-slug";
 import { SiteFooter } from "@/components/seo/SiteFooter";
+import { getListingRobots, getPageNumber, type SeoSearchParams } from "@/lib/seo-indexability";
 
 // SEO: Region×Category cross pages for long-tail keywords like "gebäudereinigung ausschreibung nrw"
 export const revalidate = 3600;
@@ -54,7 +55,7 @@ function generateRegionCategoryFaq(bundesland: string, categoryLabel: string): A
 
 interface PageProps {
   params: Promise<{ slug: string; kategorie: string }>;
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<SeoSearchParams>;
 }
 
 // SEO: Pre-render all 208 Bundesland×Category combinations
@@ -71,7 +72,7 @@ export async function generateStaticParams() {
 export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
   const { slug, kategorie } = await params;
   const { page: pageParam } = await searchParams;
-  const currentPage = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
+  const currentPage = getPageNumber(pageParam);
   const bundesland = SLUG_TO_BUNDESLAND[slug];
   const categoryKey = SLUG_TO_CATEGORY[kategorie];
   if (!bundesland || !categoryKey) return { title: "Seite nicht gefunden", robots: { index: false, follow: true } };
@@ -91,7 +92,7 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
       title,
       description,
       alternates: { canonical: canonicalPath, languages: { "de-DE": canonicalPath } },
-      robots: count === 0 ? { index: false, follow: true } : undefined,
+      robots: getListingRobots(await searchParams, count),
       openGraph: { title, description, type: "website", locale: "de_DE" },
     };
   } catch {
@@ -108,7 +109,7 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
 export default async function RegionCategoryPage({ params, searchParams }: PageProps) {
   const { slug, kategorie } = await params;
   const { page: pageParam } = await searchParams;
-  const currentPage = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
+  const currentPage = getPageNumber(pageParam);
   const bundesland = SLUG_TO_BUNDESLAND[slug];
   const categoryKey = SLUG_TO_CATEGORY[kategorie];
   if (!bundesland || !categoryKey) notFound();

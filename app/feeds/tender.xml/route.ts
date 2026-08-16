@@ -5,6 +5,7 @@ import { CATEGORY_LABELS } from "@/lib/categories";
 import { generateTenderSlug } from "@/lib/tender-slug";
 
 export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
 
@@ -54,8 +55,13 @@ export async function GET() {
       .limit(50);
   } catch {
     return new Response(
-      `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>Tenderhunter</title></channel></rss>`,
-      { headers: { "Content-Type": "application/xml" } },
+      `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>Tenderhunter – Aktuelle Ausschreibungen</title><link>${siteUrl}</link><description>Die neuesten öffentlichen Ausschreibungen aus deutschen Vergabeportalen – automatisch erfasst und kategorisiert.</description><language>de-DE</language></channel></rss>`,
+      {
+        headers: {
+          "Content-Type": "application/rss+xml; charset=utf-8",
+          "Cache-Control": "no-store",
+        },
+      },
     );
   }
 
@@ -116,7 +122,7 @@ ${itemsXml}
 
   return new Response(xml, {
     headers: {
-      "Content-Type": "application/xml; charset=utf-8",
+      "Content-Type": "application/rss+xml; charset=utf-8",
       "Cache-Control": "s-maxage=3600, stale-while-revalidate=86400",
     },
   });

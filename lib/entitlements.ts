@@ -7,7 +7,6 @@ import { billingSubscriptions, type BillingSubscription } from "@/lib/schema";
 const ENTITLED_STATUSES = new Set(["active", "trialing"]);
 
 export const PREMIUM_FEATURES = [
-  "documents",
   "ai_analysis",
   "bid_pack",
   "alerts",

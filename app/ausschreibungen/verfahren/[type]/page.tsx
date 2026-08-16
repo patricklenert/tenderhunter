@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { tenders } from "@/lib/schema";
-import { eq, and, or, gt, isNull, desc, sql } from "drizzle-orm";
+import { eq, and, or, gt, isNull, desc, sql, inArray } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -21,8 +21,9 @@ import {
   Home as HomeIcon,
 } from "lucide-react";
 import { generateTenderSlug } from "@/lib/tender-slug";
-import { PROCEDURE_TYPES, ALL_PROCEDURE_TYPE_SLUGS } from "@/lib/procedure-types";
+import { PROCEDURE_TYPES, ALL_PROCEDURE_TYPE_SLUGS, getProcedureDatabaseValues } from "@/lib/procedure-types";
 import { SiteFooter } from "@/components/seo/SiteFooter";
+import { getListingRobots, getPageNumber, type SeoSearchParams } from "@/lib/seo-indexability";
 
 const PAGE_SIZE = 20;
 
@@ -38,13 +39,13 @@ export async function generateStaticParams() {
 
 interface PageProps {
   params: Promise<{ type: string }>;
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<SeoSearchParams>;
 }
 
 export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
   const { type } = await params;
   const { page: pageParam } = await searchParams;
-  const currentPage = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
+  const currentPage = getPageNumber(pageParam);
   const procType = PROCEDURE_TYPES[type];
   if (!procType) return { title: "Vergabeverfahren nicht gefunden", robots: { index: false, follow: true } };
 
@@ -57,6 +58,7 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
     title,
     description,
     alternates: { canonical: canonicalPath, languages: { "de-DE": canonicalPath } },
+    robots: getListingRobots(await searchParams, 1, true),
     openGraph: { title, description, type: "website", locale: "de_DE" },
   };
 }
@@ -64,7 +66,7 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
 export default async function ProcedureTypePage({ params, searchParams }: PageProps) {
   const { type } = await params;
   const { page: pageParam } = await searchParams;
-  const currentPage = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
+  const currentPage = getPageNumber(pageParam);
   const procType = PROCEDURE_TYPES[type];
   if (!procType) notFound();
 
@@ -87,7 +89,7 @@ export default async function ProcedureTypePage({ params, searchParams }: PagePr
       .from(tenders)
       .where(
         and(
-          eq(tenders.procedureType, type),
+          inArray(tenders.procedureType, getProcedureDatabaseValues(type)),
           eq(tenders.qualityStatus, "qualified"),
           or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
         ),
@@ -111,7 +113,7 @@ export default async function ProcedureTypePage({ params, searchParams }: PagePr
       .from(tenders)
       .where(
         and(
-          eq(tenders.procedureType, type),
+          inArray(tenders.procedureType, getProcedureDatabaseValues(type)),
           eq(tenders.qualityStatus, "qualified"),
           or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
         ),

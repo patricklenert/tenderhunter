@@ -9,6 +9,6 @@ export default function robots(): MetadataRoute.Robots {
       allow: "/",
       disallow: ["/api/*", "/bones/", "/workflow-studio"],
     },
-    sitemap: [`${siteUrl}/sitemap.xml`, `${siteUrl}/feed.xml`],
+    sitemap: [`${siteUrl}/sitemap.xml`],
   };
 }

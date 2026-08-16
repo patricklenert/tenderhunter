@@ -228,7 +228,7 @@ export function PortalPageContent({
             </Typography>
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
               {Object.entries(CATEGORY_SLUGS).map(([key, catSlug]) => (
-                <Link key={catSlug} href={`/ausschreibungen/${catSlug}`} style={{ textDecoration: "none" }}>
+                <Link key={catSlug} href={`/ausschreibungen/${portal.slug}/${catSlug}`} style={{ textDecoration: "none" }}>
                   <Chip clickable label={CATEGORY_LABELS[key] ?? key} variant="outlined" sx={{ fontWeight: 500 }} />
                 </Link>
               ))}
@@ -242,7 +242,7 @@ export function PortalPageContent({
             </Typography>
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
               {Object.entries(BUNDESLAND_SLUGS).map(([bundesland, blSlug]) => (
-                <Link key={blSlug} href={`/ausschreibungen/region/${blSlug}`} style={{ textDecoration: "none" }}>
+                <Link key={blSlug} href={`/ausschreibungen/${portal.slug}/region/${blSlug}`} style={{ textDecoration: "none" }}>
                   <Chip clickable label={bundesland} variant="outlined" sx={{ fontWeight: 500 }} />
                 </Link>
               ))}

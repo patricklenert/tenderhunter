@@ -4,7 +4,6 @@ import path from "node:path";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { documents, tenderResources, tenders } from "@/lib/schema";
-import { requirePremiumSession } from "@/lib/entitlements";
 import { settings } from "@/lib/config";
 import { normalizeResourceUrl } from "@/lib/resource-discovery";
 
@@ -220,9 +219,6 @@ const legacyShareResponse = async (url: string, allowedUrls: Set<string>): Promi
 };
 
 export async function GET(req: NextRequest): Promise<Response> {
-  const premiumOrResponse = await requirePremiumSession(req);
-  if (premiumOrResponse instanceof Response) return premiumOrResponse;
-
   const documentId = parsePositiveInt(req.nextUrl.searchParams.get("documentId"));
   const documentIdParam = req.nextUrl.searchParams.get("documentId");
   const tenderId = parsePositiveInt(req.nextUrl.searchParams.get("tenderId"));
