@@ -39,10 +39,13 @@ import { SiteFooter } from "@/components/seo/SiteFooter";
 import { PdfDocumentLink } from "@/components/PdfDocumentLink";
 import { TenderQuickCheck } from "@/components/TenderQuickCheck";
 import { SafeMarkdown } from "@/components/SafeMarkdown";
-import { buildDocumentAnalysis, type AnalyzedDocument } from "@/lib/document-analysis";
+import { buildDocumentAnalysis, documentAnalysisFieldLabel, type AnalyzedDocument } from "@/lib/document-analysis";
 import { buildTenderCheck } from "@/lib/tender-check";
 import { ROLE_LABELS_DE } from "@/lib/document-classifier";
 import { normalizeResourceUrl } from "@/lib/resource-discovery";
+import { isPortalActionUrl } from "@/lib/resource-url";
+import { deduplicateDocumentRows, documentIdentityKey } from "@/lib/document-identity";
+import { repairKnownGermanEncoding } from "@/lib/text-normalization";
 import { readTenderMeta } from "@/lib/tender-meta";
 import { buildTenderDescriptionMarkdown } from "@/lib/tender-description";
 import { hasQueryParameters, NOINDEX_FOLLOW, type SeoSearchParams } from "@/lib/seo-indexability";
@@ -160,7 +163,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
     permanentRedirect(`/ausschreibung/${tender.id}/${expectedSlug}`);
   }
 
-  const documentRows = await db
+  const documentRows = deduplicateDocumentRows((await db
     .select({
       id: documents.id,
       url: documents.url,
@@ -178,7 +181,8 @@ export default async function TenderDetailPage({ params }: PageProps) {
       aiSummary: documents.aiSummary,
     })
     .from(documents)
-    .where(eq(documents.tenderId, tender.id));
+    .where(eq(documents.tenderId, tender.id)))
+    .filter((document) => !isPortalActionUrl(document.url)));
   const documentAnalysis = buildDocumentAnalysis(documentRows as AnalyzedDocument[]);
 
   const isExpired = Boolean(tender.deadlineAt && new Date(tender.deadlineAt) < new Date());
@@ -219,7 +223,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
     documents: documentRows as AnalyzedDocument[],
     documentAnalysis,
   });
-  const resourceRows = await db
+  const resourceRows = (await db
     .select({
       id: tenderResources.id,
       url: tenderResources.url,
@@ -235,10 +239,12 @@ export default async function TenderDetailPage({ params }: PageProps) {
       contentType: tenderResources.contentType,
     })
     .from(tenderResources)
-    .where(eq(tenderResources.tenderId, tender.id));
+    .where(eq(tenderResources.tenderId, tender.id)))
+    .filter((resource) => !isPortalActionUrl(resource.url));
   const structuredMeta = readTenderMeta(normalizedStructured);
   const resourceUrl = (value: string | null | undefined): string | null => normalizeResourceUrl(value, tender.url);
-  const resourceKey = (value: string | null | undefined): string | null => resourceUrl(value);
+   const resourceKey = (value: string | null | undefined): string | null =>
+     documentIdentityKey({ url: value }) ?? resourceUrl(value);
   type DisplayResource = {
     id: number | null;
     documentId: number | null;
@@ -260,7 +266,12 @@ export default async function TenderDetailPage({ params }: PageProps) {
   }
   const resourceByUrl = new Map<string, DisplayResource>();
   const addResource = (resource: DisplayResource): void => {
-    const key = resourceKey(resource.url) ?? resource.url;
+     const key = documentIdentityKey({
+       url: resource.url,
+       filename: resource.filename,
+       contentType: resource.contentType,
+       resourceType: resource.resourceType,
+     }) ?? resource.url;
     if (!key) return;
     const existing = resourceByUrl.get(key);
     if (!existing) {
@@ -281,8 +292,8 @@ export default async function TenderDetailPage({ params }: PageProps) {
       id: null,
       documentId: document.id,
       url: resourceUrl(document.url),
-      label: document.filename ?? "",
-      filename: document.filename,
+       label: repairKnownGermanEncoding(document.filename ?? ""),
+       filename: document.filename ? repairKnownGermanEncoding(document.filename) : document.filename,
       resourceType: "document",
       roles: [
         ...(Array.isArray(document.roles) ? document.roles : []),
@@ -304,7 +315,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
       id: resource.id,
       documentId: document?.id ?? null,
       url,
-      label: resource.label || resource.filename || "",
+       label: repairKnownGermanEncoding(resource.label || resource.filename || ""),
       filename: resource.filename,
       resourceType: resource.resourceType || "unknown",
       roles: Array.isArray(resource.roleHints) ? resource.roleHints.filter((role): role is string => typeof role === "string") : [],
@@ -327,7 +338,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
       id: null,
       documentId: document?.id ?? null,
       url,
-      label: resource.label || resource.text || resource.filename || "",
+       label: repairKnownGermanEncoding(resource.label || resource.text || resource.filename || ""),
       filename: resource.filename,
       resourceType: resource.resourceType || resource.type || "unknown",
       roles: resource.roleHints,
@@ -340,6 +351,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
   }
   const allResources = [...resourceByUrl.values()]
     .filter((resource) => resource.url && resource.url !== resourceUrl(tender.url))
+    .filter((resource) => !isPortalActionUrl(resource.url))
     .slice(0, 40);
   const downloadableResources = allResources.filter((resource) =>
     Boolean(resource.documentId) || ["document", "download"].includes(resource.resourceType),
@@ -868,7 +880,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
                       <Stack spacing={0.5} sx={{ mt: tender.readinessReason && readinessStatus !== "ready" ? 1 : 0 }}>
                         {documentAnalysis.evidence.slice(0, 4).map((evidence) => (
                           <Typography key={`${evidence.field}-${evidence.documentId}`} variant="caption" sx={{ color: "#4b5565", lineHeight: 1.5 }}>
-                            Beleg {evidence.field}: „{evidence.quote}&quot;{evidence.page ? ` (Seite ${evidence.page})` : ""}
+                            Beleg {documentAnalysisFieldLabel(evidence.field)}: „{evidence.quote}&quot;{evidence.page ? ` (Seite ${evidence.page})` : ""}
                           </Typography>
                         ))}
                       </Stack>

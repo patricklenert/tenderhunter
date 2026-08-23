@@ -9,6 +9,8 @@ import {
   type ResourceCandidateRecord,
 } from "../lib/pipeline";
 import { buildSafeRequestHeaders } from "../lib/storage";
+import { decodeTextBuffer } from "../lib/text-normalization";
+import { deduplicateDocumentRows, documentIdentityKey } from "../lib/document-identity";
 
 const combinedCandidate: ResourceCandidateRecord = {
   url: "https://example.test/download?id=42",
@@ -25,6 +27,20 @@ const combinedCandidate: ResourceCandidateRecord = {
 };
 
 assert.equal(isFetchableResourceCandidate(combinedCandidate), true, "extensionless download resources are fetchable");
+assert.equal(isFetchableResourceCandidate({
+  ...combinedCandidate,
+  url: "https://example.test/projectForwarding.do?pid=42",
+  canonicalUrl: "https://example.test/projectForwarding.do?pid=42",
+  resourceType: "document",
+  contentType: null,
+}), false, "portal action endpoints are not treated as documents");
+assert.equal(isFetchableResourceCandidate({
+  ...combinedCandidate,
+  url: "https://example.test/download.do?id=42",
+  canonicalUrl: "https://example.test/download.do?id=42",
+  resourceType: "document",
+  contentType: "application/pdf",
+}), true, "a portal action returning a PDF remains fetchable");
 const classification = classifyResourceCandidate(combinedCandidate);
 assert.equal(classification.role, "leistungsbeschreibung");
 assert.deepEqual(classification.roles.slice(0, 2), ["leistungsbeschreibung", "bekanntmachung"]);
@@ -84,5 +100,29 @@ assert.equal(safeHeaders.Accept, "application/pdf");
 assert.equal(safeHeaders.Referer, "https://example.test/tender/42");
 assert.equal(safeHeaders["User-Agent"], "Mozilla/5.0 test");
 assert.equal(Object.keys(safeHeaders).some((key) => /authorization|cookie/i.test(key)), false);
+
+const legacyHtml = Buffer.from(
+  `<html><head>${" ".repeat(2_200)}<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"></head><body>Bedürfnisse Baugrundstück</body></html>`,
+  "latin1",
+);
+assert.match(decodeTextBuffer(legacyHtml), /Bedürfnisse Baugrundstück/, "late ISO-8859-1 declarations are honored");
+
+assert.equal(
+  documentIdentityKey({ url: "https://example.test/eforms?-1.-form", filename: "eforms.html", resourceType: "page" }),
+  "https://example.test/eforms",
+  "page state query parameters do not create a second document identity",
+);
+assert.notEqual(
+  documentIdentityKey({ url: "https://example.test/download?id=1", filename: "notice.pdf", resourceType: "document" }),
+  documentIdentityKey({ url: "https://example.test/download?id=2", filename: "notice.pdf", resourceType: "document" }),
+  "download query parameters remain part of document identity",
+);
+
+const deduplicated = deduplicateDocumentRows([
+  { id: 2, url: "https://example.test/eforms?-1.-form", filename: "eforms.html", role: "anlage", roles: ["anlage"], downloadStatus: "downloaded", parseStatus: "parsed", extractedText: "text", pageCount: null, roleConfidence: 0.75, errorMessage: null },
+  { id: 1, url: "https://example.test/eforms", filename: "eforms.html", role: "leistungsbeschreibung", roles: ["leistungsbeschreibung"], downloadStatus: "downloaded", parseStatus: "parsed", extractedText: "text", pageCount: null, roleConfidence: 0.75, errorMessage: null },
+]);
+assert.equal(deduplicated.length, 1, "page query variants collapse into one document row");
+assert.deepEqual(deduplicated[0].roles, ["leistungsbeschreibung", "anlage"], "duplicate roles are retained");
 
 console.log("Document pipeline tests passed.");

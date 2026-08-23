@@ -1,6 +1,6 @@
 "use client";
 
-import { Box, Typography, Button, CircularProgress } from "@mui/material";
+import { Box, Typography, Button, CircularProgress, Stack } from "@mui/material";
 import { FileText, ArrowUpRight } from "lucide-react";
 import { useState } from "react";
 import { cleanPdfFilename } from "@/lib/date-utils";
@@ -45,6 +45,7 @@ export function PdfDocumentLink({ url, documentId, tenderId, index, label, filen
   const isUnavailable = status === "failed" || status === "blocked";
   const openUrl = isUnavailable ? null : documentUrl ?? legacyDocumentUrl;
   const canSummarize = isStoredDocument && !isUnavailable && (Boolean(summary) || parseStatus === "parsed");
+  const hasActions = Boolean(isStoredDocument || legacyDocumentUrl || canSummarize);
 
   const handleSummary = async (): Promise<void> => {
     if (summary) {
@@ -76,11 +77,11 @@ export function PdfDocumentLink({ url, documentId, tenderId, index, label, filen
   return (
     <Box
       sx={{
-        display: "flex",
-        flexWrap: "wrap",
-        alignItems: "center",
-        gap: 1,
-        p: 1.5,
+        display: "grid",
+        gridTemplateColumns: { xs: "1fr", sm: "minmax(0, 1fr) 13rem" },
+        alignItems: "start",
+        gap: { xs: 1.5, sm: 2 },
+        p: { xs: 1.5, sm: 2 },
         border: variant === "detail" ? 0 : 1,
         borderColor: "divider",
         borderRadius: variant === "detail" ? 0 : 1,
@@ -88,86 +89,122 @@ export function PdfDocumentLink({ url, documentId, tenderId, index, label, filen
         "&:hover": { bgcolor: "action.hover" },
       }}
     >
-      <FileText size={18} color="#e9644d" />
-      <Box sx={{ flex: 1, minWidth: 0 }}>
-        {openUrl ? (
-          <Box
-            component="a"
-            href={openUrl}
-            target="_blank"
-            rel="nofollow noopener noreferrer"
-            sx={{ textDecoration: "none", color: "text.primary", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-          >
-            <Typography variant="body2" sx={{ fontWeight: 500 }}>
+      <Box sx={{ display: "flex", minWidth: 0, gap: 1.25 }}>
+        <Box
+          sx={{
+            display: "grid",
+            placeItems: "center",
+            flexShrink: 0,
+            width: 32,
+            height: 32,
+            mt: 0.25,
+            color: "primary.main",
+            bgcolor: "rgba(233,100,77,0.08)",
+          }}
+        >
+          <FileText size={18} />
+        </Box>
+        <Box sx={{ minWidth: 0 }}>
+          {openUrl ? (
+            <Box
+              component="a"
+              href={openUrl}
+              target="_blank"
+              rel="nofollow noopener noreferrer"
+              sx={{ textDecoration: "none", color: "text.primary", display: "block", minWidth: 0, overflowWrap: "anywhere" }}
+            >
+              <Typography component="span" variant="body2" sx={{ fontWeight: 600, lineHeight: 1.4, overflowWrap: "anywhere" }}>
+                {displayName}
+              </Typography>
+            </Box>
+          ) : (
+            <Typography component="span" variant="body2" sx={{ fontWeight: 600, lineHeight: 1.4, overflowWrap: "anywhere" }}>
               {displayName}
             </Typography>
-          </Box>
-        ) : (
-          <Typography variant="body2" sx={{ fontWeight: 500 }}>
-            {displayName}
-          </Typography>
-        )}
-        {(roles.length > 0 || status) && (
-          <Typography variant="caption" sx={{ display: "block", color: "text.secondary", mt: 0.25 }}>
-            {[...roles.map((role) => ROLE_LABELS_DE[role] ?? role), status ? STATUS_LABELS[status] ?? status : ""].filter(Boolean).join(" · ")}
-          </Typography>
-        )}
+          )}
+          {(roles.length > 0 || status) && (
+            <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: 0.5, rowGap: 0.25, mt: 0.65 }}>
+              {roles.map((role, roleIndex) => (
+                <Typography key={`${role}-${roleIndex}`} variant="caption" sx={{ color: "text.secondary", lineHeight: 1.35, overflowWrap: "anywhere" }}>
+                  {ROLE_LABELS_DE[role] ?? role}
+                </Typography>
+              ))}
+              {roles.length > 0 && status ? (
+                <Typography variant="caption" aria-hidden="true" sx={{ color: "text.secondary", lineHeight: 1.35 }}>
+                  ·
+                </Typography>
+              ) : null}
+              {status ? (
+                <Typography variant="caption" sx={{ color: "text.secondary", lineHeight: 1.35, overflowWrap: "anywhere" }}>
+                  {STATUS_LABELS[status] ?? status}
+                </Typography>
+              ) : null}
+            </Box>
+          )}
+        </Box>
       </Box>
-      {isStoredDocument ? (
-        <Button
-          component="a"
-          href={documentUrl ?? undefined}
-          target="_blank"
-          rel="nofollow noopener noreferrer"
-          download
-          size="small"
-          variant="outlined"
-          color="primary"
-          startIcon={<ArrowUpRight size={14} />}
-          disabled={isUnavailable}
-          sx={{ flexShrink: 0, textTransform: "none" }}
-        >
-          {isUnavailable ? "Nicht verfügbar" : "Herunterladen"}
-        </Button>
-      ) : legacyDocumentUrl ? (
-        <Button
-          component="a"
-          href={legacyDocumentUrl}
-          target="_blank"
-          rel="nofollow noopener noreferrer"
-          size="small"
-          variant="outlined"
-          color="primary"
-          startIcon={<ArrowUpRight size={14} />}
-          disabled={isUnavailable}
-          sx={{ flexShrink: 0, textTransform: "none" }}
-        >
-          Herunterladen
-        </Button>
+      {hasActions ? (
+        <Stack spacing={0.75} sx={{ width: "100%", minWidth: 0 }}>
+          {isStoredDocument ? (
+            <Button
+              component="a"
+              href={documentUrl ?? undefined}
+              target="_blank"
+              rel="nofollow noopener noreferrer"
+              download
+              size="small"
+              variant="outlined"
+              color="primary"
+              startIcon={<ArrowUpRight size={14} />}
+              disabled={isUnavailable}
+              fullWidth
+              sx={{ justifyContent: "flex-start", textAlign: "left", textTransform: "none", whiteSpace: "normal", lineHeight: 1.3, overflowWrap: "anywhere" }}
+            >
+              {isUnavailable ? "Nicht verfügbar" : "Herunterladen"}
+            </Button>
+          ) : legacyDocumentUrl ? (
+            <Button
+              component="a"
+              href={legacyDocumentUrl}
+              target="_blank"
+              rel="nofollow noopener noreferrer"
+              size="small"
+              variant="outlined"
+              color="primary"
+              startIcon={<ArrowUpRight size={14} />}
+              disabled={isUnavailable}
+              fullWidth
+              sx={{ justifyContent: "flex-start", textAlign: "left", textTransform: "none", whiteSpace: "normal", lineHeight: 1.3, overflowWrap: "anywhere" }}
+            >
+              Herunterladen
+            </Button>
+          ) : null}
+          {canSummarize && (
+            <Button
+              type="button"
+              size="small"
+              variant={summaryOpen ? "contained" : "text"}
+              color="primary"
+              onClick={handleSummary}
+              disabled={summaryLoading}
+              aria-expanded={summaryOpen}
+              fullWidth
+              sx={{ justifyContent: "flex-start", textAlign: "left", textTransform: "none", whiteSpace: "normal", lineHeight: 1.3, overflowWrap: "anywhere" }}
+            >
+              {summaryLoading ? <CircularProgress size={15} /> : summaryOpen ? "Zusammenfassung ausblenden" : "Zusammenfassung anzeigen"}
+            </Button>
+          )}
+        </Stack>
       ) : null}
-      {canSummarize && (
-        <Button
-          type="button"
-          size="small"
-          variant={summaryOpen ? "contained" : "text"}
-          color="primary"
-          onClick={handleSummary}
-          disabled={summaryLoading}
-          aria-expanded={summaryOpen}
-          sx={{ flexShrink: 0, textTransform: "none" }}
-        >
-          {summaryLoading ? <CircularProgress size={15} /> : summaryOpen ? "Zusammenfassung ausblenden" : "Zusammenfassung anzeigen"}
-        </Button>
-      )}
       {summaryOpen && summary && (
-        <Box sx={{ flexBasis: "100%", pl: { xs: 0, sm: 4.25 }, pt: 0.5 }}>
+        <Box sx={{ gridColumn: "1 / -1", pl: { xs: 0, sm: 5 }, pt: 0 }}>
           <Typography variant="caption" sx={{ display: "block", color: "text.secondary", lineHeight: 1.6 }}>
             {summary}
           </Typography>
         </Box>
       )}
       {summaryError && (
-        <Typography variant="caption" role="alert" sx={{ flexBasis: "100%", color: "error.main", pl: { xs: 0, sm: 4.25 } }}>
+        <Typography variant="caption" role="alert" sx={{ gridColumn: "1 / -1", color: "error.main", pl: { xs: 0, sm: 5 } }}>
           {summaryError}
         </Typography>
       )}

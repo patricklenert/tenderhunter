@@ -6,7 +6,7 @@ import { detectAccessPage, isParticipationWallText } from "@/lib/access-page-det
 import { stripSessionId } from "@/lib/tender-identity";
 import { settings } from "@/lib/config";
 import type { JsonValue } from "@/lib/types";
-import { decodeHtmlEntities } from "@/lib/text-normalization";
+import { decodeHtmlEntities, decodeTextBuffer } from "@/lib/text-normalization";
 import { buildTenderDescriptionMarkdown, escapeMarkdownText } from "@/lib/tender-description";
 import {
   cursorBoolean,
@@ -116,18 +116,7 @@ async function fetchWithEncoding(url: string, timeout = 20000): Promise<string> 
   });
   if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   const buf = Buffer.from(await resp.arrayBuffer());
-  const contentType = resp.headers.get("content-type") ?? "";
-  const charsetMatch = contentType.match(/charset=([^\s;]+)/i);
-  let charset = charsetMatch?.[1]?.toLowerCase() ?? "";
-  if (!charset) {
-    const head = buf.toString("ascii", 0, Math.min(2000, buf.length));
-    const metaMatch = head.match(/charset[=:]\\s*"?([a-z0-9_-]+)/i);
-    charset = metaMatch?.[1]?.toLowerCase() ?? "";
-  }
-  if (charset.includes("latin") || charset.includes("iso-8859") || charset.includes("windows-1252")) {
-    return buf.toString("latin1");
-  }
-  return buf.toString("utf-8");
+  return decodeTextBuffer(buf, resp.headers.get("content-type"));
 }
 
 function normalizePublicMarkupText(value: string): string {
@@ -135,6 +124,37 @@ function normalizePublicMarkupText(value: string): string {
     .replace(/\u00ad/g, "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+const INVALID_PUBLIC_CLIENT_PATTERNS = [
+  /benutzername|passw|login|anmeldung|registrieren|melden\s+sie\s+sich/i,
+  /einladungscode|vergabeverfahren\s+teilnehmen/i,
+  /^(?:unbekannt|auftraggeber|vergabestelle|\(vergabestelle\))$/i,
+];
+
+/** Rejects login/navigation text that was accidentally captured as an authority. */
+export function normalizePublicClient(value: unknown, fallback = ""): string {
+  const normalized = typeof value === "string"
+    ? normalizePublicMarkupText(value)
+      .replace(/\s+(?:Angebotsfrist|Veröffentlichungsende|Erfüllungsort|Erfuellungsort|CPV(?:-Code)?|Verfahren)\b[\s\S]*$/i, "")
+      .trim()
+    : "";
+  const normalizedFallback = normalizePublicMarkupText(fallback);
+  const isInvalid = !normalized
+    || normalized.length > 180
+    || INVALID_PUBLIC_CLIENT_PATTERNS.some((pattern) => pattern.test(normalized));
+  if (!isInvalid) return normalized;
+
+  return normalizedFallback && !INVALID_PUBLIC_CLIENT_PATTERNS.some((pattern) => pattern.test(normalizedFallback))
+    ? normalizedFallback
+    : "";
+}
+
+export function getPublicClientFallback(source: string, sourceUrl = ""): string {
+  if (source.toLowerCase() === "muenchen" || /vergabe\.muenchen\.de/i.test(sourceUrl)) {
+    return "Landeshauptstadt München";
+  }
+  return "";
 }
 
 const PAGINATION_PARAM_NAMES = [
@@ -206,7 +226,7 @@ let openaiClient: OpenAI | null = null;
 function getOpenAI(): OpenAI {
   if (!openaiClient) {
     if (!openrouterKey) throw new Error("OPENROUTER_API_KEY ist nicht gesetzt.");
-    openaiClient = new OpenAI({ apiKey: openrouterKey, baseURL: "https://openrouter.ai/api/v1" });
+    openaiClient = new OpenAI({ apiKey: openrouterKey, baseURL: "https://openrouter.ai/api/v1", timeout: 120_000, maxRetries: 0 });
   }
   return openaiClient;
 }
@@ -228,6 +248,38 @@ export const TENDER_CATEGORIES = [
 ] as const;
 
 export type TenderCategory = (typeof TENDER_CATEGORIES)[number];
+
+const PUBLIC_IT_CPV_PATTERN = /^(?:48|72)\d{6}(?:-\d)?$/;
+const PUBLIC_IT_TEXT_PATTERN = /\b(?:citrix|software(?:lizenz(?:en)?)?|microsoft|vmware|cloud(?:-?migration)?|cybersecurity|informationstechnologie|it[- ]dienstleistungen?|programmierung|webentwicklung|datenbank|rechenzentrum|netzwerk|hosting|saas|devops|cisco|uipath|oracle)\b/i;
+const PUBLIC_CONSTRUCTION_TEXT_PATTERN = /\b(?:bauarbeiten|bauwerksprüfung|brandschutz|dach(?:arbeiten|deckung)?|metallbau|sanierung|renovierung|modernisierung|neubau|rohbau|tiefbau|straßenbau|brücke|tunnel|abbruch|maurer|zimmer(?:er)?arbeiten|beton|kautschukboden|außenanlagen|lüftungsanlagen)\w*\b/i;
+const PUBLIC_PLANNING_TEXT_PATTERN = /\b(?:generalplanung|planungsleistungen?|ingenieurleistungen?|architektenleistungen?|objektplanung|bauplanung)\b/i;
+const PUBLIC_DELIVERY_TEXT_PATTERN = /\b(?:lieferung|beschaffung|kauf von|warenlieferung|materiallieferung)\b/i;
+
+export function extractPublicCpvCodes(value: string): string[] {
+  return Array.from(new Set(value.match(/\b\d{8}(?:-\d)?\b/g) ?? []));
+}
+
+export function derivePublicTenderCategory(
+  category: unknown,
+  cpvCodes: readonly unknown[] = [],
+  context = "",
+): TenderCategory {
+  const codes = cpvCodes
+    .filter((code): code is string => typeof code === "string")
+    .map((code) => code.trim())
+    .filter(Boolean);
+  const hasItCpv = codes.some((code) => PUBLIC_IT_CPV_PATTERN.test(code));
+  if (hasItCpv) return "IT-Dienstleistungen";
+  if (PUBLIC_CONSTRUCTION_TEXT_PATTERN.test(context)) return "Bauarbeiten";
+  if (PUBLIC_IT_TEXT_PATTERN.test(context)) return "IT-Dienstleistungen";
+  if (PUBLIC_PLANNING_TEXT_PATTERN.test(context)) return "Planungsleistungen";
+  if (PUBLIC_DELIVERY_TEXT_PATTERN.test(context)) return "Lieferung";
+
+  if (typeof category === "string" && TENDER_CATEGORIES.includes(category as TenderCategory) && category !== "IT-Dienstleistungen") {
+    return category as TenderCategory;
+  }
+  return "Facility Management";
+}
 
 export interface ExtractedTender {
   title: string;
@@ -921,14 +973,24 @@ const PDF_FORM_MARKERS = [
   /Mitglied\s+der\s+Bewerber\s*-\s*bzw\.\s+Bietergemeinschaft/i,
 ];
 
+/** Folds German umlauts to ASCII so markers match both "Öffentlicher" and "Oeffentlicher". */
+const foldGermanUmlauts = (value: string): string => value
+  .replace(/ä/g, "ae")
+  .replace(/ö/g, "oe")
+  .replace(/ü/g, "ue")
+  .replace(/Ä/g, "Ae")
+  .replace(/Ö/g, "Oe")
+  .replace(/Ü/g, "Ue")
+  .replace(/ß/g, "ss");
+
 /** Returns true for portal forms accidentally persisted as tender descriptions. */
 export function isRawPortalDescription(text: string): boolean {
   if (!text || text.trim().length < 20) return false;
-  const normalized = text.replace(/\s+/g, " ").trim();
+  const normalized = foldGermanUmlauts(text.replace(/\s+/g, " ").trim());
   const hasNoticeHeader = /bekanntmachung\s+oeffentliche\s+ausschreibung/i.test(normalized);
   const markerHits = PORTAL_FORM_MARKERS.filter((pattern) => pattern.test(normalized)).length;
 
-  return (hasNoticeHeader && markerHits >= 1) || markerHits >= 3 || isParticipationWallText(normalized);
+  return (hasNoticeHeader && markerHits >= 1) || markerHits >= 3 || isParticipationWallText(text);
 }
 
 /** Returns true if text is primarily PDF form boilerplate (VHB, GAEB, Bietercockpit). */
@@ -1023,11 +1085,21 @@ export function extractPublicPortalFacts(text: string): PublicPortalFacts {
     : (procedureType || procedureBasis)
       ?? capture(/(?:Vergabeart|Vergabeverfahren|\bVerfahren\b)\s*:?\s*(.+?)(?=\s*(?:#|;|Bekanntmachung|Zur Angebotsabgabe|Die Nachforderung|Veröffentlicht|Teilnahme|Auftraggeber|Abgabefrist|Angebotsfrist|Status|Auftragsgegenstand|Leistungsgegenstand|\b[a-z]\)\s*)|$)/i);
 
+  // Portal lines append timezone suffixes ("03.08.2026 08:00 Ortszeit") that
+  // downstream parsers do not expect — reduce to the strict date(+time) format.
+  const normalizeDeadline = (value: string | null): string | null => {
+    if (!value) return null;
+    const match = value.match(/(\d{1,2}\.\d{1,2}\.\d{4}(?:\s+\d{1,2}:\d{2})?)/);
+    return match ? match[1] : value;
+  };
+
   return {
-    client: lineValue([/^Vergabestelle\s*:?/i]) ?? client,
+    client: normalizePublicClient(lineValue([/^Vergabestelle\s*:?/i]) ?? client) || null,
     procedure,
-    deadline: lineValue([/^(?:Abgabe(?:frist)?|Angebotsfrist|Teilnahmefrist)\s*:?/i])
+    deadline: normalizeDeadline(
+      lineValue([/^(?:Abgabe(?:frist)?|Angebotsfrist|Teilnahmefrist)\s*:?/i])
       ?? capture(/(?:Abgabe(?:frist)?|Angebotsfrist|Teilnahmefrist)\s*:?\s*(\d{1,2}\.\d{1,2}\.\d{4}(?:\s+\d{1,2}:\d{2})?)/i),
+    ),
     location,
     subject: lineValue([/^(?:Auftragsgegenstand|Leistungsgegenstand|Art und Umfang der Leistung)\s*:?/i], 2)
       ?? capture(/(?:Auftragsgegenstand|Leistungsgegenstand)\s*:?\s*(.+?)(?=\s*(?:\.|Die vollständige Leistungsbeschreibung|Für\s+[„"]|Öffentlich sichtbar)|$)/i),
@@ -1127,7 +1199,11 @@ async function extractTendersFromMarkdown(
          cpvCodes: Array.isArray(t.cpvCodes) ? t.cpvCodes.map(String).filter(Boolean) : [],
         referenceNumber: t.referenceNumber ?? null,
         location: t.location ?? null,
-        category: TENDER_CATEGORIES.includes(t.category) ? t.category : "Facility Management",
+         category: derivePublicTenderCategory(
+           t.category,
+           Array.isArray(t.cpvCodes) ? t.cpvCodes : [],
+           [t.title, t.description, t.scope].filter(Boolean).join(" "),
+         ),
         sourceUrl: (t.url && t.url.startsWith("http")) ? t.url : sourceUrl,
         source,
         pdfUrls: Array.isArray(t.pdfUrls) ? t.pdfUrls.filter((u: string) => u.startsWith("http")) : [],
@@ -1173,7 +1249,11 @@ async function extractDetailFromMarkdown(
 
     const netServerTitle = /\/NetServer\//i.test(sourceUrl) ? extractNetServerTenderTitle(markdown) : null;
 
-    const category = TENDER_CATEGORIES.includes(parsed.category) ? parsed.category : "Facility Management";
+    const category = derivePublicTenderCategory(
+      parsed.category,
+      Array.isArray(parsed.cpvCodes) ? parsed.cpvCodes : [],
+      [parsed.title, parsed.description, parsed.scope].filter(Boolean).join(" "),
+    );
     if (category === "Sonstiges" && !acceptAllCategories) return null;
 
     const clientName = (parsed.client && parsed.client !== "Unbekannt" && parsed.client.length > 1)
@@ -1257,6 +1337,7 @@ export function extractBasicDetailFromHtml(
   if (title.length < 5) return null;
 
   const portalFacts = extractPublicPortalFacts(text);
+  const cpvCodes = extractPublicCpvCodes(text);
 
   const deadline = text.match(/(?:Angebotsfrist|Abgabefrist|Ablauf der Angebotsfrist|Einreichungsfrist)[\s\S]{0,120}?(\d{1,2}\.\d{1,2}\.\d{4})/i)?.[1]
     ?? text.match(/\b\d{1,2}\.\d{1,2}\.\d{4}\b/)?.[0]
@@ -1269,7 +1350,11 @@ export function extractBasicDetailFromHtml(
     || portalFacts.client
     || text.match(/(?:Auftraggeber|Vergabestelle)\b\s*:?\s*([^\n|;]{3,120}?)(?=\s+(?:Frist|Angebotsfrist|Abgabefrist|Vergabeart|Verfahren|Auftragsgegenstand|Leistungsgegenstand)\b|$)/i)?.[1]?.trim()
     || extractClientFromUrl(sourceUrl);
-  const client = accessPage.blocked && portalFacts.client ? portalFacts.client : parsedClient;
+  const clientFallback = getPublicClientFallback(source, sourceUrl) || extractClientFromUrl(sourceUrl);
+  const client = normalizePublicClient(
+    accessPage.blocked && portalFacts.client ? portalFacts.client : parsedClient,
+    clientFallback,
+  );
   const location = accessPage.blocked && portalFacts.location
     ? portalFacts.location
     : (text.match(/(?:Ort der Ausführung|Ort der Leistungserbringung)\s*:?\s*\n?\s*([^\n|]{3,120})/i)?.[1]?.trim()
@@ -1299,7 +1384,8 @@ export function extractBasicDetailFromHtml(
     procedure: portalFacts.procedure,
     referenceNumber,
     location,
-    category: "Facility Management",
+    category: derivePublicTenderCategory("Facility Management", cpvCodes, `${title} ${portalFacts.subject ?? ""}`),
+    cpvCodes,
     sourceUrl,
     source,
     pdfUrls,
@@ -1609,7 +1695,12 @@ async function scrapeDtvp(cursor: PublicSourceCursor | null): Promise<PublicScra
     try {
       const page = await scrapeWebsite(reference.url, { onlyMainContent: false });
       if (!page.markdown || page.markdown.trim().length < 100) return { tender: null, retryable: true };
-      if (detectAccessPage(page.markdown, { url: reference.url }).blocked) return { tender: null, blocked: true };
+      // Use the FINAL (post-redirect) URL and page title — DTVP redirects tender
+      // URLs to Keycloak login pages (id.dtvp.de/realms/.../openid-connect/auth)
+      // which must be rejected before any LLM extraction.
+      if (detectAccessPage(page.markdown, { url: page.url || reference.url, title: page.title ?? undefined }).blocked) {
+        return { tender: null, blocked: true };
+      }
 
       const pdfUrls: string[] = [];
       const pdfRegex = /href=["']([^"']*\.pdf[^"']*)["']/gi;
@@ -1752,9 +1843,9 @@ async function scrapeTed(cursor: PublicSourceCursor | null): Promise<PublicScrap
 
   const detailHandler = async (reference: PublicDetailReference): Promise<DetailOutcome> => {
     try {
-      const page = await scrapeWebsite(reference.url, { waitMs: 2000 });
+      const page = await scrapeWebsite(reference.url, { waitMs: 2000, useBodyText: true });
       if (!page.markdown || page.markdown.trim().length < 100) return { tender: null, retryable: true };
-      if (detectAccessPage(page.markdown, { url: reference.url }).blocked) return { tender: null, blocked: true };
+      if (detectAccessPage(page.markdown, { url: page.url || reference.url, title: page.title ?? undefined }).blocked) return { tender: null, blocked: true };
 
       const extracted = await extractDetailFromMarkdown(page.markdown, reference.url, "TED", true);
       if (!extracted) return { tender: null };
@@ -1884,7 +1975,7 @@ async function scrapeBauportal(cursor: PublicSourceCursor | null): Promise<Publi
     try {
       const detailPage = await scrapeWebsite(reference.url, { onlyMainContent: false });
       if (!detailPage.markdown || detailPage.markdown.trim().length < 30) return { tender: null, retryable: true };
-      if (detectAccessPage(detailPage.markdown, { url: reference.url }).blocked) return { tender: null, blocked: true };
+      if (detectAccessPage(detailPage.markdown, { url: detailPage.url || reference.url, title: detailPage.title ?? undefined }).blocked) return { tender: null, blocked: true };
       const extracted = await extractDetailFromMarkdown(detailPage.markdown, detailPage.url, "bauportal-deutschland.de");
       return extracted ? { tender: withScrapedResources(extracted, detailPage) } : { tender: null };
     } catch (error) {
@@ -2060,7 +2151,7 @@ async function scrapeEvergabe(cursor: PublicSourceCursor | null): Promise<Public
       const detailUrl = reference.url;
       const page = await scrapeWebsite(detailUrl, { onlyMainContent: false });
       if (!page.markdown || page.markdown.trim().length < 100) return { tender: null, retryable: true };
-      if (detectAccessPage(page.markdown, { url: detailUrl }).blocked) return { tender: null, blocked: true };
+      if (detectAccessPage(page.markdown, { url: page.url || detailUrl, title: page.title ?? undefined }).blocked) return { tender: null, blocked: true };
 
       const pdfUrls: string[] = [];
       const pdfRegex = /href=["']([^"']*\.pdf[^"']*)["']/gi;
@@ -2109,6 +2200,7 @@ async function scrapeEvergabe(cursor: PublicSourceCursor | null): Promise<Public
       if (!html.trim()) throw new Error(`evergabe listing page ${page} returned no content`);
       pagesFetched += 1;
       console.log(`[public-scraper] evergabe page ${page}: listing HTML ${html.length} bytes`);
+      const pathsBefore = seen.size;
 
       let match;
       while ((match = linkRegex.exec(html)) !== null) {
@@ -2121,8 +2213,13 @@ async function scrapeEvergabe(cursor: PublicSourceCursor | null): Promise<Public
       }
 
       const nextUrls = parseGenericPaginationUrls(html, listUrl, listUrl);
-      hasMore = nextUrls.length > 0;
-      if (!hasMore || detailPaths.length === 0) break;
+      // Stop when the page adds no new links — page-number cursors must not
+      // keep advancing (and requeueing) on listing pages without content.
+      if (seen.size === pathsBefore || nextUrls.length === 0) {
+        hasMore = false;
+        break;
+      }
+      hasMore = true;
     }
 
     console.log(`[public-scraper] evergabe: ${detailPaths.length} Detail-Links gefunden`);
@@ -2359,7 +2456,12 @@ async function scrapeVergabeNiedersachsen(cursor: PublicSourceCursor | null): Pr
     try {
       const page = await scrapeWebsite(reference.url, { onlyMainContent: false });
       if (!page.markdown || page.markdown.trim().length < 100) return { tender: null, retryable: true };
-      if (detectAccessPage(page.markdown, { url: reference.url }).blocked) return { tender: null, blocked: true };
+      // Use the FINAL (post-redirect) URL and page title — DTVP redirects tender
+      // URLs to Keycloak login pages (id.dtvp.de/realms/.../openid-connect/auth)
+      // which must be rejected before any LLM extraction.
+      if (detectAccessPage(page.markdown, { url: page.url || reference.url, title: page.title ?? undefined }).blocked) {
+        return { tender: null, blocked: true };
+      }
       const extracted = await extractDetailFromMarkdown(page.markdown, page.url, "vergabe.niedersachsen.de", true);
       if (!extracted) return { tender: null };
       extracted.externalId = reference.externalId ?? extracted.externalId ?? null;
@@ -2393,6 +2495,7 @@ async function scrapeVergabeNiedersachsen(cursor: PublicSourceCursor | null): Pr
       const html = await response.text();
       if (!html.trim()) throw new Error("niedersachsen listing returned no content");
       pagesFetched += 1;
+      const pidsBefore = seenPids.size;
 
       // Extract projectForwarding.do?pid= links.
       const linkRegex = /href=["']([^"'']*projectForwarding\.do\?pid=\d+[^"']*)["']/gi;
@@ -2408,8 +2511,13 @@ async function scrapeVergabeNiedersachsen(cursor: PublicSourceCursor | null): Pr
       }
 
       const nextUrls = parseGenericPaginationUrls(html, rootUrl, currentUrl);
-      hasMore = nextUrls.length > 0;
-      if (!hasMore || detailLinks.length === 0) break;
+      // Stop when the page adds no new links — otherwise the same nextUrl gets
+      // persisted and the source requeues forever.
+      if (seenPids.size === pidsBefore || nextUrls.length === 0) {
+        hasMore = false;
+        break;
+      }
+      hasMore = true;
       currentUrl = nextUrls[0].replace(/;jsessionid=[^?/]*/, "");
     }
 
@@ -3039,7 +3147,7 @@ export async function scrapeBerlinHtml(cursor: PublicSourceCursor | null): Promi
       });
       const markdown = page.markdown ?? "";
       if (markdown.length < 200) return { tender: null, retryable: true };
-      if (detectAccessPage(markdown, { url: reference.url }).blocked) return { tender: null, blocked: true };
+      if (detectAccessPage(markdown, { url: page.url || reference.url, title: page.title ?? undefined }).blocked) return { tender: null, blocked: true };
       berlinDetailContent.set(reference.key, { markdown, html: page.html ?? "" });
       const extracted = await extractDetailFromMarkdown(markdown, reference.url, "berlin-html", true);
       if (extracted) extracted.externalId = reference.externalId ?? extracted.externalId ?? null;
@@ -3254,9 +3362,10 @@ export function parseNetServerRows(html: string): NetServerRow[] {
   const seenOids = new Set<string>();
 
   const addRow = (row: NetServerRow) => {
-    if (row.title.length > 5 && !seenOids.has(row.oid)) {
-      seenOids.add(row.oid);
-      rows.push(row);
+    const normalizedRow = { ...row, client: normalizePublicClient(row.client) };
+    if (normalizedRow.title.length > 5 && !seenOids.has(normalizedRow.oid)) {
+      seenOids.add(normalizedRow.oid);
+      rows.push(normalizedRow);
     }
   };
 
@@ -3455,6 +3564,7 @@ export async function scrapeNetPortal(config: NetServerConfig, cursor: PublicSou
   console.log(`[public-scraper] NetServer: ${config.name} (${config.baseUrl})...`);
   const portalStartTime = Date.now();
   const PORTAL_MAX_MS = 5 * 60 * 1000;
+  const clientFallback = getPublicClientFallback(config.name, config.baseUrl) || config.name;
   let pagesFetched = 0;
   const detailLimit = Math.min(config.limit, settings.publicDetailLimit);
   const rowByKey = new Map<string, NetServerRow>();
@@ -3524,11 +3634,12 @@ export async function scrapeNetPortal(config: NetServerConfig, cursor: PublicSou
           }
         }
         if (extracted) {
+          extracted.client = normalizePublicClient(extracted.client, normalizePublicClient(row.client, clientFallback));
           if (netServerTitle) extracted.title = netServerTitle;
           const isGenericTitle = !extracted.title || extracted.title.length < 5 ||
             /^(Ausschreibung der|Keine Ausschreibung|Keine Details|Zugriff verweigert|Unbekannter Titel|Öffentliche Ausschreibung der)/i.test(extracted.title);
           if (isGenericTitle && row.title.length > 5) extracted.title = cleanTenderTitle(row.title);
-          if (!extracted.client || extracted.client.length < 3) extracted.client = row.client;
+           if (!extracted.client || extracted.client.length < 3) extracted.client = normalizePublicClient(row.client, clientFallback);
           if (!extracted.deadline) extracted.deadline = row.deadline;
           if (!extracted.description || extracted.description.length < 30) extracted.description = row.procedure ? `Verfahrensart: ${row.procedure}` : "";
           extracted.externalId = reference.externalId ?? row.oid;
@@ -3540,14 +3651,12 @@ export async function scrapeNetPortal(config: NetServerConfig, cursor: PublicSou
           ? extractBasicDetailFromHtml(detailHtml, detailUrl, config.name, [], true)
           : null;
         if (basic) {
+          basic.client = normalizePublicClient(basic.client, normalizePublicClient(row.client, clientFallback));
           if (netServerTitle) basic.title = netServerTitle;
           const isGenericBasicTitle = !basic.title || basic.title.length < 5 ||
             /^(?:Bekanntmachungsdetails|Ausschreibungsdetails|Vergabedetails|Ausschreibung der|Öffentliche Ausschreibung der)/i.test(basic.title) ||
             /\bVergabeplattform\b/i.test(basic.title);
           if (isGenericBasicTitle && row.title.length > 5) basic.title = cleanTenderTitle(row.title);
-          if (!basic.client || basic.client.length < 3 || /^\(Vergabestelle\)$/i.test(basic.client)) {
-            basic.client = row.client || config.name;
-          }
           if (!basic.deadline) basic.deadline = row.deadline || null;
           if (!basic.description || basic.description.length < 30) basic.description = row.procedure ? `Verfahrensart: ${row.procedure}` : "";
           basic.externalId = reference.externalId ?? row.oid;
@@ -3562,7 +3671,8 @@ export async function scrapeNetPortal(config: NetServerConfig, cursor: PublicSou
 
       if (row.title.length > 5) {
         const isLoginBlocked = detailAccessCheck?.blocked && detailAccessCheck?.reason === "login_required";
-        const hasUsefulRowData = row.client.length > 2 && row.deadline;
+        const rowClient = normalizePublicClient(row.client, clientFallback);
+        const hasUsefulRowData = rowClient.length > 2 && row.deadline;
         if (isLoginBlocked && !hasUsefulRowData) {
           console.log(`[public-scraper] ${config.name}: Login-Seite ohne verwertbare Suchdaten übersprungen (OID ${row.oid})`);
           return { tender: null };
@@ -3571,11 +3681,11 @@ export async function scrapeNetPortal(config: NetServerConfig, cursor: PublicSou
         return {
           tender: {
             title: netServerTitle ?? cleanTenderTitle(row.title),
-            client: row.client || "",
+            client: rowClient,
             deadline: row.deadline || null,
             description: row.procedure ? `Verfahrensart: ${row.procedure}` : "",
             descriptionMarkdown: buildTenderDescriptionMarkdown({
-              client: row.client || "",
+              client: rowClient,
               procedure: row.procedure || null,
               deadline: row.deadline || null,
               summary: row.procedure ? `Verfahrensart: ${row.procedure}` : "",
@@ -3731,7 +3841,7 @@ async function scrapeEVergabeSh(cursor: PublicSourceCursor | null): Promise<Publ
       $detail("script, style, nav, header, footer").remove();
       const bodyText = htmlToBasicMarkdown($detail("body").html() ?? "");
       if (!bodyText || bodyText.length < 100) return { tender: null, retryable: true };
-      if (detectAccessPage(bodyText, { url: reference.url }).blocked) return { tender: null, blocked: true };
+      if (detectAccessPage(bodyText, { url: detailResp.url || reference.url }).blocked) return { tender: null, blocked: true };
       const extracted = await extractDetailFromMarkdown(bodyText, reference.url, "e-vergabe-sh", true);
       if (!extracted) return { tender: null };
       const listedTitle = titleByUrl.get(reference.url);
@@ -3768,6 +3878,7 @@ async function scrapeEVergabeSh(cursor: PublicSourceCursor | null): Promise<Publ
       const html = await resp.text();
       if (!html.trim()) throw new Error("e-vergabe-sh listing returned no content");
       pagesFetched += 1;
+      const linksBefore = seenLinks.size;
       const $ = cheerio.load(html);
       $("a[aria-label^='Bekanntmachung']").each((_, el) => {
         const $el = $(el);
@@ -3782,8 +3893,13 @@ async function scrapeEVergabeSh(cursor: PublicSourceCursor | null): Promise<Publ
       });
 
       const nextUrls = parseGenericPaginationUrls(html, rootUrl, currentUrl);
-      hasMore = nextUrls.length > 0;
-      if (!hasMore || links.length === 0) break;
+      // A page without new links cannot advance the listing — mark it complete
+      // instead of persisting the same nextUrl and requeueing forever.
+      if (seenLinks.size === linksBefore || nextUrls.length === 0) {
+        hasMore = false;
+        break;
+      }
+      hasMore = true;
       currentUrl = nextUrls[0];
     }
 
@@ -3962,16 +4078,24 @@ async function scrapeSachsenAnhalt(cursor: PublicSourceCursor | null): Promise<P
     const rowsById = new Map<string, SachsenAnhaltListingRow>();
     const pageUrls = new Set<string>();
     for (let page = 0; page < settings.publicPaginationPages; page += 1) {
-      if (pageUrls.has(currentUrl)) break;
+      if (pageUrls.has(currentUrl)) {
+        // URL cycle detected — the listing cannot progress further.
+        hasMore = false;
+        break;
+      }
       pageUrls.add(currentUrl);
       const html = await fetchWithEncoding(currentUrl, 20000);
       if (!html.trim()) throw new Error(`sachsen-anhalt listing page ${page + 1} returned no content`);
       pagesFetched += 1;
+      const rowsBefore = rowsById.size;
       for (const row of parseSachsenAnhaltListing(html, currentUrl)) rowsById.set(row.idp, row);
 
       const nextUrl = parseGenericPaginationUrls(html, rootUrl, currentUrl)[0] ?? null;
-      hasMore = Boolean(nextUrl);
-      if (!nextUrl || rowsById.size === 0) break;
+      if (!nextUrl || rowsById.size === rowsBefore) {
+        hasMore = false;
+        break;
+      }
+      hasMore = true;
       currentUrl = nextUrl;
     }
 
@@ -4039,7 +4163,7 @@ async function scrapeThueringen(cursor: PublicSourceCursor | null): Promise<Publ
       $detail("script, style, nav, header, footer").remove();
       const bodyText = htmlToBasicMarkdown($detail("body").html() ?? "");
       if (!bodyText || bodyText.length < 100) return { tender: null, retryable: true };
-      if (detectAccessPage(bodyText, { url: reference.url }).blocked) return { tender: null, blocked: true };
+      if (detectAccessPage(bodyText, { url: detailResp.url || reference.url }).blocked) return { tender: null, blocked: true };
       const extracted = await extractDetailFromMarkdown(bodyText, reference.url, "thueringen", true);
       if (!extracted) return { tender: null };
       const row = rowByUrl.get(reference.url);
@@ -4079,6 +4203,7 @@ async function scrapeThueringen(cursor: PublicSourceCursor | null): Promise<Publ
       const html = await resp.text();
       if (!html.trim()) throw new Error("thueringen listing returned no content");
       pagesFetched += 1;
+      const rowsBefore = seenRows.size;
       const $ = cheerio.load(html);
 
       $("table tr").each((_, el) => {
@@ -4102,8 +4227,13 @@ async function scrapeThueringen(cursor: PublicSourceCursor | null): Promise<Publ
       });
 
       const nextUrls = parseGenericPaginationUrls(html, rootUrl, currentUrl);
-      hasMore = nextUrls.length > 0;
-      if (!hasMore || rows.length === 0) break;
+      // Stop when the page adds no new rows — otherwise the same nextUrl gets
+      // persisted and the source requeues forever.
+      if (seenRows.size === rowsBefore || nextUrls.length === 0) {
+        hasMore = false;
+        break;
+      }
+      hasMore = true;
       currentUrl = nextUrls[0];
     }
 
@@ -4176,7 +4306,7 @@ async function scrapeBayernApi(cursor: PublicSourceCursor | null): Promise<Publi
     const UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
     const dataPages: BayernTender[][] = [];
     for (let page = 0; page < settings.publicPaginationPages; page++) {
-      const apiUrl = `https://www.auftraege.bayern.de/dashboards/GetPresentationTenderList?id=V&BL=09&CPV=&startid=${encodeURIComponent(startId)}`;
+      const apiUrl = `https://portal.deutsche-evergabe.de/dashboards/GetPresentationTenderList?id=V&BL=09&CPV=&startid=${encodeURIComponent(startId)}&UID=`;
       const resp = await fetch(apiUrl, {
         headers: { "User-Agent": UA, "Accept": "application/json" },
         signal: AbortSignal.timeout(30000),
@@ -4224,7 +4354,7 @@ async function scrapeBayernApi(cursor: PublicSourceCursor | null): Promise<Publi
       }
 
       // Build detail URL — use the T_ID for a unique URL
-      const detailUrl = `https://www.auftraege.bayern.de/Dashboards/Dashboard_off?BL=09#T_ID=${item.T_ID}`;
+      const detailUrl = `https://portal.deutsche-evergabe.de/Dashboards/Dashboard_off?BL=09#T_ID=${item.T_ID}`;
 
       // Description from available fields
       const parts: string[] = [];
@@ -4316,7 +4446,7 @@ async function scrapeHamburgDe(cursor: PublicSourceCursor | null): Promise<Publi
       $("script, style, nav, header, footer, .navigation, .breadcrumb").remove();
       const bodyText = htmlToBasicMarkdown($("body").html() ?? "");
       if (bodyText.length < 100) return { tender: null, retryable: true };
-      if (detectAccessPage(bodyText, { url: reference.url }).blocked) return { tender: null, blocked: true };
+      if (detectAccessPage(bodyText, { url: resp.url || reference.url }).blocked) return { tender: null, blocked: true };
       const extracted = await extractDetailFromMarkdown(bodyText, reference.url, "hamburg-de", true);
       if (!extracted) return { tender: null };
       extracted.externalId = reference.externalId ?? extracted.externalId ?? null;
@@ -4441,6 +4571,22 @@ async function scrapeHamburgDe(cursor: PublicSourceCursor | null): Promise<Publi
 
 // --- service.bund.de RSS (Bayern + Hamburg) ---
 
+export function extractBundRssClient(description: string): string {
+  const normalized = normalizePublicMarkupText(description.replace(/<!\[CDATA\[|\]\]>|<[^>]+>/gi, " "));
+  const match = normalized.match(
+    /(?:Vergabestelle|Auftraggeber)\s*:?\s*(.+?)(?=\s+(?:Angebotsfrist|Veröffentlichungsende|Erfüllungsort|Erfuellungsort|CPV(?:-Code)?|Verfahren)\b|,|$)/i,
+  );
+  return normalizePublicClient(match?.[1], "Bund");
+}
+
+export function extractBundRssLocation(description: string): string | null {
+  const normalized = normalizePublicMarkupText(description.replace(/<!\[CDATA\[|\]\]>|<[^>]+>/gi, " "));
+  const match = normalized.match(
+    /(?:Erfüllungsort|Erfuellungsort)\s*:?\s*(.+?)(?=\s+(?:Vergabestelle|Auftraggeber|Angebotsfrist|Veröffentlichungsende|CPV(?:-Code)?|Verfahren)\b|,|$)/i,
+  );
+  return match?.[1]?.trim() || null;
+}
+
 async function scrapeBundRss(cursor: PublicSourceCursor | null): Promise<PublicScraperResult> {
   console.log("[public-scraper] service.bund.de RSS...");
 
@@ -4507,7 +4653,7 @@ async function scrapeBundRss(cursor: PublicSourceCursor | null): Promise<PublicS
       if (!title || title.length < 5) continue;
 
       // Parse description (contains Vergabestelle, Angebotsfrist, Erfuellungsort)
-      const descClean = item.description.replace(/<!\[CDATA\[|\]\]>/g, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+      const descClean = normalizePublicMarkupText(item.description.replace(/<!\[CDATA\[|\]\]>|<[^>]+>/gi, " "));
 
       // Extract deadline from description
       let deadline: string | null = null;
@@ -4519,14 +4665,11 @@ async function scrapeBundRss(cursor: PublicSourceCursor | null): Promise<PublicS
       }
 
       // Extract client from description
-      let client = "Bund";
-      const clientMatch = descClean.match(/Vergabestelle:\s*([^,]+)/);
-      if (clientMatch) client = clientMatch[1].trim();
+      const client = extractBundRssClient(descClean);
 
       // Extract location
       let location: string | null = null;
-      const locMatch = descClean.match(/Erfuellungsort:\s*([^,]+)/);
-      if (locMatch) location = locMatch[1].trim();
+      location = extractBundRssLocation(descClean);
 
       tenders.push({
         title,
@@ -4678,12 +4821,18 @@ export async function scrapeAllPublicTenders(
   let persistenceError: string | null = null;
 
   const PORTAL_TIMEOUT_MS = 7 * 60 * 1000; // 7 Minuten pro Portal
+  const PORTAL_WARN_MS = 2 * 60 * 1000; // Warnung nach 2 Minuten
 
   for (const scraper of selectedScrapers) {
     const startTime = Date.now();
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+    let warnHandle: ReturnType<typeof setTimeout> | undefined;
     const cursorBefore = normalizeCursor(sourceCursors[scraper.name]);
+    console.log(`[public-scraper] ${scraper.name}: Starte Scrape...`);
     try {
+      warnHandle = setTimeout(() => {
+        console.warn(`[public-scraper] ${scraper.name}: laeuft seit >${PORTAL_WARN_MS / 1000}s, eventuell haengend...`);
+      }, PORTAL_WARN_MS);
       const result = await Promise.race([
         scraper.fn(cursorBefore),
         new Promise<never>((_, reject) => {
@@ -4758,6 +4907,7 @@ export async function scrapeAllPublicTenders(
       console.error(`[public-scraper] ${scraper.name} fehlgeschlagen nach ${duration}ms:`, error);
       bySource[scraper.name] = 0;
     } finally {
+      if (warnHandle) clearTimeout(warnHandle);
       if (timeoutHandle) clearTimeout(timeoutHandle);
     }
   }

@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import {
   COMMERCIAL_BRIEF_MAX_HEADLINE_LENGTH,
   COMMERCIAL_BRIEF_MAX_LIST_ITEMS,
+  COMMERCIAL_BRIEF_MAX_RATIONALE_LENGTH,
+  COMMERCIAL_BRIEF_MAX_STRING_LENGTH,
   createCommercialBriefFallback,
   normalizeCommercialBrief,
   validateCommercialBrief,
@@ -90,6 +92,16 @@ assert.equal(new Set(cappedFallback.documentedWinRequirements.map((item) => item
 assert.ok(cappedFallback.documentedWinRequirements.every((item) => !item.includes("script")));
 assert.equal(sanitizedBrief.headline, cappedFallback.headline);
 assert.equal(sanitizedBrief.rationale, cappedFallback.rationale);
+
+const longRationale = "Für das Vorhaben „Citrix Lizenz Renewal“ liegen nur begrenzte öffentlich sichtbare Verfahrensdaten vor. Als Leistungsgegenstand sind die CPV-Codes 48000000-8 (Softwarepaket und Informationssysteme) und 72268000-1 (Bereitstellung von Software) dokumentiert. Die vollständige Leistungsbeschreibung und die Vergabeunterlagen sind auf dem Quellportal erst nach Teilnahme am Verfahren zugänglich.";
+const uncappedBrief = normalizeCommercialBrief({
+  action: "verify",
+  headline: "Citrix Lizenz Renewal",
+  rationale: longRationale,
+}, { title: "Citrix Lizenz Renewal", whatIsBeingBought: ["Citrix Lizenz Renewal"] });
+assert.ok(uncappedBrief.rationale.length > COMMERCIAL_BRIEF_MAX_STRING_LENGTH);
+assert.ok(uncappedBrief.rationale.length <= COMMERCIAL_BRIEF_MAX_RATIONALE_LENGTH);
+assert.match(uncappedBrief.rationale, /zugänglich\.$/);
 
 const sparseBrief = createCommercialBriefFallback({
   title: "Generalsanierung Kläranlage Itzgrund - Bauarbeiten",

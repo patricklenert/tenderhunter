@@ -80,19 +80,37 @@ export const cursorPendingDetails = (
 export const isPermanentPublicSourceError = (error: string | null | undefined): boolean =>
   Boolean(error && /\b(?:403|404)\b|not found|nicht gefunden/iu.test(error));
 
+/** A pending detail reference is due when it is neither blocked nor backoff-deferred. */
+const isDueDetailReference = (reference: PublicDetailReference, nowMs: number): boolean => {
+  if (reference.blocked === true) return false;
+  if (!reference.nextAttemptAt) return true;
+  const nextAttemptAt = Date.parse(reference.nextAttemptAt);
+  return !Number.isFinite(nextAttemptAt) || nextAttemptAt <= nowMs;
+};
+
+/**
+ * Continuations must only be scheduled when the source can actually make
+ * progress in the next run: a retryable detail is due now, or the listing
+ * itself is still incomplete after a clean run. Backoff-deferred retries,
+ * blocked-only queues, permanent errors and no-progress error loops must not
+ * requeue work every scheduler tick.
+ */
 export const shouldSchedulePublicContinuation = (
   cursor: PublicSourceCursor | null | undefined,
   exhausted: boolean,
   continuationRequired: boolean,
   lastStatus: string | null | undefined,
   lastError: string | null | undefined,
+  now: Date = new Date(),
 ): boolean => {
   if (exhausted || !continuationRequired) return false;
+  const nowMs = now.getTime();
   const pendingDetails = cursorPendingDetails(cursor);
-  const hasRetryableDetails = pendingDetails.some((reference) => reference.blocked !== true);
-  if (hasRetryableDetails) return true;
+  if (pendingDetails.some((reference) => isDueDetailReference(reference, nowMs))) return true;
   if (isPermanentPublicSourceError(lastError)) return false;
-  return pendingDetails.length === 0 && lastStatus !== "success";
+  // Without due details a run can only advance the listing itself — that is
+  // only legitimate after a clean run, never to spin on error/partial loops.
+  return pendingDetails.length === 0 && lastStatus === "success";
 };
 
 export const isPublicSourceCursorV2 = (

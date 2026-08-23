@@ -1,5 +1,6 @@
 export const COMMERCIAL_BRIEF_MAX_LIST_ITEMS = 8;
 export const COMMERCIAL_BRIEF_MAX_STRING_LENGTH = 280;
+export const COMMERCIAL_BRIEF_MAX_RATIONALE_LENGTH = 600;
 export const COMMERCIAL_BRIEF_MAX_HEADLINE_LENGTH = 140;
 
 export type CommercialBriefAction = "pursue" | "verify" | "do_not_pursue";
@@ -260,6 +261,12 @@ const sameList = (left: unknown, right: string[]): boolean => {
 const normalizedNarrative = (value: string): string =>
   value.toLocaleLowerCase("de-DE").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 
+const looksTruncated = (value: unknown): boolean => {
+  if (typeof value !== "string") return false;
+  const normalized = value.trim();
+  return normalized.length >= COMMERCIAL_BRIEF_MAX_STRING_LENGTH && !/[.!?)]$/.test(normalized);
+};
+
 const isGroundedNarrative = (value: unknown, facts: NormalizedFacts): boolean => {
   const text = normalizedNarrative(safeText(value));
   if (!text) return false;
@@ -287,8 +294,8 @@ export const normalizeCommercialBrief = (raw: unknown, facts: CommercialBriefFac
     headline: isGroundedNarrative(candidate.headline, normalizedFacts)
       ? safeText(candidate.headline, COMMERCIAL_BRIEF_MAX_HEADLINE_LENGTH)
       : fallback.headline,
-    rationale: isGroundedNarrative(candidate.rationale, normalizedFacts)
-      ? safeText(candidate.rationale)
+    rationale: isGroundedNarrative(candidate.rationale, normalizedFacts) && !looksTruncated(candidate.rationale)
+      ? safeText(candidate.rationale, COMMERCIAL_BRIEF_MAX_RATIONALE_LENGTH)
       : fallback.rationale,
     whatIsBeingBought: fallback.whatIsBeingBought,
     documentedWinRequirements: fallback.documentedWinRequirements,

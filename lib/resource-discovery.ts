@@ -1,5 +1,7 @@
 import { JSDOM } from "jsdom";
-import { decodeHtmlEntities } from "@/lib/text-normalization";
+import { decodeHtmlEntities, repairKnownGermanEncoding } from "@/lib/text-normalization";
+import { documentIdentityKey } from "@/lib/document-identity";
+export { isPortalActionUrl } from "@/lib/resource-url";
 
 const DEFAULT_MAX_RESOURCES = 500;
 const DEFAULT_MAX_SUBPAGE_CANDIDATES = 20;
@@ -197,7 +199,7 @@ const API_PATH_PATTERN = /(?:^|\/)(?:api|graphql|ajax|rest|_next\/data)(?:\/|$)/
 const asString = (value: unknown): string => (typeof value === "string" ? value : "");
 
 const boundedText = (value: unknown): string =>
-  asString(value)
+  repairKnownGermanEncoding(asString(value))
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, MAX_TEXT_LENGTH);
@@ -417,24 +419,26 @@ const makeResource = (
   const contentType = boundedHeader(input.contentType ?? input["content-type"]);
   const contentDisposition = boundedHeader(input.contentDisposition ?? input["content-disposition"]);
   const resourceType = boundedHeader(input.resourceType);
+  const type = classifyResourceType({
+    url,
+    contentType,
+    contentDisposition,
+    resourceType,
+    source,
+    rel: input.rel,
+    attribute: input.attribute,
+  });
+  const canonicalUrl = documentIdentityKey({ url, contentType, resourceType: type }) ?? url;
 
   return {
     url,
-    canonicalUrl: url,
+    canonicalUrl,
     href: rawHref.slice(0, MAX_URL_LENGTH),
     text,
     label,
     source,
     sources: [source],
-    type: classifyResourceType({
-      url,
-      contentType,
-      contentDisposition,
-      resourceType,
-      source,
-      rel: input.rel,
-      attribute: input.attribute,
-    }),
+    type,
     roleHints: assignRoleHints({ label, text, url }),
     sameOrigin: isSameOriginUrl(url, baseUrl),
     attribute: input.attribute,

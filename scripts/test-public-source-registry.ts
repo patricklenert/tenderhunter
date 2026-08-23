@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   canonicalPublicSourceKey,
+  extractBundRssLocation,
   extractPublicResourceMetadata,
   parseEvergabeOnlineDetail,
   parseEvergabeOnlineNextUrl,
@@ -10,6 +11,7 @@ import {
   parseSachsenAnhaltListing,
 } from "../lib/public-tender-scraper";
 import {
+  getPublicSourceBundesland,
   getPublicSourceDefinition,
   inferPublicSourceKey,
   resolvePublicSourceKey,
@@ -24,6 +26,14 @@ assert.equal(inferPublicSourceKey(null, "https://vergabe.bremen.de/NetServer/Pub
 assert.equal(inferPublicSourceKey(null, "https://evergabe.sachsen-anhalt.de/recherche-aktueller-vergaben"), "sachsen-anhalt");
 assert.equal(canonicalPublicSourceKey("Saarland"), "net-saarland");
 assert.equal(getPublicSourceDefinition("evergabe-online")?.label, "eVergabe Bund");
+assert.equal(getPublicSourceBundesland("brandenburg"), "Brandenburg");
+assert.equal(getPublicSourceBundesland("evergabe.nrw.de"), "Nordrhein-Westfalen");
+assert.equal(getPublicSourceBundesland("berlin-rss", "https://meinauftrag.rib.de/public/tender/1"), "Berlin");
+assert.equal(getPublicSourceBundesland("bund-rss"), null);
+assert.equal(
+  extractBundRssLocation("Erf&uuml;llungsort: 65760 Eschborn Vergabestelle: GIZ Angebotsfrist: 15.09.2026"),
+  "65760 Eschborn",
+);
 assert.equal(getTenderSourceDefinition("evergabe-online.de")?.key, "evergabe-online");
 assert.equal(parseConfiguredTenderSources("vergabe.bremen.de")[0]?.key, "net-bremen");
 

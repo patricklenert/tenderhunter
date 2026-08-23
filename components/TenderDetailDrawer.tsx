@@ -151,7 +151,7 @@ function MetricBar({ value, accent = false }: { value: number; accent?: boolean 
           color={isLow ? undefined : muiColor}
           sx={{
             height: 8,
-            borderRadius: 4,
+            borderRadius: 0,
             backgroundColor: "rgba(148,163,184,0.15)",
             "& .MuiLinearProgress-bar": isLow
               ? { backgroundColor: "text.disabled" }
@@ -209,7 +209,7 @@ function DetailMetric({ label, value }: { label: string; value: string | number 
   return (
     <Box
       sx={{
-        borderRadius: 2,
+        borderRadius: 1,
         bgcolor: "rgba(148,163,184,0.08)",
         px: 1.5,
         py: 1,
@@ -364,7 +364,7 @@ export function TenderDetailDrawer({
               sx={{
                 border: 1,
                 borderColor: "divider",
-                borderRadius: 2,
+                borderRadius: 0.5,
               }}
             >
               <Close fontSize="small" />
@@ -452,7 +452,7 @@ export function TenderDetailDrawer({
                   p: 2.5,
                   border: 1,
                   borderColor: "divider",
-                  borderRadius: 4,
+                  borderRadius: 0.5,
                   display: "flex",
                   flexDirection: "column",
                   gap: 2,

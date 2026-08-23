@@ -71,11 +71,16 @@ export function detectAccessPage(
     /(?:please|bitte)\s+(?:log in|sign in|anmelden)/,
     /zugriff nur nach anmeldung/,
     /authentication required/,
+    /anmeldung\s+f(?:ü|ue)r\s+unternehmen/i,
+    /anmeldung\s+(?:erforderlich|notwendig)/i,
     /melden sie sich (?:hier )?mit (?:ihrem )?benutzernamen/i,
     /benutzername:\s*passwort/i,
     /wenn sie noch kein nutzerkonto besitzen/i,
     /einladungscode:\s*weiter mit einladungscode/i,
-  ]) || /(?:\/|^)(?:login|signin|sign-in|account\/login|auth\/realms)(?:\/|\?|$)/.test(url);
+  ]) || /(?:\/|^)(?:login|signin|sign-in|account\/login|auth\/realms)(?:\/|\?|$)/.test(url)
+    // Keycloak identity-provider pages (e.g. id.dtvp.de/realms/<realm>/protocol/openid-connect/auth)
+    || /\/realms\/[^/?]+\/protocol\/openid-connect\/auth(?:\/|\?|$)/.test(url)
+    || /(?:^|[/.\-])id\.[a-z0-9.-]+\/realms\//.test(url);
   if (loginRequired) signals.push("login_required");
 
   const accessDenied = hasAny(content, [

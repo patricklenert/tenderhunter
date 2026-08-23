@@ -43,6 +43,9 @@ import {
   MapPin,
   Search,
   ExternalLink,
+  Bot,
+  Check,
+  Copy,
   LayoutGrid,
   List,
   X,
@@ -58,6 +61,9 @@ import { formatDeadlineDE, deadlineLabel, deadlineColor, cleanPdfFilename } from
 import { PdfDocumentLink } from "@/components/PdfDocumentLink";
 import { TenderQuickCheck } from "@/components/TenderQuickCheck";
 import type { TenderCheck } from "@/lib/tender-check";
+import { documentAnalysisFieldLabel } from "@/lib/document-analysis";
+import { documentIdentityKey } from "@/lib/document-identity";
+import { isPortalActionUrl } from "@/lib/resource-url";
 import { SafeMarkdown } from "@/components/SafeMarkdown";
 import { generateTenderSlug } from "@/lib/tender-slug";
 
@@ -107,6 +113,13 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const loadingMoreRef = useRef(false);
   const requestGenerationRef = useRef(0);
+  const dialogContentRef = useRef<HTMLDivElement | null>(null);
+  const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle");
+
+  useEffect(() => () => {
+    if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current);
+  }, []);
 
   const GEO_RADIUS_KM = 200;
 
@@ -309,6 +322,8 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
 
   const fetchDetail = useCallback(async (tender: ApiTender) => {
     setSelectedTender(tender);
+    setCopyStatus("idle");
+    if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current);
     setDetailOpen(true);
     setDetailLoading(true);
     setDetailError(null);
@@ -369,6 +384,38 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
   }, [tenders, userLocation, tenderDistances]);
 
   const hasActiveFilters = Boolean(searchQuery || selectedLocation || todayNewOnly);
+
+  const copyModalContent = async (): Promise<void> => {
+    if (!selectedTender) return;
+    const visibleContent = dialogContentRef.current?.innerText.trim() ?? "";
+    const copyText = [
+      "Ausschreibung",
+      visibleContent || selectedTender.title,
+      `Quelle: ${selectedTender.sourceUrl}`,
+    ].filter(Boolean).join("\n\n");
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(copyText);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = copyText;
+        textarea.setAttribute("readonly", "");
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        const copied = document.execCommand("copy");
+        textarea.remove();
+        if (!copied) throw new Error("Clipboard nicht verfügbar");
+      }
+      setCopyStatus("copied");
+    } catch {
+      setCopyStatus("error");
+    }
+    if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current);
+    copyResetTimerRef.current = setTimeout(() => setCopyStatus("idle"), 2_200);
+  };
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 0 }}>
@@ -748,7 +795,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                   <TableCell>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                       <MapPin size={15} style={{ opacity: 0.55 }} />
-                      <Typography variant="body2" sx={{ color: "#475569", fontSize: "0.8125rem" }}>{tender.location}</Typography>
+                      <Typography variant="body2" sx={{ color: "#475569", fontSize: "0.8125rem" }}>{tender.location || tender.bundesland || "–"}</Typography>
                     </Box>
                   </TableCell>
                   {userLocation && (
@@ -834,15 +881,30 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
         fullWidth
         scroll="paper"
       >
-        <DialogTitle sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", pb: 1 }}>
-          <Typography variant="h6" component="p" fontWeight={600} sx={{ color: "#1e293b", fontSize: "1.25rem" }}>
-            Ausschreibung
-          </Typography>
+        <DialogTitle sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, pb: 1 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0, flexWrap: "wrap" }}>
+            <Typography variant="h6" component="p" fontWeight={600} sx={{ color: "#1e293b", fontSize: "1.25rem" }}>
+              Ausschreibung
+            </Typography>
+            <Button
+              type="button"
+              size="small"
+              variant={copyStatus === "copied" ? "contained" : "outlined"}
+              color={copyStatus === "error" ? "error" : "primary"}
+              startIcon={copyStatus === "copied" ? <Check size={16} /> : copyStatus === "error" ? <Copy size={16} /> : <Bot size={16} />}
+              onClick={() => void copyModalContent()}
+              disabled={!detailData || !selectedTender}
+              aria-label="Gesamten Inhalt der Ausschreibung für eine KI kopieren"
+              sx={{ textTransform: "none", whiteSpace: "nowrap", minHeight: 32 }}
+            >
+              {copyStatus === "copied" ? "Kopiert" : copyStatus === "error" ? "Erneut kopieren" : "Für KI kopieren"}
+            </Button>
+          </Box>
           <IconButton onClick={() => setDetailOpen(false)} size="medium">
             <X size={20} />
           </IconButton>
         </DialogTitle>
-        <DialogContent dividers>
+        <DialogContent ref={dialogContentRef} dividers>
           {detailLoading && (
             <Stack spacing={3} sx={{ py: 1 }}>
               <Skeleton variant="text" width="80%" height={40} />
@@ -859,7 +921,9 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
             const d = detailData as Record<string, unknown>;
             const t = selectedTender;
             const client = typeof d.client === "string" && d.client.length > 0 ? d.client : t.client;
-            const location = typeof d.location === "string" && d.location.length > 0 ? d.location : t.location;
+            const location = typeof d.location === "string" && d.location.length > 0
+              ? d.location
+              : t.location || t.bundesland || "";
             const deadline = typeof d.deadline === "string" && d.deadline.length > 0 ? d.deadline : t.deadline;
             const deadlineISO = typeof d.deadlineISO === "string" && d.deadlineISO.length > 0 ? d.deadlineISO : t.deadlineISO;
             const description = typeof d.description === "string" && d.description.length > 0 ? d.description : t.description;
@@ -878,6 +942,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
             const pdfUrls = Array.isArray(d.pdfUrls) ? d.pdfUrls as string[] : t.pdfUrls ?? [];
             const documentRows = Array.isArray(d.documents)
               ? d.documents.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object" && !Array.isArray(item)))
+                .filter((document) => !isPortalActionUrl(typeof document.url === "string" ? document.url : null))
               : [];
             const resourceRows = Array.isArray(d.resources)
               ? d.resources.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object" && !Array.isArray(item)))
@@ -887,29 +952,35 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                 documentId: typeof document.id === "number" ? document.id : null,
                 url: typeof document.url === "string" ? document.url : null,
                 label: typeof document.filename === "string" ? document.filename : null,
-                filename: typeof document.filename === "string" ? document.filename : null,
+                 filename: typeof document.filename === "string" ? document.filename : null,
+                 contentType: typeof document.contentType === "string" ? document.contentType : null,
+                 resourceType: "document",
                 roles: Array.isArray(document.roles) ? document.roles.filter((role): role is string => typeof role === "string") : [],
                 status: typeof document.downloadStatus === "string" ? document.downloadStatus : null,
                 parseStatus: typeof document.parseStatus === "string" ? document.parseStatus : null,
                 summary: typeof document.summary === "string" ? document.summary : null,
               })),
               ...resourceRows
-                .filter((resource) => resource.resourceType === "document" || resource.resourceType === "download")
+                .filter((resource) => (resource.resourceType === "document" || resource.resourceType === "download") && !isPortalActionUrl(typeof resource.url === "string" ? resource.url : null))
                 .map((resource) => ({
                   documentId: typeof resource.documentId === "number" ? resource.documentId : null,
                   url: typeof resource.url === "string" ? resource.url : null,
                   label: typeof resource.label === "string" ? resource.label : null,
-                  filename: typeof resource.filename === "string" ? resource.filename : null,
+                   filename: typeof resource.filename === "string" ? resource.filename : null,
+                   contentType: typeof resource.contentType === "string" ? resource.contentType : null,
+                   resourceType: typeof resource.resourceType === "string" ? resource.resourceType : null,
                   roles: Array.isArray(resource.roleHints) ? resource.roleHints.filter((role): role is string => typeof role === "string") : [],
                   status: typeof resource.status === "string" ? resource.status : null,
                   parseStatus: null,
                   summary: null,
                 })),
-              ...pdfUrls.map((url) => ({
+              ...pdfUrls.filter((url) => !isPortalActionUrl(url)).map((url) => ({
                 documentId: null,
                 url,
                 label: null,
-                filename: null,
+                 filename: null,
+                 contentType: null,
+                 resourceType: "document",
                 roles: [],
                 status: "discovered",
                 parseStatus: null,
@@ -917,11 +988,15 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
               })),
             ]
               .filter((document) => document.documentId !== null || document.url !== null)
-              .filter((document, index, documents) => documents.findIndex((candidate) =>
-                document.documentId !== null
-                  ? candidate.documentId === document.documentId
-                  : candidate.documentId === null && candidate.url === document.url,
-              ) === index);
+              .filter((document, index, documents) => {
+                const identity = documentIdentityKey(document)
+                  ?? (document.documentId !== null ? `id:${document.documentId}` : document.url);
+                return documents.findIndex((candidate) => {
+                  const candidateIdentity = documentIdentityKey(candidate)
+                    ?? (candidate.documentId !== null ? `id:${candidate.documentId}` : candidate.url);
+                  return candidateIdentity === identity;
+                }) === index;
+              });
             const documentAnalysis = d.documentAnalysis && typeof d.documentAnalysis === "object" && !Array.isArray(d.documentAnalysis)
               ? d.documentAnalysis as Record<string, unknown>
               : null;
@@ -1150,7 +1225,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                     </Typography>
                     {analysisEvidence.slice(0, 4).map((evidence, index) => (
                       <Typography key={`${String(evidence.field)}-${String(evidence.documentId)}-${index}`} variant="caption" sx={{ display: "block", mt: 0.75, color: "#475569", lineHeight: 1.5 }}>
-                        {typeof evidence.field === "string" ? `${evidence.field}: ` : ""}{typeof evidence.quote === "string" ? `„${evidence.quote}”` : ""}{typeof evidence.page === "number" ? ` (Seite ${evidence.page})` : ""}
+                        {documentAnalysisFieldLabel(evidence.field) ? `${documentAnalysisFieldLabel(evidence.field)}: ` : ""}{typeof evidence.quote === "string" ? `„${evidence.quote}”` : ""}{typeof evidence.page === "number" ? ` (Seite ${evidence.page})` : ""}
                       </Typography>
                     ))}
                   </Box>
@@ -1198,6 +1273,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
 function TenderCard({ tender, onDetailClick, distance }: { tender: ApiTender; onDetailClick: (tender: ApiTender) => void; distance?: number }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const displayLocation = tender.location || tender.bundesland || "";
 
   return (
     <Card
@@ -1291,10 +1367,10 @@ function TenderCard({ tender, onDetailClick, distance }: { tender: ApiTender; on
               </Typography>
             </Box>
           )}
-          {tender.location && (
+          {displayLocation && (
             <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
               <MapPin size={18} style={{ opacity: 0.5 }} />
-              <Typography variant="body2" sx={{ color: "#475569", fontSize: "0.8125rem" }}>{tender.location}</Typography>
+              <Typography variant="body2" sx={{ color: "#475569", fontSize: "0.8125rem" }}>{displayLocation}</Typography>
             </Box>
           )}
           {(tender.deadlineISO ?? tender.deadline) && formatDeadlineDE(tender.deadlineISO ?? tender.deadline) && (

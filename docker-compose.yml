@@ -102,8 +102,10 @@ services:
     container_name: tenderhunter-worker
     restart: always
     init: true
-    mem_limit: 2g
-    memswap_limit: 2g
+    # Node heap (1536m) plus Playwright Chromium need >2g; the kernel OOM-killer
+    # terminated the worker every ~20 minutes under the old 2g cgroup limit.
+    mem_limit: 3g
+    memswap_limit: 3g
     pids_limit: 256
     command: ["worker"]
     env_file:
@@ -126,7 +128,7 @@ services:
       DOCUMENT_REFRESH_HOURS: ${DOCUMENT_REFRESH_HOURS:-72}
       MAX_PENDING_JOBS: ${MAX_PENDING_JOBS:-5000}
       MAX_CRITICAL_JOB_AGE_MINUTES: ${MAX_CRITICAL_JOB_AGE_MINUTES:-30}
-      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-1}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
       NODE_OPTIONS: ${NODE_OPTIONS:---max-old-space-size=1536}
       SEARXNG_URL: http://searxng:8080
       MEILI_HOST: http://meilisearch:7700

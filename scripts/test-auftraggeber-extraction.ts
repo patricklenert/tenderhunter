@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
-import { extractPublicPortalFacts } from "@/lib/public-tender-scraper";
+import {
+  extractBasicDetailFromHtml,
+  extractBundRssClient,
+  extractPublicPortalFacts,
+} from "@/lib/public-tender-scraper";
 import { extractStructuredData } from "@/lib/structurer";
 
 const rawText = [
@@ -30,6 +34,31 @@ const main = async (): Promise<void> => {
     "Öffentlich sichtbar sind: Auftraggeber: Stadt Mainz; Verfahren: Offenes Verfahren; Angebotsfrist: 03.08.2026 08:00.",
   );
   assert.equal(accessFacts.client, "Stadt Mainz");
+
+  const loginCapturedAsClient = "n und ein gültiges Passwort besitzen, melden Sie sich bitte mit diesen Daten am System an.";
+  assert.equal(extractPublicPortalFacts(`Auftraggeber: ${loginCapturedAsClient}`).client, null);
+
+  const muenchenDetail = extractBasicDetailFromHtml(
+    `<html><head><title>Vergabeplattform Landeshauptstadt München</title></head><body>
+      <h1>Vergabeplattform Landeshauptstadt München</h1>
+      <p>Auftraggeber: ${loginCapturedAsClient}</p>
+      <p>Angebotsfrist: 20.08.2026</p>
+    </body></html>`,
+    "https://vergabe.muenchen.de/NetServer/PublicationSearchControllerServlet?function=GetPublication&oid=test",
+    "muenchen",
+    [],
+    true,
+  );
+  assert.equal(muenchenDetail?.client, "Landeshauptstadt München");
+
+  assert.equal(
+    extractBundRssClient("Vergabestelle: Bundesagentur f&#252;r Arbeit Angebotsfrist: 20.08.2026 11:00"),
+    "Bundesagentur für Arbeit",
+  );
+  assert.equal(
+    extractBundRssClient("Bundesagentur f&#252;r Arbeit Angebotsfrist: 20.08.2026 11:00"),
+    "Bund",
+  );
 
   console.log("Auftraggeber extraction tests passed.");
 };

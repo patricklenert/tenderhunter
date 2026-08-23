@@ -54,14 +54,14 @@ const theme = createTheme({
     button: { fontWeight: 600, textTransform: "none" },
   },
   shape: {
-    borderRadius: 8,
+    borderRadius: 4,
   },
   components: {
     MuiButton: {
       styleOverrides: {
         root: {
           textTransform: "none",
-          borderRadius: 8,
+          borderRadius: 4,
           fontWeight: 600,
           padding: "10px 20px",
           minHeight: 44,
@@ -78,7 +78,7 @@ const theme = createTheme({
     MuiCard: {
       styleOverrides: {
         root: {
-          borderRadius: 12,
+          borderRadius: 4,
           boxShadow: "none",
           border: `1px solid ${colors.border}`,
         },
@@ -99,7 +99,7 @@ const theme = createTheme({
       styleOverrides: {
         root: {
           "& .MuiOutlinedInput-root": {
-            borderRadius: 8,
+          borderRadius: 4,
             "& fieldset": {
               borderColor: colors.border,
             },

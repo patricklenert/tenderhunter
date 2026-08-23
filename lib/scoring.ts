@@ -440,7 +440,7 @@ export async function llmBatchDomainMatch(
     return result;
   }
 
-  const client = new OpenAI({ apiKey, baseURL: "https://openrouter.ai/api/v1" });
+  const client = new OpenAI({ apiKey, baseURL: "https://openrouter.ai/api/v1", timeout: 120_000, maxRetries: 0 });
   const BATCH_SIZE = 50;
 
   for (let i = 0; i < tenders.length; i += BATCH_SIZE) {

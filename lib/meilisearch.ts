@@ -2,9 +2,10 @@ import { Meilisearch, type SearchResponse } from "meilisearch";
 import { db } from "@/lib/db";
 import { structuredData, tenders } from "@/lib/schema";
 import { and, eq, gt, inArray, isNull, or } from "drizzle-orm";
-import { cleanPublicDescription } from "@/lib/public-tender-scraper";
+import { cleanPublicDescription, getPublicClientFallback, normalizePublicClient } from "@/lib/public-tender-scraper";
 import { deriveBundesland, deriveCity } from "@/lib/bundesland";
-import { acquireCatalogSync, finishCatalogSync, getCatalogState, releaseCatalogSync } from "@/lib/catalog";
+import { getPublicSourceBundesland } from "@/lib/public-source-registry";
+import { acquireCatalogSync, finishCatalogSync, getCatalogState, releaseCatalogSync, touchCatalogSync } from "@/lib/catalog";
 
 const MEILI_HOST = process.env.MEILI_HOST ?? "http://localhost:7700";
 const MEILI_KEY = process.env.MEILI_MASTER_KEY ?? "";
@@ -138,6 +139,7 @@ export async function syncTendersToMeili(): Promise<{ indexed: number; skipped: 
 
   try {
     const index = client.index(INDEX_NAME);
+    await touchCatalogSync();
     const currentState = await getCatalogState();
     const stats = await index.getStats();
     if (
@@ -160,7 +162,7 @@ export async function syncTendersToMeili(): Promise<{ indexed: number; skipped: 
       const now = new Date();
       let lastId = 0;
       let indexed = 0;
-      const desiredIds = new Set<number>();
+    const desiredIds = new Set<number>();
 
       while (true) {
         const items = await db
@@ -168,6 +170,7 @@ export async function syncTendersToMeili(): Promise<{ indexed: number; skipped: 
             id: tenders.id,
             title: tenders.title,
             source: tenders.source,
+            sourceKey: tenders.sourceKey,
             url: tenders.url,
             deadlineAt: tenders.deadlineAt,
             firstSeenAt: tenders.firstSeenAt,
@@ -204,14 +207,16 @@ export async function syncTendersToMeili(): Promise<{ indexed: number; skipped: 
             ? structured.hard_facts as Record<string, unknown>
             : {};
           const location = String(meta.location ?? hardFacts.location ?? "");
+          const bundesland = deriveBundesland(location)
+            ?? getPublicSourceBundesland(item.sourceKey ?? item.source, item.url);
           const pdfUrls = Array.isArray(meta.pdf_urls) ? meta.pdf_urls : [];
           return {
             id: item.id,
             title: item.title ?? `Ausschreibung #${item.id}`,
             description: cleanPublicDescription(String(meta.description ?? structured.summary ?? "")).slice(0, 5000),
-            client: String(meta.client ?? "Unbekannt"),
+            client: normalizePublicClient(meta.client, getPublicClientFallback(item.source, item.url)) || "Unbekannt",
             category: item.category ?? "Sonstiges",
-            bundesland: deriveBundesland(location),
+            bundesland,
             city: deriveCity(location),
             location,
             source: item.source,
@@ -226,6 +231,7 @@ export async function syncTendersToMeili(): Promise<{ indexed: number; skipped: 
           };
         });
         await waitForMeiliTask(await index.addDocuments(docs), `Indizieren von Batch ab Tender ${docs[0].id}`);
+        await touchCatalogSync();
         indexed += docs.length;
         lastId = items[items.length - 1].id;
       }

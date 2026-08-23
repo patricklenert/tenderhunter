@@ -1,3 +1,5 @@
+import type { Bundesland } from "@/lib/bundesland";
+
 export type PublicSourceDefinition = {
   sourceKey: string;
   label: string;
@@ -200,6 +202,8 @@ const HOST_SOURCE_RULES: HostSourceRule[] = [
   { domains: ["bundesimmobilien.de"], sourceKey: "bundesimmobilien" },
   { domains: ["vergabe.niedersachsen.de"], sourceKey: "niedersachsen" },
   { domains: ["auftraege.bayern.de"], sourceKey: "bayern-api" },
+  { domains: ["portal.deutsche-evergabe.de"], sourceKey: "bayern-api", path: /BL=09/ },
+  { domains: ["portal.deutsche-evergabe.de"], sourceKey: "bayern-api", path: /BL=09/ },
   { domains: ["hamburg.de", "vergabe-hamburg.de"], sourceKey: "hamburg-de", path: /ausschreib|vergabe/i },
   { domains: ["service.bund.de"], sourceKey: "bund-rss", path: /ausschreib/i },
   { domains: ["evergabe-online.de"], sourceKey: "evergabe-online" },
@@ -232,6 +236,40 @@ const HOST_SOURCE_RULES: HostSourceRule[] = [
   { domains: ["vergabe.saarland"], sourceKey: "net-saarland" },
   { domains: ["evergabe.sachsen-anhalt.de"], sourceKey: "sachsen-anhalt" },
 ];
+
+// Some regional portals omit the execution location. Their source still gives
+// us a reliable fallback for the public location filter.
+const PUBLIC_SOURCE_BUNDESLAENDER: Readonly<Record<string, Bundesland>> = {
+  "berlin-html": "Berlin",
+  "bayern-api": "Bayern",
+  "hamburg-de": "Hamburg",
+  niedersachsen: "Niedersachsen",
+  "e-vergabe-sh": "Schleswig-Holstein",
+  thueringen: "Thüringen",
+  "evergabe-nrw": "Nordrhein-Westfalen",
+  "net-bremen": "Bremen",
+  "net-saarland": "Saarland",
+  "sachsen-anhalt": "Sachsen-Anhalt",
+  "nrw-brandenburg": "Brandenburg",
+  "nrw-rlp-central": "Rheinland-Pfalz",
+  "nrw-rlp-land": "Rheinland-Pfalz",
+  "nrw-rlp-lbb": "Rheinland-Pfalz",
+  "nrw-rlp-lbm": "Rheinland-Pfalz",
+  "nrw-metropoleruhr": "Nordrhein-Westfalen",
+  "nrw-vmp-rheinland": "Nordrhein-Westfalen",
+  "nrw-blb-nrw": "Nordrhein-Westfalen",
+  "nrw-westfalen": "Nordrhein-Westfalen",
+  "nrw-stadt-koeln": "Nordrhein-Westfalen",
+  "nrw-wirtschaftsregion-aachen": "Nordrhein-Westfalen",
+  "nrw-vergabeportal-bw": "Baden-Württemberg",
+  "net-sachsen": "Sachsen",
+  "net-sachsen-sib": "Sachsen",
+  "net-muenchen": "Bayern",
+  "net-landbw": "Baden-Württemberg",
+  "net-hessen": "Hessen",
+  "net-berlin": "Berlin",
+  "net-mecklenburg-vorpommern": "Mecklenburg-Vorpommern",
+};
 
 const sourceKeyFromHost = (value: string): string | null => {
   try {
@@ -275,6 +313,14 @@ export const inferPublicSourceKey = (source: string | null | undefined, url: str
     return null;
   }
   return null;
+};
+
+export const getPublicSourceBundesland = (
+  source: string | null | undefined,
+  url = "",
+): Bundesland | null => {
+  const sourceKey = inferPublicSourceKey(source, url);
+  return sourceKey ? PUBLIC_SOURCE_BUNDESLAENDER[sourceKey] ?? null : null;
 };
 
 export const isPublicSourceKey = (value: string): boolean => getPublicSourceDefinition(value) !== null;

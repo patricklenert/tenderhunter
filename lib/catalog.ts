@@ -19,6 +19,14 @@ export async function markCatalogDirty(): Promise<number> {
   return rows[0]?.revision ?? 0;
 }
 
+/** Keep a live sync lock alive while batches are still making progress. */
+export async function touchCatalogSync(): Promise<void> {
+  await db.update(catalogState).set({
+    syncStartedAt: new Date(),
+    updatedAt: new Date(),
+  }).where(and(eq(catalogState.id, 1), eq(catalogState.syncRunning, true)));
+}
+
 export async function getCatalogState() {
   const rows = await db.select().from(catalogState).where(eq(catalogState.id, 1)).limit(1);
   if (rows[0]) return rows[0];
@@ -56,4 +64,40 @@ export async function finishCatalogSync(syncedRevision: number): Promise<void> {
 
 export async function releaseCatalogSync(): Promise<void> {
   await db.update(catalogState).set({ syncRunning: false, syncStartedAt: null, updatedAt: new Date() }).where(eq(catalogState.id, 1));
+}
+
+/** Release a lock left behind by a killed worker process. */
+export async function releaseStaleCatalogSync(): Promise<boolean> {
+  const staleBefore = new Date(Date.now() - STALE_SYNC_AFTER_MS);
+  const rows = await db.update(catalogState).set({
+    syncRunning: false,
+    syncStartedAt: null,
+    updatedAt: new Date(),
+  }).where(and(
+    eq(catalogState.id, 1),
+    eq(catalogState.syncRunning, true),
+    or(
+      isNull(catalogState.syncStartedAt),
+      lt(catalogState.syncStartedAt, staleBefore),
+    ),
+  )).returning({ id: catalogState.id });
+  return rows.length > 0;
+}
+
+/** Release a catalog lock when no sync job still owns it. */
+export async function releaseOrphanedCatalogSync(): Promise<boolean> {
+  const rows = await db.execute(sql`
+    UPDATE catalog_state
+    SET sync_running = false, sync_started_at = NULL, updated_at = NOW()
+    WHERE id = 1
+      AND sync_running = true
+      AND NOT EXISTS (
+        SELECT 1
+        FROM jobs
+        WHERE type = 'sync_meilisearch'
+          AND status = 'running'
+      )
+    RETURNING id
+  `);
+  return rows.length > 0;
 }

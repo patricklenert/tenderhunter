@@ -5,6 +5,7 @@ import {
   extractResourcesFromHtml,
   extractResourcesFromLinks,
   extractResourcesFromNetworkMetadata,
+  isPortalActionUrl,
   normalizeResourceUrl,
   rankSubpageCandidates,
 } from "../lib/resource-discovery";
@@ -39,6 +40,15 @@ assert.ok(notice);
 assert.equal(notice.type, "page");
 assert.ok(notice.roleHints.includes("bekanntmachung"));
 
+const pageVariants = extractResourcesFromLinks(
+  [
+    { href: "/eforms", text: "Verfahrensangaben" },
+    { href: "/eforms?-1.-form", text: "Anlage" },
+  ],
+  baseUrl,
+);
+assert.equal(new Set(pageVariants.map((resource) => resource.canonicalUrl)).size, 1, "page state variants share one canonical resource");
+
 const download = resources.find((resource) => resource.url.includes("/download?id=42"));
 assert.ok(download);
 assert.equal(download.type, "download");
@@ -62,6 +72,8 @@ assert.deepEqual(assignRoleHints("Unterlagen: Bekanntmachung und Leistungsbeschr
   "bekanntmachung",
 ]);
 assert.equal(classifyResourceType("https://example.test/download?id=1"), "download");
+assert.equal(isPortalActionUrl("https://example.test/VMPCenter/public/company/projectForwarding.do?pid=42"), true);
+assert.equal(isPortalActionUrl("https://example.test/files/notice.pdf"), false);
 assert.equal(classifyResourceType({ url: "https://example.test/api/notices", resourceType: "fetch" }), "api");
 assert.equal(
   classifyResourceType({ url: "https://example.test/file", contentType: "application/pdf", contentDisposition: null }),

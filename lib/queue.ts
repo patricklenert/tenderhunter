@@ -1,13 +1,19 @@
-import { eq, and, lte, sql, inArray, notInArray } from "drizzle-orm";
+import { eq, and, lte, sql, inArray, notInArray, or } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { jobs, jobAttempts, type Job } from "@/lib/schema";
+import { jobs, jobAttempts, publicScrapeRuns, type Job } from "@/lib/schema";
 import { settings } from "@/lib/config";
+import { releaseOrphanedCatalogSync, releaseStaleCatalogSync } from "@/lib/catalog";
 import {
+  JOB_API_ANALYZE,
   JOB_CACHE_DETAIL,
   JOB_CRAWL,
+  JOB_DISCOVER_COMPANY,
   JOB_FETCH_DOCUMENTS,
   JOB_FETCH_US_DOCUMENTS,
+  JOB_INSIGHT,
+  JOB_NOTIFY,
   JOB_PARSE,
+  JOB_PREVIEW_COMPANY_URL,
   JOB_SCORE,
   JOB_SCRAPE_PUBLIC,
   JOB_SCRAPE_US,
@@ -19,6 +25,44 @@ import {
 
 /** Jobs without a heartbeat for this long are considered stale. */
 const STALE_JOB_THRESHOLD_MS = 15 * 60 * 1000;
+const STALE_RUNTIME_GRACE_MS = 5 * 60 * 1000;
+const MAX_ERROR_MESSAGE_LENGTH = 1_000;
+
+const minutes = (value: number): number => value * 60 * 1_000;
+
+/** Hard ceilings prevent one hung portal, browser, or model call from occupying a worker forever. */
+const JOB_MAX_RUNTIME_MS: Partial<Record<JobType, number>> = {
+  [JOB_CRAWL]: minutes(120),
+  [JOB_SCRAPE_PUBLIC]: minutes(240),
+  [JOB_SCRAPE_US]: minutes(120),
+  [JOB_FETCH_DOCUMENTS]: minutes(20),
+  [JOB_FETCH_US_DOCUMENTS]: minutes(30),
+  [JOB_PARSE]: minutes(30),
+  [JOB_STRUCTURE]: minutes(20),
+  [JOB_SCORE]: minutes(15),
+  [JOB_INSIGHT]: minutes(20),
+  [JOB_NOTIFY]: minutes(10),
+  [JOB_CACHE_DETAIL]: minutes(20),
+  [JOB_SYNC_MEILI]: minutes(45),
+  [JOB_DISCOVER_COMPANY]: minutes(30),
+  [JOB_PREVIEW_COMPANY_URL]: minutes(20),
+  [JOB_API_ANALYZE]: minutes(30),
+};
+
+export const getJobMaxRuntimeMs = (jobType: string): number =>
+  JOB_MAX_RUNTIME_MS[jobType as JobType] ?? minutes(30);
+
+export const isJobRuntimeStale = (
+  startedAt: Date | null | undefined,
+  jobType: string,
+  now = Date.now(),
+  graceMs = 0,
+): boolean => Boolean(
+  startedAt && now - startedAt.getTime() > getJobMaxRuntimeMs(jobType) + graceMs,
+);
+
+export const sanitizeErrorMessage = (message: string): string =>
+  message.replace(/\u0000/g, "").slice(0, MAX_ERROR_MESSAGE_LENGTH);
 
 const ACTIVE_JOB_STATUSES = ["pending", "running"] as const;
 
@@ -62,6 +106,21 @@ type EnqueueOptions = {
   dedupeCompleted?: boolean;
 };
 
+// Keep analysis stages ahead of ingestion and scraping work. This prevents a
+// large public-scrape backlog from starving documents that are already queued.
+export const JOB_PRIORITIES: Partial<Record<JobType, number>> = {
+  [JOB_CRAWL]: 40,
+  [JOB_SCRAPE_PUBLIC]: 40,
+  [JOB_SCRAPE_US]: 40,
+  [JOB_PARSE]: 140,
+  [JOB_STRUCTURE]: 130,
+  [JOB_SCORE]: 120,
+  [JOB_CACHE_DETAIL]: 110,
+  [JOB_FETCH_DOCUMENTS]: 100,
+  [JOB_FETCH_US_DOCUMENTS]: 95,
+  [JOB_SYNC_MEILI]: 135,
+};
+
 export async function enqueueJob(
   jobType: JobType,
   payload: Record<string, JsonValue>,
@@ -79,7 +138,7 @@ export async function enqueueJob(
       status: "pending",
       retries: 0,
       maxRetries,
-      priority: opts?.priority ?? 100,
+      priority: opts?.priority ?? JOB_PRIORITIES[jobType] ?? 100,
       runAfter,
       jobKey: opts?.jobKey,
       groupKey: opts?.groupKey,
@@ -250,19 +309,35 @@ export async function heartbeatJob(jobId: number, workerId: string): Promise<voi
 }
 
 export async function markDone(jobId: number, workerId: string): Promise<void> {
-  await db
-    .update(jobs)
-    .set({
-      status: "done",
-      updatedAt: new Date(),
-      lockedAt: null,
-      lockedBy: null,
-      heartbeatAt: null,
-      finishedAt: new Date(),
-      durationMs: sql`GREATEST(0, EXTRACT(EPOCH FROM (NOW() - ${jobs.startedAt})) * 1000)::integer`,
-    })
-    .where(and(eq(jobs.id, jobId), eq(jobs.status, "running"), eq(jobs.lockedBy, workerId)));
-  await db.update(jobAttempts).set({ status: "done", finishedAt: new Date() }).where(and(eq(jobAttempts.jobId, jobId), eq(jobAttempts.status, "running")));
+  await db.transaction(async (tx) => {
+    const finishedAt = new Date();
+    const updated = await tx
+      .update(jobs)
+      .set({
+        status: "done",
+        updatedAt: finishedAt,
+        lockedAt: null,
+        lockedBy: null,
+        heartbeatAt: null,
+        finishedAt,
+        durationMs: sql`GREATEST(0, EXTRACT(EPOCH FROM (NOW() - ${jobs.startedAt})) * 1000)::integer`,
+      })
+      .where(and(eq(jobs.id, jobId), eq(jobs.status, "running"), eq(jobs.lockedBy, workerId)))
+      .returning({ id: jobs.id });
+
+    // A stale handler may finish after the job has already been reaped and
+    // claimed again. In that case it must not close the newer attempt.
+    if (updated.length === 0) return;
+
+    await tx
+      .update(jobAttempts)
+      .set({ status: "done", finishedAt })
+      .where(and(
+        eq(jobAttempts.jobId, jobId),
+        eq(jobAttempts.status, "running"),
+        eq(jobAttempts.workerId, workerId),
+      ));
+  });
 }
 
 export async function markFailed(jobId: number, workerId: string, errorMessage: string): Promise<void> {
@@ -278,6 +353,7 @@ export async function markFailed(jobId: number, workerId: string, errorMessage: 
 
     const { retries, maxRetries } = row[0];
     const newRetries = retries + 1;
+    const safeErrorMessage = sanitizeErrorMessage(errorMessage);
 
     if (newRetries > maxRetries) {
       await tx
@@ -285,7 +361,7 @@ export async function markFailed(jobId: number, workerId: string, errorMessage: 
         .set({
           status: "failed",
           retries: newRetries,
-          lastError: errorMessage.slice(0, 1000),
+          lastError: safeErrorMessage,
            updatedAt: new Date(),
            lockedAt: null,
            lockedBy: null,
@@ -294,7 +370,11 @@ export async function markFailed(jobId: number, workerId: string, errorMessage: 
            durationMs: sql`GREATEST(0, EXTRACT(EPOCH FROM (NOW() - ${jobs.startedAt})) * 1000)::integer`,
          })
          .where(eq(jobs.id, jobId));
-      await tx.update(jobAttempts).set({ status: "failed", errorMessage: errorMessage.slice(0, 1000), finishedAt: new Date() }).where(and(eq(jobAttempts.jobId, jobId), eq(jobAttempts.status, "running")));
+        await tx.update(jobAttempts).set({ status: "failed", errorMessage: safeErrorMessage, finishedAt: new Date() }).where(and(
+          eq(jobAttempts.jobId, jobId),
+          eq(jobAttempts.status, "running"),
+          eq(jobAttempts.workerId, workerId),
+        ));
       return;
     }
 
@@ -307,7 +387,7 @@ export async function markFailed(jobId: number, workerId: string, errorMessage: 
         status: "pending",
         retries: newRetries,
         runAfter,
-        lastError: errorMessage.slice(0, 1000),
+        lastError: safeErrorMessage,
          updatedAt: new Date(),
          lockedAt: null,
          lockedBy: null,
@@ -316,7 +396,11 @@ export async function markFailed(jobId: number, workerId: string, errorMessage: 
          durationMs: null,
        })
        .where(eq(jobs.id, jobId));
-    await tx.update(jobAttempts).set({ status: "retrying", errorMessage: errorMessage.slice(0, 1000), finishedAt: new Date() }).where(and(eq(jobAttempts.jobId, jobId), eq(jobAttempts.status, "running")));
+      await tx.update(jobAttempts).set({ status: "retrying", errorMessage: safeErrorMessage, finishedAt: new Date() }).where(and(
+        eq(jobAttempts.jobId, jobId),
+        eq(jobAttempts.status, "running"),
+        eq(jobAttempts.workerId, workerId),
+      ));
   });
 }
 
@@ -327,63 +411,125 @@ export async function markFailed(jobId: number, workerId: string, errorMessage: 
  * Returns the number of jobs reaped.
  */
 export async function reapStaleJobs(): Promise<number> {
-  const staleThreshold = new Date(Date.now() - STALE_JOB_THRESHOLD_MS);
+  const now = Date.now();
+  const staleThreshold = new Date(now - STALE_JOB_THRESHOLD_MS);
 
-  // Find stale jobs with their retry info
-  const staleJobs = await db
-    .select({ id: jobs.id, retries: jobs.retries, maxRetries: jobs.maxRetries })
+  // Heartbeats detect dead processes. Runtime ceilings detect handlers that are
+  // alive enough to heartbeat but no longer making progress.
+  const runningJobs = await db
+    .select({
+      id: jobs.id,
+      type: jobs.type,
+      retries: jobs.retries,
+      maxRetries: jobs.maxRetries,
+      startedAt: jobs.startedAt,
+      heartbeatAt: jobs.heartbeatAt,
+      lockedAt: jobs.lockedAt,
+      lockedBy: jobs.lockedBy,
+    })
     .from(jobs)
-    .where(
-      and(
-        eq(jobs.status, "running"),
-        sql`COALESCE(${jobs.heartbeatAt}, ${jobs.lockedAt}) <= ${staleThreshold.toISOString()}::timestamptz`
-      )
-    );
+    .where(eq(jobs.status, "running"));
 
-  if (staleJobs.length === 0) return 0;
+  const staleJobs = runningJobs.filter((job) => {
+    const lastHeartbeat = job.heartbeatAt ?? job.lockedAt;
+    return isJobRuntimeStale(job.startedAt, job.type, now, STALE_RUNTIME_GRACE_MS)
+      || !lastHeartbeat
+      || lastHeartbeat.getTime() <= staleThreshold.getTime();
+  });
 
   let reaped = 0;
+
   for (const job of staleJobs) {
     const newRetries = job.retries + 1;
-    if (newRetries > job.maxRetries) {
-      // Too many retries — mark as permanently failed
-      await db
-        .update(jobs)
-        .set({
-          status: "failed",
-          retries: newRetries,
-          lastError: sql`COALESCE(${jobs.lastError}, '') || ' [reaped: stale lock - max retries exceeded]'`,
-          updatedAt: new Date(),
-           lockedAt: null,
-           lockedBy: null,
-           heartbeatAt: null,
-           finishedAt: new Date(),
-           durationMs: sql`GREATEST(0, EXTRACT(EPOCH FROM (NOW() - ${jobs.startedAt})) * 1000)::integer`,
-         })
-         .where(and(eq(jobs.id, job.id), eq(jobs.status, "running")));
-      await db.update(jobAttempts).set({ status: "failed", errorMessage: "stale lock - max retries exceeded", finishedAt: new Date() }).where(and(eq(jobAttempts.jobId, job.id), eq(jobAttempts.status, "running")));
-    } else {
-      // Retry with backoff
-      const backoffSeconds = Math.min(300, 30 * 2 ** (newRetries - 1));
-      await db
-        .update(jobs)
-        .set({
-          status: "pending",
-          retries: newRetries,
-          runAfter: new Date(Date.now() + backoffSeconds * 1000),
-          lastError: sql`COALESCE(${jobs.lastError}, '') || ' [reaped: stale lock]'`,
-           updatedAt: new Date(),
-           lockedAt: null,
-           lockedBy: null,
-           heartbeatAt: null,
-           startedAt: null,
-           finishedAt: null,
-           durationMs: null,
-         })
-         .where(and(eq(jobs.id, job.id), eq(jobs.status, "running")));
-      await db.update(jobAttempts).set({ status: "retrying", errorMessage: "stale lock", finishedAt: new Date() }).where(and(eq(jobAttempts.jobId, job.id), eq(jobAttempts.status, "running")));
-    }
-    reaped++;
+    const runtimeStale = isJobRuntimeStale(job.startedAt, job.type, now, STALE_RUNTIME_GRACE_MS);
+    const staleCondition = and(
+      eq(jobs.id, job.id),
+      eq(jobs.status, "running"),
+      or(
+        sql`COALESCE(${jobs.heartbeatAt}, ${jobs.lockedAt}) IS NULL`,
+        sql`COALESCE(${jobs.heartbeatAt}, ${jobs.lockedAt}) <= ${staleThreshold.toISOString()}::timestamptz`,
+        job.startedAt
+          ? lte(jobs.startedAt, new Date(now - getJobMaxRuntimeMs(job.type) - STALE_RUNTIME_GRACE_MS))
+          : sql`false`,
+      ),
+    );
+    const reason = runtimeStale ? "job runtime exceeded" : "stale worker lock";
+    const runError = newRetries > job.maxRetries
+      ? `${reason}; max retries exceeded`
+      : `${reason}; retry scheduled`;
+    const reapedJob = await db.transaction(async (tx) => {
+      let updated: Array<{ id: number }>;
+
+      if (newRetries > job.maxRetries) {
+        // Too many retries — mark as permanently failed
+        updated = await tx
+          .update(jobs)
+          .set({
+            status: "failed",
+            retries: newRetries,
+            lastError: sql`COALESCE(${jobs.lastError}, '') || ' [reaped: stale lock - max retries exceeded]'`,
+            updatedAt: new Date(),
+            lockedAt: null,
+            lockedBy: null,
+            heartbeatAt: null,
+            finishedAt: new Date(),
+            durationMs: sql`GREATEST(0, EXTRACT(EPOCH FROM (NOW() - ${jobs.startedAt})) * 1000)::integer`,
+          })
+          .where(staleCondition)
+          .returning({ id: jobs.id });
+      } else {
+        // Retry with backoff
+        const backoffSeconds = Math.min(300, 30 * 2 ** (newRetries - 1));
+        updated = await tx
+          .update(jobs)
+          .set({
+            status: "pending",
+            retries: newRetries,
+            runAfter: new Date(Date.now() + backoffSeconds * 1000),
+            lastError: sql`COALESCE(${jobs.lastError}, '') || ' [reaped: stale lock]'`,
+            updatedAt: new Date(),
+            lockedAt: null,
+            lockedBy: null,
+            heartbeatAt: null,
+            startedAt: null,
+            finishedAt: null,
+            durationMs: null,
+          })
+          .where(staleCondition)
+          .returning({ id: jobs.id });
+      }
+
+      // Keep the job transition and its attempt/run bookkeeping atomic. A new
+      // worker may otherwise claim the reset row before the old attempt is
+      // closed, causing the new attempt to be marked retrying as well.
+      if (updated.length === 0) return false;
+      const attemptWhere = job.lockedBy
+        ? and(
+          eq(jobAttempts.jobId, job.id),
+          eq(jobAttempts.status, "running"),
+          eq(jobAttempts.workerId, job.lockedBy),
+        )
+        : and(eq(jobAttempts.jobId, job.id), eq(jobAttempts.status, "running"));
+      await tx.update(jobAttempts).set({
+        status: newRetries > job.maxRetries ? "failed" : "retrying",
+        errorMessage: runError,
+        finishedAt: new Date(),
+      }).where(attemptWhere);
+      await tx.update(publicScrapeRuns).set({
+        status: "failed",
+        errorMessage: runError,
+        finishedAt: new Date(),
+        updatedAt: new Date(),
+      }).where(and(eq(publicScrapeRuns.jobId, job.id), eq(publicScrapeRuns.status, "running")));
+      return true;
+    });
+    if (reapedJob) reaped++;
+  }
+
+  const releasedOrphanedCatalogSync = await releaseOrphanedCatalogSync();
+  const releasedStaleCatalogSync = await releaseStaleCatalogSync();
+  if (releasedOrphanedCatalogSync || releasedStaleCatalogSync) {
+    console.warn("[reaper] Verwaisten Meilisearch-Katalog-Lock freigegeben.");
   }
 
   return reaped;

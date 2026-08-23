@@ -3,7 +3,7 @@ import { jobs, publicScrapeRuns, publicSourceRuns, tenders } from "@/lib/schema"
 import { enqueueJob } from "@/lib/queue";
 import { json, errorResponse } from "@/lib/http";
 import { JOB_SCRAPE_PUBLIC } from "@/lib/types";
-import { eq, desc, and, count, gte } from "drizzle-orm";
+import { eq, desc, and, count, gte, isNotNull } from "drizzle-orm";
 import { requireSession } from "@/lib/api-auth";
 import { getPublicCatalogQualitySummary, getPublicScrapeMonitoring } from "@/lib/public-monitoring";
 
@@ -42,7 +42,9 @@ export async function GET(request: Request): Promise<Response> {
       .where(
         and(
           gte(tenders.createdAt, sevenDaysAgo),
-          eq(tenders.source, "search")
+          // Public portal scrapes always persist a sourceKey ("DTVP", "TED",
+          // "evergabe.nrw.de", ...) — the legacy literal "search" source never matches them.
+          isNotNull(tenders.sourceKey)
         )
       );
 
@@ -103,7 +105,7 @@ export async function POST(request: Request): Promise<Response> {
       });
     }
 
-    const jobId = await enqueueJob(JOB_SCRAPE_PUBLIC, {}, { jobKey: JOB_SCRAPE_PUBLIC, priority: 150, dedupeCompleted: false });
+    const jobId = await enqueueJob(JOB_SCRAPE_PUBLIC, {}, { jobKey: JOB_SCRAPE_PUBLIC, dedupeCompleted: false });
 
     return json({
       message: "Oeffentliche Ausschreibungen Scrape gestartet.",

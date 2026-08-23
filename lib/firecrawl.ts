@@ -54,6 +54,21 @@ function scheduleBrowserShutdown(): void {
   browserIdleTimer.unref();
 }
 
+const closeWithTimeout = async (close: () => Promise<void>, timeoutMs = 5_000): Promise<void> => {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    await Promise.race([
+      close().catch(() => undefined),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, timeoutMs);
+        timer.unref();
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+};
+
 async function getBrowser(): Promise<Browser> {
   clearBrowserIdleTimer();
   // If a launch is already in flight, wait for it
@@ -204,7 +219,7 @@ export async function fetchResourceWithBrowserSession(
       contentDisposition: headers["content-disposition"] ?? null,
     };
   } finally {
-    await context.close().catch(() => {});
+    await closeWithTimeout(() => context.close());
     activeContexts = Math.max(0, activeContexts - 1);
     scheduleBrowserShutdown();
   }
@@ -212,12 +227,13 @@ export async function fetchResourceWithBrowserSession(
 
 export async function scrapeWebsite(
   url: string,
-  options?: { onlyMainContent?: boolean; waitForSelector?: string; waitMs?: number; waitUntil?: "load" | "domcontentloaded" | "networkidle" | "commit"; useBodyText?: boolean; requestUrlGuard?: (url: string) => boolean | Promise<boolean> }
+  options?: { onlyMainContent?: boolean; waitForSelector?: string; waitMs?: number; waitUntil?: "load" | "domcontentloaded" | "networkidle" | "commit"; useBodyText?: boolean; requestUrlGuard?: (url: string) => boolean | Promise<boolean>; signal?: AbortSignal }
 ): Promise<ScrapedPage> {
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const browser = await getBrowser();
       let context: BrowserContext | null = null;
+      let onAbort: (() => void) | undefined;
       try {
         context = await browser.newContext({
           userAgent:
@@ -225,6 +241,17 @@ export async function scrapeWebsite(
           viewport: { width: 1280, height: 800 },
         });
         activeContexts += 1;
+
+        if (options?.signal) {
+          if (options.signal.aborted) {
+            throw new Error("Scraping aborted");
+          }
+          onAbort = () => {
+            void context?.close().catch(() => {});
+          };
+          options.signal.addEventListener("abort", onAbort, { once: true });
+        }
+
         const page: Page = await context.newPage();
 
         if (options?.requestUrlGuard) {
@@ -267,23 +294,31 @@ export async function scrapeWebsite(
         }
 
         const title = await page.title();
-        const html = await page.content();
-
+        let html = "";
         let markdown: string;
 
         if (options?.useBodyText) {
-          // For SPA pages: use visible text to avoid JS/CSS/filter noise
+          // SPA detail pages can contain several megabytes of markup. Keep only
+          // visible text when the caller does not need DOM/resource discovery.
           const visibleText = await page.evaluate(() => document.body?.innerText ?? "");
-          markdown = visibleText.length > 200 ? visibleText : htmlToBasicMarkdown(html);
-        } else if (options?.onlyMainContent !== false) {
-          const cleanContent = extractWithReadability(html, url);
-          if (cleanContent.length > 500) {
-            markdown = cleanContent;
+          if (visibleText.length > 200) {
+            markdown = visibleText;
           } else {
+            html = await page.content();
             markdown = htmlToBasicMarkdown(html);
           }
         } else {
-          markdown = htmlToBasicMarkdown(html);
+          html = await page.content();
+          if (options?.onlyMainContent !== false) {
+            const cleanContent = extractWithReadability(html, url);
+            if (cleanContent.length > 500) {
+              markdown = cleanContent;
+            } else {
+              markdown = htmlToBasicMarkdown(html);
+            }
+          } else {
+            markdown = htmlToBasicMarkdown(html);
+          }
         }
 
         const finalUrl = page.url();
@@ -298,8 +333,11 @@ export async function scrapeWebsite(
 
         return { url: finalUrl, markdown, title, html, links, resources, subpageCandidates, networkResponses };
       } finally {
+        if (onAbort && options?.signal) {
+          options.signal.removeEventListener("abort", onAbort);
+        }
         if (context) {
-          await context.close().catch(() => {});
+          await closeWithTimeout(() => context!.close());
           activeContexts = Math.max(0, activeContexts - 1);
         }
         scheduleBrowserShutdown();

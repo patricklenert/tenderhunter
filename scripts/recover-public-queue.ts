@@ -88,7 +88,6 @@ const main = async (): Promise<void> => {
       const jobId = await enqueueJob(JOB_SCRAPE_PUBLIC, { source: candidate.sourceKey }, {
         jobKey: `public-continuation:${candidate.sourceKey}`,
         groupKey: `public-source:${candidate.sourceKey}`,
-        priority: 140,
         dedupeCompleted: false,
       });
       console.log(`  ${candidate.sourceKey}: Job #${jobId} eingereiht.`);

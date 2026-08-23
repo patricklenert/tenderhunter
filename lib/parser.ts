@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { execFileSync } from "node:child_process";
+import { decodeTextBuffer } from "@/lib/text-normalization";
 import { htmlToBasicMarkdown } from "@/lib/firecrawl";
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
@@ -204,23 +205,6 @@ async function parsePdfWithMistralOCR(filePath: string): Promise<string> {
   }
 
   throw new Error("OpenRouter Mistral-OCR: Keine Textextraktion erhalten");
-}
-
-function detectHtmlEncoding(raw: Buffer): string {
-  // Look for charset in first 2048 bytes (meta tag or XML declaration)
-  const head = raw.subarray(0, 2048).toString("ascii");
-  // <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-15" />
-  const metaMatch = head.match(/charset[=:\s]+([a-zA-Z0-9_-]+)/i);
-  if (metaMatch) {
-    const charset = metaMatch[1].toLowerCase().trim();
-    // Map common aliases
-    if (charset === "iso-8859-1" || charset === "latin1") return "iso-8859-1";
-    if (charset === "iso-8859-15" || charset === "latin9") return "iso-8859-15";
-    if (charset === "windows-1252" || charset === "cp1252") return "windows-1252";
-    if (charset === "utf-8" || charset === "utf8") return "utf-8";
-    return charset;
-  }
-  return "utf-8";
 }
 
 const DOCX_TEXT_ENTRIES = /^word\/(?:document|header\d*|footer\d*|footnotes|endnotes)\.xml$/i;
@@ -459,10 +443,8 @@ export const extractTextFromFile = async (filePath: string, contentType?: string
 
   if (loweredPath.endsWith(".html") || loweredPath.endsWith(".htm") || loweredType.includes("html")) {
     const raw = fs.readFileSync(filePath);
-    const encoding = detectHtmlEncoding(raw);
-    const decoder = new TextDecoder(encoding);
-    const html = decoder.decode(raw);
-     return { text: htmlToBasicMarkdown(html), pages: [], pageCount: null, method: "html", truncated: false };
+    const html = decodeTextBuffer(raw, contentType);
+    return { text: htmlToBasicMarkdown(html), pages: [], pageCount: null, method: "html", truncated: false };
   }
 
   if (loweredPath.endsWith(".docx") || loweredType.includes("wordprocessingml.document")) {

@@ -1,5 +1,5 @@
 import * as cheerio from "cheerio";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { and, asc, eq, ne, isNotNull, isNull, lt, inArray, or, sql } from "drizzle-orm";
@@ -30,14 +30,21 @@ import {
 } from "@/lib/schema";
 import { generateInsight } from "@/lib/insights";
 import { extractTextFromFile } from "@/lib/parser";
-import { buildJobKey, claimNextJob, enqueueJob, heartbeatJob, markDone, markFailed, type ClaimJobOptions } from "@/lib/queue";
+import { decodeTextBuffer, repairKnownGermanEncoding } from "@/lib/text-normalization";
+import { buildJobKey, claimNextJob, enqueueJob, getJobMaxRuntimeMs, heartbeatJob, markDone, markFailed, sanitizeErrorMessage, type ClaimJobOptions } from "@/lib/queue";
 import { buildTenderMatchDocument, computeScores, getDomainEligibility, getLocationEligibility, llmBatchDomainMatch, type CompanyRow, type ScoreResult } from "@/lib/scoring";
 import { ensureExtension, fetchAndStore, objectAbsolutePath, suggestedFilename } from "@/lib/storage";
 import { buildStructuredDescriptionMarkdown, extractStructuredData, normalizeStructured, type StructuredData } from "@/lib/structurer";
 import { assessTenderQuality } from "@/lib/tender-quality";
 import { resolveSourceItem } from "@/lib/tender-sources";
-import { canonicalPublicSourceKey, scrapeAllPublicTenders, type ExtractedTender } from "@/lib/public-tender-scraper";
-import type { PublicSourceCursor } from "@/lib/public-pagination";
+import {
+  canonicalPublicSourceKey,
+  getPublicClientFallback,
+  normalizePublicClient,
+  scrapeAllPublicTenders,
+  type ExtractedTender,
+} from "@/lib/public-tender-scraper";
+import { shouldSchedulePublicContinuation, type PublicSourceCursor } from "@/lib/public-pagination";
 import { resolvePublicSourceKey } from "@/lib/public-source-registry";
 import { scrapeAllUsTenders, type UsExtractedTender } from "@/lib/us-tender-scraper";
 import { dedupeUsAttachments } from "@/lib/us/types";
@@ -69,8 +76,10 @@ import {
   type ResourceSource,
   type ResourceType,
 } from "@/lib/resource-discovery";
+import { isPortalActionUrl } from "@/lib/resource-url";
+import { documentIdentityKey } from "@/lib/document-identity";
 import { processCompanyUrlPreview } from "@/lib/preview";
-import { getCatalogState, markCatalogDirty } from "@/lib/catalog";
+import { getCatalogState, markCatalogDirty, releaseCatalogSync } from "@/lib/catalog";
 import { classifyDocumentRole, rolePriority } from "@/lib/document-classifier";
 import { buildDocumentAnalysis, withEvidenceValues, type AnalyzedDocument } from "@/lib/document-analysis";
 import { deduplicateParsedDocuments, type ParsedTenderDocument } from "@/lib/document-aggregation";
@@ -661,6 +670,102 @@ const queueTenderProcessing = async (tenderId: number): Promise<void> => {
   );
 };
 
+const TENDER_PIPELINE_STAGES = [
+  JOB_FETCH_DOCUMENTS,
+  JOB_PARSE,
+  JOB_STRUCTURE,
+  JOB_SCORE,
+  JOB_CACHE_DETAIL,
+] as const;
+
+/** Requeue the first missing or permanently failed stage after a re-discovery. */
+export const recoverTenderProcessing = async (tenderId: number): Promise<void> => {
+  const tender = await getTender(tenderId);
+  const stageRows = await db
+    .select({ type: jobs.type, status: jobs.status })
+    .from(jobs)
+    .where(and(
+      inArray(jobs.type, [...TENDER_PIPELINE_STAGES]),
+      sql`${jobs.payload} ->> 'tender_id' = ${String(tenderId)}`,
+    ))
+    .orderBy(sql`${jobs.id} DESC`);
+  const latestByStage = new Map<string, string>();
+  for (const row of stageRows) {
+    if (!latestByStage.has(row.type)) latestByStage.set(row.type, row.status);
+  }
+
+  const fetchStatus = latestByStage.get(JOB_FETCH_DOCUMENTS);
+  if (!fetchStatus || fetchStatus === "failed") {
+    await queueTenderProcessing(tenderId);
+    return;
+  }
+  if (fetchStatus !== "done") return;
+
+  for (const stage of [JOB_PARSE, JOB_STRUCTURE] as const) {
+    const status = latestByStage.get(stage);
+    if (!status || status === "failed") {
+      await queueTenderStage(stage, tenderId);
+      return;
+    }
+    if (status !== "done") return;
+  }
+
+  const structured = await db
+    .select({ tenderId: structuredData.tenderId })
+    .from(structuredData)
+    .where(eq(structuredData.tenderId, tenderId))
+    .limit(1);
+  if (structured.length === 0) {
+    await queueTenderStage(JOB_STRUCTURE, tenderId, {}, "recovery");
+    return;
+  }
+
+  if (tender.qualityStatus !== "qualified") return;
+
+  if (tender.readinessStatus === "ready") {
+    const scoreStatus = latestByStage.get(JOB_SCORE);
+    if (!scoreStatus || scoreStatus === "failed") {
+      await queueTenderStage(JOB_SCORE, tenderId);
+      return;
+    }
+    if (scoreStatus !== "done") return;
+  }
+
+  const cacheStatus = latestByStage.get(JOB_CACHE_DETAIL);
+  if (!cacheStatus || cacheStatus === "failed") {
+    await queueTenderStage(JOB_CACHE_DETAIL, tenderId);
+  }
+};
+
+/** Recover newly completed tenders that were not rediscovered after analysis. */
+export const recoverIncompleteTenderPipelines = async (limit = 50): Promise<number> => {
+  const candidates = await db
+    .select({ id: tenders.id })
+    .from(tenders)
+    .leftJoin(structuredData, eq(structuredData.tenderId, tenders.id))
+    .where(and(
+      eq(tenders.qualityStatus, "qualified"),
+      sql`(
+        ${structuredData.tenderId} IS NULL
+        OR (
+          ${tenders.readinessStatus} = 'ready'
+          AND NOT EXISTS (
+            SELECT 1 FROM jobs score_job
+            WHERE score_job.type = 'score_tender'
+              AND score_job.status = 'done'
+              AND score_job.payload ->> 'tender_id' = ${tenders.id}::text
+          )
+        )
+      )`,
+    ))
+    .limit(Math.max(1, Math.min(limit, 100)));
+
+  for (const candidate of candidates) {
+    await recoverTenderProcessing(candidate.id);
+  }
+  return candidates.length;
+};
+
 const cleanUrl = (url: string): string => {
   try {
     const parsed = new URL(url);
@@ -671,6 +776,9 @@ const cleanUrl = (url: string): string => {
     return url;
   }
 };
+
+const responseHtml = async (response: Response): Promise<string> =>
+  decodeTextBuffer(Buffer.from(await response.arrayBuffer()), response.headers.get("content-type"));
 
 export interface DiscoveredLink {
   url: string;
@@ -688,7 +796,7 @@ const findPdfLinks = async (baseUrl: string): Promise<DiscoveredLink[]> => {
   if (!response.ok) {
     return [];
   }
-  const html = await response.text();
+  const html = await responseHtml(response);
   const $ = cheerio.load(html);
 
   const links: DiscoveredLink[] = [];
@@ -734,7 +842,7 @@ const findPdfLinks = async (baseUrl: string): Promise<DiscoveredLink[]> => {
            redirect: "follow",
          });
         if (docsResp.ok) {
-          const docsHtml = await docsResp.text();
+          const docsHtml = await responseHtml(docsResp);
           const $docs = cheerio.load(docsHtml);
           $docs("a[href*='/download/']").each((_, element) => {
            const href = $docs(element).attr("href");
@@ -801,7 +909,7 @@ const findPdfLinks = async (baseUrl: string): Promise<DiscoveredLink[]> => {
            redirect: "follow",
          });
         if (!subResponse.ok) continue;
-        const subHtml = await subResponse.text();
+         const subHtml = await responseHtml(subResponse);
         const $sub = cheerio.load(subHtml);
         $sub("a[href]").each((_, element) => {
            const href = $sub(element).attr("href");
@@ -866,7 +974,7 @@ const resourceTypePriority: Record<ResourceType, number> = {
 
 const boundedResourceText = (value: unknown, maxLength = 500): string =>
   typeof value === "string"
-    ? value.replace(/[\u0000-\u001f\u007f]/g, "").replace(/\s+/g, " ").trim().slice(0, maxLength)
+    ? repairKnownGermanEncoding(value).replace(/[\u0000-\u001f\u007f]/g, "").replace(/\s+/g, " ").trim().slice(0, maxLength)
     : "";
 
 const safeResourceRoleHints = (value: unknown): ResourceRoleHint[] => {
@@ -904,9 +1012,20 @@ const resourceCandidateFromDiscovered = (
   discoveryMethod: string,
 ): ResourceCandidateRecord => {
   const url = sanitizeResourceUrl(resource.url) ?? resource.url;
+  const canonicalUrl = documentIdentityKey({
+    url,
+    filename: resourceFilenameFromUrl(url),
+    contentType: resource.contentType,
+    resourceType: resource.type,
+  }) ?? url;
   return {
     url,
-    canonicalUrl: sanitizeResourceUrl(resource.canonicalUrl) ?? url,
+    canonicalUrl: documentIdentityKey({
+      url: sanitizeResourceUrl(resource.canonicalUrl) ?? canonicalUrl,
+      filename: resourceFilenameFromUrl(url),
+      contentType: resource.contentType,
+      resourceType: resource.type,
+    }) ?? canonicalUrl,
     label: boundedResourceText(resource.label || resource.text),
     filename: resourceFilenameFromUrl(url),
     resourceType: resource.type,
@@ -967,7 +1086,12 @@ const structuredResourceCandidate = (
   const explicitFilename = boundedResourceText(record.filename, 255);
   return {
     ...candidate,
-    canonicalUrl: explicitCanonical ?? candidate.canonicalUrl,
+    canonicalUrl: documentIdentityKey({
+      url: explicitCanonical ?? candidate.canonicalUrl,
+      filename: explicitFilename || candidate.filename,
+      contentType: candidate.contentType,
+      resourceType: explicitType ?? candidate.resourceType,
+    }) ?? explicitCanonical ?? candidate.canonicalUrl,
     filename: explicitFilename || candidate.filename,
     roleHints: safeResourceRoleHints(record.roleHints ?? record.role_hints).concat(candidate.roleHints)
       .filter((role, index, values) => values.indexOf(role) === index),
@@ -1004,6 +1128,11 @@ export const mergeResourceCandidates = (...groups: ReadonlyArray<ResourceCandida
 };
 
 export const isFetchableResourceCandidate = (candidate: ResourceCandidateRecord): boolean => {
+  if (
+    isPortalActionUrl(candidate.url)
+    && !/^(?:application\/pdf|application\/octet-stream|application\/msword|application\/vnd\.|application\/zip)/i.test(candidate.contentType ?? "")
+    && !/\battachment\b/i.test(candidate.contentDisposition ?? "")
+  ) return false;
   if (["document", "download"].includes(candidate.resourceType)) return true;
   if (/\battachment\b/i.test(candidate.contentDisposition ?? "")) return true;
   if (/^(?:application\/pdf|application\/octet-stream|application\/msword|application\/vnd\.|application\/zip)/i.test(candidate.contentType ?? "")) return true;
@@ -1032,7 +1161,7 @@ const resourceCandidateFromUrl = (
   if (!normalized) return null;
   return {
     url: normalized,
-    canonicalUrl: normalized,
+    canonicalUrl: documentIdentityKey({ url: normalized, resourceType }) ?? normalized,
     label: boundedResourceText(label),
     filename: resourceFilenameFromUrl(normalized),
     resourceType,
@@ -1079,7 +1208,7 @@ const discoverTenderResources = async (
       staticPageUrl = sanitizeResourceUrl(response.url) ?? sourcePageUrl;
       const contentLength = Number(response.headers.get("content-length") ?? 0);
       if (!Number.isFinite(contentLength) || contentLength <= 10 * 1024 * 1024) {
-        const html = (await response.text()).slice(0, 10 * 1024 * 1024);
+         const html = (await responseHtml(response)).slice(0, 10 * 1024 * 1024);
         staticResources = extractResourcesFromHtml(html, staticPageUrl, { maxResources: RESOURCE_MAX_CANDIDATES });
         pageCandidates.push(...staticResources.map((resource) => resourceCandidateFromDiscovered(resource, staticPageUrl, "dom")));
         pageCandidates.push(...rankSubpageCandidates(staticResources, {
@@ -1184,6 +1313,7 @@ const refreshTenderReadiness = async (tenderId: number, accessBlocked = false) =
   const documentRows = await db
     .select({
       id: documents.id,
+      url: documents.url,
       role: documents.role,
       roles: documents.roles,
       parseStatus: documents.parseStatus,
@@ -1195,7 +1325,7 @@ const refreshTenderReadiness = async (tenderId: number, accessBlocked = false) =
     })
     .from(documents)
     .where(eq(documents.tenderId, tenderId));
-  const analysis = buildDocumentAnalysis(documentRows as AnalyzedDocument[]);
+  const analysis = buildDocumentAnalysis(documentRows.filter((document) => !isPortalActionUrl(document.url)) as AnalyzedDocument[]);
   const readiness = evaluateTenderReadiness({
     qualityStatus: tender.qualityStatus,
     rawText: tender.rawText,
@@ -1253,7 +1383,8 @@ const getAccessLimitedCacheResult = (
     ? cleanPublicDescription(metadata.description)
     : "";
 
-  if (metadata.access_limited !== true || description.length < 80) return null;
+  if (metadata.access_limited !== true && detection.reason !== "participation_required") return null;
+  if (description.length < 80) return null;
 
   const existingDescriptionMarkdown = [metadata.descriptionMarkdown, metadata.description_markdown]
     .find((value): value is string => typeof value === "string" && value.trim().length > 0)
@@ -1373,6 +1504,7 @@ const runCrawl = async (payload: Record<string, JsonValue>): Promise<Record<stri
         await queueTenderProcessing(upserted.id);
         changed += 1;
       } else {
+        await recoverTenderProcessing(upserted.id);
         unchanged += 1;
       }
       discovered += 1;
@@ -1644,6 +1776,7 @@ const runFetchDocuments = async (payload: Record<string, JsonValue>): Promise<Re
   const fetchable = candidates.filter(isFetchableResourceCandidate);
   const pageFallbacks = candidates
     .filter((candidate) => ["page", "unknown"].includes(candidate.resourceType))
+    .filter((candidate) => !isPortalActionUrl(candidate.url))
     .filter((candidate) => isSameOriginCandidate(candidate, tender.url));
   const candidatePool = (fetchable.length > 0 ? fetchable : pageFallbacks)
     .filter((candidate) => candidate.method === "GET");
@@ -1756,7 +1889,7 @@ const runParseDocuments = async (payload: Record<string, JsonValue>): Promise<Re
   }
 
   const tender = await getTender(tenderId);
-  const docs = await db
+  const docs = (await db
     .select({
       id: documents.id,
       storagePath: documents.storagePath,
@@ -1771,7 +1904,8 @@ const runParseDocuments = async (payload: Record<string, JsonValue>): Promise<Re
     })
     .from(documents)
     .where(eq(documents.tenderId, tenderId))
-    .orderBy(documents.id);
+    .orderBy(documents.id))
+    .filter((document) => !isPortalActionUrl(document.url));
 
   if (docs.length === 0) {
     // No documents to parse — raw_text may already be set (e.g. from RSS description)
@@ -1789,11 +1923,11 @@ const runParseDocuments = async (payload: Record<string, JsonValue>): Promise<Re
     const absPath = objectAbsolutePath(doc.storagePath);
     try {
       const extracted = await extractTextFromFile(absPath, doc.contentType);
-      const pageText = extracted.pages.length > 0
+      const pageText = (extracted.pages.length > 0
         ? extracted.pages
           .map((page, index) => `[Seite ${index + 1}]\n${page}`)
           .join("\n\n")
-        : extracted.text;
+        : extracted.text).replace(/\u0000/g, "");
       const bounded = pageText.length > MAX_DOCUMENT_TEXT_CHARS
         ? `${pageText.slice(0, MAX_DOCUMENT_TEXT_CHARS)}\n[Text wegen Größenlimit gekürzt]`
         : pageText;
@@ -1840,7 +1974,7 @@ const runParseDocuments = async (payload: Record<string, JsonValue>): Promise<Re
         .where(eq(documents.id, doc.id));
     } catch (error) {
       partial = true;
-      const message = error instanceof Error ? error.message : "unbekannter Parserfehler";
+      const message = sanitizeErrorMessage(error instanceof Error ? error.message : "unbekannter Parserfehler");
       // Store the error on the document row for debugging, but do NOT pollute
       // the tender's analytical rawText with error markers. A failed parse is a
       // document-level failure, not tender content.
@@ -1881,6 +2015,7 @@ const runParseDocuments = async (payload: Record<string, JsonValue>): Promise<Re
   const refreshedDocs = await db
     .select({
       id: documents.id,
+      url: documents.url,
       role: documents.role,
       roles: documents.roles,
       parseStatus: documents.parseStatus,
@@ -1892,7 +2027,7 @@ const runParseDocuments = async (payload: Record<string, JsonValue>): Promise<Re
     })
     .from(documents)
     .where(eq(documents.tenderId, tenderId));
-  const analysis = buildDocumentAnalysis(refreshedDocs as AnalyzedDocument[]);
+  const analysis = buildDocumentAnalysis(refreshedDocs.filter((document) => !isPortalActionUrl(document.url)) as AnalyzedDocument[]);
   return {
     parsed_documents: docs.length,
     parsed_successfully: parsedDocs.length,
@@ -1931,6 +2066,7 @@ const runStructureTender = async (payload: Record<string, JsonValue>): Promise<R
   const documentRows = await db
     .select({
       id: documents.id,
+      url: documents.url,
       role: documents.role,
       roles: documents.roles,
       parseStatus: documents.parseStatus,
@@ -1942,7 +2078,7 @@ const runStructureTender = async (payload: Record<string, JsonValue>): Promise<R
     })
     .from(documents)
     .where(eq(documents.tenderId, tenderId));
-  const baseDocumentAnalysis = buildDocumentAnalysis(documentRows as AnalyzedDocument[]);
+  const baseDocumentAnalysis = buildDocumentAnalysis(documentRows.filter((document) => !isPortalActionUrl(document.url)) as AnalyzedDocument[]);
   structured.document_analysis = withEvidenceValues(baseDocumentAnalysis, {
     deadline: structured.hard_facts.deadline,
     scope: structured.decision_relevant.scope.join(" ") || structured.summary,
@@ -2094,12 +2230,12 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
     const cachedAccessPage = detectAccessPage(JSON.stringify(blob), { title: tender.title ?? undefined, url: sourceUrl });
     if (cachedAccessPage.blocked) {
       console.warn(`[cache-detail] Entferne blockierten Cache fuer Tender ${tenderId} (${cachedAccessPage.reason})`);
-      await db.delete(structuredData).where(eq(structuredData.tenderId, tenderId));
       const accessLimitedResult = getAccessLimitedCacheResult(tender, cachedAccessPage);
       if (accessLimitedResult) {
         console.info(`[cache-detail] Nutze vorhandene Zugangsbeschraenkungs-Zusammenfassung fuer Tender ${tenderId}`);
         return accessLimitedResult;
       }
+      await db.delete(structuredData).where(eq(structuredData.tenderId, tenderId));
       await retryBlockedDetail(tender, cachedAccessPage);
     }
 
@@ -2212,21 +2348,22 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
 
   if (fullContent.length > 200 && openrouterKey) {
     // We have good content — use LLM to structure it
-    const llmClient = new OpenAI({ apiKey: openrouterKey, baseURL: "https://openrouter.ai/api/v1" });
-    const content = await callLLM(llmClient, {
-      messages: [
-        { role: "system", content: DETAIL_CACHE_PROMPT },
-        { role: "user", content: `URL: ${sourceUrl}\n\nInhalt:\n${fullContent}` },
-      ],
-      temperature: 0.1,
-      max_tokens: 6000,
-    });
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      try {
-        const extracted = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
-        console.log(`[cache-detail] LLM: desc=${String(extracted.description ?? "").length} proc=${extracted.procedure ?? "nein"} scope=${String(extracted.scope ?? "").length}`);
-        result = {
+    try {
+      const llmClient = new OpenAI({ apiKey: openrouterKey, baseURL: "https://openrouter.ai/api/v1", timeout: 120_000, maxRetries: 0 });
+      const content = await callLLM(llmClient, {
+        messages: [
+          { role: "system", content: DETAIL_CACHE_PROMPT },
+          { role: "user", content: `URL: ${sourceUrl}\n\nInhalt:\n${fullContent}` },
+        ],
+        temperature: 0.1,
+        max_tokens: 6000,
+      });
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          const extracted = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+          console.log(`[cache-detail] LLM: desc=${String(extracted.description ?? "").length} proc=${extracted.procedure ?? "nein"} scope=${String(extracted.scope ?? "").length}`);
+          result = {
           title: String(extracted.title ?? tender.title ?? ""),
           client: String(extracted.client ?? client),
           deadline: extracted.deadline ? String(extracted.deadline) : (tender.deadlineAt ? new Date(tender.deadlineAt).toISOString().split("T")[0] : null),
@@ -2245,7 +2382,10 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
           cached: false,
           scrapedAt: new Date().toISOString(),
         };
-      } catch { /* fall through */ }
+        } catch { /* fall through */ }
+      }
+    } catch (error) {
+      console.warn(`[cache-detail] LLM-Anreicherung fehlgeschlagen, nutze Fallback: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -2675,6 +2815,7 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
   const latestDocumentRows = await db
     .select({
       id: documents.id,
+      url: documents.url,
       role: documents.role,
       roles: documents.roles,
       parseStatus: documents.parseStatus,
@@ -2687,7 +2828,7 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
     .from(documents)
     .where(eq(documents.tenderId, tenderId));
   mergedBlob.document_analysis = withEvidenceValues(
-    buildDocumentAnalysis(latestDocumentRows as AnalyzedDocument[]),
+    buildDocumentAnalysis(latestDocumentRows.filter((document) => !isPortalActionUrl(document.url)) as AnalyzedDocument[]),
     {
       deadline: typeof result.deadline === "string" ? result.deadline : null,
       scope: typeof result.scope === "string" ? result.scope : null,
@@ -3140,7 +3281,10 @@ const runScrapePublicTenders = async (payload: Record<string, JsonValue>): Promi
 
       try {
         const tenderMetadata: Record<string, JsonValue> = {
-          client: tender.client,
+          client: normalizePublicClient(
+            tender.client,
+            getPublicClientFallback(tender.source, tender.sourceUrl),
+          ) || "Unbekannt",
           description: tender.description,
           ...(tender.descriptionMarkdown ? { descriptionMarkdown: tender.descriptionMarkdown } : {}),
           reference_number: tender.referenceNumber,
@@ -3176,6 +3320,8 @@ const runScrapePublicTenders = async (payload: Record<string, JsonValue>): Promi
             updated += 1;
             changes.updated += 1;
           }
+        } else {
+          await recoverTenderProcessing(upserted.id);
         }
         changes.accepted += 1;
       } catch (error) {
@@ -3267,7 +3413,18 @@ const runScrapePublicTenders = async (payload: Record<string, JsonValue>): Promi
           }
         }
 
-        if (sourceRun.continuationRequired && !persistenceFailure && !continuationSources.includes(sourceRun.sourceKey)) {
+        if (
+          sourceRun.continuationRequired
+          && !persistenceFailure
+          && !continuationSources.includes(sourceRun.sourceKey)
+          && shouldSchedulePublicContinuation(
+            sourceRun.cursorAfter ?? sourceRun.cursorBefore ?? null,
+            sourceRun.exhausted,
+            sourceRun.continuationRequired,
+            sourceRun.status,
+            null,
+          )
+        ) {
           continuationSources.push(sourceRun.sourceKey);
         }
         sourceRun.cursorVersionBefore = expectedVersion;
@@ -3323,7 +3480,6 @@ const runScrapePublicTenders = async (payload: Record<string, JsonValue>): Promi
         await enqueueJob(JOB_SCRAPE_PUBLIC, { source: sourceKey }, {
           jobKey: `public-continuation:${sourceKey}`,
           groupKey: `public-source:${sourceKey}`,
-          priority: 140,
           runAfter: new Date(Date.now() + 30_000),
           dedupeCompleted: false,
         });
@@ -3337,7 +3493,7 @@ const runScrapePublicTenders = async (payload: Record<string, JsonValue>): Promi
     }
 
     try {
-      await enqueueJob(JOB_SYNC_MEILI, {}, { jobKey: JOB_SYNC_MEILI, priority: 130, dedupeCompleted: false });
+      await enqueueJob(JOB_SYNC_MEILI, {}, { jobKey: JOB_SYNC_MEILI, dedupeCompleted: false });
     } catch (error) {
       console.error("[public-scraper] Meilisearch-Sync konnte nicht eingeplant werden:", error);
     }
@@ -3396,7 +3552,6 @@ const queueUsDocumentFetch = async (usTenderId: number, tender: UsExtractedTende
   await enqueueJob(JOB_FETCH_US_DOCUMENTS, { us_tender_id: usTenderId }, {
     jobKey: buildFetchUsDocumentsJobKey(usTenderId, attachments),
     groupKey: `us-tender:${usTenderId}`,
-    priority: 85,
   });
   return true;
 };
@@ -3752,16 +3907,27 @@ export const processJobById = async (jobId: number): Promise<JobProcessResult> =
   return { job_id: row.id, job_type: row.type as JobType, status: "done", result };
 };
 
-export const processNextJob = async (workerId: string, options: ClaimJobOptions = {}): Promise<JobProcessResult | null> => {
-  const job = await claimNextJob(workerId, options);
+type ProcessJobOptions = ClaimJobOptions & {
+  /** Worker processes terminate after a timeout so a still-running handler cannot leak a slot. */
+  terminateOnTimeout?: boolean;
+};
+
+export const processNextJob = async (workerId: string, options: ProcessJobOptions = {}): Promise<JobProcessResult | null> => {
+  // Make the lock identity unique per attempt. This prevents a timed-out
+  // handler from closing a later retry when callers reuse a worker label.
+  const attemptWorkerId = `${workerId}:${randomUUID()}`;
+  const job = await claimNextJob(attemptWorkerId, options);
   if (!job) {
     return null;
   }
 
   const jobType = job.type as JobType;
   const startedAt = Date.now();
+  const maxRuntimeMs = getJobMaxRuntimeMs(jobType);
+  let timedOut = false;
+  let watchdog: ReturnType<typeof setTimeout> | undefined;
   const heartbeat = setInterval(() => {
-    void heartbeatJob(job.id, workerId).catch((error) => {
+    void heartbeatJob(job.id, attemptWorkerId).catch((error) => {
       console.warn(`[queue] Heartbeat für Job #${job.id} fehlgeschlagen:`, error);
     });
   }, 30_000);
@@ -3773,15 +3939,22 @@ export const processNextJob = async (workerId: string, options: ClaimJobOptions 
     }
 
     const payload = { ...parseRecord(job.payload as string), __job_id: job.id };
-    const result = await handler(payload);
+    const timeout = new Promise<never>((_, reject) => {
+      watchdog = setTimeout(() => {
+        timedOut = true;
+        reject(new Error(`Job #${job.id} (${jobType}) überschritt die maximale Laufzeit von ${Math.round(maxRuntimeMs / 60_000)} Minuten.`));
+      }, maxRuntimeMs);
+      watchdog.unref();
+    });
+    const result = await Promise.race([handler(payload), timeout]);
+    if (watchdog) clearTimeout(watchdog);
     clearInterval(heartbeat);
-    await markDone(job.id, workerId);
+    await markDone(job.id, attemptWorkerId);
     if (jobType === JOB_SYNC_MEILI) {
       const catalog = await getCatalogState();
       if (catalog && catalog.revision > catalog.syncedRevision) {
         await enqueueJob(JOB_SYNC_MEILI, {}, {
           jobKey: JOB_SYNC_MEILI,
-          priority: 130,
           runAfter: new Date(Date.now() + 30_000),
           dedupeCompleted: false,
         }).catch((error: unknown) => {
@@ -3798,9 +3971,24 @@ export const processNextJob = async (workerId: string, options: ClaimJobOptions 
       result
     };
   } catch (error) {
+    if (watchdog) clearTimeout(watchdog);
     clearInterval(heartbeat);
-    const message = error instanceof Error ? error.message : "Unbekannter Fehler";
-    await markFailed(job.id, workerId, message);
+    const message = sanitizeErrorMessage(error instanceof Error ? error.message : "Unbekannter Fehler");
+    try {
+      await markFailed(job.id, attemptWorkerId, message);
+    } catch (markError) {
+      const markMessage = sanitizeErrorMessage(markError instanceof Error ? markError.message : "Unbekannter Fehler");
+      console.error(`[queue] Job #${job.id} konnte nicht als fehlgeschlagen markiert werden: ${markMessage}`);
+    }
+    if (timedOut && jobType === JOB_SYNC_MEILI) {
+      await releaseCatalogSync().catch((releaseError: unknown) => {
+        console.error(`[queue] Katalog-Lock nach Timeout von Job #${job.id} konnte nicht freigegeben werden: ${String(releaseError)}`);
+      });
+    }
+    if (timedOut && options.terminateOnTimeout) {
+      console.error(`[worker] Beende Prozess nach Timeout von Job #${job.id}, damit blockierte Browser-/Netzwerk-Ressourcen sicher freigegeben werden.`);
+      process.exit(1);
+    }
     return {
       job_id: job.id,
       job_type: jobType,
@@ -3854,7 +4042,7 @@ export const cleanupExpiredTenders = async (): Promise<{ deleted: number }> => {
 
   // Enqueue a full Meilisearch sync to ensure orphaned documents are removed
   try {
-      await enqueueJob(JOB_SYNC_MEILI, {}, { jobKey: JOB_SYNC_MEILI, priority: 130, dedupeCompleted: false });
+      await enqueueJob(JOB_SYNC_MEILI, {}, { jobKey: JOB_SYNC_MEILI, dedupeCompleted: false });
      console.log(`[cleanup] sync_meilisearch Job eingereiht nach ${deleted} Löschungen.`);
   } catch (err) {
     console.warn("[cleanup] Konnte sync_meilisearch nicht einreihen:", err);

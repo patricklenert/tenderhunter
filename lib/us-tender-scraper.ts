@@ -40,9 +40,21 @@ export const US_TENDER_SOURCE_ADAPTERS: Array<[UsTenderSource, () => Promise<UsE
   ["new_york_contract_reporter", fetchNewYorkContractReporterOpportunities],
 ];
 
+const US_PORTAL_TIMEOUT_MS = 5 * 60 * 1000; // 5 Minuten pro Quelle
+
+function withTimeout<T>(name: string, fn: () => Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    fn(),
+    new Promise<never>((_, reject) => {
+      const handle = setTimeout(() => reject(new Error(`US-Scraper-Timeout: ${name} nach ${ms / 1000}s`)), ms);
+      handle.unref();
+    }),
+  ]);
+}
+
 export async function scrapeAllUsTenders(): Promise<UsScrapeResult> {
   const sources = US_TENDER_SOURCE_ADAPTERS;
-  const settled = await Promise.allSettled(sources.map(([, scrape]) => scrape()));
+  const settled = await Promise.allSettled(sources.map(([name, scrape]) => withTimeout(name, scrape, US_PORTAL_TIMEOUT_MS)));
   const bySource = Object.fromEntries(sources.map(([source]) => [source, 0])) as Record<UsTenderSource, number>;
   const errors: Partial<Record<UsTenderSource, string>> = {};
   const sourceRuns: UsScrapeResult["sourceRuns"] = [];

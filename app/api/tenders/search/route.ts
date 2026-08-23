@@ -1,6 +1,9 @@
 import { json, errorResponse } from "@/lib/http";
 import { searchTenders } from "@/lib/meilisearch";
 import { formatDeadlineDE, getGermanLastThreeDaysUnixRange } from "@/lib/date-utils";
+import { db } from "@/lib/db";
+import { tenders } from "@/lib/schema";
+import { gte, lt, and, eq, sql } from "drizzle-orm";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,15 +32,18 @@ export async function GET(request: Request): Promise<Response> {
         ? { firstSeenAtFrom: lastThreeDaysRange.from, firstSeenAtTo: lastThreeDaysRange.to }
         : {}),
     });
-    const todayNewCount = todayNew
-      ? result.estimatedTotalHits
-      : (await searchTenders({
-          ...baseSearchParams,
-          firstSeenAtFrom: lastThreeDaysRange.from,
-          firstSeenAtTo: lastThreeDaysRange.to,
-          limit: 1,
-          page: 1,
-        })).estimatedTotalHits;
+
+    const fromTimestamp = new Date(lastThreeDaysRange.from * 1000);
+    const toTimestamp = new Date(lastThreeDaysRange.to * 1000);
+    const [{ count }] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(tenders)
+      .where(and(
+        eq(tenders.qualityStatus, "qualified"),
+        gte(tenders.firstSeenAt, fromTimestamp),
+        lt(tenders.firstSeenAt, toTimestamp),
+      ));
+    const todayNewCount = count;
 
     const items = result.hits.map((hit) => ({
       id: hit.id,

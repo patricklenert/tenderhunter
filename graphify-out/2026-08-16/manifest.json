@@ -105,8 +105,8 @@
     "semantic_hash": ""
   },
   "app/api/tenders/public/route.ts": {
-    "mtime": 1786205917.6885438,
-    "ast_hash": "127257f870e4fe0428c7b36f1fbf659a",
+    "mtime": 1786896288.7858028,
+    "ast_hash": "da62a4855ce7f35e80f6cba98117e090",
     "semantic_hash": ""
   },
   "app/api/tenders/route.ts": {
@@ -570,8 +570,8 @@
     "semantic_hash": "18d83021a29ec5cd71a92a82792dc605"
   },
   "components/AusschreibungenSection.tsx": {
-    "mtime": 1786729608.6666157,
-    "ast_hash": "263b8826773474dbc64762ab420df92e",
+    "mtime": 1786917464.5103972,
+    "ast_hash": "9ea95c5dbdd6f207be41d0aad296dd68",
     "semantic_hash": ""
   },
   "components/AuthModal.tsx": {
@@ -610,8 +610,8 @@
     "semantic_hash": ""
   },
   "components/TenderDetailDrawer.tsx": {
-    "mtime": 1786729608.6696157,
-    "ast_hash": "79caab5298d3bc240f31f0f57404f646",
+    "mtime": 1786912048.3237329,
+    "ast_hash": "aad7f30f2c220f642ad1b096e04edf10",
     "semantic_hash": ""
   },
   "components/TendersSection.tsx": {
@@ -665,8 +665,8 @@
     "semantic_hash": ""
   },
   "lib/auth.ts": {
-    "mtime": 1785089736.8068771,
-    "ast_hash": "a31062d0006147f62fdf7f860c132ab3",
+    "mtime": 1786918695.966383,
+    "ast_hash": "d741e7ddaebf401bff03e9689633d348",
     "semantic_hash": ""
   },
   "lib/config.ts": {
@@ -710,13 +710,13 @@
     "semantic_hash": ""
   },
   "lib/pipeline.ts": {
-    "mtime": 1786725797.3887975,
-    "ast_hash": "ab53d5098b642fa42060f8d67777a1a4",
+    "mtime": 1786896268.0728858,
+    "ast_hash": "3731cdc1e4f7f6aa2ecfe01903f08549",
     "semantic_hash": ""
   },
   "lib/public-tender-scraper.ts": {
-    "mtime": 1786830484.6288264,
-    "ast_hash": "8b159647866f26b62af2204251d184d7",
+    "mtime": 1786908501.206137,
+    "ast_hash": "3e3ed6e2be15f4f565709e855b353354",
     "semantic_hash": ""
   },
   "lib/queue.ts": {
@@ -760,8 +760,8 @@
     "semantic_hash": "bea46290bda74fcb79681806aa01cadd"
   },
   "lib/theme.ts": {
-    "mtime": 1784352474.8004487,
-    "ast_hash": "f75a1dfcfaba6efa2b1a83b14c0b9fc9",
+    "mtime": 1786912130.8412778,
+    "ast_hash": "ab0ffd468b47bb9db60cd0c0f7ad4bd5",
     "semantic_hash": ""
   },
   "lib/tracked-tender-types.ts": {
@@ -795,13 +795,13 @@
     "semantic_hash": ""
   },
   "next.config.ts": {
-    "mtime": 1783318225.4627655,
-    "ast_hash": "8f0e38367a9280b10eb01c68c91fdcc4",
+    "mtime": 1786862269.718088,
+    "ast_hash": "af5642a9199e4c5c48c57a2ba43a1209",
     "semantic_hash": ""
   },
   "package.json": {
-    "mtime": 1786729402.6016092,
-    "ast_hash": "a137c4eda6a1d0a624de2afcbd46a76f",
+    "mtime": 1786896435.2551792,
+    "ast_hash": "68b8a606c141856f50f4ba24762238e6",
     "semantic_hash": ""
   },
   "postcss.config.mjs": {
@@ -825,8 +825,8 @@
     "semantic_hash": ""
   },
   "scripts/worker.ts": {
-    "mtime": 1786207016.3326743,
-    "ast_hash": "fe8d52c9342c99a42603a24d943db653",
+    "mtime": 1786896234.4270172,
+    "ast_hash": "8a38f658c944775d4316cf23f635dd2c",
     "semantic_hash": ""
   },
   "skills-lock.json": {
@@ -970,8 +970,8 @@
     "semantic_hash": ""
   },
   "docker-compose.yml": {
-    "mtime": 1786825230.9824512,
-    "ast_hash": "3d6ae1bea36f95881b15adc5cd0132da",
+    "mtime": 1786898326.6351037,
+    "ast_hash": "68fd76d9aa0ebe787ff8df9a7d3817e2",
     "semantic_hash": ""
   },
   "searxng/settings.yml": {
@@ -1055,13 +1055,13 @@
     "semantic_hash": ""
   },
   "app/auftraggeber/[slug]/page.tsx": {
-    "mtime": 1786309534.917119,
-    "ast_hash": "e6db520d9e4dab7ff88c33aaa04aafdf",
+    "mtime": 1786861503.321466,
+    "ast_hash": "c75cbd9f8a6f2a289fd5e7ef85413e86",
     "semantic_hash": ""
   },
   "app/ausschreibung/[...params]/page.tsx": {
-    "mtime": 1786729608.6626158,
-    "ast_hash": "0d69e458555fa753b0a6445b55749a9f",
+    "mtime": 1786917464.5343971,
+    "ast_hash": "626f9595918eea4d1d39fb4817137134",
     "semantic_hash": ""
   },
   "app/ausschreibungen/[kategorie]/opengraph-image.tsx": {
@@ -1070,13 +1070,13 @@
     "semantic_hash": ""
   },
   "app/ausschreibungen/[kategorie]/page.tsx": {
-    "mtime": 1786309534.920119,
-    "ast_hash": "a94738267c4f338fb74b29b5eaa38a60",
+    "mtime": 1786861193.624691,
+    "ast_hash": "7d993905d676b3543b4c91a48b8d41af",
     "semantic_hash": ""
   },
   "app/ausschreibungen/bauportal-deutschland/[kategorie]/page.tsx": {
-    "mtime": 1784609786.7914515,
-    "ast_hash": "fbbfb1aef649de6cdc7f54f111b189f2",
+    "mtime": 1786861291.4729824,
+    "ast_hash": "87dccf91884267dc5e8edf1a9b104067",
     "semantic_hash": ""
   },
   "app/ausschreibungen/bauportal-deutschland/page.tsx": {
@@ -1085,13 +1085,13 @@
     "semantic_hash": ""
   },
   "app/ausschreibungen/cpv/[code]/page.tsx": {
-    "mtime": 1786309534.921119,
-    "ast_hash": "06dcfb6897d650bf968fdaee892ff0bd",
+    "mtime": 1786861193.641691,
+    "ast_hash": "acd685709e0ccb4f8377d8d144660757",
     "semantic_hash": ""
   },
   "app/ausschreibungen/dtvp/[kategorie]/page.tsx": {
-    "mtime": 1784609765.9835978,
-    "ast_hash": "3a65307dc916cbf19abcb5084cdd4749",
+    "mtime": 1786861291.4269829,
+    "ast_hash": "1776ec655f62b1fbe7933d632637b085",
     "semantic_hash": ""
   },
   "app/ausschreibungen/dtvp/page.tsx": {
@@ -1100,8 +1100,8 @@
     "semantic_hash": ""
   },
   "app/ausschreibungen/evergabe/[kategorie]/page.tsx": {
-    "mtime": 1784609807.4203062,
-    "ast_hash": "94fb6826ce07592182d3303291c24069",
+    "mtime": 1786861291.4609826,
+    "ast_hash": "0e4804bbbd9edd41dfb7a32e17783c23",
     "semantic_hash": ""
   },
   "app/ausschreibungen/evergabe/page.tsx": {
@@ -1115,8 +1115,8 @@
     "semantic_hash": ""
   },
   "app/ausschreibungen/region/[slug]/[kategorie]/page.tsx": {
-    "mtime": 1784609846.306033,
-    "ast_hash": "261b55b5a7c8a761f8ef646dfa378098",
+    "mtime": 1786861193.638691,
+    "ast_hash": "fc77b0ae5c49488636bdf1a69e334794",
     "semantic_hash": ""
   },
   "app/ausschreibungen/region/[slug]/opengraph-image.tsx": {
@@ -1125,13 +1125,13 @@
     "semantic_hash": ""
   },
   "app/ausschreibungen/region/[slug]/page.tsx": {
-    "mtime": 1784609835.919106,
-    "ast_hash": "6721ae35e789f29f09557316bb9184f6",
+    "mtime": 1786861193.6256912,
+    "ast_hash": "8e185f1290c513bbd2f3b14c4b632acf",
     "semantic_hash": ""
   },
   "app/ausschreibungen/stadt/[slug]/[kategorie]/page.tsx": {
-    "mtime": 1784609867.345885,
-    "ast_hash": "fbd4f78166a3294dd5dbb2cada8ca802",
+    "mtime": 1786861193.640691,
+    "ast_hash": "bdc8d1158fdfae2c52e06f10ead97007",
     "semantic_hash": ""
   },
   "app/ausschreibungen/stadt/[slug]/opengraph-image.tsx": {
@@ -1140,13 +1140,13 @@
     "semantic_hash": ""
   },
   "app/ausschreibungen/stadt/[slug]/page.tsx": {
-    "mtime": 1784609859.1829424,
-    "ast_hash": "5063e6daa5b673ccfc724b5b1fa9c33b",
+    "mtime": 1786861193.639691,
+    "ast_hash": "b53b4a58ab87152418c21f3018f7d30c",
     "semantic_hash": ""
   },
   "app/ausschreibungen/ted/[kategorie]/page.tsx": {
-    "mtime": 1784609827.2811666,
-    "ast_hash": "511b77d435dbd798f22cf9cf8779013f",
+    "mtime": 1786861291.4439826,
+    "ast_hash": "c98f65aa78b6788f6403691cb341be78",
     "semantic_hash": ""
   },
   "app/ausschreibungen/ted/page.tsx": {
@@ -1155,8 +1155,8 @@
     "semantic_hash": ""
   },
   "app/ausschreibungen/verfahren/[type]/page.tsx": {
-    "mtime": 1786309534.922119,
-    "ast_hash": "b20924d771a475466ec6e0f195ebac50",
+    "mtime": 1786861227.0534482,
+    "ast_hash": "53452abf5c07205024e8ccc860dba74f",
     "semantic_hash": ""
   },
   "app/error.tsx": {
@@ -1220,13 +1220,13 @@
     "semantic_hash": ""
   },
   "app/robots.ts": {
-    "mtime": 1784268526.8074236,
-    "ast_hash": "342670e3a1e39f709b339f05570f0af9",
+    "mtime": 1786861137.5281003,
+    "ast_hash": "04df1bd40606c70c3bb865f5c080d5fa",
     "semantic_hash": ""
   },
   "app/sitemap.ts": {
-    "mtime": 1786848600.5292118,
-    "ast_hash": "7113b2172ec842a590d86cd4a696e1c0",
+    "mtime": 1786861631.2325592,
+    "ast_hash": "75d9602d8725082a5d4db32eedd2d29e",
     "semantic_hash": ""
   },
   "app/wissen/[slug]/page.tsx": {
@@ -1245,8 +1245,8 @@
     "semantic_hash": ""
   },
   "components/PdfDocumentLink.tsx": {
-    "mtime": 1786727609.5441322,
-    "ast_hash": "1812c934646b0a142e7f1558d5edd87f",
+    "mtime": 1786916361.6596565,
+    "ast_hash": "c9f5b160e4486c97eba28150678019e0",
     "semantic_hash": ""
   },
   "components/SwetrixAnalytics.tsx": {
@@ -1315,8 +1315,8 @@
     "semantic_hash": ""
   },
   "components/seo/PortalPageContent.tsx": {
-    "mtime": 1784611176.8588243,
-    "ast_hash": "c17f598ac23fd4aa4254082974139e81",
+    "mtime": 1786861137.5291004,
+    "ast_hash": "44c0a30edf227bd41ee998057d2d992f",
     "semantic_hash": ""
   },
   "components/seo/SeoFooter.tsx": {
@@ -1335,8 +1335,8 @@
     "semantic_hash": ""
   },
   "lib/agencies.ts": {
-    "mtime": 1782969290.780533,
-    "ast_hash": "045974143d88660fd5103de020e40b1e",
+    "mtime": 1786861137.5271003,
+    "ast_hash": "429397b84e22fd1505548157c6fe04e0",
     "semantic_hash": ""
   },
   "lib/api-auth.ts": {
@@ -1400,8 +1400,8 @@
     "semantic_hash": ""
   },
   "lib/procedure-types.ts": {
-    "mtime": 1783234077.2183006,
-    "ast_hash": "f1aea566cf16828c529353f6a8ed0790",
+    "mtime": 1786861137.5151005,
+    "ast_hash": "aed44a7a037f2553a41e4b2a292b6d97",
     "semantic_hash": ""
   },
   "lib/slug.ts": {
@@ -1430,53 +1430,53 @@
     "semantic_hash": ""
   },
   "app/ausschreibungen/bauportal-deutschland/region/[slug]/page.tsx": {
-    "mtime": 1784611199.6706722,
-    "ast_hash": "605bbbedd5d47a93a285b9cfd292b214",
+    "mtime": 1786861336.2056603,
+    "ast_hash": "81f1419968e22368602c87c59616d726",
     "semantic_hash": ""
   },
   "app/ausschreibungen/bauportal-deutschland/stadt/[slug]/page.tsx": {
-    "mtime": 1784611199.671672,
-    "ast_hash": "05cf0e914a972b4493cd6161f03a13cd",
+    "mtime": 1786861336.2226603,
+    "ast_hash": "35eb3a5df1dc08d7a9d8bf6dfa822ee2",
     "semantic_hash": ""
   },
   "app/ausschreibungen/cpv/[code]/[kategorie]/page.tsx": {
-    "mtime": 1786309534.921119,
-    "ast_hash": "b575b455b08d6baacf7a6ac44c2785ae",
+    "mtime": 1786861227.0654483,
+    "ast_hash": "05adfcc5df3172e1cfa0ac4f02d73cab",
     "semantic_hash": ""
   },
   "app/ausschreibungen/dtvp/region/[slug]/page.tsx": {
-    "mtime": 1784611199.6556723,
-    "ast_hash": "37a70a697b34a63285fbd64ee05a01a3",
+    "mtime": 1786861336.1686606,
+    "ast_hash": "2b15c634225b6e67b757763e876bf3e8",
     "semantic_hash": ""
   },
   "app/ausschreibungen/dtvp/stadt/[slug]/page.tsx": {
-    "mtime": 1784611199.6566722,
-    "ast_hash": "47a6203fbb176a3146a6227e6069b438",
+    "mtime": 1786861336.1696606,
+    "ast_hash": "67b575a20a4284e7546a0367dd71314c",
     "semantic_hash": ""
   },
   "app/ausschreibungen/evergabe/region/[slug]/page.tsx": {
-    "mtime": 1784611199.6696723,
-    "ast_hash": "616b60ba10fb84b1f08411ca96ac094d",
+    "mtime": 1786861336.2026603,
+    "ast_hash": "87c49b121f2379df80d2dae4ea2b665b",
     "semantic_hash": ""
   },
   "app/ausschreibungen/evergabe/stadt/[slug]/page.tsx": {
-    "mtime": 1784611199.6696723,
-    "ast_hash": "7c6f3b6d6ca729a47597f64120b882dc",
+    "mtime": 1786861336.2046604,
+    "ast_hash": "1bc8dcae0f7876b3b942884c5ac7a539",
     "semantic_hash": ""
   },
   "app/ausschreibungen/ted/region/[slug]/page.tsx": {
-    "mtime": 1784611199.6586723,
-    "ast_hash": "c25fa20b7b9f13054e6bf25f42fa14a7",
+    "mtime": 1786861336.2006605,
+    "ast_hash": "035fd3d9aed15dc7cc59d57ca753cd1d",
     "semantic_hash": ""
   },
   "app/ausschreibungen/ted/stadt/[slug]/page.tsx": {
-    "mtime": 1784611199.6686723,
-    "ast_hash": "07500e123e476d739da3f16e3bbd4305",
+    "mtime": 1786861336.2016604,
+    "ast_hash": "679b1b3a4bdc84d1d79842516926c476",
     "semantic_hash": ""
   },
   "app/ausschreibungen/verfahren/[type]/[kategorie]/page.tsx": {
-    "mtime": 1786309534.922119,
-    "ast_hash": "37fe5c853a9b3452f1189e32b0b30e1f",
+    "mtime": 1786861227.064448,
+    "ast_hash": "118f1dddc4f45683889676deaed79580",
     "semantic_hash": ""
   },
   "app/branchen/[slug]/page.tsx": {
@@ -1605,8 +1605,8 @@
     "semantic_hash": ""
   },
   "lib/access-page-detector.ts": {
-    "mtime": 1786323216.9406908,
-    "ast_hash": "32bd5becb1ddde09ffe46ff0fd9bb44b",
+    "mtime": 1786896547.0456667,
+    "ast_hash": "6205f8ca47e58b641eaa1d5536afda08",
     "semantic_hash": ""
   },
   "scripts/cleanup-blocked-tenders.ts": {
@@ -1615,8 +1615,8 @@
     "semantic_hash": ""
   },
   "scripts/test-access-page-detector.ts": {
-    "mtime": 1785648154.8678806,
-    "ast_hash": "e9fe9b5ebb383d7d353935e9a42e6326",
+    "mtime": 1786896491.3809254,
+    "ast_hash": "2945031d18168e4fc26132879db226a2",
     "semantic_hash": ""
   },
   "scripts/test-scoring.ts": {
@@ -1660,8 +1660,8 @@
     "semantic_hash": ""
   },
   "app/us/page.tsx": {
-    "mtime": 1785610799.8873885,
-    "ast_hash": "dbe7ae80e72838f0963f713369507058",
+    "mtime": 1786861137.5291004,
+    "ast_hash": "69efc3bd387dbe93d9e34c73449653ee",
     "semantic_hash": ""
   },
   "app/us/profile/page.tsx": {
@@ -2210,8 +2210,8 @@
     "semantic_hash": ""
   },
   "lib/document-analysis.ts": {
-    "mtime": 1785965756.0172083,
-    "ast_hash": "e8e4bb6371237def9f55ce741171774c",
+    "mtime": 1786917418.4516592,
+    "ast_hash": "5043ca8d299ea531477a0cce8ca174cd",
     "semantic_hash": ""
   },
   "lib/document-classifier.ts": {
@@ -2230,8 +2230,8 @@
     "semantic_hash": ""
   },
   "scripts/test-document-analysis.ts": {
-    "mtime": 1785965978.7579064,
-    "ast_hash": "6dac3f639e33df209cfcd4920a669bbb",
+    "mtime": 1786917476.6093283,
+    "ast_hash": "dd5d6e51290cd93881afa225e56c44a6",
     "semantic_hash": ""
   },
   "scripts/test-document-classifier.ts": {
@@ -2265,8 +2265,8 @@
     "semantic_hash": ""
   },
   "lib/public-pagination.ts": {
-    "mtime": 1786206735.5844307,
-    "ast_hash": "c626667c50e206d6207cb6c813246c6e",
+    "mtime": 1786895927.5790744,
+    "ast_hash": "3f36047095f01489eeab131968cc0c4f",
     "semantic_hash": ""
   },
   "scripts/test-public-pagination.ts": {
@@ -2275,8 +2275,8 @@
     "semantic_hash": ""
   },
   "lib/public-source-registry.ts": {
-    "mtime": 1786124562.1591754,
-    "ast_hash": "6e404384224085431359355cf0b0039f",
+    "mtime": 1786908567.4867864,
+    "ast_hash": "97a18439620836d714c3eb2ed8510ba8",
     "semantic_hash": ""
   },
   "scripts/backfill-public-identities.ts": {
@@ -2415,8 +2415,8 @@
     "semantic_hash": ""
   },
   "scripts/recover-public-queue.ts": {
-    "mtime": 1786206735.6074305,
-    "ast_hash": "f3367282f03e739c2c10ea7cbf315e7b",
+    "mtime": 1786896288.753803,
+    "ast_hash": "94ce74c5f10970a48e8cdfdff9798282",
     "semantic_hash": ""
   },
   "scripts/test-queue-db.ts": {
@@ -2515,8 +2515,8 @@
     "semantic_hash": ""
   },
   "components/TenderQuickCheck.tsx": {
-    "mtime": 1786729608.6616156,
-    "ast_hash": "4daba6232bcee6210ee4b09c1a5147c3",
+    "mtime": 1786911968.7461715,
+    "ast_hash": "5e37cf23d634fdec875b626aec3546b8",
     "semantic_hash": ""
   },
   "lib/tender-calendar.ts": {
@@ -2530,13 +2530,38 @@
     "semantic_hash": ""
   },
   "lib/tender-check.ts": {
-    "mtime": 1786731257.8586152,
-    "ast_hash": "75c345bff0db23023486841e1391e862",
+    "mtime": 1786861137.5301003,
+    "ast_hash": "f75942a7661f18c5a3e31164da654344",
     "semantic_hash": ""
   },
   "scripts/test-tender-check.ts": {
-    "mtime": 1786731288.3314795,
-    "ast_hash": "63bc29efeed86d7271bc0accb2b5e179",
+    "mtime": 1786861137.5321004,
+    "ast_hash": "c7ae70ca10e4145efd9faff71f5f8ce1",
+    "semantic_hash": ""
+  },
+  "lib/seo-indexability.ts": {
+    "mtime": 1786861193.6086912,
+    "ast_hash": "6f65ad7fb4db18d58618d75acf254436",
+    "semantic_hash": ""
+  },
+  "lib/tender-canonical.ts": {
+    "mtime": 1786862527.0062997,
+    "ast_hash": "7fa936d72af0666a904a831a910b78f6",
+    "semantic_hash": ""
+  },
+  "proxy.ts": {
+    "mtime": 1786862734.54286,
+    "ast_hash": "39a65783d7cef6cbc0c3b80923ef5091",
+    "semantic_hash": ""
+  },
+  "scripts/quarantine-auth-candidates.ts": {
+    "mtime": 1786896416.1962638,
+    "ast_hash": "8e4ecfc87dda19ad28a018111858db16",
+    "semantic_hash": ""
+  },
+  "scripts/test-public-continuation.ts": {
+    "mtime": 1786896343.6875763,
+    "ast_hash": "49785bac834d5988ce273084256bd6ca",
     "semantic_hash": ""
   }
 }

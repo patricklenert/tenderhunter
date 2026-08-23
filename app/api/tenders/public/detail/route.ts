@@ -4,14 +4,17 @@ import { json, errorResponse } from "@/lib/http";
 import { and, eq } from "drizzle-orm";
 import { enqueueJob } from "@/lib/queue";
 import { JOB_CACHE_DETAIL } from "@/lib/types";
-import { extractPublicPortalFacts } from "@/lib/public-tender-scraper";
+import { extractPublicPortalFacts, getPublicClientFallback, normalizePublicClient } from "@/lib/public-tender-scraper";
 import { formatDeadlineDE, sanitizeTenderUrl } from "@/lib/date-utils";
 import { detectAccessPage } from "@/lib/access-page-detector";
 import { buildDocumentAnalysis, type AnalyzedDocument } from "@/lib/document-analysis";
+import { deduplicateDocumentRows, documentIdentityKey } from "@/lib/document-identity";
 import { buildTenderCheck } from "@/lib/tender-check";
 import { normalizeStructured } from "@/lib/structurer";
 import { normalizeResourceUrl } from "@/lib/resource-discovery";
+import { isPortalActionUrl } from "@/lib/resource-url";
 import { readTenderMeta, type TenderResourceMeta } from "@/lib/tender-meta";
+import { repairKnownGermanEncoding } from "@/lib/text-normalization";
 
 export const runtime = "nodejs";
 
@@ -21,6 +24,7 @@ const isActiveTender = (deadlineAt: Date | null): boolean =>
 const SENSITIVE_FIELD = /^(?:authorization|cookie|set-cookie|proxy-authorization|headers?|request[-_]?headers|response[-_]?headers|raw[-_]?headers|x-api-key|api-key)$/i;
 
 const sanitizeStructuredValue = (value: unknown): unknown => {
+  if (typeof value === "string") return repairKnownGermanEncoding(value);
   if (Array.isArray(value)) return value.map(sanitizeStructuredValue);
   if (!value || typeof value !== "object") return value;
   return Object.fromEntries(
@@ -80,7 +84,7 @@ const safeDocumentMetadata = (
   const metadata: SafeDocumentMetadata = {
     id: document.id,
     url: safeResourceUrl(document.url, tenderUrl),
-    filename: document.filename,
+    filename: document.filename ? repairKnownGermanEncoding(document.filename) : document.filename,
     contentType: document.contentType,
     downloadStatus: document.downloadStatus,
     parseStatus: document.parseStatus,
@@ -141,13 +145,18 @@ const buildResourceMetadata = (
 ): { resources: SafeResourceMetadata[]; coverage: Record<string, number | string> } => {
   const documentByUrl = new Map<string, { id: number; filename: string | null }>();
   for (const document of documents) {
-    const key = normalizedResourceKey(document.url, tenderUrl);
+    const key = documentIdentityKey(document) ?? normalizedResourceKey(document.url, tenderUrl);
     if (key) documentByUrl.set(key, document);
   }
 
   const byUrl = new Map<string, SafeResourceMetadata>();
   const add = (resource: SafeResourceMetadata): void => {
-    const key = resource.canonicalUrl ?? resource.url;
+    const key = documentIdentityKey({
+      url: resource.canonicalUrl ?? resource.url,
+      filename: resource.filename,
+      contentType: resource.contentType,
+      resourceType: resource.resourceType,
+    }) ?? resource.canonicalUrl ?? resource.url;
     if (!key) return;
     const existing = byUrl.get(key);
     if (!existing) {
@@ -167,12 +176,17 @@ const buildResourceMetadata = (
     const url = safeResourceUrl(row.url, tenderUrl);
     const canonicalUrl = safeResourceUrl(row.canonicalUrl, tenderUrl) ?? url;
     if (!url && !canonicalUrl) continue;
-    const document = documentByUrl.get(canonicalUrl ?? url ?? "");
+    const document = documentByUrl.get(documentIdentityKey({
+      url: canonicalUrl ?? url,
+      filename: row.filename,
+      contentType: row.contentType,
+      resourceType: row.resourceType,
+    }) ?? canonicalUrl ?? url ?? "");
     add({
       id: row.id,
       url,
       canonicalUrl,
-      label: row.label || row.filename || "",
+      label: repairKnownGermanEncoding(row.label || row.filename || ""),
       filename: row.filename,
       resourceType: row.resourceType || "unknown",
       roleHints: Array.isArray(row.roleHints) ? row.roleHints.filter((role): role is string => typeof role === "string") : [],
@@ -189,12 +203,17 @@ const buildResourceMetadata = (
     const url = safeResourceUrl(candidate.url, tenderUrl);
     const canonicalUrl = safeResourceUrl(candidate.canonicalUrl, tenderUrl) ?? url;
     if (!url && !canonicalUrl) continue;
-    const document = documentByUrl.get(canonicalUrl ?? url ?? "");
+    const document = documentByUrl.get(documentIdentityKey({
+      url: canonicalUrl ?? url,
+      filename: candidate.filename,
+      contentType: candidate.contentType,
+      resourceType: candidate.resourceType,
+    }) ?? canonicalUrl ?? url ?? "");
     add({
       id: null,
       url,
       canonicalUrl,
-      label: candidate.label || candidate.text || candidate.filename || "",
+      label: repairKnownGermanEncoding(candidate.label || candidate.text || candidate.filename || ""),
       filename: candidate.filename,
       resourceType: candidate.resourceType || candidate.type || "unknown",
       roleHints: candidate.roleHints,
@@ -273,7 +292,7 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const tender = rows[0];
-    const documentRows = await db
+    const documentRows = deduplicateDocumentRows((await db
       .select({
         id: documents.id,
         url: documents.url,
@@ -291,7 +310,8 @@ export async function POST(request: Request): Promise<Response> {
         aiSummary: documents.aiSummary,
       })
       .from(documents)
-      .where(eq(documents.tenderId, tenderId));
+      .where(eq(documents.tenderId, tenderId)))
+      .filter((document) => !isPortalActionUrl(document.url)));
     const documentAnalysis = buildDocumentAnalysis(documentRows as AnalyzedDocument[]);
     const resourceRows = await db
       .select({
@@ -313,7 +333,10 @@ export async function POST(request: Request): Promise<Response> {
     const tenderMeta = readTenderMeta(tender.metadataJson, tender.rawText);
     const portalFacts = extractPublicPortalFacts([tender.rawText, tenderMeta.description].filter(Boolean).join("\n"));
     const fallbackFacts = {
-      buyer: portalFacts.client || tenderMeta.client || null,
+      buyer: normalizePublicClient(
+        portalFacts.client || tenderMeta.client,
+        getPublicClientFallback(tender.source, tender.url),
+      ) || null,
       procedure: portalFacts.procedure || tenderMeta.procedure || tender.procedureType || null,
       deadline: portalFacts.deadline || (tender.deadlineAt ? formatDeadlineDE(tender.deadlineAt) : null),
       location: portalFacts.location || tenderMeta.location || null,

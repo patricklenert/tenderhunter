@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { buildDocumentAnalysis, withEvidenceValues } from "../lib/document-analysis";
+import { buildDocumentAnalysis, documentAnalysisFieldLabel, withEvidenceValues } from "../lib/document-analysis";
 
 const analysis = buildDocumentAnalysis([
   {
@@ -57,6 +57,24 @@ assert.deepEqual(analysis.coverage.byRole.leistungsbeschreibung, { total: 2, par
 assert.equal(analysis.evidence.length, 2);
 assert.equal(analysis.evidence[0].page, 2);
 assert.equal(analysis.evidence[0].documentId, 1);
+assert.equal(documentAnalysisFieldLabel("scope"), "Leistungsumfang");
+
+const boundaryAnalysis = buildDocumentAnalysis([
+  {
+    id: 6,
+    role: "leistungsbeschreibung",
+    parseStatus: "parsed",
+    downloadStatus: "downloaded",
+    errorMessage: null,
+    extractedText: "XXXXXXXXXX elektronische Abgabe (Qualifizierte elektr. Signatur) Ausschreibungs-ID CXP4Y9PMU06 Auftragsgegenstand 71000000-8 Dienstleistungen von Architektur-, Konstruktions- und Ingenieurbüros und Prüfstellen",
+    pageCount: 1,
+    roleConfidence: 0.85,
+  },
+]);
+const scopeEvidence = boundaryAnalysis.evidence.find((evidence) => evidence.field === "scope");
+assert.ok(scopeEvidence);
+assert.match(scopeEvidence.quote, /elektronische Abgabe/);
+assert.doesNotMatch(scopeEvidence.quote, /^tronische Abgabe/);
 
 const enriched = withEvidenceValues(analysis, { deadline: "15.08.2026" });
 assert.equal(enriched.evidence.find((evidence) => evidence.field === "deadline")?.value, "15.08.2026");

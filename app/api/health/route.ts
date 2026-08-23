@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { json } from "@/lib/http";
 import { settings } from "@/lib/config";
+import { isJobRuntimeStale } from "@/lib/queue";
 import { sql } from "drizzle-orm";
 
 export const runtime = "nodejs";
@@ -33,12 +34,49 @@ export async function GET(): Promise<Response> {
     const row = queueResult[0] ?? {};
     const pending = Number(row.pending ?? 0);
     const failed24h = Number(row.failed_recent ?? 0);
-    const staleRunning = Number(row.stale_running ?? 0);
     const criticalPending = Number(row.critical_pending ?? 0);
     const oldestPendingAgeSeconds = Number(row.oldest_pending_age_seconds ?? 0);
     const oldestCriticalAgeSeconds = Number(row.oldest_critical_age_seconds ?? 0);
     const backlogExceeded = pending > settings.maxPendingJobs;
     const criticalBacklogStale = oldestCriticalAgeSeconds > settings.maxCriticalJobAgeMinutes * 60;
+
+    const runningJobsResult = await db.execute(sql`
+      SELECT id, type, started_at, heartbeat_at
+      FROM jobs
+      WHERE status = 'running'
+    `);
+    const now = Date.now();
+    const staleRunningIds = new Set(
+      runningJobsResult
+        .filter((runningJob) => {
+          const heartbeatAt = runningJob.heartbeat_at ? new Date(String(runningJob.heartbeat_at)).getTime() : 0;
+          const heartbeatStale = !heartbeatAt || now - heartbeatAt > 5 * 60 * 1_000;
+          const runtimeStale = isJobRuntimeStale(
+            runningJob.started_at ? new Date(String(runningJob.started_at)) : null,
+            String(runningJob.type),
+            now,
+          );
+          return heartbeatStale || runtimeStale;
+        })
+        .map((runningJob) => String(runningJob.id)),
+    );
+    const staleRunning = staleRunningIds.size;
+    const runtimeStaleRunning = runningJobsResult.filter((runningJob) => isJobRuntimeStale(
+      runningJob.started_at ? new Date(String(runningJob.started_at)) : null,
+      String(runningJob.type),
+      now,
+    )).length;
+
+    const catalogResult = await db.execute(sql`
+      SELECT revision, synced_revision, sync_running, sync_started_at
+      FROM catalog_state
+      WHERE id = 1
+      LIMIT 1
+    `);
+    const catalogRow = catalogResult[0] ?? {};
+    const catalogSyncStartedAt = catalogRow.sync_started_at ? new Date(String(catalogRow.sync_started_at)).getTime() : 0;
+    const catalogSyncStale = Boolean(catalogRow.sync_running)
+      && (!catalogSyncStartedAt || now - catalogSyncStartedAt > 30 * 60 * 1_000);
 
     const pendingByTypeResult = await db.execute(sql`
       SELECT type, count(*) AS pending
@@ -77,6 +115,17 @@ export async function GET(): Promise<Response> {
                 AND continuation.status IN ('pending', 'running')
                 AND continuation.job_key = 'public-continuation:' || public_source_cursors.source_key
             )
+            AND (
+              (
+                jsonb_array_length(COALESCE(public_source_cursors.cursor_json -> 'pendingDetails', '[]'::jsonb)) = 0
+                AND public_source_cursors.last_status = 'success'
+              )
+              OR EXISTS (
+                SELECT 1
+                FROM jsonb_array_elements(COALESCE(public_source_cursors.cursor_json -> 'pendingDetails', '[]'::jsonb)) AS detail
+                WHERE COALESCE(detail ->> 'blocked', 'false') <> 'true'
+              )
+            )
         ) AS continuation_missing
       FROM public_source_cursors
     `);
@@ -87,7 +136,8 @@ export async function GET(): Promise<Response> {
       SELECT status, finished_at
       FROM public_scrape_runs
       WHERE is_full_run = TRUE
-      ORDER BY started_at DESC
+        AND finished_at IS NOT NULL
+      ORDER BY finished_at DESC
       LIMIT 1
     `);
     const lastFullRun = fullRunResult[0] ?? {};
@@ -97,6 +147,7 @@ export async function GET(): Promise<Response> {
       || Date.now() - lastFullFinishedAt > publicIntervalHours * 60 * 60 * 1_000;
 
     const status = database === "ok"
+      && failed24h === 0
       && staleRunning === 0
       && sourceFailures24h === 0
       && sourcePartial24h === 0
@@ -105,6 +156,7 @@ export async function GET(): Promise<Response> {
       && !fullRunStale
       && !backlogExceeded
       && !criticalBacklogStale
+      && !catalogSyncStale
       ? "ok"
       : "degraded";
     return json({
@@ -117,12 +169,20 @@ export async function GET(): Promise<Response> {
          oldestPendingAgeSeconds,
          oldestCriticalAgeSeconds,
          backlogExceeded,
-         criticalBacklogStale,
+          criticalBacklogStale,
+          runtimeStaleRunning,
          maxPendingJobs: settings.maxPendingJobs,
          maxCriticalJobAgeMinutes: settings.maxCriticalJobAgeMinutes,
          failed24h,
          staleRunning,
-       },
+        },
+      catalogSync: {
+        running: Boolean(catalogRow.sync_running),
+        stale: catalogSyncStale,
+        revision: Number(catalogRow.revision ?? 0),
+        syncedRevision: Number(catalogRow.synced_revision ?? 0),
+        startedAt: catalogRow.sync_started_at ?? null,
+      },
       sources: {
         failed24h: sourceFailures24h,
         partial24h: sourcePartial24h,

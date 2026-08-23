@@ -1,5 +1,6 @@
 import type { DocumentRole } from "./schema";
 import type { RoleHint } from "./document-classifier";
+import { deduplicateDocumentRows } from "./document-identity";
 
 export type DocumentCoverageStatus = "complete" | "partial" | "unknown" | "blocked";
 
@@ -13,6 +14,18 @@ export interface DocumentAnalysisEvidence {
   confidence: number;
   source: "parsed_document";
 }
+
+export const DOCUMENT_ANALYSIS_FIELD_LABELS: Record<DocumentAnalysisEvidence["field"], string> = {
+  deadline: "Frist",
+  scope: "Leistungsumfang",
+  requirements: "Anforderungen",
+  award_criteria: "Zuschlagskriterien",
+};
+
+export const documentAnalysisFieldLabel = (field: unknown): string => {
+  if (typeof field !== "string") return "";
+  return DOCUMENT_ANALYSIS_FIELD_LABELS[field as DocumentAnalysisEvidence["field"]] ?? field;
+};
 
 export interface DocumentRoleCoverage {
   discovered: number;
@@ -32,6 +45,10 @@ export interface DocumentAnalysis {
 
 export interface AnalyzedDocument {
   id: number;
+  url?: string | null;
+  filename?: string | null;
+  contentType?: string | null;
+  resourceType?: string | null;
   role: string | null;
   roles?: DocumentRole[] | null;
   roleHints?: RoleHint[] | null;
@@ -103,9 +120,16 @@ const quoteFromText = (text: string, patterns: RegExp[]): { quote: string; page:
     for (const pattern of patterns) {
       const match = page.text.match(pattern);
       if (!match || match.index === undefined) continue;
-      const start = Math.max(0, match.index - 80);
-      const end = Math.min(page.text.length, match.index + Math.max(match[0].length, 220));
-      const quote = page.text.slice(start, end).replace(/\s+/g, " ").trim();
+      const rawStart = Math.max(0, match.index - 80);
+      const leadingFragment = page.text.slice(0, rawStart).match(/\S+$/)?.[0];
+      const start = leadingFragment ? rawStart - leadingFragment.length : rawStart;
+      const rawEnd = Math.min(page.text.length, match.index + Math.max(match[0].length, 220));
+      const trailingFragment = page.text.slice(rawEnd).match(/^\S*/)?.[0];
+      const end = trailingFragment ? rawEnd + trailingFragment.length : rawEnd;
+      const normalizedQuote = page.text.slice(start, end).replace(/\s+/g, " ").trim();
+      const quote = normalizedQuote.length > 420
+        ? normalizedQuote.slice(0, 420).replace(/\s+\S*$/, "").trim()
+        : normalizedQuote;
       if (quote.length >= 20) return { quote: quote.slice(0, 420), page: page.page };
     }
   }
@@ -163,17 +187,18 @@ const EVIDENCE_PATTERNS: Array<{
 ];
 
 export const buildDocumentAnalysis = (documents: AnalyzedDocument[]): DocumentAnalysis => {
+  const uniqueDocuments = deduplicateDocumentRows(documents);
   const coverage: DocumentRoleCoverage = {
-    discovered: documents.length,
-    downloaded: documents.filter((document) => document.downloadStatus === "downloaded").length,
-    parsed: documents.filter(usableText).length,
-    failed: documents.filter((document) => document.downloadStatus === "failed" || document.parseStatus === "failed").length,
-    empty: documents.filter((document) => document.parseStatus === "empty").length,
+    discovered: uniqueDocuments.length,
+    downloaded: uniqueDocuments.filter((document) => document.downloadStatus === "downloaded").length,
+    parsed: uniqueDocuments.filter(usableText).length,
+    failed: uniqueDocuments.filter((document) => document.downloadStatus === "failed" || document.parseStatus === "failed").length,
+    empty: uniqueDocuments.filter((document) => document.parseStatus === "empty").length,
     byRole: {},
     missingRoles: [],
   };
 
-  for (const document of documents) {
+  for (const document of uniqueDocuments) {
     for (const role of documentRoles(document)) {
       const bucket = coverage.byRole[role] ?? { total: 0, parsed: 0 };
       bucket.total += 1;
@@ -188,7 +213,7 @@ export const buildDocumentAnalysis = (documents: AnalyzedDocument[]): DocumentAn
 
   const evidence: DocumentAnalysisEvidence[] = [];
   for (const definition of EVIDENCE_PATTERNS) {
-    for (const document of documents) {
+    for (const document of uniqueDocuments) {
       if (!usableText(document)) continue;
       const role = definition.roles.find((candidate) => documentRoles(document).includes(candidate));
       if (!role) continue;
@@ -208,9 +233,9 @@ export const buildDocumentAnalysis = (documents: AnalyzedDocument[]): DocumentAn
     }
   }
 
-  const allFailed = documents.length > 0 && coverage.parsed === 0 && coverage.failed === documents.length;
-  const blocked = allFailed && documents.some((document) => /zugriff|teilnahme|login|access|gesperrt/i.test(document.errorMessage ?? ""));
-  const coverageStatus: DocumentCoverageStatus = documents.length === 0
+  const allFailed = uniqueDocuments.length > 0 && coverage.parsed === 0 && coverage.failed === uniqueDocuments.length;
+  const blocked = allFailed && uniqueDocuments.some((document) => /zugriff|teilnahme|login|access|gesperrt/i.test(document.errorMessage ?? ""));
+  const coverageStatus: DocumentCoverageStatus = uniqueDocuments.length === 0
     ? "unknown"
     : blocked
       ? "blocked"

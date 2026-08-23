@@ -163,7 +163,7 @@ export function TenderQuickCheck({ tenderId, initialCheck = null }: TenderQuickC
 
   if (loading) {
     return (
-      <Box sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2.5, bgcolor: "#f7fafb" }}>
+      <Box sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 1, bgcolor: "#f7fafb" }}>
         <Stack direction="row" spacing={1} alignItems="center">
           <CircularProgress size={16} />
           <Typography variant="body2" color="text.secondary">Schnellcheck wird geladen.</Typography>
@@ -181,7 +181,7 @@ export function TenderQuickCheck({ tenderId, initialCheck = null }: TenderQuickC
   const calendarHref = `/api/tenders/public/calendar?tenderId=${tenderId}`;
 
   return (
-    <Box component="section" aria-labelledby={`tender-check-${tenderId}`} sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2.5, bgcolor: "#f0f6f8" }}>
+    <Box component="section" aria-labelledby={`tender-check-${tenderId}`} sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 1, bgcolor: "#f0f6f8" }}>
       <Stack spacing={1.5}>
         <Box>
           <Typography id={`tender-check-${tenderId}`} component="h2" sx={{ color: "#163b4a", fontSize: "1.2rem", fontWeight: 700 }}>
@@ -225,7 +225,7 @@ export function TenderQuickCheck({ tenderId, initialCheck = null }: TenderQuickC
             ) : (
               <Stack spacing={1}>
                 {check.checklist.map((item) => (
-                  <Box key={item.key} sx={{ p: 1.25, borderRadius: 1.5, bgcolor: "rgba(255,255,255,0.8)" }}>
+                  <Box key={item.key} sx={{ p: 1.25, borderRadius: 0.5, bgcolor: "rgba(255,255,255,0.8)" }}>
                     <FormControlLabel
                       control={<Checkbox checked={Boolean(states[item.key])} onChange={(event) => toggleItem(item.key, event.target.checked)} size="small" />}
                       label={<Typography variant="body2" fontWeight={600} sx={{ textDecoration: states[item.key] ? "line-through" : "none" }}>{item.title}</Typography>}
@@ -253,7 +253,7 @@ export function TenderQuickCheck({ tenderId, initialCheck = null }: TenderQuickC
             ) : (
               <Stack spacing={1}>
                 {check.risks.map((risk) => (
-                  <Box key={risk.key} sx={{ p: 1.25, borderRadius: 1.5, bgcolor: "rgba(255,255,255,0.8)", borderLeft: "3px solid", borderColor: risk.severity === "important" ? "warning.main" : "divider" }}>
+                  <Box key={risk.key} sx={{ p: 1.25, borderRadius: 0.5, bgcolor: "rgba(255,255,255,0.8)" }}>
                     <Typography variant="body2" fontWeight={700}>{risk.severity === "important" ? "Wichtig: " : "Bitte prüfen: "}{risk.title}</Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, lineHeight: 1.55 }}>{risk.explanation}</Typography>
                     {risk.sources.map((source, index) => <SourceBlock key={`${risk.key}-${index}`} source={source} />)}
@@ -277,7 +277,7 @@ export function TenderQuickCheck({ tenderId, initialCheck = null }: TenderQuickC
             ) : (
               <Stack spacing={1}>
                 {check.events.map((event) => (
-                  <Box key={event.key} sx={{ p: 1.25, borderRadius: 1.5, bgcolor: "rgba(255,255,255,0.8)" }}>
+                  <Box key={event.key} sx={{ p: 1.25, borderRadius: 0.5, bgcolor: "rgba(255,255,255,0.8)" }}>
                     <Typography variant="body2" fontWeight={700}>{event.title}</Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35 }}>{formatEventDate(event.startsAt, event.datePrecision)}</Typography>
                     <SourceBlock source={event.source} />

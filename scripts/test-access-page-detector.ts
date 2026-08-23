@@ -33,10 +33,32 @@ const cases = [
     text: "Offenes Verfahren. Auftraggeber: Stadt Musterstadt. Angebotsfrist: 30.06.2026. Cookie Policy und Datenschutzerklärung.",
     blocked: false,
   },
+  {
+    name: "DTVP Keycloak redirect URL (realms + openid-connect/auth)",
+    text: "Anmelden Benutzername Passwort Angemeldet bleiben",
+    url: "https://id.dtvp.de/realms/ted/protocol/openid-connect/auth?client_id=dtvp-portal&redirect_uri=https%3A%2F%2Fwww.dtvp.de%2Fcenter%2F",
+    blocked: true,
+    reason: "login_required",
+  },
+  {
+    name: "DTVP Keycloak login page title",
+    text: "Anmeldung für Unternehmen. Geben Sie Ihre Zugangsdaten ein, um fortzufahren.",
+    title: "Anmeldung für Unternehmen",
+    url: "https://id.dtvp.de/realms/ted/login-actions/authenticate",
+    blocked: true,
+    reason: "login_required",
+  },
+  {
+    name: "Keycloak id host realm page",
+    text: "Sign in to your account",
+    url: "https://id.service-bw.de/realms/baustin/",
+    blocked: true,
+    reason: "login_required",
+  },
 ];
 
 for (const testCase of cases) {
-  const result = detectAccessPage(testCase.text, { url: testCase.url });
+  const result = detectAccessPage(testCase.text, { url: testCase.url, title: testCase.title });
   if (result.blocked !== testCase.blocked) {
     throw new Error(`${testCase.name}: erwartet blocked=${testCase.blocked}, erhalten ${JSON.stringify(result)}`);
   }
