@@ -54,11 +54,33 @@ assert.equal(
 // 5. Permanent source errors park the cursor.
 assert.equal(shouldSchedulePublicContinuation(cursorWith([]), false, true, "failed", "HTTP 404", now), false);
 
-// 6. Empty queue + incomplete listing: only a clean prior run may continue —
-//    partial/failed loops (e.g. zero-result e-vergabe-sh pages) stay parked.
+// 6. Empty queue + incomplete listing: a clean partial run may continue;
+//    old failed cursors are retried, while errored partial runs stay parked.
 assert.equal(shouldSchedulePublicContinuation(cursorWith([]), false, true, "success", null, now), true);
-assert.equal(shouldSchedulePublicContinuation(cursorWith([]), false, true, "partial", null, now), false);
-assert.equal(shouldSchedulePublicContinuation(cursorWith([]), false, true, "failed", null, now), false);
+assert.equal(shouldSchedulePublicContinuation(cursorWith([]), false, true, "partial", null, now), true);
+assert.equal(shouldSchedulePublicContinuation(cursorWith([]), false, true, "partial", "listing made no progress", now), false);
+assert.equal(shouldSchedulePublicContinuation(cursorWith([]), false, true, "failed", null, now), true);
+assert.equal(shouldSchedulePublicContinuation(cursorWith([]), true, true, "failed", null, now), true);
+assert.equal(
+  shouldSchedulePublicContinuation({ ...cursorWith([]), sourceFailureRetryAt: future }, false, true, "failed", "HTTP 503", now),
+  false,
+);
+assert.equal(
+  shouldSchedulePublicContinuation({ ...cursorWith([]), sourceFailureRetryAt: due }, false, true, "failed", "HTTP 503", now),
+  true,
+);
+assert.equal(
+  shouldSchedulePublicContinuation(
+    { ...cursorWith([reference({ nextAttemptAt: due })]), sourceFailureRetryAt: future },
+    false,
+    true,
+    "failed",
+    "HTTP 503",
+    now,
+  ),
+  false,
+  "source backoff must also park due detail retries",
+);
 
 // 7. Mixed queue with one future and one blocked reference stays parked.
 assert.equal(

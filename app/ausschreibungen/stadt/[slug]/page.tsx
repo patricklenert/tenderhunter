@@ -21,7 +21,7 @@ import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 import { searchTenders } from "@/lib/meilisearch";
 import { CITY_SLUG_MAP, ALL_CITY_SLUGS, CITY_LABEL_MAP, generateCityFaq, CITIES } from "@/lib/cities";
 import { BUNDESLAND_SLUGS } from "@/lib/bundesland";
-import { generateTenderSlug } from "@/lib/tender-slug";
+import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 import { getListingRobots, getPageNumber, type SeoSearchParams } from "@/lib/seo-indexability";
 
@@ -111,7 +111,7 @@ export default async function CityPage({ params, searchParams }: PageProps) {
       deadline: hit.deadlineAt
         ? new Date(hit.deadlineAt).toLocaleDateString("de-DE", { day: "2-digit", month: "short", year: "numeric" })
         : null,
-      slug: hit.slug ?? generateTenderSlug(hit.title || "", hit.location || ""),
+      slug: getCanonicalTenderSlug(hit.slug ?? null, hit.title, { client: hit.client, location: hit.location }),
     }));
   } catch {
     // Meilisearch unavailable — page renders empty with noindex

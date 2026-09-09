@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Box, Container, Typography, Stack, Paper, Breadcrumbs, Chip } from "@mui/material";
+import { Box, Container, Typography, Stack, Breadcrumbs, Chip } from "@mui/material";
 import { Home as HomeIcon, ArrowRight, CheckCircle2, BookOpen } from "lucide-react";
 import { GLOSSARY_MAP, ALL_GLOSSARY_SLUGS, GLOSSARY } from "@/lib/glossary";
+import { ARTICLES } from "@/lib/articles";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 
@@ -117,6 +118,11 @@ export default async function GlossaryEntryPage({ params }: { params: Promise<{ 
             <Typography variant="body1" color="text.secondary" sx={{ maxWidth: "75ch", lineHeight: 1.8, fontSize: "1.1rem" }}>
               {entry.shortDefinition}
             </Typography>
+            {entry.lastReviewed && (
+              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
+                Zuletzt fachlich geprüft: {new Intl.DateTimeFormat("de-DE").format(new Date(entry.lastReviewed))}
+              </Typography>
+            )}
           </Box>
 
           {/* Definition */}
@@ -213,6 +219,38 @@ export default async function GlossaryEntryPage({ params }: { params: Promise<{ 
                     </Link>
                   );
                 })}
+              </Stack>
+            </Box>
+          )}
+
+          {entry.relatedArticles && entry.relatedArticles.length > 0 && (
+            <Box sx={{ mb: 4 }}>
+              <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
+                Weiterführende Artikel
+              </Typography>
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                {entry.relatedArticles.map((articleSlug) => (
+                  <Link key={articleSlug} href={`/wissen/${articleSlug}`} style={{ textDecoration: "none" }}>
+                    <Chip clickable label={ARTICLES[articleSlug]?.title ?? articleSlug} variant="outlined" sx={{ fontWeight: 500 }} />
+                  </Link>
+                ))}
+              </Stack>
+            </Box>
+          )}
+
+          {entry.sources && entry.sources.length > 0 && (
+            <Box sx={{ mb: 4 }}>
+              <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 1 }}>
+                Quellen und Rechtsgrundlagen
+              </Typography>
+              <Stack component="ul" spacing={0.5} sx={{ pl: 2.5, m: 0 }}>
+                {entry.sources.map((source) => (
+                  <Box component="li" key={source.url}>
+                    <Link href={source.url} target="_blank" rel="noreferrer" style={{ color: "inherit" }}>
+                      {source.title}
+                    </Link>
+                  </Box>
+                ))}
               </Stack>
             </Box>
           )}

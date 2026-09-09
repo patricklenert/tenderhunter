@@ -36,7 +36,7 @@ export const CATEGORY_CONTENT: Record<string, CategoryContent> = {
       },
       {
         question: "Was ist der Unterschied zwischen VOB/A und VgV bei Bauausschreibungen?",
-        answer: "Die VOB/A gilt für Bauaufträge unterhalb der EU-Schwellenwerte, die VgV (Vergabeverordnung) ergänzt sie für Aufträge oberhalb. Ab dem EU-Schwellenwert von 5.538.000 € gelten zusätzliche EU-Vorgaben wie TED-Bekanntmachung und längere Fristen.",
+        answer: "Für Bauaufträge gilt im nationalen Bereich grundsätzlich VOB/A Abschnitt 1. Im EU-Oberschwellenbereich sind VOB/A Abschnitt 2 sowie GWB und die nach § 2 VgV anwendbaren Vorschriften zu beachten; der maßgebliche EU-Schwellenwert für Bauaufträge beträgt 5.404.000 € für 2026/2027.",
       },
       {
         question: "Wie viel kostet ein PQ-VOLK-Zertifikat und wie lange dauert die Beantragung?",

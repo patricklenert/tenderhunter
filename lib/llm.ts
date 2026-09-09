@@ -1,28 +1,33 @@
 import OpenAI from "openai";
 
 // Try free models first; use paid models only as the final fallbacks.
-// inclusionai/ling-3.0-tiny:free removed — 404 on OpenRouter.
+// inclusionai/ling-2.6-flash is no longer available as a free endpoint.
 export const MODEL_CASCADE = [
   "poolside/laguna-s-2.1:free",
   "poolside/laguna-xs-2.1:free",
   "nvidia/nemotron-3-ultra-550b-a55b:free",
   "nvidia/nemotron-3-super-120b-a12b:free",
   "google/gemma-4-31b-it:free",
-  "inclusionai/ling-2.6-flash",
   "inclusionai/ling-3.0-flash",
-  "qwen/qwen3.7-flash",
+  "meta/muse-spark-1.3-contributor",
 ] as const;
 
-let rateLimitUntil = 0;
+// Rate limits on OpenRouter are per model (free models share an account-wide
+// daily quota), so cooldowns must be tracked per model. A global cooldown
+// would let exhausted free-model quotas (reset header points to midnight UTC)
+// block the paid fallbacks for hours even though they still work.
+const rateLimitUntilByModel = new Map<string, number>();
+const unavailableModels = new Set<string>();
 let providerUnavailableUntil = 0;
 
 export function resetLLMCooldownsForTests(): void {
-  rateLimitUntil = 0;
+  rateLimitUntilByModel.clear();
+  unavailableModels.clear();
   providerUnavailableUntil = 0;
 }
 
 const rateLimitCooldownUntil = (error: unknown): number => {
-  if (!error || typeof error !== "object") return Date.now() + 15 * 60 * 1000;
+  if (!error || typeof error !== "object") return 0;
   const headers = (error as { headers?: Headers }).headers;
   const resetValue = headers?.get("x-ratelimit-reset");
   const reset = resetValue ? Number(resetValue) : NaN;
@@ -30,7 +35,9 @@ const rateLimitCooldownUntil = (error: unknown): number => {
     const resetMs = reset > 10_000_000_000 ? reset : reset * 1000;
     if (resetMs > Date.now()) return resetMs;
   }
-  return Date.now() + 15 * 60 * 1000;
+  // No reset header: transient burst (e.g. per-minute limit), not a quota —
+  // retrying on the next call is safe and keeps the cascade responsive.
+  return 0;
 };
 
 const isRateLimitError = (error: unknown): boolean => {
@@ -45,6 +52,21 @@ const isProviderAuthError = (error: unknown): boolean => {
   return candidate.status === 401 || candidate.status === 403 || candidate.code === 401 || candidate.code === 403;
 };
 
+const isNoLongerFreeError = (error: unknown): boolean => {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { status?: unknown; code?: unknown; message?: unknown };
+  return (candidate.status === 404 || candidate.code === 404)
+    && typeof candidate.message === "string"
+    && candidate.message.includes("no longer available as a free model");
+};
+
+const isPolicyBlockedError = (error: unknown): boolean => {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { status?: unknown; code?: unknown; message?: unknown };
+  if ((candidate.status !== 404 && candidate.code !== 404) || typeof candidate.message !== "string") return false;
+  return /guardrail|data policy|training violation/iu.test(candidate.message);
+};
+
 export async function callLLM(
   client: OpenAI,
   options: {
@@ -54,9 +76,6 @@ export async function callLLM(
     response_format?: { type: "json_object" };
   }
 ): Promise<string> {
-  if (Date.now() < rateLimitUntil) {
-    throw Object.assign(new Error("LLM-Rate-Limit-Cooldown aktiv"), { status: 429, code: 429 });
-  }
   if (Date.now() < providerUnavailableUntil) {
     throw Object.assign(new Error("LLM-Provider-Cooldown aktiv"), { status: 401, code: 401 });
   }
@@ -65,6 +84,13 @@ export async function callLLM(
   let lastRateLimitError: unknown = null;
 
   for (const model of MODEL_CASCADE) {
+    if (unavailableModels.has(model)) continue;
+    if (Date.now() < (rateLimitUntilByModel.get(model) ?? 0)) {
+      // This model is cooling down (e.g. free-model daily quota until midnight);
+      // skip it without a network call — later models stay available.
+      lastRateLimitError ??= Object.assign(new Error("Rate-Limit-Cooldown aktiv"), { status: 429, code: 429 });
+      continue;
+    }
     try {
       const response = await client.chat.completions.create({
         model,
@@ -79,6 +105,7 @@ export async function callLLM(
     } catch (error) {
       if (isRateLimitError(error)) {
         lastRateLimitError = error;
+        rateLimitUntilByModel.set(model, rateLimitCooldownUntil(error));
         console.warn(`[llm] ${model} rate-limited; continuing model cascade.`);
         continue;
       }
@@ -87,13 +114,17 @@ export async function callLLM(
         console.warn(`[llm] ${model} authentication failed; stopping model cascade.`);
         throw error;
       }
+      if (isNoLongerFreeError(error)) {
+        unavailableModels.add(model);
+        console.warn(`[llm] ${model} ist nicht mehr kostenlos verfügbar; überspringe Modell.`);
+      }
+      if (isPolicyBlockedError(error)) {
+        unavailableModels.add(model);
+        console.warn(`[llm] ${model} wird durch Provider-Guardrails blockiert; überspringe Modell.`);
+      }
       console.warn(`[llm] ${model} fehlgeschlagen:`, error);
       lastError = error;
     }
-  }
-
-  if (lastRateLimitError) {
-    rateLimitUntil = Math.max(rateLimitUntil, rateLimitCooldownUntil(lastRateLimitError));
   }
 
   throw lastError ?? lastRateLimitError ?? new Error("[llm] Alle Modelle in der Kaskade fehlgeschlagen");

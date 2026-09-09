@@ -8,8 +8,8 @@ export default function manifest(): MetadataRoute.Manifest {
       "Automatische Suche und Matching öffentlicher Ausschreibungen in Deutschland.",
     start_url: "/",
     display: "standalone",
-    background_color: "#ffffff",
-    theme_color: "#1e293b",
+    background_color: "#f0f4f8",
+    theme_color: "#1e3a5f",
     icons: [
       {
         src: "/icon",

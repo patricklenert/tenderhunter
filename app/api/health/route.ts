@@ -123,7 +123,13 @@ export async function GET(): Promise<Response> {
               OR EXISTS (
                 SELECT 1
                 FROM jsonb_array_elements(COALESCE(public_source_cursors.cursor_json -> 'pendingDetails', '[]'::jsonb)) AS detail
-                WHERE COALESCE(detail ->> 'blocked', 'false') <> 'true'
+                 WHERE COALESCE(detail ->> 'blocked', 'false') <> 'true'
+                   AND (
+                     detail ->> 'nextAttemptAt' IS NULL
+                     OR detail ->> 'nextAttemptAt' = ''
+                     OR NOT (detail ->> 'nextAttemptAt' ~ '^\\d{4}-\\d{2}-\\d{2}T')
+                     OR (detail ->> 'nextAttemptAt')::timestamptz <= now()
+                   )
               )
             )
         ) AS continuation_missing

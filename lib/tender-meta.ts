@@ -1,4 +1,12 @@
-import { pickPublicDescription } from "@/lib/public-tender-scraper";
+import { getPublicClientFallback, pickPublicDescription } from "@/lib/public-tender-scraper";
+import {
+  isCanonicalPublicDescriptionMarkdown,
+  normalizePublicClient,
+  pickValidatedPublicCandidate,
+  pickValidatedPublicClient,
+  pickValidatedPublicLocation,
+  pickValidatedPublicLocationForTender,
+} from "@/lib/public-content-quality";
 
 // The public scraper stores metadata in snake_case (lib/pipeline.ts:1745-1753).
 // Legacy/cached paths and the structured-data blob may use camelCase.
@@ -38,13 +46,6 @@ export interface TenderResourceMeta {
 }
 
 const asString = (value: unknown): string => (typeof value === "string" ? value : "");
-
-const firstString = (...values: unknown[]): string => {
-  for (const value of values) {
-    if (typeof value === "string" && value.trim()) return value.trim();
-  }
-  return "";
-};
 
 const asStringArray = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((u): u is string => typeof u === "string") : [];
@@ -161,17 +162,41 @@ export const readTenderMeta = (
     "subpage_candidates",
     "subpageCandidates",
   ]);
+  const hardFacts = meta.hard_facts && typeof meta.hard_facts === "object" && !Array.isArray(meta.hard_facts)
+    ? meta.hard_facts as Record<string, unknown>
+    : {};
+  const procurement = meta.procurement && typeof meta.procurement === "object" && !Array.isArray(meta.procurement)
+    ? meta.procurement as Record<string, unknown>
+    : {};
+  const descriptionMarkdownCandidate = [meta.descriptionMarkdown, meta.description_markdown]
+    .find((value): value is string => isCanonicalPublicDescriptionMarkdown(value)) ?? "";
   return {
-    description: pickPublicDescription(meta.description, rawText),
-    descriptionMarkdown: firstString(meta.descriptionMarkdown, meta.description_markdown),
-    subject: asString(meta.subject ?? meta.scope),
-    client: asString(meta.client),
-    location: asString(meta.location),
-    procedure: asString(meta.procedure ?? meta.procedure_type),
+    description: pickPublicDescription(meta.description, meta.summary, rawText),
+    descriptionMarkdown: descriptionMarkdownCandidate,
+    subject: pickValidatedPublicCandidate(meta.subject, meta.scope),
+    client: normalizePublicClient(pickValidatedPublicClient(meta.client, meta.buyer, hardFacts.buyer)),
+    location: pickValidatedPublicLocation(meta.location, meta.city, hardFacts.location),
+    procedure: pickValidatedPublicCandidate(meta.procedure, meta.procedure_type, hardFacts.contract_type, procurement.procedure_type),
     referenceNumber: refTrimmed ? refTrimmed : null,
     pdfUrls: asStringArray(meta.pdf_urls ?? meta.pdfUrls),
     resources,
     resourceCandidates,
     sourceUrl: asString(meta.sourceUrl ?? meta.source_url),
+  };
+};
+
+export const readPublicTenderMeta = (
+  metadataJson: unknown,
+  options: { title?: unknown; source?: string; sourceUrl?: string | null; rawText?: string | null } = {},
+): TenderMeta => {
+  const meta = readTenderMeta(metadataJson, options.rawText);
+  const client = normalizePublicClient(
+    meta.client,
+    getPublicClientFallback(options.source ?? "", options.sourceUrl ?? ""),
+  );
+  return {
+    ...meta,
+    client,
+    location: pickValidatedPublicLocationForTender(options.title, client, meta.location),
   };
 };

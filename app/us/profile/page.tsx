@@ -1,5 +1,13 @@
+import type { Metadata } from "next";
 import { Box, Button, Container, Stack } from "@mui/material";
 import { UsCompanyProfileForm } from "@/components/UsCompanyProfileForm";
+import { NOINDEX_FOLLOW } from "@/lib/seo-indexability";
+
+export const metadata: Metadata = {
+  title: "U.S. company profile",
+  robots: NOINDEX_FOLLOW,
+  alternates: { canonical: "/us/profile" },
+};
 
 export default function UsProfilePage() {
   return (

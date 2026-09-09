@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { buildJobKey, getJobMaxRuntimeMs, isCriticalJobType, isJobRuntimeStale, shouldReuseCompletedJob } from "../lib/queue";
+import { buildJobKey, getEffectiveQueuePriority, getJobMaxRuntimeMs, isCriticalJobType, isJobRuntimeStale, JOB_PRIORITIES, PUBLIC_CONTINUATION_PRIORITY, shouldReuseCompletedJob } from "../lib/queue";
 
 assert.equal(buildJobKey("parse_documents", 42), "parse_documents:42");
 assert.equal(buildJobKey("parse_documents", 42, "refresh"), "parse_documents:42:refresh");
@@ -11,6 +11,15 @@ assert.equal(shouldReuseCompletedJob("failed"), false);
 
 assert.equal(isCriticalJobType("parse_documents"), true);
 assert.equal(isCriticalJobType("structure_tender"), true);
+assert.equal(JOB_PRIORITIES.scrape_public_tenders, 105);
+assert.equal(JOB_PRIORITIES.scrape_us_tenders, 115);
+assert.equal(JOB_PRIORITIES.cache_detail, 120);
+assert.equal(JOB_PRIORITIES.fetch_documents, 115);
+assert.equal(PUBLIC_CONTINUATION_PRIORITY, 100);
+const priorityNow = Date.parse("2026-08-31T15:00:00.000Z");
+assert.equal(getEffectiveQueuePriority(140, new Date(priorityNow - 48 * 60 * 60 * 1_000), priorityNow), 150);
+assert.equal(getEffectiveQueuePriority(100, new Date(priorityNow - 48 * 60 * 60 * 1_000), priorityNow), 150);
+assert.equal(getEffectiveQueuePriority(100, new Date(priorityNow), priorityNow), 100);
 assert.equal(isCriticalJobType("generate_insight"), false);
 assert.equal(isCriticalJobType("notify_company"), false);
 

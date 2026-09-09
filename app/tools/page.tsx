@@ -3,8 +3,9 @@ import Link from "next/link";
 import { Box, Container, Typography, Stack, Paper, Breadcrumbs, Chip } from "@mui/material";
 import { Home as HomeIcon, Calculator, Clock, Gavel, ArrowRight, Wrench } from "lucide-react";
 import { SiteFooter } from "@/components/seo/SiteFooter";
+import { GLOSSARY } from "@/lib/glossary";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://palemaz.com";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
 
 export const revalidate = 3600;
 
@@ -43,7 +44,7 @@ const TOOLS: ToolMeta[] = [
   {
     slug: "fristenrechner",
     title: "Vergabe-Fristenrechner",
-    kurz: "Wann ist Anbotsabgabe?",
+    kurz: "Wann ist Angebotsabgabe?",
     beschreibung:
       "Berechnen Sie die gesetzliche Mindestfrist für die Angebotsabgabe nach § 17 VgV oder § 12 UVgO – ab Bekanntmachungsdatum.",
     icon: Clock,
@@ -183,7 +184,7 @@ export default function ToolsHubPage() {
             </Typography>
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
               <Link href="/lexikon" style={{ textDecoration: "none" }}>
-                <Chip clickable label="Vergabelexikon (48 Begriffe)" variant="outlined" sx={{ fontWeight: 500 }} />
+                <Chip clickable label={`Vergabelexikon (${GLOSSARY.length} Begriffe)`} variant="outlined" sx={{ fontWeight: 500 }} />
               </Link>
               <Link href="/vorlagen" style={{ textDecoration: "none" }}>
                 <Chip clickable label="Vorlagen &amp; Muster (17 Dokumente)" variant="outlined" sx={{ fontWeight: 500 }} />

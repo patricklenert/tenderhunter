@@ -26,7 +26,6 @@ import {
 } from "@mui/icons-material";
 import { TRACKED_TENDER_STATUSES, TRACKED_TENDER_STATUS_LABELS, type TrackedTenderStatus } from "@/lib/tracked-tender-types";
 import { BidPackPanel } from "@/components/BidPackPanel";
-import { TenderQuickCheck } from "@/components/TenderQuickCheck";
 
 export interface TenderDetailItem {
   id: number;
@@ -123,24 +122,17 @@ const toDisplayDate = (value: string | null | undefined): string | null => {
   });
 };
 
-type MetricColor = "success" | "warning" | "primary";
+type MetricColor = "success" | "warning" | "info";
 
-function resolveMetricColor(value: number, accent: boolean): MetricColor {
-  if (accent) {
-    if (value >= 75) return "primary";
-    if (value >= 50) return "warning";
-    return "primary";
-  }
+function resolveMetricColor(value: number): MetricColor {
   if (value >= 75) return "success";
-  if (value >= 50) return "primary";
-  if (value >= 25) return "warning";
-  return "primary";
+  if (value >= 50) return "warning";
+  return "info";
 }
 
-function MetricBar({ value, accent = false }: { value: number; accent?: boolean }) {
+function MetricBar({ value }: { value: number }) {
   const clamped = Math.max(0, Math.min(100, value));
-  const muiColor = resolveMetricColor(value, accent);
-  const isLow = accent ? value < 50 : value < 25;
+  const muiColor = resolveMetricColor(value);
 
   return (
     <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
@@ -148,14 +140,12 @@ function MetricBar({ value, accent = false }: { value: number; accent?: boolean 
         <LinearProgress
           variant="determinate"
           value={clamped}
-          color={isLow ? undefined : muiColor}
+          color={muiColor}
           sx={{
             height: 8,
-            borderRadius: 0,
-            backgroundColor: "rgba(148,163,184,0.15)",
-            "& .MuiLinearProgress-bar": isLow
-              ? { backgroundColor: "text.disabled" }
-              : undefined,
+            borderRadius: 1,
+            backgroundColor: "background.default",
+            "& .MuiLinearProgress-bar": { borderRadius: 1 },
           }}
         />
       </Box>
@@ -177,7 +167,7 @@ function MetricBar({ value, accent = false }: { value: number; accent?: boolean 
 
 function SummaryCard({ label, value }: { label: string; value: string | number }) {
   return (
-    <Paper variant="outlined" sx={{ p: 2 }}>
+    <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
       <Box
         component="span"
         sx={{
@@ -210,7 +200,7 @@ function DetailMetric({ label, value }: { label: string; value: string | number 
     <Box
       sx={{
         borderRadius: 1,
-        bgcolor: "rgba(148,163,184,0.08)",
+        bgcolor: "background.default",
         px: 1.5,
         py: 1,
       }}
@@ -253,7 +243,7 @@ function TagList({ items, emptyLabel }: { items?: string[]; emptyLabel: string }
   return (
     <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
       {items.map((item) => (
-        <Chip key={item} label={item} size="small" variant="filled" />
+        <Chip key={item} label={item} size="small" variant="filled" sx={{ borderRadius: 1 }} />
       ))}
     </Box>
   );
@@ -323,8 +313,8 @@ export function TenderDetailDrawer({
             zIndex: 10,
             borderBottom: 1,
             borderColor: "divider",
-            bgcolor: "rgba(30,41,59,0.95)",
-            backdropFilter: "blur(8px)",
+            bgcolor: "secondary.main",
+            color: "secondary.contrastText",
             px: 2.5,
             py: 2,
           }}
@@ -338,7 +328,8 @@ export function TenderDetailDrawer({
                   fontWeight: 600,
                   textTransform: "uppercase",
                   letterSpacing: "0.05em",
-                  color: "text.secondary",
+                  color: "inherit",
+                  opacity: 0.72,
                 }}
               >
                 Trefferdetails
@@ -354,8 +345,8 @@ export function TenderDetailDrawer({
               >
                 {tender.title || `Ausschreibung #${tender.id}`}
               </Box>
-              <Box sx={{ mt: 1, fontSize: "0.875rem", color: "text.secondary" }}>
-                {companyName ? `Passend fuer ${companyName}` : tender.source}
+              <Box sx={{ mt: 1, fontSize: "0.875rem", color: "inherit", opacity: 0.78 }}>
+                {companyName ? `Passend für ${companyName}` : tender.source}
               </Box>
             </Box>
             <IconButton
@@ -364,7 +355,9 @@ export function TenderDetailDrawer({
               sx={{
                 border: 1,
                 borderColor: "divider",
-                borderRadius: 0.5,
+                borderRadius: 1,
+                color: "inherit",
+                "&:hover": { bgcolor: "secondary.dark" },
               }}
             >
               <Close fontSize="small" />
@@ -375,22 +368,22 @@ export function TenderDetailDrawer({
         <Box sx={{ flex: 1, overflowY: "auto", px: 2.5, py: 3 }}>
           <Stack spacing={3}>
             <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1 }}>
-              <Chip label={tender.source} color="primary" size="small" />
+              <Chip label={tender.source} color="primary" size="small" sx={{ borderRadius: 1 }} />
               {tender.killSwitch ? (
-                <Chip label="Stopp-Signal" color="error" size="small" />
+                <Chip label="Stopp-Signal" color="error" size="small" sx={{ borderRadius: 1 }} />
               ) : (
-                <Chip label="Freigegeben" color="success" size="small" />
+                <Chip label="Freigegeben" color="success" size="small" sx={{ borderRadius: 1 }} />
               )}
               {workflow ? (
-                <Chip label={TRACKED_TENDER_STATUS_LABELS[workflow.status]} color="info" size="small" />
+                <Chip label={TRACKED_TENDER_STATUS_LABELS[workflow.status]} color="info" size="small" sx={{ borderRadius: 1 }} />
               ) : null}
               {workflow?.deadlineAt ? (
-                <Chip label={`Frist ${toDisplayDate(workflow.deadlineAt)}`} variant="outlined" size="small" />
+                <Chip label={`Frist ${toDisplayDate(workflow.deadlineAt)}`} variant="outlined" size="small" sx={{ borderRadius: 1 }} />
               ) : null}
             </Box>
 
             {showFollowCard ? (
-              <Paper variant="outlined" sx={{ p: 2.5 }}>
+              <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2 }}>
                 <Box
                   sx={{
                     display: "flex",
@@ -439,7 +432,7 @@ export function TenderDetailDrawer({
                 ) : null}
                 {companyId === null ? (
                   <Box sx={{ mt: 1.5, fontSize: "0.875rem", color: "text.secondary" }}>
-                    Tracking ist erst verfuegbar, wenn ein Unternehmensprofil vorhanden ist.
+                    Verfolgen ist erst möglich, wenn ein Unternehmensprofil vorhanden ist.
                   </Box>
                 ) : null}
               </Paper>
@@ -452,7 +445,7 @@ export function TenderDetailDrawer({
                   p: 2.5,
                   border: 1,
                   borderColor: "divider",
-                  borderRadius: 0.5,
+                  borderRadius: 1,
                   display: "flex",
                   flexDirection: "column",
                   gap: 2,
@@ -544,7 +537,7 @@ export function TenderDetailDrawer({
                         current ? { ...current, owner: event.target.value } : current,
                       )
                     }
-                    placeholder="z. B. GF, Vertrieb, Bid-Team"
+                    placeholder="z. B. Geschäftsführung, Vertrieb oder Angebotskoordination"
                     fullWidth
                   />
 
@@ -572,7 +565,7 @@ export function TenderDetailDrawer({
                   }
                   multiline
                   minRows={5}
-                  placeholder="Naechste Geschaeftsfuehrer-Entscheidung, Risiken, fehlende Rueckmeldungen, Ansprechpartner ..."
+                  placeholder="Nächste Entscheidung, Risiken, fehlende Rückmeldungen, Ansprechpartner ..."
                   fullWidth
                 />
 
@@ -586,8 +579,6 @@ export function TenderDetailDrawer({
                 ) : null}
               </Box>
             ) : null}
-
-            <TenderQuickCheck key={`quick-check-${tender.id}`} tenderId={tender.id} />
 
             <BidPackPanel
               companyId={companyId}
@@ -639,7 +630,7 @@ export function TenderDetailDrawer({
                   Gewinnchance
                 </Box>
                 <Box sx={{ flex: 1 }}>
-                  <MetricBar value={tender.winProbability} accent />
+                  <MetricBar value={tender.winProbability} />
                 </Box>
               </Box>
             </Stack>
@@ -648,7 +639,8 @@ export function TenderDetailDrawer({
               variant="outlined"
               sx={{
                 p: 2.5,
-                bgcolor: "rgba(148,163,184,0.04)",
+                borderRadius: 2,
+                bgcolor: "background.default",
               }}
             >
               <Box
@@ -667,12 +659,12 @@ export function TenderDetailDrawer({
               </Box>
               <Box sx={{ fontSize: "0.875rem", lineHeight: 1.625 }}>
                 {tender.explanation ??
-                  "Diese Begruendung wird noch von der Pipeline erzeugt oder ist fuer historische Daten nicht vorhanden."}
+                  "Diese Begründung wird noch erstellt oder ist für historische Daten nicht vorhanden."}
               </Box>
             </Paper>
 
             {tender.url ? (
-              <Paper variant="outlined" sx={{ p: 2.5 }}>
+              <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2 }}>
                 <Box
                   component="span"
                   sx={{
@@ -714,7 +706,7 @@ export function TenderDetailDrawer({
                 gap: 2,
               }}
             >
-              <Paper variant="outlined" sx={{ p: 2.5 }}>
+              <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2 }}>
                 <Box
                   component="span"
                   sx={{
@@ -727,11 +719,11 @@ export function TenderDetailDrawer({
                     mb: 1.5,
                   }}
                 >
-                  Naechste Schritte
+                  Nächste Schritte
                 </Box>
                 {tender.actions.length === 0 ? (
                   <Box sx={{ fontSize: "0.875rem", color: "text.secondary" }}>
-                    Noch keine Empfehlungen verfuegbar.
+                    Noch keine Empfehlungen verfügbar.
                   </Box>
                 ) : (
                   <Stack spacing={1}>
@@ -755,7 +747,7 @@ export function TenderDetailDrawer({
                 )}
               </Paper>
 
-              <Paper variant="outlined" sx={{ p: 2.5 }}>
+              <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2 }}>
                 <Box
                   component="span"
                   sx={{
@@ -775,7 +767,7 @@ export function TenderDetailDrawer({
             </Box>
 
             {tender.details ? (
-              <Paper variant="outlined" sx={{ p: 2.5 }}>
+              <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2 }}>
                 <Box
                   component="span"
                   sx={{
@@ -788,7 +780,7 @@ export function TenderDetailDrawer({
                     mb: 1.5,
                   }}
                 >
-                  Scoring-Faktoren
+                  Bewertungsfaktoren
                 </Box>
                 {tender.details.locationStatus && tender.details.locationStatus !== "match" ? (
                   <Paper
@@ -796,6 +788,7 @@ export function TenderDetailDrawer({
                     sx={{
                       mb: 1.5,
                       p: 1.5,
+                      borderRadius: 1,
                       borderColor: "warning.main",
                       bgcolor: "warning.light",
                     }}
@@ -814,6 +807,7 @@ export function TenderDetailDrawer({
                     sx={{
                       mb: 1.5,
                       p: 1.5,
+                      borderRadius: 1,
                       borderColor: "error.main",
                       bgcolor: "error.light",
                     }}
@@ -833,11 +827,11 @@ export function TenderDetailDrawer({
                     gap: 1,
                   }}
                 >
-                  <DetailMetric label="Domaenenfit" value={`${tender.details.domainMatch}%`} />
+                  <DetailMetric label="Domänenfit" value={`${tender.details.domainMatch}%`} />
                   <DetailMetric label="Deckung" value={`${tender.details.requirementCoverage}%`} />
                   <DetailMetric label="Region" value={`${tender.details.regionMatch}%`} />
-                  <DetailMetric label="Groesse" value={`${tender.details.sizeMatch}%`} />
-                  <DetailMetric label="Komplexitaet" value={`${tender.details.complexity}%`} />
+                  <DetailMetric label="Größe" value={`${tender.details.sizeMatch}%`} />
+                  <DetailMetric label="Komplexität" value={`${tender.details.complexity}%`} />
                   {tender.details.tenderBundesland ? (
                     <DetailMetric label="Ausführungsort" value={tender.details.tenderCity ? `${tender.details.tenderCity}, ${tender.details.tenderBundesland}` : tender.details.tenderBundesland} />
                   ) : null}
@@ -846,7 +840,7 @@ export function TenderDetailDrawer({
             ) : null}
 
             {tender.procurement ? (
-              <Paper variant="outlined" sx={{ p: 2.5 }}>
+              <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2 }}>
                 <Box
                   component="span"
                   sx={{
@@ -914,7 +908,7 @@ export function TenderDetailDrawer({
                         <Box key={criterion.criterion} sx={{ display: "flex", justifyContent: "space-between", fontSize: "0.875rem" }}>
                           <Box>{criterion.criterion}</Box>
                           <Box sx={{ fontWeight: 600, color: "primary.main" }}>
-                            {criterion.weight !== null ? `${criterion.weight}%` : "n/a"}
+                            {criterion.weight !== null ? `${criterion.weight}%` : "Nicht angegeben"}
                           </Box>
                         </Box>
                       ))}
@@ -960,7 +954,7 @@ export function TenderDetailDrawer({
                     </Box>
                     <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
                       {tender.procurement.cpvCodes.map((code) => (
-                        <Chip key={code} label={code} size="small" variant="outlined" />
+                        <Chip key={code} label={code} size="small" variant="outlined" sx={{ borderRadius: 1 }} />
                       ))}
                     </Box>
                   </Box>

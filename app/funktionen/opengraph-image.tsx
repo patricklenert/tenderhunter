@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { BrandMark } from "@/components/BrandMark";
 
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
@@ -25,16 +26,14 @@ export default function FunktionenOgImage() {
               width: 48,
               height: 48,
               borderRadius: 12,
-              background: "#e9644d",
+              background: "#1e3a5f",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: 28,
-              color: "#fff",
-              fontWeight: 800,
+              color: "#e9644d",
             }}
           >
-            T
+            <BrandMark size={30} color="#e9644d" />
           </div>
           <div style={{ fontSize: 28, fontWeight: 700, color: "#1a1a2e" }}>
             Tenderhunter

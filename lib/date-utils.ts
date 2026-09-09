@@ -153,6 +153,106 @@ export function getGermanLastThreeDaysUnixRange(now: Date = new Date()): { from:
   };
 }
 
+export const TENDER_DEADLINE_FILTERS = [
+  "all",
+  "minimum3",
+  "minimum7",
+  "minimum14",
+  "next7",
+  "next30",
+  "custom",
+  "missing",
+] as const;
+
+export type TenderDeadlineFilter = (typeof TENDER_DEADLINE_FILTERS)[number];
+
+export interface TenderDeadlineSearchBounds {
+  hasDeadline?: boolean;
+  deadlineAtFrom?: number;
+  deadlineAtTo?: number;
+}
+
+export function isTenderDeadlineFilter(value: string | null | undefined): value is TenderDeadlineFilter {
+  return typeof value === "string" && TENDER_DEADLINE_FILTERS.includes(value as TenderDeadlineFilter);
+}
+
+/** Returns the UTC timestamp range for one calendar day in Europe/Berlin. */
+export function getBerlinCalendarDayRange(
+  offsetDays = 0,
+  now: Date = new Date(),
+): { from: number; to: number } {
+  const current = getBerlinDateTimeParts(now);
+  const start = new Date(Date.UTC(current.year, current.month - 1, current.day + offsetDays));
+  const next = new Date(Date.UTC(current.year, current.month - 1, current.day + offsetDays + 1));
+
+  return {
+    from: getBerlinMidnightUnixSeconds(start.getUTCFullYear(), start.getUTCMonth() + 1, start.getUTCDate()),
+    to: getBerlinMidnightUnixSeconds(next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate()),
+  };
+}
+
+/** Parses an HTML date input and returns an inclusive Berlin calendar-day range. */
+export function getBerlinDateInputRange(value: string): { from: number; to: number } | null {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+
+  const [, yearText, monthText, dayText] = match;
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const maxDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  if (month < 1 || month > 12 || day < 1 || day > maxDay) return null;
+
+  const next = new Date(Date.UTC(year, month - 1, day + 1));
+  return {
+    from: getBerlinMidnightUnixSeconds(year, month, day),
+    to: getBerlinMidnightUnixSeconds(next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate()),
+  };
+}
+
+export function resolveTenderDeadlineFilter(
+  filter: TenderDeadlineFilter,
+  fromInput?: string | null,
+  toInput?: string | null,
+  now: Date = new Date(),
+): TenderDeadlineSearchBounds {
+  if (filter === "all") return {};
+  if (filter === "missing") return { hasDeadline: false };
+
+  if (filter === "minimum3" || filter === "minimum7" || filter === "minimum14") {
+    const minimumDays = filter === "minimum3" ? 3 : filter === "minimum7" ? 7 : 14;
+    return {
+      hasDeadline: true,
+      deadlineAtFrom: getBerlinCalendarDayRange(minimumDays, now).from,
+    };
+  }
+
+  if (filter === "next7" || filter === "next30") {
+    const maximumDays = filter === "next7" ? 7 : 30;
+    return {
+      hasDeadline: true,
+      deadlineAtFrom: Math.floor(now.getTime() / 1000),
+      deadlineAtTo: getBerlinCalendarDayRange(maximumDays, now).to,
+    };
+  }
+
+  const from = fromInput ? getBerlinDateInputRange(fromInput) : null;
+  const to = toInput ? getBerlinDateInputRange(toInput) : null;
+  if (fromInput && !from) throw new Error("Ungültiges Startdatum für den Fristenfilter");
+  if (toInput && !to) throw new Error("Ungültiges Enddatum für den Fristenfilter");
+
+  const deadlineAtFrom = from?.from ?? Math.floor(now.getTime() / 1000);
+  if (to && to.to <= deadlineAtFrom) {
+    throw new Error("Das Enddatum des Fristenfilters muss nach dem Startdatum liegen");
+  }
+
+  return {
+    hasDeadline: true,
+    deadlineAtFrom,
+    deadlineAtTo: to?.to,
+  };
+}
+
 export function daysUntil(value: string | Date | null | undefined, now: Date = new Date()): number | null {
   const date = parseDeadlineDate(value);
   if (!date) return null;

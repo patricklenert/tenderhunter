@@ -7,9 +7,9 @@ interface FitScoreProps {
 }
 
 const palette = {
-  high: { color: "#15803d", track: "#d9efdf" },
-  medium: { color: "#b45309", track: "#f8e8c8" },
-  low: { color: "#64748b", track: "#e2e8f0" },
+  high: { color: "success.main", track: "success.light", label: "Stark", ariaLabel: "Starke Passung" },
+  medium: { color: "warning.main", track: "warning.light", label: "Solide", ariaLabel: "Solide Passung" },
+  low: { color: "text.secondary", track: "background.default", label: "Offen", ariaLabel: "Geringe Passung" },
 };
 
 function getFitPalette(value: number) {
@@ -29,7 +29,8 @@ export function FitScore({ value }: FitScoreProps) {
     >
       <Box
         role="meter"
-        aria-label={`Fit ${value} Prozent`}
+        aria-label={`Fit ${value} Prozent, ${p.ariaLabel}`}
+        aria-valuetext={`${value}% - ${p.ariaLabel}`}
         aria-valuenow={value}
         aria-valuemin={0}
         aria-valuemax={100}
@@ -74,13 +75,13 @@ export function FitScore({ value }: FitScoreProps) {
               justifyContent: "center",
             }}
           >
-            <Typography sx={{ color: p.color, fontSize: "0.82rem", fontWeight: 800, lineHeight: 1 }}>
+            <Typography sx={{ color: p.color, fontSize: "0.82rem", fontWeight: 800, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
               {value}%
             </Typography>
           </Box>
         </Box>
         <Typography sx={{ color: p.color, fontSize: "0.6rem", fontWeight: 800, letterSpacing: "0.08em", lineHeight: 1, textTransform: "uppercase" }}>
-          Fit
+          {p.label}
         </Typography>
       </Box>
     </Tooltip>

@@ -2,6 +2,7 @@ import { Box } from "@mui/material";
 import type { SxProps, Theme } from "@mui/material/styles";
 import ReactMarkdown from "react-markdown";
 import type { ReactNode } from "react";
+import { isCanonicalPublicDescriptionMarkdown } from "@/lib/public-content-quality";
 
 const allowedElements = [
   "p",
@@ -58,7 +59,8 @@ interface SafeMarkdownProps {
 }
 
 export function SafeMarkdown({ content, fallback = null, sx }: SafeMarkdownProps) {
-  if (!content?.trim()) return fallback;
+  const safeContent = isCanonicalPublicDescriptionMarkdown(content) ? content : null;
+  if (!safeContent) return fallback;
 
   const resolvedSx: SxProps<Theme> = sx
     ? [markdownBaseSx, ...(Array.isArray(sx) ? sx : [sx])]
@@ -71,7 +73,7 @@ export function SafeMarkdown({ content, fallback = null, sx }: SafeMarkdownProps
         skipHtml
         unwrapDisallowed
       >
-        {content}
+        {safeContent}
       </ReactMarkdown>
     </Box>
   );

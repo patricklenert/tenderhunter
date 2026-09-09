@@ -12,6 +12,74 @@ async function main() {
   try {
     console.log("Creating tables...");
 
+    // Better Auth's adapter expects these tables to exist before the
+    // application-owned tables that reference the user table are created.
+    await client`
+      CREATE TABLE IF NOT EXISTS "user" (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE,
+        email_verified BOOLEAN NOT NULL DEFAULT FALSE,
+        image TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+    await client`
+      CREATE TABLE IF NOT EXISTS session (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+        token TEXT NOT NULL UNIQUE,
+        expires_at TIMESTAMPTZ NOT NULL,
+        ip_address TEXT,
+        user_agent TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+    await client`
+      CREATE TABLE IF NOT EXISTS account (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+        account_id TEXT NOT NULL,
+        provider_id TEXT NOT NULL,
+        access_token TEXT,
+        refresh_token TEXT,
+        access_token_expires_at TIMESTAMPTZ,
+        refresh_token_expires_at TIMESTAMPTZ,
+        scope TEXT,
+        id_token TEXT,
+        password TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+    await client`
+      CREATE TABLE IF NOT EXISTS verification (
+        id TEXT PRIMARY KEY,
+        identifier TEXT NOT NULL,
+        value TEXT NOT NULL,
+        expires_at TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+    await client`
+      CREATE TABLE IF NOT EXISTS passkey (
+        id TEXT PRIMARY KEY,
+        name TEXT,
+        public_key TEXT NOT NULL,
+        user_id TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+        credential_id TEXT,
+        webauthn_user_id TEXT NOT NULL,
+        counter TEXT NOT NULL DEFAULT '0',
+        device_type TEXT NOT NULL,
+        backed_up BOOLEAN NOT NULL DEFAULT FALSE,
+        transports TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+
     await client`
       CREATE TABLE IF NOT EXISTS tenders (
         id SERIAL PRIMARY KEY,
@@ -242,7 +310,14 @@ async function main() {
       CREATE TABLE IF NOT EXISTS company_profiles (
         id SERIAL PRIMARY KEY,
         name TEXT NOT NULL UNIQUE,
+        slug TEXT,
         website_url TEXT,
+        description TEXT,
+        industry TEXT,
+        logo_url TEXT,
+        contact_email TEXT,
+        contact_phone TEXT,
+        address TEXT,
         capabilities_json JSONB NOT NULL,
         certifications_json JSONB NOT NULL,
         team_size INTEGER,
@@ -253,12 +328,32 @@ async function main() {
     `;
 
     await client`ALTER TABLE company_profiles ADD COLUMN IF NOT EXISTS website_url TEXT`;
+    await client`ALTER TABLE company_profiles ADD COLUMN IF NOT EXISTS slug TEXT`;
+    await client`ALTER TABLE company_profiles ADD COLUMN IF NOT EXISTS description TEXT`;
+    await client`ALTER TABLE company_profiles ADD COLUMN IF NOT EXISTS industry TEXT`;
+    await client`ALTER TABLE company_profiles ADD COLUMN IF NOT EXISTS logo_url TEXT`;
+    await client`ALTER TABLE company_profiles ADD COLUMN IF NOT EXISTS contact_email TEXT`;
+    await client`ALTER TABLE company_profiles ADD COLUMN IF NOT EXISTS contact_phone TEXT`;
+    await client`ALTER TABLE company_profiles ADD COLUMN IF NOT EXISTS address TEXT`;
     await client`ALTER TABLE company_profiles ADD COLUMN IF NOT EXISTS markets_json JSONB NOT NULL DEFAULT '[]'::jsonb`;
     await client`ALTER TABLE company_profiles ADD COLUMN IF NOT EXISTS naics_codes_json JSONB NOT NULL DEFAULT '[]'::jsonb`;
     await client`ALTER TABLE company_profiles ADD COLUMN IF NOT EXISTS psc_codes_json JSONB NOT NULL DEFAULT '[]'::jsonb`;
     await client`ALTER TABLE company_profiles ADD COLUMN IF NOT EXISTS uei TEXT`;
     await client`ALTER TABLE company_profiles ADD COLUMN IF NOT EXISTS cage_code TEXT`;
     await client`ALTER TABLE company_profiles ADD COLUMN IF NOT EXISTS socio_economic_json JSONB NOT NULL DEFAULT '[]'::jsonb`;
+    await client`CREATE UNIQUE INDEX IF NOT EXISTS idx_company_profiles_slug ON company_profiles(slug)`;
+
+    await client`
+      CREATE TABLE IF NOT EXISTS user_companies (
+        id SERIAL PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+        company_id INTEGER NOT NULL REFERENCES company_profiles(id) ON DELETE CASCADE,
+        is_active BOOLEAN NOT NULL DEFAULT FALSE,
+        label TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE(user_id, company_id)
+      )
+    `;
 
     await client`
       CREATE TABLE IF NOT EXISTS scores (
@@ -326,7 +421,7 @@ async function main() {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
        )
-     `;
+      `;
 
     await client`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS job_key TEXT`;
     await client`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS group_key TEXT`;
@@ -336,6 +431,20 @@ async function main() {
     await client`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS queue_latency_ms INTEGER`;
     await client`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS duration_ms INTEGER`;
     await client`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS priority INTEGER NOT NULL DEFAULT 100`;
+
+    await client`
+      CREATE TABLE IF NOT EXISTS api_jobs (
+        id SERIAL PRIMARY KEY,
+        company_url TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'processing',
+        company_id INTEGER,
+        profile_url TEXT,
+        tenders_json JSONB,
+        error TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
 
     await client`
       CREATE TABLE IF NOT EXISTS job_attempts (
@@ -684,6 +793,7 @@ async function main() {
      await client`CREATE INDEX IF NOT EXISTS idx_jobs_status_priority_run_after ON jobs(status, priority, run_after)`;
      await client`CREATE INDEX IF NOT EXISTS idx_jobs_type_status_created ON jobs(type, status, created_at)`;
      await client`CREATE INDEX IF NOT EXISTS idx_jobs_running_heartbeat ON jobs(status, heartbeat_at)`;
+     await client`CREATE INDEX IF NOT EXISTS idx_api_jobs_status ON api_jobs(status)`;
      await client`CREATE INDEX IF NOT EXISTS idx_catalog_state_revision ON catalog_state(revision, synced_revision)`;
      await client`CREATE INDEX IF NOT EXISTS idx_public_scrape_runs_status_finished ON public_scrape_runs(status, finished_at)`;
      await client`CREATE INDEX IF NOT EXISTS idx_public_scrape_runs_job ON public_scrape_runs(job_id)`;
@@ -735,7 +845,12 @@ async function main() {
       await client`CREATE INDEX IF NOT EXISTS idx_company_match_previews_user_created ON company_match_previews(user_id, created_at)`;
       await client`CREATE INDEX IF NOT EXISTS idx_company_match_previews_status ON company_match_previews(status)`;
       await client`CREATE INDEX IF NOT EXISTS idx_api_rate_limit_buckets_expires ON api_rate_limit_buckets(expires_at)`;
-    await client`CREATE INDEX IF NOT EXISTS idx_company_profiles_website ON company_profiles(website_url)`;
+     await client`CREATE INDEX IF NOT EXISTS idx_company_profiles_website ON company_profiles(website_url)`;
+     await client`CREATE INDEX IF NOT EXISTS idx_user_companies_user_active ON user_companies(user_id, is_active)`;
+     await client`CREATE INDEX IF NOT EXISTS idx_api_jobs_status ON api_jobs(status)`;
+     await client`CREATE UNIQUE INDEX IF NOT EXISTS idx_company_profiles_slug ON company_profiles(slug)`;
+     await client`CREATE UNIQUE INDEX IF NOT EXISTS idx_user_companies_user_company ON user_companies(user_id, company_id)`;
+     await client`CREATE INDEX IF NOT EXISTS idx_user_companies_user_active ON user_companies(user_id, is_active)`;
 
     console.log("Database migration completed successfully!");
   } finally {

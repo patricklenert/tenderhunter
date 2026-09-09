@@ -3,6 +3,7 @@ import { PORTALS, getPortalMetadata } from "@/lib/portal-content";
 import { searchTenders } from "@/lib/meilisearch";
 import { CATEGORY_LABELS } from "@/lib/categories";
 import { PortalPageContent } from "@/components/seo/PortalPageContent";
+import { getListingRobots, type SeoSearchParams } from "@/lib/seo-indexability";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
 const portal = PORTALS["ted"];
@@ -10,8 +11,8 @@ const portal = PORTALS["ted"];
 export const revalidate = 3600;
 export const runtime = "nodejs";
 
-export async function generateMetadata(): Promise<Metadata> {
-  return getPortalMetadata("ted")!;
+export async function generateMetadata({ searchParams }: { searchParams: Promise<SeoSearchParams> }): Promise<Metadata> {
+  return { ...getPortalMetadata("ted")!, robots: getListingRobots(await searchParams, 1, true) };
 }
 
 export default async function TedPage() {

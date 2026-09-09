@@ -1,9 +1,13 @@
-/** Java portal actions such as projectForwarding.do are pages, not attachments. */
+/** Portal actions and authentication pages are navigation, not attachments. */
 export function isPortalActionUrl(value: string | null | undefined): boolean {
   if (typeof value !== "string" || !value.trim()) return false;
   try {
-    return /\.do\/?$/i.test(new URL(value).pathname);
+    const pathname = new URL(value).pathname;
+    return /\.do\/?$/i.test(pathname)
+      || /(?:^|\/)(?:account\/(?:login|register)|login|signin|sign-in|signup|sign-up|register)(?:\/|$)/i.test(pathname);
   } catch {
-    return /\.do\/?$/i.test(value.split(/[?#]/, 1)[0] ?? "");
+    const pathname = value.split(/[?#]/, 1)[0] ?? "";
+    return /\.do\/?$/i.test(pathname)
+      || /(?:^|\/)(?:account\/(?:login|register)|login|signin|sign-in|signup|sign-up|register)(?:\/|$)/i.test(pathname);
   }
 }

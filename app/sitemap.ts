@@ -8,12 +8,14 @@ import { CITY_SLUG_MAP, ALL_CITY_SLUGS } from "@/lib/cities";
 import { isIndexableAgencyName, normalizeAgencySlug } from "@/lib/agencies";
 import { ALL_PORTAL_SLUGS, PORTALS } from "@/lib/portal-content";
 import { ALL_ARTICLE_SLUGS, ARTICLES } from "@/lib/articles";
-import { ALL_GLOSSARY_SLUGS } from "@/lib/glossary";
+import { ALL_GLOSSARY_SLUGS, GLOSSARY_MAP } from "@/lib/glossary";
 import { ALL_TEMPLATE_SLUGS } from "@/lib/templates";
 import { ALL_BRANCHE_SLUGS } from "@/lib/branchen";
 import { ALL_CPV_CODES } from "@/lib/cpv-codes";
 import { ALL_PROCEDURE_TYPE_SLUGS, getProcedureDatabaseValues } from "@/lib/procedure-types";
-import { generateTenderSlug } from "@/lib/tender-slug";
+import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
+import { readPublicTenderMeta } from "@/lib/tender-meta";
+import { pickValidatedPublicLocationForTender } from "@/lib/public-content-quality";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
 
@@ -51,6 +53,7 @@ type TenderSitemapRow = {
   updatedAt: Date | null;
   metadataJson: unknown;
   structuredJson: unknown;
+  url: string | null;
   slug: string | null;
   source: string;
   category: string | null;
@@ -65,13 +68,17 @@ type TenderContext = TenderSitemapRow & {
 };
 
 function getTenderContext(row: TenderSitemapRow): TenderContext {
-  const metadata = asRecord(row.metadataJson);
+  const metadata = readPublicTenderMeta(row.metadataJson, {
+    title: row.title,
+    source: row.source,
+    sourceUrl: row.url ?? undefined,
+  });
   const structured = asRecord(row.structuredJson);
   const hardFacts = asRecord(structured.hard_facts);
   const procurement = asRecord(structured.procurement);
-  const metadataLocation = typeof metadata.location === "string" ? metadata.location.trim() : "";
+  const metadataLocation = metadata.location;
   const structuredLocation = typeof hardFacts.location === "string" ? hardFacts.location.trim() : "";
-  const location = metadataLocation || structuredLocation;
+  const location = pickValidatedPublicLocationForTender(row.title, metadata.client, metadataLocation, structuredLocation);
   const rawCpvCodes = procurement.cpv_codes ?? procurement.cpvCodes;
   const cpvCodes = Array.isArray(rawCpvCodes)
     ? rawCpvCodes.filter((value): value is string => typeof value === "string")
@@ -151,9 +158,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   addEntry({ url: `${siteUrl}/lexikon`, lastModified: now, changeFrequency: "monthly", priority: 0.7 });
   for (const glossarySlug of ALL_GLOSSARY_SLUGS) {
+    const glossaryEntry = GLOSSARY_MAP[glossarySlug];
     addEntry({
       url: `${siteUrl}/lexikon/${glossarySlug}`,
-      lastModified: now,
+      ...(glossaryEntry.lastReviewed ? { lastModified: new Date(glossaryEntry.lastReviewed) } : {}),
       changeFrequency: "monthly",
       priority: 0.6,
     });
@@ -193,6 +201,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
           updatedAt: tenders.updatedAt,
           metadataJson: tenders.metadataJson,
           structuredJson: structuredData.jsonBlob,
+          url: tenders.url,
           source: tenders.source,
           category: tenders.category,
           procedureType: tenders.procedureType,
@@ -392,14 +401,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }
 
   for (const row of contexts) {
-    const location = row.location;
-    const slug = row.slug ?? generateTenderSlug(row.title ?? "", location);
+    const slug = getCanonicalTenderSlug(row.slug, row.title, row.metadataJson, row.structuredJson);
     addEntry({
       url: `${siteUrl}/ausschreibung/${row.id}/${slug}`,
       lastModified: row.updatedAt ?? now,
       changeFrequency: "daily",
       priority: 0.6,
-      images: [`${siteUrl}/ausschreibung/${row.id}/${slug}/opengraph-image`],
     });
   }
 

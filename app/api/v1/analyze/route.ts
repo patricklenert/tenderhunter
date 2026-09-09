@@ -287,6 +287,7 @@ async function runAnalysis(jobId: number, url: string) {
     await db.update(apiJobs).set({
       status: "failed", error: error instanceof Error ? error.message : "Unbekannter Fehler", updatedAt: new Date(),
     }).where(eq(apiJobs.id, jobId));
+    throw error;
   }
 }
 
@@ -462,41 +463,50 @@ export async function runApiAnalysisJob(payload: {
     return;
   }
 
-  if (!payload.companyId || !payload.profileSlug) {
-    throw new Error("Rescore-Job benötigt companyId und profileSlug.");
+  try {
+    if (!payload.companyId || !payload.profileSlug) {
+      throw new Error("Rescore-Job benötigt companyId und profileSlug.");
+    }
+
+    const profileRows = await db
+      .select({
+        capabilitiesJson: companyProfiles.capabilitiesJson,
+        certificationsJson: companyProfiles.certificationsJson,
+        regionsJson: companyProfiles.regionsJson,
+        teamSize: companyProfiles.teamSize,
+        industry: companyProfiles.industry,
+      })
+      .from(companyProfiles)
+      .where(eq(companyProfiles.id, payload.companyId))
+      .limit(1);
+
+    if (profileRows.length === 0) throw new Error("Unternehmensprofil nicht gefunden.");
+
+    const companyRow: CompanyRow = {
+      capabilities_json: JSON.stringify(profileRows[0].capabilitiesJson),
+      certifications_json: JSON.stringify(profileRows[0].certificationsJson),
+      regions_json: JSON.stringify(profileRows[0].regionsJson),
+      team_size: profileRows[0].teamSize,
+      industry: profileRows[0].industry,
+    };
+
+    await scoreAllTenders(payload.companyId, companyRow);
+
+    await db.update(apiJobs).set({
+      status: "completed",
+      companyId: payload.companyId,
+      profileUrl: `${BASE_URL}/p/${payload.profileSlug}`,
+      tendersJson: await getTopTenders(payload.companyId, companyRow),
+      updatedAt: new Date(),
+    }).where(eq(apiJobs.id, payload.apiJobId));
+  } catch (error) {
+    await db.update(apiJobs).set({
+      status: "failed",
+      error: error instanceof Error ? error.message : "Unbekannter Fehler",
+      updatedAt: new Date(),
+    }).where(eq(apiJobs.id, payload.apiJobId));
+    throw error;
   }
-
-  const profileRows = await db
-    .select({
-      capabilitiesJson: companyProfiles.capabilitiesJson,
-      certificationsJson: companyProfiles.certificationsJson,
-      regionsJson: companyProfiles.regionsJson,
-      teamSize: companyProfiles.teamSize,
-      industry: companyProfiles.industry,
-    })
-    .from(companyProfiles)
-    .where(eq(companyProfiles.id, payload.companyId))
-    .limit(1);
-
-  if (profileRows.length === 0) throw new Error("Unternehmensprofil nicht gefunden.");
-
-   const companyRow: CompanyRow = {
-     capabilities_json: JSON.stringify(profileRows[0].capabilitiesJson),
-     certifications_json: JSON.stringify(profileRows[0].certificationsJson),
-     regions_json: JSON.stringify(profileRows[0].regionsJson),
-     team_size: profileRows[0].teamSize,
-     industry: profileRows[0].industry,
-   };
-
-   await scoreAllTenders(payload.companyId, companyRow);
-
-  await db.update(apiJobs).set({
-    status: "completed",
-    companyId: payload.companyId,
-    profileUrl: `${BASE_URL}/p/${payload.profileSlug}`,
-     tendersJson: await getTopTenders(payload.companyId, companyRow),
-    updatedAt: new Date(),
-  }).where(eq(apiJobs.id, payload.apiJobId));
 }
 
 type ApiAnalysisQueuePayload = {

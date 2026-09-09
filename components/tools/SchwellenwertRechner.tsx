@@ -48,15 +48,15 @@ const SCHWELLEN: Record<Leistungstyp, SchwelleConfig> = {
   bau: {
     label: "Bauarbeiten",
     icon: HardHat,
-    threshold: 5_538_000,
-    lawAbove: "VgV / § 99 GWB (Oberschwelle)",
-    lawBelow: "UVgO oder Landesvergaberecht (Unterschwwelle)",
+    threshold: 5_404_000,
+    lawAbove: "GWB + VOB/A Abschnitt 2 und § 2 VgV",
+    lawBelow: "VOB/A Abschnitt 1 und Landes-/Haushaltsrecht",
     beschreibung: "Bauaufträge für allgemeine Auftraggeber (Bund, Länder, Gemeinden)",
   },
   lieferDienstZentral: {
     label: "Lieferung/Dienst (zentral)",
     icon: Truck,
-    threshold: 221_000,
+    threshold: 140_000,
     lawAbove: "VgV / § 99 GWB (Oberschwelle)",
     lawBelow: "UVgO oder Landesvergaberecht (Unterschwelle)",
     beschreibung: "Liefer- und Dienstleistungen über zentrale Beschaffungsstellen",
@@ -64,7 +64,7 @@ const SCHWELLEN: Record<Leistungstyp, SchwelleConfig> = {
   lieferDienstSonst: {
     label: "Lieferung/Dienst (sonstige)",
     icon: Building2,
-    threshold: 143_000,
+    threshold: 216_000,
     lawAbove: "VgV / § 99 GWB (Oberschwelle)",
     lawBelow: "UVgO oder Landesvergaberecht (Unterschwelle)",
     beschreibung: "Liefer- und Dienstleistungen für sonstige Auftraggeber",
@@ -72,7 +72,7 @@ const SCHWELLEN: Record<Leistungstyp, SchwelleConfig> = {
   sektorenBau: {
     label: "Sektoren-Bau",
     icon: Factory,
-    threshold: 5_538_000,
+    threshold: 5_404_000,
     lawAbove: "SektVO / § 100 GWB (Sektoren)",
     lawBelow: "SektVO unterschwellig (freie Verfahrenswahl)",
     beschreibung: "Bauaufträge von Sektorenauftraggebern (Energie, Wasser, Verkehr)",
@@ -80,7 +80,7 @@ const SCHWELLEN: Record<Leistungstyp, SchwelleConfig> = {
   sektorenLieferDienst: {
     label: "Sektoren Lief./Dienst",
     icon: Factory,
-    threshold: 443_000,
+    threshold: 432_000,
     lawAbove: "SektVO / § 100 GWB (Sektoren)",
     lawBelow: "SektVO unterschwellig (freie Verfahrenswahl)",
     beschreibung: "Liefer-/Dienstleistungen von Sektorenauftraggebern",
@@ -88,9 +88,9 @@ const SCHWELLEN: Record<Leistungstyp, SchwelleConfig> = {
   sozialeDienste: {
     label: "Soziale Dienste",
     icon: HeartPulse,
-    threshold: 443_000,
-    lawAbove: "VgV § 135 (besondere Dienste, nur Bekanntmachung)",
-    lawBelow: "Freihändig (keine Bekanntmachungspflicht)",
+    threshold: 750_000,
+    lawAbove: "GWB + VgV für soziale und besondere Dienstleistungen",
+    lawBelow: "Nationale Regeln im jeweiligen Geltungsbereich",
     beschreibung: "Soziale, gesundheitliche und kulturelle Dienstleistungen (§ 130 GWB)",
   },
 };
@@ -210,7 +210,7 @@ export default function SchwellenwertRechner() {
                 Ergebnis
               </Typography>
               <Typography variant="h5" component="p" fontWeight={800}>
-                {isAbove ? "Oberschwwellenvergabe" : "Unterschwwellenvergabe"}
+              {isAbove ? "Oberschwellenvergabe" : "Unterschwellenvergabe"}
               </Typography>
             </Box>
             <Box sx={{ ml: "auto", textAlign: "right" }}>
@@ -259,7 +259,7 @@ export default function SchwellenwertRechner() {
       {/* Rechtlicher Hinweis */}
       <Alert severity="info" sx={{ "& .MuiAlert-message": { fontSize: "0.875rem" } }}>
         <Typography variant="body2" color="text.secondary">
-          <strong>Stand: Schwellenwerte 2024–2025</strong> gemäß Verordnung (EU) 2022/2577. Die Schwellenwerte werden
+          <strong>Stand: Schwellenwerte 2026–2027</strong> gemäß den einschlägigen EU-Verordnungen. Die Schwellenwerte werden
           alle zwei Jahre von der EU-Kommission angepasst. Für die genaue Einordnung im Einzelfall beachten Sie die
           jeweils geltenden Schwellenwerte zum Zeitpunkt der Bekanntmachung.
         </Typography>

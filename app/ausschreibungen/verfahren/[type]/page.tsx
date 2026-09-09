@@ -20,10 +20,11 @@ import {
   ArrowRight,
   Home as HomeIcon,
 } from "lucide-react";
-import { generateTenderSlug } from "@/lib/tender-slug";
+import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
 import { PROCEDURE_TYPES, ALL_PROCEDURE_TYPE_SLUGS, getProcedureDatabaseValues } from "@/lib/procedure-types";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 import { getListingRobots, getPageNumber, type SeoSearchParams } from "@/lib/seo-indexability";
+import { readPublicTenderMeta } from "@/lib/tender-meta";
 
 const PAGE_SIZE = 20;
 
@@ -123,11 +124,11 @@ export default async function ProcedureTypePage({ params, searchParams }: PagePr
       .offset(offset);
 
     procTenders = rows.map((row) => {
-      const meta =
-        typeof row.metadataJson === "object" && row.metadataJson !== null
-          ? (row.metadataJson as Record<string, unknown>)
-          : {};
-      const rawLocation = typeof meta.location === "string" ? meta.location : "";
+      const meta = readPublicTenderMeta(row.metadataJson, {
+        title: row.title,
+        source: row.source,
+      });
+      const location = meta.location ? meta.location.split(",")[0].trim().slice(0, 60) : null;
       return {
         id: row.id,
         title: row.title ?? `Ausschreibung #${row.id}`,
@@ -135,9 +136,9 @@ export default async function ProcedureTypePage({ params, searchParams }: PagePr
         deadline: row.deadlineAt
           ? new Date(row.deadlineAt).toLocaleDateString("de-DE", { day: "2-digit", month: "short", year: "numeric" })
           : null,
-        location: typeof meta.location === "string" ? meta.location.split(",")[0].trim().slice(0, 60) : null,
-        client: typeof meta.client === "string" ? meta.client.slice(0, 80) : null,
-        slug: row.slug ?? generateTenderSlug(row.title ?? "", rawLocation),
+        location,
+        client: meta.client ? meta.client.slice(0, 80) : null,
+        slug: getCanonicalTenderSlug(row.slug, row.title, row.metadataJson),
       };
     });
   } catch {

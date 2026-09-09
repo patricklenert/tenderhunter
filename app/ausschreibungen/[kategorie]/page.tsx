@@ -25,9 +25,10 @@ import { CATEGORY_CONTENT } from "@/lib/category-content";
 import { BUNDESLAND_SLUGS } from "@/lib/bundesland";
 import { CITIES } from "@/lib/cities";
 import { ARTICLES } from "@/lib/articles";
-import { generateTenderSlug } from "@/lib/tender-slug";
+import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 import { getListingRobots, getPageNumber, type SeoSearchParams } from "@/lib/seo-indexability";
+import { readPublicTenderMeta } from "@/lib/tender-meta";
 
 // SEO: Pagination for category pages — 20 tenders per page
 const PAGE_SIZE = 20;
@@ -168,11 +169,11 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
       .offset(offset);
 
     categoryTenders = rows.map((row) => {
-      const meta =
-        typeof row.metadataJson === "object" && row.metadataJson !== null
-          ? (row.metadataJson as Record<string, unknown>)
-          : {};
-      const rawLocation = typeof meta.location === "string" ? meta.location : "";
+      const meta = readPublicTenderMeta(row.metadataJson, {
+        title: row.title,
+        source: row.source,
+      });
+      const location = meta.location ? meta.location.split(",")[0].trim().slice(0, 60) : null;
       return {
         id: row.id,
         title: row.title ?? `Ausschreibung #${row.id}`,
@@ -184,15 +185,9 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
               year: "numeric",
             })
           : null,
-        location:
-          typeof meta.location === "string"
-            ? meta.location.split(",")[0].trim().slice(0, 60)
-            : null,
-        client:
-          typeof meta.client === "string"
-            ? meta.client.slice(0, 80)
-            : null,
-        slug: row.slug ?? generateTenderSlug(row.title ?? "", rawLocation),
+        location,
+        client: meta.client ? meta.client.slice(0, 80) : null,
+        slug: getCanonicalTenderSlug(row.slug, row.title, row.metadataJson),
       };
     });
 

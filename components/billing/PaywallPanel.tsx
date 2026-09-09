@@ -13,8 +13,8 @@ export function PaywallPanel({ feature, title, description }: PaywallPanelProps)
   const isBidPack = feature === "Bid Pack";
   const resolvedTitle = title ?? (isBidPack ? "Nicht nur lesen. Entscheidung vorbereiten." : "Mehr aus dieser Ausschreibung machen");
   const resolvedDescription = description ?? (isBidPack
-    ? "Erhalte eine persönliche Go-/No-Go-Analyse, erkenne fehlende Anforderungen und erstelle die nächsten Aufgaben für dein Team."
-    : `${feature} ist im aktiven Billing-Plan enthalten. Starte mit 12 € pro Woche oder 39 € für 3 Monate.`);
+    ? "Erhalten Sie eine persönliche Passungsanalyse, erkennen Sie fehlende Anforderungen und erstellen Sie die nächsten Aufgaben für Ihr Team."
+    : `${feature} ist im aktiven Tarif enthalten. Starten Sie mit 12 € pro Woche oder 39 € für 3 Monate.`);
 
   return (
     <Paper

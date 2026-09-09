@@ -17,12 +17,8 @@ import {
 
 const SEARXNG_URL = process.env.SEARXNG_URL ?? "http://localhost:8080";
 
-const BROWSER_ARGS = [
-  "--no-sandbox",
-  "--disable-setuid-sandbox",
-  "--disable-dev-shm-usage",
-  "--disable-gpu",
-];
+/** CDP endpoint of the Obscura headless browser server (replaces local Chromium). */
+const OBSCURA_CDP_URL = process.env.OBSCURA_CDP_URL ?? "ws://127.0.0.1:9222";
 const BROWSER_IDLE_TIMEOUT_MS = 60_000;
 const MAX_CAPTURED_NETWORK_RESPONSES = 200;
 const MAX_DISCOVERED_RESOURCES = 500;
@@ -69,9 +65,48 @@ const closeWithTimeout = async (close: () => Promise<void>, timeoutMs = 5_000): 
   }
 };
 
-async function getBrowser(): Promise<Browser> {
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+const readStablePageContent = async (page: Page): Promise<string> => {
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      await page.waitForLoadState("load", { timeout: 10_000 }).catch(() => {});
+      await page.waitForTimeout(250);
+      return await page.content();
+    } catch (error) {
+      lastError = error;
+      if (attempt < 2) await page.waitForTimeout(250).catch(() => {});
+    }
+  }
+  try {
+    const fallbackHtml = await page.evaluate(() => document.documentElement?.outerHTML ?? "");
+    if (fallbackHtml.trim()) return fallbackHtml;
+  } catch {
+    // Preserve the original navigation error below when the page has closed.
+  }
+  throw lastError ?? new Error("Page content unavailable");
+};
+
+/**
+ * Errors that indicate the shared Obscura server restarted (e.g. after a Rust
+ * panic triggered by a broken portal page). A retry after a short backoff then
+ * lands on the freshly restarted server.
+ */
+const isRecoverableBrowserError = (error: unknown): boolean => {
+  const message = String(error);
+  return message.includes("has been closed")
+    || message.includes("ECONNREFUSED")
+    || message.includes("WebSocket error")
+    || message.includes("Connection closed")
+    || message.includes("Target closed")
+    || message.includes("Browser closed");
+};
+
+/** Shared Obscura CDP connection; reused across scrapes, disconnected when idle. */
+export async function getBrowser(): Promise<Browser> {
   clearBrowserIdleTimer();
-  // If a launch is already in flight, wait for it
+  // If a connection is already in flight, wait for it
   if (browserPromise) return browserPromise;
   // If we have a connected instance, use it
   if (browserInstance?.isConnected()) return browserInstance;
@@ -79,26 +114,35 @@ async function getBrowser(): Promise<Browser> {
   // Clear any stale reference
   browserInstance = null;
 
-  // Launch with a single-flight pattern: only one launch at a time
-  browserPromise = chromium
-    .launch({ headless: true, args: BROWSER_ARGS })
-    .then((b) => {
-      browserInstance = b;
-      browserPromise = null;
-      b.on("disconnected", () => {
-        // Only clear if this is still the active instance
-        if (browserInstance === b) {
-          browserInstance = null;
-        }
-        clearBrowserIdleTimer();
-      });
-      return b;
-    })
-    .catch((e) => {
-      browserPromise = null;
-      browserInstance = null;
-      throw e;
-    });
+  // Connect to the shared Obscura CDP server with a single-flight pattern.
+  // Retry a few times so a server restart (systemd restarts within ~3s) is
+  // bridged instead of failing the whole scrape.
+  browserPromise = (async (): Promise<Browser> => {
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const b = await chromium.connectOverCDP(OBSCURA_CDP_URL, { timeout: 15_000 });
+        b.on("disconnected", () => {
+          // Only clear if this is still the active instance
+          if (browserInstance === b) {
+            browserInstance = null;
+          }
+          clearBrowserIdleTimer();
+        });
+        browserInstance = b;
+        return b;
+      } catch (e) {
+        lastError = e;
+        browserInstance = null;
+        if (attempt < 2) await sleep(1_500 * (attempt + 1));
+      }
+    }
+    throw lastError;
+  })().catch((e) => {
+    throw e;
+  }).finally(() => {
+    browserPromise = null;
+  });
 
   return browserPromise;
 }
@@ -304,11 +348,11 @@ export async function scrapeWebsite(
           if (visibleText.length > 200) {
             markdown = visibleText;
           } else {
-            html = await page.content();
+            html = await readStablePageContent(page);
             markdown = htmlToBasicMarkdown(html);
           }
         } else {
-          html = await page.content();
+          html = await readStablePageContent(page);
           if (options?.onlyMainContent !== false) {
             const cleanContent = extractWithReadability(html, url);
             if (cleanContent.length > 500) {
@@ -343,7 +387,7 @@ export async function scrapeWebsite(
         scheduleBrowserShutdown();
       }
     } catch (e) {
-      if (attempt === 0 && String(e).includes("has been closed")) {
+      if (attempt === 0 && isRecoverableBrowserError(e)) {
         browserInstance = null;
         browserPromise = null;
         continue;

@@ -1,9 +1,10 @@
 import { and, eq, gt, isNull, or, sql } from "drizzle-orm";
 import { NextResponse, type NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { companyProfiles, tenders } from "@/lib/schema";
+import { companyProfiles, structuredData, tenders } from "@/lib/schema";
 import { isIndexableAgencyName, normalizeAgencySlug } from "@/lib/agencies";
 import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
+import { dependencyUnavailableResponse } from "@/lib/public-route-resilience";
 
 export const config = {
   matcher: ["/ausschreibung/:path*", "/p/:path*", "/auftraggeber/:path*"],
@@ -57,15 +58,21 @@ export async function proxy(request: NextRequest): Promise<NextResponse | Respon
 
   try {
     const rows = await db
-      .select({ slug: tenders.slug, title: tenders.title, metadataJson: tenders.metadataJson })
+      .select({
+        slug: tenders.slug,
+        title: tenders.title,
+        metadataJson: tenders.metadataJson,
+        structuredJson: structuredData.jsonBlob,
+      })
       .from(tenders)
+      .leftJoin(structuredData, eq(structuredData.tenderId, tenders.id))
       .where(and(eq(tenders.id, numericId), eq(tenders.qualityStatus, "qualified")))
       .limit(1);
 
     if (rows.length === 0) return new Response(null, { status: 404 });
 
     const row = rows[0];
-    const canonicalSlug = getCanonicalTenderSlug(row.slug, row.title, row.metadataJson);
+    const canonicalSlug = getCanonicalTenderSlug(row.slug, row.title, row.metadataJson, row.structuredJson);
     if (requestedSlug !== canonicalSlug) {
       const destination = request.nextUrl.clone();
       destination.pathname = `/ausschreibung/${numericId}/${canonicalSlug}`;
@@ -73,7 +80,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse | Respon
       return NextResponse.redirect(destination, 308);
     }
   } catch {
-    // The page handles database failures and preserves its own noindex fallback.
+    return dependencyUnavailableResponse();
   }
 
   return NextResponse.next();

@@ -39,7 +39,7 @@ export const BRANCHEN: BrancheEntry[] = [
       { code: "45233141", label: "Bau von Abwasserkanälen" },
     ],
     typischeVerfahren: ["Offenes Verfahren (VgV)", "Verhandlungsverfahren bei komplexen GU-Verträgen"],
-    schwellenwert: "5.538.000 € (Bau, VgV) — drunter nach UVgO / Landesvergaberecht",
+    schwellenwert: "5.404.000 € (EU-Schwellenwert für Bauaufträge 2026/2027) — darunter VOB/A Abschnitt 1 und anwendbares Landes-/Haushaltsrecht",
     eignungskriterien: [
       "Präqualifikation nach PQ-VOL V (in der Regel erforderlich)",
       "Referenzen vergleichbarer Größenordnung (mind. 2 Referenzen der letzten 3 Jahre)",
@@ -96,7 +96,7 @@ export const BRANCHEN: BrancheEntry[] = [
       { code: "45261000", label: "Dachdeckungs- und Dachabdichtungsarbeiten" },
     ],
     typischeVerfahren: ["Offenes Verfahren (Standard)", "Verhandlungsverfahren bei GU/Schlüsselfertig"],
-    schwellenwert: "5.538.000 € (Bau) — darunter UVgO / Landesvergaberecht",
+    schwellenwert: "5.404.000 € (EU-Schwellenwert für Bauaufträge 2026/2027) — darunter VOB/A Abschnitt 1 und anwendbares Landes-/Haushaltsrecht",
     eignungskriterien: [
       "Präqualifikation nach PQ-VOL V empfohlen",
       "Referenzen aus vergleichbaren Bauvorhaben (Schule, Verwaltung, Krankenhaus)",
@@ -147,7 +147,7 @@ export const BRANCHEN: BrancheEntry[] = [
       { code: "45331200", label: "Lüftungs- und Klimaanlagenarbeiten" },
     ],
     typischeVerfahren: ["Offenes Verfahren (Standard)", "Verhandlungsverfahren bei komplexer MSR/Gebäudeautomation"],
-    schwellenwert: "221.000 € / 143.000 € (Liefer/Dienst) — 5,538 Mio € bei GU-Bau",
+    schwellenwert: "140.000 € / 216.000 € (bestimmte öffentliche Auftraggeber, Liefer/Dienst; 2026/2027) — 5,404 Mio. € bei Bauaufträgen",
     eignungskriterien: [
       "Meisterbetrieb oder gleichwertige Qualifikation",
       "Registrierung bei der Handwerkskammer (HWK)",
@@ -186,7 +186,7 @@ export const BRANCHEN: BrancheEntry[] = [
       "Öffentliche Ausschreibungen für IT-Dienstleistungen: Softwareentwicklung, Cloud, IT-Infrastruktur, Cybersecurity, Digitalisierung. CPV-Codes, Verfahren und Besonderheiten der IT-Vergabe.",
     intro: [
       "IT-Dienstleistungen sind der am stärksten wachsende Vergabebereich in Deutschland. Digitalisierung von Behörden (Onlinezugangsgesetz), Cloud-Migration, Cybersecurity und Softwareentwicklung treiben das Volumen. Charakteristisch: Verhandlungsverfahren ist hier der Standard, weil Anforderungen oft nicht abschließend spezifiziert werden können.",
-      "Die Vergabe erfolgt meist als Dienstleistungsvergabe nach VgV (Schwelle: 221.000 € / 143.000 €). Rahmenverträge über 4 Jahre sind verbreitet, um Flexibilität zu gewährleisten.",
+      "Die Vergabe erfolgt bei EU-relevanten Werten nach dem einschlägigen Regelwerk; für Liefer- und Dienstleistungen gelten 2026/2027 je nach Auftraggeber 140.000 € oder 216.000 €. Rahmenverträge über 4 Jahre sind verbreitet, um Flexibilität zu gewährleisten.",
       "Besonderheiten: Due Diligence des Auftraggebers (Referenzkunden, Sicherheitskonzept), Pilotphase im Verfahren, TOTAL-Cost-of-Ownership (TCO) als Bewertungskriterium.",
     ],
     cpvCodes: [
@@ -202,7 +202,7 @@ export const BRANCHEN: BrancheEntry[] = [
       "Offenes Verfahren bei Standard-IT (Hardware, Lizenzen)",
       "Wettbewerblicher Dialog bei Großprojekten (z. B. Behörden-IT)",
     ],
-    schwellenwert: "221.000 € (zentral) / 143.000 € (sonstige) — Dienstleistung",
+    schwellenwert: "140.000 € (bestimmte zentrale Behörden) / 216.000 € (sonstige bestimmte Auftraggeber) — Dienstleistung, 2026/2027",
     eignungskriterien: [
       "Referenzprojekte vergleichbarer Größe und Technologie",
       "ISO 27001 (Informationssicherheit) für Cloud und Security",
@@ -259,7 +259,7 @@ export const BRANCHEN: BrancheEntry[] = [
       { code: "90913000", label: "Fassadenreinigung" },
     ],
     typischeVerfahren: ["Offenes Verfahren (Standard)", "Nicht offenes Verfahren bei Rahmenverträgen"],
-    schwellenwert: "221.000 € (zentral) / 143.000 € (sonstige) — Dienstleistung",
+    schwellenwert: "140.000 € (bestimmte zentrale Behörden) / 216.000 € (sonstige bestimmte Auftraggeber) — Dienstleistung, 2026/2027",
     eignungskriterien: [
       "Gewerbeanmeldung Gebäudereinigung",
       "Mitgliedschaft im Bundesverband Gebäudereinigung (BIV) — vertrauensbildend",
@@ -287,7 +287,7 @@ export const BRANCHEN: BrancheEntry[] = [
       {
         question: "Wie läuft eine Gebäudereinigungs-Vergabe typischerweise ab?",
         answer:
-          "Meist offenes Verfahren mit europaweiter Bekanntmachung (ab 221.000 € / 143.000 €). Der AG veröffentlicht ein Leistungsverzeichnis nach m²-Preis oder Objekt-Pauschale. Bieter reichen Angebot mit Eigenerklärung zur Tariftreue ein. Zuschlag auf das wirtschaftlichste Angebot (Preis-Leistungs-Verhältnis). Rahmenvertrag über 2–4 Jahre.",
+          "Meist offenes Verfahren mit europaweiter Bekanntmachung oberhalb des einschlägigen Schwellenwerts. Der AG veröffentlicht ein Leistungsverzeichnis nach m²-Preis oder Objekt-Pauschale. Bieter reichen Angebot mit Eigenerklärung zur Tariftreue ein. Zuschlag auf das wirtschaftlichste Angebot (Preis-Leistungs-Verhältnis). Rahmenvertrag über 2–4 Jahre.",
       },
     ],
     relatedCategories: ["Gebaeudereinigung"],
@@ -312,7 +312,7 @@ export const BRANCHEN: BrancheEntry[] = [
       { code: "90720000", label: "Landschaftspflege" },
     ],
     typischeVerfahren: ["Offenes Verfahren", "Nicht offenes Verfahren bei kleinräumigen Vergaben"],
-    schwellenwert: "221.000 € (zentral) / 143.000 € (sonstige) — Dienstleistung",
+    schwellenwert: "140.000 € (bestimmte zentrale Behörden) / 216.000 € (sonstige bestimmte Auftraggeber) — Dienstleistung, 2026/2027",
     eignungskriterien: [
       "Meisterbetrieb GaLaBau oder gleichwertig (Höhere Fachschule)",
       "Gewerbeanmeldung Garten- und Landschaftsbau",
@@ -360,7 +360,7 @@ export const BRANCHEN: BrancheEntry[] = [
       { code: "79712000", label: "Alarmverfolgung" },
     ],
     typischeVerfahren: ["Offenes Verfahren (Standard)", "Nicht offenes Verfahren bei Spezialaufträgen"],
-    schwellenwert: "221.000 € (zentral) / 143.000 € (sonstige) — Dienstleistung",
+    schwellenwert: "140.000 € (bestimmte zentrale Behörden) / 216.000 € (sonstige bestimmte Auftraggeber) — Dienstleistung, 2026/2027",
     eignungskriterien: [
       "Gewerbeanmeldung nach § 34a GewO (Bewachungsgewerbe)",
       "Zuverlässigkeitsprüfung nach § 34a GewO (Führungszeugnis)",
@@ -412,7 +412,7 @@ export const BRANCHEN: BrancheEntry[] = [
       { code: "90500000", label: "Abfall- und Abwassertransport" },
     ],
     typischeVerfahren: ["Offenes Verfahren", "Nicht offenes Verfahren bei Spezialdiensten"],
-    schwellenwert: "221.000 € (zentral) / 143.000 € (sonstige) — Dienstleistung",
+    schwellenwert: "140.000 € (bestimmte zentrale Behörden) / 216.000 € (sonstige bestimmte Auftraggeber) — Dienstleistung, 2026/2027",
     eignungskriterien: [
       "Güterkraftverkehrsgenehmigung nach § 3 GüKG (für Gütertransport)",
       "Personenbeförderungsschein nach PBefG (für Personentransport)",
@@ -458,7 +458,7 @@ export const BRANCHEN: BrancheEntry[] = [
       { code: "55510000", label: "Krankenhauscatering" },
     ],
     typischeVerfahren: ["Offenes Verfahren (Standard)", "Verhandlungsverfahren bei Bio/Regional-Konzept"],
-    schwellenwert: "221.000 € (zentral) / 143.000 € (sonstige) — Dienstleistung",
+    schwellenwert: "140.000 € (bestimmte zentrale Behörden) / 216.000 € (sonstige bestimmte Auftraggeber) — Dienstleistung, 2026/2027",
     eignungskriterien: [
       "Gewerbeanmeldung Gaststätten- oder Cateringgewerbe",
       "Lebensmittelhygiene-Belehrung nach § 43 IfSG",
@@ -493,7 +493,7 @@ export const BRANCHEN: BrancheEntry[] = [
     metaDescription:
       "Öffentliche Ausschreibungen für Energieversorgung: Strom, Gas, Wärme. SektVO-relevant bei Versorgern. CPV-Codes, Verfahren und Besonderheiten der Energie-Vergabe.",
     intro: [
-      "Energieversorgung ist ein Sektorbereich nach § 100 GWB — Versorger sind Sektorenauftraggeber. Vergaben erfolgen nach SektVO, Schwellenwert: 443.000 € (Lieferung). Für Strom, Gas und Wärme vergibt der Bund und die Länder langfristige Lieferverträge.",
+      "Energieversorgung ist ein Sektorbereich nach § 100 GWB, wenn die gesetzlichen Voraussetzungen für einen Sektorenauftraggeber erfüllt sind. Vergaben erfolgen nach der SektVO; der Schwellenwert für Liefer-/Dienstleistungen beträgt 432.000 € in 2026/2027. Für Strom, Gas und Wärme werden häufig langfristige Lieferverträge vergeben.",
       "Die Energiewende treibt die Vergabe erneuerbarer Energielieferverträge (PPA, Power Purchase Agreements) und bei Energieversorgern auch die Vergabe von Netzausbau, Messdienstleistungen und Energieberatung.",
       "Green Public Procurement (GPS): Öffentliche Auftraggeber müssen zunehmend Ökostrom beziehen — Nachweis durch Herkunftsnachweise (HKN).",
     ],
@@ -506,7 +506,7 @@ export const BRANCHEN: BrancheEntry[] = [
       { code: "71310000", label: "Energieberatung" },
     ],
     typischeVerfahren: ["Offenes Verfahren (Standard)", "Verhandlungsverfahren bei PPA und komplexer Beschaffung"],
-    schwellenwert: "443.000 € (SektVO Lieferung) — 5.538.000 € (Bau)",
+    schwellenwert: "432.000 € (SektVO Lieferung/Dienstleistung) — 5.404.000 € (Bau), 2026/2027",
     eignungskriterien: [
       "Gewerbeanmeldung Energiehandel oder Energieversorger",
       "Konzession nach EnWG (für Strom/Gas-Versorger)",
@@ -529,7 +529,7 @@ export const BRANCHEN: BrancheEntry[] = [
       {
         question: "Was ist der Unterschied zwischen SektVO und VgV?",
         answer:
-          "Die SektVO (Sektorenvergabeverordnung) gilt für Auftraggeber in den Sektoren Trinkwasser, Energie, Verkehr und Post (§ 100 GWB). Schwellenwert: 443.000 € (Liefer/Dienst) bzw. 5.538.000 € (Bau). Die VgV gilt für allgemeine Auftraggeber. Für Energieversorger ist die SektVO maßgeblich.",
+          "Die SektVO (Sektorenvergabeverordnung) gilt für Auftraggeber in den Sektoren Trinkwasser, Energie, Verkehr und Post (§ 100 GWB). Für 2026/2027 beträgt der Schwellenwert 432.000 € für Liefer-/Dienstleistungen bzw. 5.404.000 € für Bauaufträge. Für Energieversorger ist die SektVO maßgeblich.",
       },
     ],
     relatedCategories: ["Lieferung"],
@@ -553,7 +553,7 @@ export const BRANCHEN: BrancheEntry[] = [
       { code: "71000000", label: "Architektur- und Ingenieurdienstleistungen" },
     ],
     typischeVerfahren: ["Offenes Verfahren", "Verhandlungsverfahren bei integrierten FM-Paketen"],
-    schwellenwert: "221.000 € (zentral) / 143.000 € (sonstige) — Dienstleistung",
+    schwellenwert: "140.000 € (bestimmte zentrale Behörden) / 216.000 € (sonstige bestimmte Auftraggeber) — Dienstleistung, 2026/2027",
     eignungskriterien: [
       "Gewerbeanmeldung Immobilienverwaltung oder FM-Dienstleister",
       "ISO 41001 (Facility Management) — empfohlen",
@@ -601,7 +601,7 @@ export const BRANCHEN: BrancheEntry[] = [
       { code: "85141000", label: "Rettungsdienste" },
     ],
     typischeVerfahren: ["Offenes Verfahren (Standard)", "Verhandlungsverfahren bei komplexer Medizintechnik"],
-    schwellenwert: "443.000 € (SektVO für Krankenhäuser) — sonst 221.000 € / 143.000 €",
+    schwellenwert: "432.000 € (SektVO, soweit einschlägig) — sonst 140.000 € / 216.000 €, 2026/2027",
     eignungskriterien: [
       "CE-Kennzeichnung nach MPG / MDR für Medizinprodukte",
       "Zulassung nach AMG (für Arzneimittel)",
@@ -629,7 +629,7 @@ export const BRANCHEN: BrancheEntry[] = [
       {
         question: "Sind öffentliche Krankenhäuser Sektorenauftraggeber?",
         answer:
-          "Ja, öffentliche Krankenhäuser sind Sektorenauftraggeber nach § 100 Abs. 2 GWB, wenn sie mehr als 50 % öffentliche Finanzierung erhalten. Für sie gilt die SektVO mit einem Schwellenwert von 443.000 € (Liefer/Dienst) bzw. 5.538.000 € (Bau).",
+          "Ob ein öffentliches Krankenhaus als Sektorenauftraggeber einzuordnen ist, hängt von den gesetzlichen Voraussetzungen und der konkreten Tätigkeit ab. Eine öffentliche Finanzierung allein entscheidet das nicht pauschal; die einschlägigen Schwellenwerte und Regelwerke sind im Einzelfall zu prüfen.",
       },
     ],
     relatedCategories: ["Lieferung", "Sonstiges"],

@@ -57,15 +57,27 @@ import {
 import { SearchLocationIcon } from "@/components/icons/SidebarIcons";
 import type { ViewKey } from "@/components/Shell";
 import { getAllLocationOptions } from "@/lib/bundesland";
-import { formatDeadlineDE, deadlineLabel, deadlineColor, cleanPdfFilename } from "@/lib/date-utils";
+import {
+  formatDeadlineDE,
+  deadlineLabel,
+  deadlineColor,
+  cleanPdfFilename,
+  TENDER_DEADLINE_FILTERS,
+  type TenderDeadlineFilter,
+} from "@/lib/date-utils";
 import { PdfDocumentLink } from "@/components/PdfDocumentLink";
-import { TenderQuickCheck } from "@/components/TenderQuickCheck";
-import type { TenderCheck } from "@/lib/tender-check";
 import { documentAnalysisFieldLabel } from "@/lib/document-analysis";
 import { documentIdentityKey } from "@/lib/document-identity";
 import { isPortalActionUrl } from "@/lib/resource-url";
 import { SafeMarkdown } from "@/components/SafeMarkdown";
-import { generateTenderSlug } from "@/lib/tender-slug";
+import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
+import {
+  isCanonicalPublicDescriptionMarkdown,
+  normalizePublicClient,
+  normalizePublicDisplayCandidate,
+  pickValidatedPublicCandidate,
+  pickValidatedPublicLocationForTender,
+} from "@/lib/public-content-quality";
 
 interface ApiTender {
   id: number;
@@ -92,6 +104,34 @@ interface ApiTender {
 }
 
 const PAGE_SIZE = 30;
+type DeadlineSort = "deadline" | "newest";
+
+const DEFAULT_DEADLINE_FILTER: TenderDeadlineFilter = "minimum7";
+const DEADLINE_FILTER_LABELS: Record<TenderDeadlineFilter, string> = {
+  all: "Alle offenen",
+  minimum3: "Mindestens 3 Tage Vorlauf",
+  minimum7: "Mindestens 7 Tage Vorlauf",
+  minimum14: "Mindestens 14 Tage Vorlauf",
+  next7: "Nächste 7 Tage",
+  next30: "Nächste 30 Tage",
+  custom: "Benutzerdefinierter Zeitraum",
+  missing: "Keine Frist bekannt",
+};
+
+const DEADLINE_SORT_LABELS: Record<DeadlineSort, string> = {
+  deadline: "Früheste Frist",
+  newest: "Neueste zuerst",
+};
+
+interface TenderSearchOptions {
+  query: string;
+  location: string;
+  todayNew: boolean;
+  deadlineFilter: TenderDeadlineFilter;
+  deadlineFrom: string;
+  deadlineTo: string;
+  sort: DeadlineSort;
+}
 
 export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: ViewKey) => void }) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -102,6 +142,10 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
   const [totalResults, setTotalResults] = useState(0);
   const [todayNewOnly, setTodayNewOnly] = useState(false);
   const [todayNewCount, setTodayNewCount] = useState(0);
+  const [deadlineFilter, setDeadlineFilter] = useState<TenderDeadlineFilter>(DEFAULT_DEADLINE_FILTER);
+  const [deadlineFrom, setDeadlineFrom] = useState("");
+  const [deadlineTo, setDeadlineTo] = useState("");
+  const [sortKey, setSortKey] = useState<DeadlineSort>("deadline");
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -116,6 +160,16 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
   const dialogContentRef = useRef<HTMLDivElement | null>(null);
   const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle");
+
+  const searchOptions = useMemo<TenderSearchOptions>(() => ({
+    query: searchQuery,
+    location: selectedLocation,
+    todayNew: todayNewOnly,
+    deadlineFilter,
+    deadlineFrom,
+    deadlineTo,
+    sort: sortKey,
+  }), [deadlineFilter, deadlineFrom, deadlineTo, searchQuery, selectedLocation, sortKey, todayNewOnly]);
 
   useEffect(() => () => {
     if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current);
@@ -218,12 +272,10 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
   const [detailError, setDetailError] = useState<string | null>(null);
 
   const searchTendersApi = useCallback(async (
-    query: string,
-    location: string,
+    options: TenderSearchOptions,
     signal?: AbortSignal,
     page = 1,
     append = false,
-    todayNew = false,
   ) => {
     const requestGeneration = append
       ? requestGenerationRef.current
@@ -242,10 +294,16 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
     setError(null);
     try {
       const params = new URLSearchParams();
-      if (query.trim()) params.set("q", query.trim());
-      if (location.startsWith("bl:")) params.set("bundesland", location.slice(3));
-      if (location.startsWith("city:")) params.set("city", location.slice(5));
-      if (todayNew) params.set("todayNew", "1");
+      if (options.query.trim()) params.set("q", options.query.trim());
+      if (options.location.startsWith("bl:")) params.set("bundesland", options.location.slice(3));
+      if (options.location.startsWith("city:")) params.set("city", options.location.slice(5));
+      if (options.todayNew) params.set("todayNew", "1");
+      params.set("deadlineFilter", options.deadlineFilter);
+      if (options.deadlineFilter === "custom") {
+        if (options.deadlineFrom) params.set("deadlineFrom", options.deadlineFrom);
+        if (options.deadlineTo) params.set("deadlineTo", options.deadlineTo);
+      }
+      params.set("sort", options.sort);
       params.set("limit", String(PAGE_SIZE));
       params.set("page", String(page));
 
@@ -281,18 +339,18 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
   useEffect(() => {
     const controller = new AbortController();
     const timer = setTimeout(() => {
-      searchTendersApi(searchQuery, selectedLocation, controller.signal, 1, false, todayNewOnly);
-    }, searchQuery ? 350 : 0);
+      searchTendersApi(searchOptions, controller.signal, 1, false);
+    }, searchOptions.query ? 350 : 0);
     return () => {
       controller.abort();
       clearTimeout(timer);
     };
-  }, [searchQuery, selectedLocation, searchTendersApi, todayNewOnly]);
+  }, [searchOptions, searchTendersApi]);
 
   const loadMore = useCallback(() => {
     if (!hasMore || loading || loadingMoreRef.current) return;
-    void searchTendersApi(searchQuery, selectedLocation, undefined, currentPage + 1, true, todayNewOnly);
-  }, [currentPage, hasMore, loading, searchQuery, selectedLocation, searchTendersApi, todayNewOnly]);
+    void searchTendersApi(searchOptions, undefined, currentPage + 1, true);
+  }, [currentPage, hasMore, loading, searchOptions, searchTendersApi]);
 
   useEffect(() => {
     const element = loadMoreRef.current;
@@ -341,7 +399,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
           setTotalResults((previous) => Math.max(0, previous - 1));
           setDetailLoading(false);
           setDetailOpen(false);
-          void searchTendersApi(searchQuery, selectedLocation, undefined, 1, false, todayNewOnly);
+          void searchTendersApi(searchOptions, undefined, 1, false);
           return;
         }
         throw new Error(data.error ?? `HTTP ${res.status}`);
@@ -370,7 +428,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
       setDetailError(err instanceof Error ? err.message : "Fehler beim Laden");
       setDetailLoading(false);
     }
-  }, [searchTendersApi, searchQuery, selectedLocation, todayNewOnly]);
+  }, [searchOptions, searchTendersApi]);
 
   const locationOptions = useMemo(() => getAllLocationOptions(), []);
 
@@ -383,7 +441,15 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
     });
   }, [tenders, userLocation, tenderDistances]);
 
-  const hasActiveFilters = Boolean(searchQuery || selectedLocation || todayNewOnly);
+  const hasActiveFilters = Boolean(
+    searchQuery
+    || selectedLocation
+    || todayNewOnly
+    || deadlineFilter !== DEFAULT_DEADLINE_FILTER
+    || deadlineFrom
+    || deadlineTo,
+  );
+  const hasDeadlineRestriction = deadlineFilter !== "all";
 
   const copyModalContent = async (): Promise<void> => {
     if (!selectedTender) return;
@@ -552,7 +618,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
               <ToggleButton value="table"><List size={22} /></ToggleButton>
             </ToggleButtonGroup>
             <IconButton
-              onClick={() => searchTendersApi(searchQuery, selectedLocation, undefined, 1, false, todayNewOnly)}
+              onClick={() => searchTendersApi(searchOptions, undefined, 1, false)}
               disabled={loading}
               size="medium"
               sx={{ height: 48, width: 48 }}
@@ -560,6 +626,69 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
               <RefreshCw size={22} className={loading ? "animate-spin" : ""} />
             </IconButton>
           </Box>
+        </Stack>
+
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={1.5}
+          sx={{ mb: 2 }}
+          alignItems={{ xs: "stretch", sm: "center" }}
+        >
+          <Select
+            value={deadlineFilter}
+            onChange={(event) => {
+              const nextFilter = event.target.value as TenderDeadlineFilter;
+              setDeadlineFilter(nextFilter);
+              if (nextFilter !== "custom") {
+                setDeadlineFrom("");
+                setDeadlineTo("");
+              }
+            }}
+            size="medium"
+            aria-label="Fristenfilter"
+            sx={{ minWidth: { xs: "100%", sm: 230 } }}
+          >
+            {TENDER_DEADLINE_FILTERS.map((filter) => (
+              <MenuItem key={filter} value={filter}>
+                {DEADLINE_FILTER_LABELS[filter]}
+              </MenuItem>
+            ))}
+          </Select>
+          {deadlineFilter === "custom" && (
+            <>
+              <TextField
+                label="Frist von"
+                type="date"
+                value={deadlineFrom}
+                onChange={(event) => setDeadlineFrom(event.target.value)}
+                size="medium"
+                InputLabelProps={{ shrink: true }}
+                sx={{ minWidth: { xs: "100%", sm: 165 } }}
+              />
+              <TextField
+                label="Frist bis"
+                type="date"
+                value={deadlineTo}
+                onChange={(event) => setDeadlineTo(event.target.value)}
+                size="medium"
+                InputLabelProps={{ shrink: true }}
+                sx={{ minWidth: { xs: "100%", sm: 165 } }}
+              />
+            </>
+          )}
+          <Select
+            value={sortKey}
+            onChange={(event) => setSortKey(event.target.value as DeadlineSort)}
+            size="medium"
+            aria-label="Sortierung"
+            sx={{ minWidth: { xs: "100%", sm: 180 } }}
+          >
+            {(Object.keys(DEADLINE_SORT_LABELS) as DeadlineSort[]).map((sort) => (
+              <MenuItem key={sort} value={sort}>
+                {DEADLINE_SORT_LABELS[sort]}
+              </MenuItem>
+            ))}
+          </Select>
         </Stack>
 
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
@@ -689,7 +818,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
           <Button
             variant="contained"
             startIcon={<RefreshCw size={20} />}
-            onClick={() => searchTendersApi(searchQuery, selectedLocation, undefined, 1, false, todayNewOnly)}
+            onClick={() => searchTendersApi(searchOptions, undefined, 1, false)}
             sx={{
               bgcolor: "#1E3A5F",
               color: "#fff",
@@ -712,6 +841,8 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
           <Typography variant="h6" component="p" fontWeight={600} sx={{ mb: 1 }}>
             {todayNewOnly
               ? "Keine Ausschreibungen in den letzten 3 Tagen gefunden"
+              : hasDeadlineRestriction
+              ? `Keine Ausschreibungen mit ${DEADLINE_FILTER_LABELS[deadlineFilter].toLowerCase()} gefunden`
               : hasActiveFilters
               ? "Keine Ausschreibungen gefunden"
               : "Noch keine Ausschreibungen vorhanden"}
@@ -719,11 +850,26 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3, maxWidth: 500, mx: "auto" }}>
             {todayNewOnly
               ? "Versuchen Sie andere Suchbegriffe oder Standortfilter oder setzen Sie den Filter zurück."
+              : hasDeadlineRestriction
+              ? "Erweitern Sie den Fristenfilter, um auch kurzfristige Ausschreibungen anzuzeigen."
               : hasActiveFilters
               ? "Versuchen Sie andere Suchbegriffe oder Standortfilter."
               : "Der Hintergrund-Job sucht automatisch nach neuen Ausschreibungen."}
           </Typography>
-          {hasActiveFilters ? (
+          {hasDeadlineRestriction && (
+            <Button
+              variant="outlined"
+              startIcon={<RefreshCw size={20} />}
+              onClick={() => {
+                setDeadlineFilter("all");
+                setDeadlineFrom("");
+                setDeadlineTo("");
+              }}
+            >
+              Alle offenen anzeigen
+            </Button>
+          )}
+          {hasActiveFilters && (
             <Button
               variant="outlined"
               startIcon={<RefreshCw size={20} />}
@@ -731,16 +877,21 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                 setSearchQuery("");
                 setSelectedLocation("");
                 setTodayNewOnly(false);
+                setDeadlineFilter(DEFAULT_DEADLINE_FILTER);
+                setDeadlineFrom("");
+                setDeadlineTo("");
+                setSortKey("deadline");
                 clearGeolocation();
               }}
             >
               Filter zurücksetzen
             </Button>
-          ) : (
+          )}
+          {!hasDeadlineRestriction && !hasActiveFilters && (
             <Button
               variant="outlined"
               startIcon={<RefreshCw size={20} />}
-              onClick={() => searchTendersApi("", "", undefined, 1, false, todayNewOnly)}
+              onClick={() => searchTendersApi({ ...searchOptions, query: "", location: "" }, undefined, 1, false)}
             >
               Jetzt laden
             </Button>
@@ -780,11 +931,9 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                     <Typography variant="body2" fontWeight={600} sx={{ color: "#1e293b", fontSize: "0.9375rem" }}>
                       {tender.title}
                     </Typography>
-                    {tender.description && (
-                      <Typography variant="caption" sx={{ color: "#475569", fontSize: "0.75rem", display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                        {tender.description}
-                      </Typography>
-                    )}
+                    <Typography variant="caption" sx={{ color: "#475569", fontSize: "0.75rem", display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                      {tender.description || "–"}
+                    </Typography>
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2" sx={{ color: "#475569", fontSize: "0.8125rem" }}>{tender.client}</Typography>
@@ -808,14 +957,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                     </TableCell>
                   )}
                   <TableCell>
-                    {deadlineLabel(tender.deadlineISO ?? tender.deadline) ? (
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                        <Calendar size={15} style={{ opacity: 0.55 }} />
-                        <Typography variant="body2" sx={{ color: "#475569", fontSize: "0.8125rem" }}>
-                          {deadlineLabel(tender.deadlineISO ?? tender.deadline)}
-                        </Typography>
-                      </Box>
-                    ) : "–"}
+                    <DeadlineDisplay value={tender.deadlineISO ?? tender.deadline} compact />
                   </TableCell>
                   <TableCell>
                     <Typography variant="caption" sx={{ color: "#475569", fontSize: "0.75rem" }}>{tender.source}</Typography>
@@ -920,25 +1062,29 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
           {detailData && selectedTender && (() => {
             const d = detailData as Record<string, unknown>;
             const t = selectedTender;
-            const client = typeof d.client === "string" && d.client.length > 0 ? d.client : t.client;
-            const location = typeof d.location === "string" && d.location.length > 0
-              ? d.location
-              : t.location || t.bundesland || "";
-            const deadline = typeof d.deadline === "string" && d.deadline.length > 0 ? d.deadline : t.deadline;
-            const deadlineISO = typeof d.deadlineISO === "string" && d.deadlineISO.length > 0 ? d.deadlineISO : t.deadlineISO;
-            const description = typeof d.description === "string" && d.description.length > 0 ? d.description : t.description;
-            const descriptionMarkdown = typeof d.descriptionMarkdown === "string" && d.descriptionMarkdown.trim().length > 0 ? d.descriptionMarkdown : null;
+            const client = normalizePublicClient(d.client, t.client);
+            const location = pickValidatedPublicLocationForTender(t.title, client, d.location, t.location, t.bundesland);
+            const deadline = pickValidatedPublicCandidate(d.deadline, t.deadline);
+            const deadlineISO = pickValidatedPublicCandidate(d.deadlineISO, t.deadlineISO);
+            const description = pickValidatedPublicCandidate(d.description, t.description);
+            const descriptionMarkdown = isCanonicalPublicDescriptionMarkdown(d.descriptionMarkdown)
+              ? d.descriptionMarkdown
+              : null;
             const markdownHasSection = (label: string): boolean => Boolean(descriptionMarkdown?.includes(`- **${label}:**`));
             const markdownHasScope = markdownHasSection("Leistungsumfang");
             const markdownHasRequirements = markdownHasSection("Anforderungen");
             const markdownHasAwards = markdownHasSection("Zuschlagskriterien");
-            const scope = typeof d.scope === "string" && d.scope.length > 0 ? d.scope : null;
-            const estimatedValue = typeof d.estimatedValue === "string" && d.estimatedValue.length > 0 ? d.estimatedValue : null;
-            const procedure = typeof d.procedure === "string" && d.procedure.length > 0 ? d.procedure : null;
-            const duration = typeof d.duration === "string" && d.duration.length > 0 ? d.duration : null;
-            const contact = typeof d.contact === "string" && d.contact.length > 0 ? d.contact : null;
-            const requirements = Array.isArray(d.requirements) ? d.requirements as string[] : [];
-            const awardCriteria = Array.isArray(d.awardCriteria) ? d.awardCriteria as string[] : [];
+            const scope = pickValidatedPublicCandidate(d.scope) || null;
+            const estimatedValue = pickValidatedPublicCandidate(d.estimatedValue) || null;
+            const procedure = pickValidatedPublicCandidate(d.procedure) || null;
+            const duration = pickValidatedPublicCandidate(d.duration) || null;
+            const contact = pickValidatedPublicCandidate(d.contact) || null;
+            const requirements = Array.isArray(d.requirements)
+              ? d.requirements.map((value) => normalizePublicDisplayCandidate(value)).filter((value): value is string => Boolean(value))
+              : [];
+            const awardCriteria = Array.isArray(d.awardCriteria)
+              ? d.awardCriteria.map((value) => normalizePublicDisplayCandidate(value)).filter((value): value is string => Boolean(value))
+              : [];
             const pdfUrls = Array.isArray(d.pdfUrls) ? d.pdfUrls as string[] : t.pdfUrls ?? [];
             const documentRows = Array.isArray(d.documents)
               ? d.documents.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object" && !Array.isArray(item)))
@@ -1000,21 +1146,12 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
             const documentAnalysis = d.documentAnalysis && typeof d.documentAnalysis === "object" && !Array.isArray(d.documentAnalysis)
               ? d.documentAnalysis as Record<string, unknown>
               : null;
-            const tenderCheck = d.documentCheck && typeof d.documentCheck === "object" && !Array.isArray(d.documentCheck)
-              ? d.documentCheck as TenderCheck
-              : null;
             const analysisCoverage = documentAnalysis?.coverage && typeof documentAnalysis.coverage === "object" && !Array.isArray(documentAnalysis.coverage)
               ? documentAnalysis.coverage as Record<string, unknown>
               : null;
             const analysisEvidence = Array.isArray(documentAnalysis?.evidence)
               ? documentAnalysis.evidence.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object" && !Array.isArray(item)))
               : [];
-            const commercialBrief = d.commercialBrief && typeof d.commercialBrief === "object" && !Array.isArray(d.commercialBrief)
-              ? d.commercialBrief as Record<string, unknown>
-              : null;
-            const briefHeadline = typeof commercialBrief?.headline === "string" ? commercialBrief.headline : null;
-            const briefRationale = typeof commercialBrief?.rationale === "string" ? commercialBrief.rationale : null;
-            const briefNextAction = typeof commercialBrief?.nextAction === "string" ? commercialBrief.nextAction : null;
 
             return (
               <Stack spacing={3}>
@@ -1096,42 +1233,21 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                   )}
                 </Stack>
 
-                {briefHeadline && briefRationale && briefNextAction && (
-                  <Box sx={{ p: 2, borderRadius: 2, bgcolor: "#f0f6f8" }}>
-                    <Typography variant="overline" sx={{ fontWeight: 700, letterSpacing: 0.8, display: "block", mb: 0.75, lineHeight: 1.2, color: "#365d6c", fontSize: "0.75rem" }}>
-                      Geschäftsentscheidung
-                    </Typography>
-                    <Typography sx={{ color: "#163b4a", fontWeight: 700, lineHeight: 1.4 }}>
-                      {briefHeadline}
-                    </Typography>
-                    <Typography variant="body2" sx={{ mt: 0.75, color: "#38505b", lineHeight: 1.55 }}>
-                      {briefRationale}
-                    </Typography>
-                    <Typography variant="body2" sx={{ mt: 1, color: "#163b4a", fontWeight: 700, lineHeight: 1.5 }}>
-                      Nächster Schritt: {briefNextAction}
-                    </Typography>
-                  </Box>
-                )}
-
-                <TenderQuickCheck key={`quick-check-${t.id}`} tenderId={t.id} initialCheck={tenderCheck} />
-
                 {/* Description */}
-                {(descriptionMarkdown || (description && description.length > 0)) && (
-                  <Box>
-                    <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 1, lineHeight: 1.2, color: "#475569", fontSize: "0.75rem" }}>
-                      Beschreibung
-                    </Typography>
-                    <SafeMarkdown
-                      content={descriptionMarkdown}
-                      sx={{ lineHeight: 1.5, fontSize: "0.9375rem", color: "#334155" }}
-                      fallback={
-                        <Typography variant="body1" sx={{ lineHeight: 1.5, fontSize: "0.9375rem", color: "#334155" }}>
-                          {description.length > 600 ? description.slice(0, 600) + "..." : description}
-                        </Typography>
-                      }
-                    />
-                  </Box>
-                )}
+                <Box>
+                  <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 1, lineHeight: 1.2, color: "#475569", fontSize: "0.75rem" }}>
+                    Beschreibung
+                  </Typography>
+                  <SafeMarkdown
+                    content={descriptionMarkdown}
+                    sx={{ lineHeight: 1.5, fontSize: "0.9375rem", color: "#334155" }}
+                    fallback={
+                      <Typography variant="body1" sx={{ lineHeight: 1.5, fontSize: "0.9375rem", color: "#334155" }}>
+                        {description ? (description.length > 600 ? description.slice(0, 600) + "..." : description) : "–"}
+                      </Typography>
+                    }
+                  />
+                </Box>
 
                 {/* Scope (detailed) */}
                 {scope && scope.length > 0 && scope !== description && !markdownHasScope && (
@@ -1237,7 +1353,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
         <DialogActions>
           {selectedTender && (
             <Button
-              href={`/ausschreibung/${selectedTender.id}/${selectedTender.slug ?? generateTenderSlug(selectedTender.title, selectedTender.location)}`}
+              href={`/ausschreibung/${selectedTender.id}/${getCanonicalTenderSlug(selectedTender.slug ?? null, selectedTender.title, { client: selectedTender.client, location: selectedTender.location })}`}
               target="_blank"
               rel="noopener noreferrer"
               endIcon={<ExternalLink size={20} />}
@@ -1269,6 +1385,27 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
 }
 
 
+
+function DeadlineDisplay({ value, compact = false }: { value: string | null | undefined; compact?: boolean }) {
+  const date = formatDeadlineDE(value);
+  const relative = deadlineLabel(value);
+
+  return (
+    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, minWidth: 0 }}>
+      <Calendar size={compact ? 15 : 18} style={{ opacity: 0.55, flexShrink: 0 }} />
+      <Typography
+        variant="body2"
+        sx={{
+          color: date ? deadlineColor(value) : "text.secondary",
+          fontSize: compact ? "0.8125rem" : "0.8125rem",
+          lineHeight: 1.4,
+        }}
+      >
+        {date ? `${date}${relative ? ` · ${relative}` : ""}` : "Keine Frist bekannt"}
+      </Typography>
+    </Box>
+  );
+}
 
 function TenderCard({ tender, onDetailClick, distance }: { tender: ApiTender; onDetailClick: (tender: ApiTender) => void; distance?: number }) {
   const theme = useTheme();
@@ -1330,23 +1467,21 @@ function TenderCard({ tender, onDetailClick, distance }: { tender: ApiTender; on
           </Box>
         </Box>
 
-        {tender.description && (
-          <Typography
-            variant="body2"
-            sx={{
-              mb: 2,
-              lineHeight: 1.5,
-              color: "#334155",
-              fontSize: "0.9375rem",
-              display: "-webkit-box",
-              WebkitLineClamp: { xs: 2, sm: 3 },
-              WebkitBoxOrient: "vertical",
-              overflow: "hidden",
-            }}
-          >
-            {tender.description}
-          </Typography>
-        )}
+        <Typography
+          variant="body2"
+          sx={{
+            mb: 2,
+            lineHeight: 1.5,
+            color: "#334155",
+            fontSize: "0.9375rem",
+            display: "-webkit-box",
+            WebkitLineClamp: { xs: 2, sm: 3 },
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
+          }}
+        >
+          {tender.description || "–"}
+        </Typography>
 
         <Stack
           direction="row"
@@ -1373,14 +1508,9 @@ function TenderCard({ tender, onDetailClick, distance }: { tender: ApiTender; on
               <Typography variant="body2" sx={{ color: "#475569", fontSize: "0.8125rem" }}>{displayLocation}</Typography>
             </Box>
           )}
-          {(tender.deadlineISO ?? tender.deadline) && formatDeadlineDE(tender.deadlineISO ?? tender.deadline) && (
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, ml: { xs: 1, sm: 2 } }}>
-              <Calendar size={18} style={{ opacity: 0.5 }} />
-              <Typography variant="body2" sx={{ color: "#475569", fontSize: "0.8125rem" }}>
-                {deadlineLabel(tender.deadlineISO ?? tender.deadline)}
-              </Typography>
-            </Box>
-          )}
+          <Box sx={{ ml: { xs: 1, sm: 2 } }}>
+            <DeadlineDisplay value={tender.deadlineISO ?? tender.deadline} />
+          </Box>
           {tender.referenceNumber && (
             <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
               <FileText size={18} style={{ opacity: 0.5 }} />

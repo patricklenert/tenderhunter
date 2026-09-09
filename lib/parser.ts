@@ -89,7 +89,7 @@ async function parsePdfWithOpenRouter(filePath: string): Promise<string> {
   const dataUrl = `data:application/pdf;base64,${base64Pdf}`;
 
   const payload = {
-    model: "google/gemini-3.1-flash-lite",
+    model: "z-ai/glm-5.3-flash",
     messages: [
       {
         role: "user",
@@ -153,7 +153,7 @@ async function parsePdfWithMistralOCR(filePath: string): Promise<string> {
   const dataUrl = `data:application/pdf;base64,${base64Pdf}`;
 
   const payload = {
-    model: "google/gemini-3.1-flash-lite",
+    model: "z-ai/glm-5.3-flash",
     messages: [
       {
         role: "user",

@@ -21,9 +21,11 @@ import { tenders } from "@/lib/schema";
 import { and, eq, or, isNull, gt, sql, desc } from "drizzle-orm";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 import { isIndexableAgencyName, normalizeAgencySlug } from "@/lib/agencies";
-import { generateTenderSlug } from "@/lib/tender-slug";
+import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 import { getListingRobots, getPageNumber, type SeoSearchParams } from "@/lib/seo-indexability";
+import { readPublicTenderMeta } from "@/lib/tender-meta";
+import { normalizePublicClient } from "@/lib/public-content-quality";
 
 // SEO: Agency/Auftraggeber landing pages for long-tail keywords like "Ausschreibungen Stadt München"
 export const revalidate = 3600;
@@ -59,8 +61,13 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
       )
       .groupBy(sql`(${tenders.metadataJson}::jsonb->>'client')`);
 
-    const matchingClient = rows.find((r) => isIndexableAgencyName(r.client) && normalizeAgencySlug(r.client) === slug)?.client;
-    if (!matchingClient) return { title: "Auftraggeber nicht gefunden", robots: { index: false, follow: true } };
+    const matchingRow = rows.find((r) => {
+      const client = normalizePublicClient(r.client);
+      return Boolean(client) && isIndexableAgencyName(client) && normalizeAgencySlug(client) === slug;
+    });
+    const matchingClientRaw = matchingRow?.client;
+    const matchingClient = normalizePublicClient(matchingClientRaw);
+    if (!matchingClientRaw || !matchingClient) return { title: "Auftraggeber nicht gefunden", robots: { index: false, follow: true } };
 
     // Count tenders for this client
     const countResult = await db
@@ -70,7 +77,7 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
         and(
           eq(tenders.qualityStatus, "qualified"),
           or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
-          sql`(${tenders.metadataJson}::jsonb->>'client') = ${matchingClient}`,
+          sql`(${tenders.metadataJson}::jsonb->>'client') = ${matchingClientRaw}`,
         ),
       );
     const count = countResult[0]?.count ?? 0;
@@ -122,8 +129,13 @@ export default async function AuftraggeberPage({ params, searchParams }: PagePro
     )
     .groupBy(sql`(${tenders.metadataJson}::jsonb->>'client')`);
 
-  const matchingClient = clientRows.find((r) => isIndexableAgencyName(r.client) && normalizeAgencySlug(r.client) === slug)?.client;
-  if (!matchingClient) notFound();
+   const matchingRow = clientRows.find((r) => {
+     const client = normalizePublicClient(r.client);
+     return Boolean(client) && isIndexableAgencyName(client) && normalizeAgencySlug(client) === slug;
+   });
+   const matchingClientRaw = matchingRow?.client;
+   const matchingClient = normalizePublicClient(matchingClientRaw);
+   if (!matchingClientRaw || !matchingClient) notFound();
 
   // Fetch tenders for this client with pagination, plus category counts for cross-links
   const offset = (currentPage - 1) * PAGE_SIZE;
@@ -133,6 +145,7 @@ export default async function AuftraggeberPage({ params, searchParams }: PagePro
       .select({
         id: tenders.id,
         title: tenders.title,
+        source: tenders.source,
         category: tenders.category,
         deadlineAt: tenders.deadlineAt,
         metadataJson: tenders.metadataJson,
@@ -143,7 +156,7 @@ export default async function AuftraggeberPage({ params, searchParams }: PagePro
         and(
           eq(tenders.qualityStatus, "qualified"),
           or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
-          sql`(${tenders.metadataJson}::jsonb->>'client') = ${matchingClient}`,
+           sql`(${tenders.metadataJson}::jsonb->>'client') = ${matchingClientRaw}`,
         ),
       )
       .orderBy(desc(tenders.createdAt))
@@ -156,7 +169,7 @@ export default async function AuftraggeberPage({ params, searchParams }: PagePro
         and(
           eq(tenders.qualityStatus, "qualified"),
           or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
-          sql`(${tenders.metadataJson}::jsonb->>'client') = ${matchingClient}`,
+           sql`(${tenders.metadataJson}::jsonb->>'client') = ${matchingClientRaw}`,
         ),
       ),
     // SEO: Fetch one source URL for Organization sameAs structured data
@@ -166,7 +179,7 @@ export default async function AuftraggeberPage({ params, searchParams }: PagePro
       .where(
         and(
           eq(tenders.qualityStatus, "qualified"),
-          sql`(${tenders.metadataJson}::jsonb->>'client') = ${matchingClient}`,
+           sql`(${tenders.metadataJson}::jsonb->>'client') = ${matchingClientRaw}`,
         ),
       )
       .limit(1),
@@ -178,7 +191,7 @@ export default async function AuftraggeberPage({ params, searchParams }: PagePro
         and(
           eq(tenders.qualityStatus, "qualified"),
           or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
-          sql`(${tenders.metadataJson}::jsonb->>'client') = ${matchingClient}`,
+           sql`(${tenders.metadataJson}::jsonb->>'client') = ${matchingClientRaw}`,
         ),
       )
       .groupBy(tenders.category),
@@ -190,19 +203,22 @@ export default async function AuftraggeberPage({ params, searchParams }: PagePro
   if (currentPage > totalPages && totalCount > 0) notFound();
 
   const tenderList = tenderRows.map((t) => {
-    const meta = (typeof t.metadataJson === "object" && t.metadataJson !== null
-      ? t.metadataJson
-      : {}) as Record<string, unknown>;
-    const rawLocation = typeof meta.location === "string" ? meta.location : "";
+    const meta = readPublicTenderMeta(t.metadataJson, {
+      title: t.title,
+      source: t.source,
+    });
     return {
       id: t.id,
       title: t.title ?? `Ausschreibung #${t.id}`,
       category: t.category ?? "Diverse",
-      location: typeof meta.location === "string" ? meta.location.split(",")[0].trim() : "",
+      location: meta.location ? meta.location.split(",")[0].trim() : "",
       deadline: t.deadlineAt
         ? new Date(t.deadlineAt).toLocaleDateString("de-DE", { day: "2-digit", month: "short", year: "numeric" })
         : null,
-      slug: t.slug ?? generateTenderSlug(t.title ?? "", rawLocation),
+      slug: getCanonicalTenderSlug(t.slug, t.title, {
+        client: meta.client,
+        location: meta.location,
+      }),
     };
   });
 

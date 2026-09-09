@@ -96,6 +96,9 @@ export function SiteFooter({ containerMaxWidth = "lg" }: { containerMaxWidth?: s
               <Link href="/wissen" style={{ color: "#667288", textDecoration: "none", fontSize: "0.85rem" }}>
                 Wissen & Ratgeber
               </Link>
+              <Link href="/lexikon" style={{ color: "#667288", textDecoration: "none", fontSize: "0.85rem" }}>
+                Vergabelexikon
+              </Link>
               <Link href="/funktionen" style={{ color: "#667288", textDecoration: "none", fontSize: "0.85rem" }}>
                 Funktionen
               </Link>

@@ -2,9 +2,10 @@ import { Meilisearch, type SearchResponse } from "meilisearch";
 import { db } from "@/lib/db";
 import { structuredData, tenders } from "@/lib/schema";
 import { and, eq, gt, inArray, isNull, or } from "drizzle-orm";
-import { cleanPublicDescription, getPublicClientFallback, normalizePublicClient } from "@/lib/public-tender-scraper";
+import { getPublicClientFallback, normalizePublicClient, pickPublicDescription } from "@/lib/public-tender-scraper";
 import { deriveBundesland, deriveCity } from "@/lib/bundesland";
 import { getPublicSourceBundesland } from "@/lib/public-source-registry";
+import { pickValidatedPublicCandidate, pickValidatedPublicClient, pickValidatedPublicLocationForTender } from "@/lib/public-content-quality";
 import { acquireCatalogSync, finishCatalogSync, getCatalogState, releaseCatalogSync, touchCatalogSync } from "@/lib/catalog";
 
 const MEILI_HOST = process.env.MEILI_HOST ?? "http://localhost:7700";
@@ -45,6 +46,85 @@ interface TenderDocument {
   slug: string | null;
 }
 
+export interface TenderIndexInput {
+  id: number;
+  title: string | null;
+  source: string;
+  sourceKey: string | null;
+  url: string;
+  deadlineAt: Date | null;
+  firstSeenAt: Date | null;
+  category: string | null;
+  metadataJson: unknown;
+  structuredJson: unknown;
+  rawText: string | null;
+  contractValueMax: number | null;
+  slug: string | null;
+  readinessStatus: string;
+}
+
+const parseRecord = (value: unknown): Record<string, unknown> => {
+  if (value && typeof value === "object" && !Array.isArray(value)) return value as Record<string, unknown>;
+  if (typeof value !== "string") return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : {};
+  } catch {
+    return {};
+  }
+};
+
+/** Build the public document used by both indexing and search result cleanup. */
+export const buildTenderIndexDocument = (item: TenderIndexInput): TenderDocument => {
+  const meta = parseRecord(item.metadataJson);
+  const structured = parseRecord(item.structuredJson);
+  const hardFacts = structured.hard_facts && typeof structured.hard_facts === "object"
+    ? structured.hard_facts as Record<string, unknown>
+    : {};
+  const title = pickValidatedPublicCandidate(item.title) || `Ausschreibung #${item.id}`;
+  const client = pickValidatedPublicClient(
+    meta.client,
+    meta.buyer,
+    hardFacts.buyer,
+    getPublicClientFallback(item.source, item.url),
+  ) || "Unbekannt";
+  const location = pickValidatedPublicLocationForTender(title, client, meta.location, hardFacts.location);
+  const bundesland = deriveBundesland(location)
+    ?? getPublicSourceBundesland(item.sourceKey ?? item.source, item.url);
+  const pdfUrls = Array.isArray(meta.pdf_urls)
+    ? meta.pdf_urls
+    : Array.isArray(meta.pdfUrls) ? meta.pdfUrls : [];
+
+  return {
+    id: item.id,
+    title,
+    description: pickPublicDescription(
+      structured.summary,
+      structured.description,
+      structured.scope,
+      meta.description,
+      meta.summary,
+      item.rawText,
+    ).slice(0, 5_000),
+    client,
+    category: item.category ?? "Sonstiges",
+    bundesland,
+    city: deriveCity(location),
+    location,
+    source: item.source,
+    sourceUrl: item.url,
+    deadlineAt: item.deadlineAt ? item.deadlineAt.getTime() / 1000 : null,
+    firstSeenAt: item.firstSeenAt ? Math.floor(item.firstSeenAt.getTime() / 1000) : null,
+    hasDeadline: item.deadlineAt !== null,
+    pdfCount: pdfUrls.length,
+    readinessStatus: item.readinessStatus,
+    contractValueMax: item.contractValueMax,
+    slug: item.slug ?? null,
+  };
+};
+
 async function waitForMeiliTask(task: { taskUid: number }, operation: string): Promise<void> {
   const result = await getMeiliClient().tasks.waitForTask(task.taskUid, {
     timeout: 10 * 60 * 1_000,
@@ -68,7 +148,7 @@ const configureIndex = async (
   ]);
 
   await index.updateSortableAttributes([
-    "deadlineAt", "contractValueMax",
+    "deadlineAt", "firstSeenAt", "hasDeadline", "contractValueMax",
   ]);
 
   await index.updateLocalizedAttributes([
@@ -174,10 +254,11 @@ export async function syncTendersToMeili(): Promise<{ indexed: number; skipped: 
             url: tenders.url,
             deadlineAt: tenders.deadlineAt,
             firstSeenAt: tenders.firstSeenAt,
-            category: tenders.category,
-            metadataJson: tenders.metadataJson,
-            structuredJson: structuredData.jsonBlob,
-            contractValueMax: tenders.contractValueMax,
+             category: tenders.category,
+             metadataJson: tenders.metadataJson,
+             structuredJson: structuredData.jsonBlob,
+             rawText: tenders.rawText,
+             contractValueMax: tenders.contractValueMax,
             slug: tenders.slug,
             readinessStatus: tenders.readinessStatus,
           })
@@ -195,41 +276,7 @@ export async function syncTendersToMeili(): Promise<{ indexed: number; skipped: 
 
         if (items.length === 0) break;
         for (const item of items) desiredIds.add(item.id);
-        const docs: TenderDocument[] = items.map((item) => {
-          const meta =
-            typeof item.metadataJson === "object" && item.metadataJson !== null
-              ? (item.metadataJson as Record<string, unknown>)
-              : {};
-          const structured = item.structuredJson && typeof item.structuredJson === "object"
-            ? item.structuredJson as Record<string, unknown>
-            : {};
-          const hardFacts = structured.hard_facts && typeof structured.hard_facts === "object"
-            ? structured.hard_facts as Record<string, unknown>
-            : {};
-          const location = String(meta.location ?? hardFacts.location ?? "");
-          const bundesland = deriveBundesland(location)
-            ?? getPublicSourceBundesland(item.sourceKey ?? item.source, item.url);
-          const pdfUrls = Array.isArray(meta.pdf_urls) ? meta.pdf_urls : [];
-          return {
-            id: item.id,
-            title: item.title ?? `Ausschreibung #${item.id}`,
-            description: cleanPublicDescription(String(meta.description ?? structured.summary ?? "")).slice(0, 5000),
-            client: normalizePublicClient(meta.client, getPublicClientFallback(item.source, item.url)) || "Unbekannt",
-            category: item.category ?? "Sonstiges",
-            bundesland,
-            city: deriveCity(location),
-            location,
-            source: item.source,
-            sourceUrl: item.url,
-            deadlineAt: item.deadlineAt ? new Date(item.deadlineAt).getTime() / 1000 : null,
-            firstSeenAt: item.firstSeenAt ? Math.floor(item.firstSeenAt.getTime() / 1000) : null,
-            hasDeadline: item.deadlineAt !== null,
-            pdfCount: pdfUrls.length,
-            readinessStatus: item.readinessStatus,
-            contractValueMax: item.contractValueMax,
-            slug: item.slug ?? null,
-          };
-        });
+        const docs: TenderDocument[] = items.map(buildTenderIndexDocument);
         await waitForMeiliTask(await index.addDocuments(docs), `Indizieren von Batch ab Tender ${docs[0].id}`);
         await touchCatalogSync();
         indexed += docs.length;
@@ -284,6 +331,10 @@ export interface MeilisearchParams {
   category?: string | null;
   firstSeenAtFrom?: number;
   firstSeenAtTo?: number;
+  hasDeadline?: boolean;
+  deadlineAtFrom?: number;
+  deadlineAtTo?: number;
+  sort?: "deadline" | "newest";
   // SEO: source filter for portal landing pages (supports OR via array)
   source?: string | string[] | null;
   limit?: number;
@@ -312,6 +363,15 @@ export async function searchTenders(
   }
   if (params.firstSeenAtTo !== undefined) {
     filters.push(`firstSeenAt < ${params.firstSeenAtTo}`);
+  }
+  if (params.hasDeadline !== undefined) {
+    filters.push(`hasDeadline = ${params.hasDeadline}`);
+  }
+  if (params.deadlineAtFrom !== undefined) {
+    filters.push(`deadlineAt >= ${params.deadlineAtFrom}`);
+  }
+  if (params.deadlineAtTo !== undefined) {
+    filters.push(`deadlineAt < ${params.deadlineAtTo}`);
   }
   // SEO: source filter supports single string or OR-array for portal pages
   if (params.source) {
@@ -348,9 +408,9 @@ export async function searchTenders(
     searchParams.hybrid = { embedder: "default", semanticRatio: 0.5 };
   }
 
-  if (!hasQuery) {
-    searchParams.sort = ["deadlineAt:asc"];
-  }
+  searchParams.sort = params.sort === "newest"
+    ? ["firstSeenAt:desc"]
+    : ["hasDeadline:desc", "deadlineAt:asc"];
 
   const response: SearchResponse<TenderDocument> = await index.search(
     params.query ?? "",
@@ -365,7 +425,23 @@ export async function searchTenders(
       .where(and(inArray(tenders.id, hits.map((hit) => hit.id)), eq(tenders.qualityStatus, "qualified"))))
       .map((row) => row.id))
     : new Set<number>();
-  const visibleHits = hits.filter((hit) => qualifiedIds.has(hit.id));
+  const visibleHits = hits
+    .filter((hit) => qualifiedIds.has(hit.id))
+    .map((hit) => {
+      const title = pickValidatedPublicCandidate(hit.title) || `Ausschreibung #${hit.id}`;
+      const client = normalizePublicClient(
+        hit.client,
+        getPublicClientFallback(hit.source, hit.sourceUrl),
+      ) || "Unbekannt";
+      return {
+        ...hit,
+        title,
+        client,
+        location: pickValidatedPublicLocationForTender(title, client, hit.location),
+        city: pickValidatedPublicLocationForTender(title, client, hit.city) || null,
+        description: pickPublicDescription(hit.description),
+      };
+    });
 
   return {
     hits: visibleHits,

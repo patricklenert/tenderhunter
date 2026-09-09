@@ -498,15 +498,15 @@ export function BidPackPanel({ companyId, tenderId, trackedTenderId, onCreated }
     return (
       <PaywallPanel
         feature="Bid Pack"
-        title="Nicht nur lesen. Entscheiden, ob du bieten solltest."
-        description="Erhalte eine persönliche Go-/No-Go-Analyse, erkenne fehlende Anforderungen und erstelle die nächsten Aufgaben für dein Team."
+        title="Nicht nur lesen. Entscheiden, ob Sie bieten sollten."
+        description="Erhalten Sie eine persönliche Passungsanalyse, erkennen Sie fehlende Anforderungen und erstellen Sie die nächsten Aufgaben für Ihr Team."
       />
     );
   }
 
   if (!companyId) {
     return (
-      <Alert severity="info">Lege zuerst ein Unternehmensprofil an, damit die Ausschreibung gegen dein Unternehmen geprüft werden kann.</Alert>
+      <Alert severity="info">Legen Sie zuerst ein Unternehmensprofil an, damit die Ausschreibung gegen Ihr Unternehmen geprüft werden kann.</Alert>
     );
   }
 
@@ -530,7 +530,7 @@ export function BidPackPanel({ companyId, tenderId, trackedTenderId, onCreated }
             <Typography variant="subtitle1" fontWeight={700}>Bid Pack erstellen</Typography>
           </Stack>
           <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.6 }}>
-            Aus dieser Ausschreibung wird eine belastbare Entscheidung: Risiken, Anforderungen und nächste Schritte für dein Unternehmen.
+            Aus dieser Ausschreibung wird eine belastbare Entscheidungsgrundlage: Risiken, Anforderungen und nächste Schritte für Ihr Unternehmen.
           </Typography>
           {error ? <Alert severity="error">{error}</Alert> : null}
           <Button variant="contained" onClick={() => void createPack()} disabled={saving} startIcon={saving ? <CircularProgress size={16} /> : <ClipboardCheck size={16} />}>
@@ -620,7 +620,7 @@ export function BidPackPanel({ companyId, tenderId, trackedTenderId, onCreated }
           <Stack spacing={1.5}>
             <Stack direction="row" spacing={1} alignItems="center">
               <ShieldAlert size={17} />
-              <Typography variant="subtitle2" fontWeight={700}>Deine Entscheidung</Typography>
+              <Typography variant="subtitle2" fontWeight={700}>Ihre Entscheidung</Typography>
             </Stack>
             <FormControl fullWidth size="small">
               <InputLabel id={`bid-pack-decision-${pack.id}`}>Entscheidung</InputLabel>

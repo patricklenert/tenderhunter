@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Box, Container, Typography, Stack, Chip, Breadcrumbs } from "@mui/material";
 import { Home as HomeIcon, ArrowRight } from "lucide-react";
 import { ARTICLES, ALL_ARTICLE_SLUGS } from "@/lib/articles";
-import type { Article } from "@/lib/articles";
+import { GLOSSARY_MAP } from "@/lib/glossary";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
@@ -238,6 +238,11 @@ export default async function ArticlePage({ params }: PageProps) {
             <Typography variant="body1" color="text.secondary" sx={{ mb: 4, maxWidth: "70ch", lineHeight: 1.7 }}>
               {article.description}
             </Typography>
+            {article.lastReviewed && (
+              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 3 }}>
+                Zuletzt fachlich geprüft: {new Intl.DateTimeFormat("de-DE").format(new Date(article.lastReviewed))}
+              </Typography>
+            )}
 
             {renderContent(article.content)}
           </Box>
@@ -276,6 +281,42 @@ export default async function ArticlePage({ params }: PageProps) {
                     </Link>
                   );
                 })}
+              </Stack>
+            </Box>
+          )}
+
+          {article.relatedGlossaryTerms && article.relatedGlossaryTerms.length > 0 && (
+            <Box sx={{ mb: 5 }}>
+              <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
+                Begriffe im Vergabelexikon
+              </Typography>
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                {article.relatedGlossaryTerms.map((termSlug) => {
+                  const term = GLOSSARY_MAP[termSlug];
+                  if (!term) return null;
+                  return (
+                    <Link key={termSlug} href={`/lexikon/${termSlug}`} style={{ textDecoration: "none" }}>
+                      <Chip clickable label={term.term} variant="outlined" sx={{ fontWeight: 500 }} />
+                    </Link>
+                  );
+                })}
+              </Stack>
+            </Box>
+          )}
+
+          {article.sources && article.sources.length > 0 && (
+            <Box sx={{ mb: 5 }}>
+              <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 1 }}>
+                Quellen und Rechtsgrundlagen
+              </Typography>
+              <Stack component="ul" spacing={0.5} sx={{ pl: 2.5, m: 0 }}>
+                {article.sources.map((source) => (
+                  <Box component="li" key={source.url}>
+                    <Link href={source.url} target="_blank" rel="noreferrer" style={{ color: "inherit" }}>
+                      {source.title}
+                    </Link>
+                  </Box>
+                ))}
               </Stack>
             </Box>
           )}

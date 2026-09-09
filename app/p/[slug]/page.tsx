@@ -6,7 +6,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Box, Container, Stack, Typography } from "@mui/material";
 import { ChevronRight } from "lucide-react";
-import { generateTenderSlug } from "@/lib/tender-slug";
+import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
 import { CompanyProfileHeader } from "@/components/profile/CompanyProfileHeader";
 import { TenderSectionHeader } from "@/components/profile/TenderSectionHeader";
 import { TenderCard } from "@/components/profile/TenderCard";
@@ -14,6 +14,7 @@ import { PageFooter } from "@/components/profile/PageFooter";
 import { findPublicProfileMatches, type PublicProfileMatch } from "@/lib/discovery";
 import { decodeHtmlEntities } from "@/lib/text-normalization";
 import { pickPublicDescription } from "@/lib/public-tender-scraper";
+import { normalizePublicClient, pickValidatedPublicCandidate, pickValidatedPublicLocationForTender } from "@/lib/public-content-quality";
 import { daysUntil, getDeadlineState, parseDeadlineDate } from "@/lib/date-utils";
 import {
   buildProfileSummary,
@@ -31,20 +32,6 @@ interface PageProps {
   params: Promise<{ slug: string }>;
 }
 
-const normalizeProfileLocation = (...values: unknown[]): string | null => {
-  for (const value of values) {
-    if (typeof value !== "string") continue;
-    const normalized = value
-      .replace(/^(?:Ausführungsort|Hauptleistungsort|Leistungsort)\s*:\s*/i, "")
-      .replace(/\s+/g, " ")
-      .replace(/[,\s]+$/, "")
-      .trim();
-    if (!normalized || /(?:Eröffnungstermin|Angebotsfrist|Abgabefrist|Teilnahmefrist)\s*:/i.test(normalized)) continue;
-    return normalized;
-  }
-  return null;
-};
-
 const mapProfileMatch = (row: PublicProfileMatch): ProfileTender => {
   const blob = (row.jsonBlob ?? {}) as Record<string, unknown>;
   const metadata = (row.metadataJson ?? {}) as Record<string, unknown>;
@@ -55,14 +42,19 @@ const mapProfileMatch = (row: PublicProfileMatch): ProfileTender => {
   const deadlineSource = row.deadlineAt ?? structuredDeadline;
   const parsedDeadline = parseDeadlineDate(deadlineSource);
   const description = pickPublicDescription(
+    blob.summary,
     blob.description,
     metadata.description,
-    blob.summary,
     row.rawText,
   );
-  const rawTitle = (typeof blob.title === "string" && blob.title.length > 5 ? blob.title : row.title)
-    ?? `Ausschreibung #${row.tenderId}`;
-  const location = normalizeProfileLocation(hardFacts.location, metadata.location);
+  const rawTitle = pickValidatedPublicCandidate(blob.title, row.title) || `Ausschreibung #${row.tenderId}`;
+  const client = normalizePublicClient(hardFacts.buyer) || normalizePublicClient(metadata.client);
+  const location = pickValidatedPublicLocationForTender(
+    rawTitle,
+    client,
+    hardFacts.location,
+    metadata.location,
+  ) || null;
 
   return {
     id: row.tenderId,
@@ -79,10 +71,7 @@ const mapProfileMatch = (row: PublicProfileMatch): ProfileTender => {
     deadlineState: getDeadlineState(parsedDeadline),
     fit: Math.max(0, Math.min(100, Math.round(row.fit))),
     winProbability: Math.max(0, Math.min(100, Math.round(row.winProbability))),
-    slug: row.slug ?? generateTenderSlug(
-      row.title ?? "",
-      location ?? "",
-    ),
+    slug: getCanonicalTenderSlug(row.slug, rawTitle, { client, location }, blob),
   };
 };
 

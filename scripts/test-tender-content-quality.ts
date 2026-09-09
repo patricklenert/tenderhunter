@@ -6,6 +6,8 @@ import {
 } from "@/lib/public-tender-scraper";
 import { deduplicateParsedDocuments } from "@/lib/document-aggregation";
 import { extractStructuredData, normalizeStructured } from "@/lib/structurer";
+import { normalizePublicDisplayCandidate } from "@/lib/public-content-quality";
+import { buildTenderIndexDocument } from "@/lib/meilisearch";
 
 const sourceUrl = "https://vergabe.vmstart.de/NetServer/PublicationControllerServlet?function=Detail";
 const title = "Heinrich-Völker-Bad - Bestandsbadehalle - Raumlufttechnische Anlagen 79-2026";
@@ -62,11 +64,144 @@ const main = async (): Promise<void> => {
     deadline: "14.08.2026",
     location: "96274 Itzgrund Bayern",
   });
-  assert.equal(repaired.summary, "ZV - Itzgrund - Generalsanierung Kläranlage Itzgrund - Bauarbeiten");
+  assert.equal(repaired.summary, "");
   assert.equal(repaired.hard_facts.buyer, "Stadt Coburg");
   assert.equal(repaired.procurement.procedure_type, "Öffentliche Ausschreibung (VOB)");
   assert.doesNotMatch(repaired.descriptionMarkdown ?? "", /service\.bund|haupt-navigations/i);
+  assert.equal(normalizePublicDisplayCandidate("## Kurzinfo"), null);
+  assert.equal(normalizePublicDisplayCandidate("Verfahrensart: Offenes Verfahren"), null);
+  assert.equal(normalizePublicDisplayCandidate("sart"), null);
+  assert.equal(normalizePublicDisplayCandidate("vergessen?"), null);
+  assert.equal(normalizePublicDisplayCandidate("n, den gesetzlichen Vertreter sowie die Kontaktdaten dieser Unternehmen anzugeben"), null);
+  assert.equal(normalizePublicDisplayCandidate("[ROLLEN: bekanntmachung] [ROLLE: bekanntmachung] [DOKUMENT-ID: 51568]"), null);
+  assert.equal(normalizePublicDisplayCandidate("Formular — Auftragsbekanntmachung ..."), null);
+  assert.equal(normalizePublicDisplayCandidate("Formular 121 — Auftragsbekanntmachung DE 5"), null);
+  assert.equal(normalizePublicDisplayCandidate("Formular Nr. 121: Auftragsbekanntmachung"), null);
+  assert.equal(normalizePublicDisplayCandidate("Formular 121 Auftragsbekanntmachung"), null);
+  assert.equal(normalizePublicDisplayCandidate("Das Formular 121 beschreibt die Auftragsbekanntmachung für das Verfahren."), "Das Formular 121 beschreibt die Auftragsbekanntmachung für das Verfahren.");
+  assert.equal(normalizePublicDisplayCandidate("... Dienstleistungen ## CPV-Codes ..."), null);
+  assert.equal(normalizePublicDisplayCandidate("Stadtverwaltung Coburg"), "Stadtverwaltung Coburg");
   assert.match(repaired.commercialBrief?.rationale ?? "", /Stadt Coburg|Itzgrund|14\.08\.2026/);
+
+  const malformed = normalizeStructured({
+    title: "Beschaffung eines Dienstes",
+    summary: "Dokumentierter Leistungsumfang",
+    hard_facts: { deadline: null, budget: null, location: null, buyer: "Stadt Coburg", contract_type: null },
+    decision_relevant: {
+      scope: "Einzelner Leistungsumfang",
+      requirements: "Nachweis einer Referenz",
+      mandatory_documents: { value: "Formblatt" },
+      award_criteria: "Preis",
+    },
+    procurement: {
+      contract_value: null,
+      contract_duration: "12 Monate",
+      participation_requirements: "Zertifizierung",
+      award_criteria_detailed: { criterion: "Qualität", weight: 40 },
+      cpv_codes: "90910000",
+      procedure_type: "offen",
+    },
+    confidence: 0.5,
+  }, "Beschaffung eines Dienstes");
+  assert.deepEqual(malformed.decision_relevant.scope, ["Einzelner Leistungsumfang"]);
+  assert.deepEqual(malformed.decision_relevant.requirements, ["Nachweis einer Referenz"]);
+  assert.deepEqual(malformed.decision_relevant.mandatory_documents, []);
+  assert.deepEqual(malformed.procurement.participation_requirements, ["Zertifizierung"]);
+  assert.deepEqual(malformed.procurement.cpv_codes, ["90910000"]);
+  assert.deepEqual(malformed.procurement.award_criteria_detailed, [{ criterion: "Qualität", weight: 40 }]);
+
+  const structuredFallback = normalizeStructured({
+    title,
+    summary: "- Verfahren - - - Lose - Ergebnisse - Verträge - - - -",
+    hard_facts: {},
+    decision_relevant: { scope: [], requirements: [], mandatory_documents: [], award_criteria: [] },
+    procurement: {},
+  }, title, { scope: "Dokumentierter Leistungsumfang" });
+  assert.equal(structuredFallback.summary, "Dokumentierter Leistungsumfang");
+
+  const invalidFirstStructured = await extractStructuredData(
+    "Erneuerung der Energiezentrale in Bautzen",
+    [
+      "Öffentlicher Auftraggeber",
+      "Anmelden erforderlich, um Zugriff zu erhalten",
+      "Öffentlicher Auftraggeber",
+      "Stadt Bautzen",
+      "Ort der Ausführung",
+      "Erneuerung der Energiezentrale in Bautzen",
+      "Ort der Ausführung",
+      "02625 Bautzen",
+    ].join("\n"),
+    { useLLM: false },
+  );
+  assert.equal(invalidFirstStructured.hard_facts.buyer, "Stadt Bautzen");
+  assert.equal(invalidFirstStructured.hard_facts.location, "02625 Bautzen");
+
+  const flatFallback = normalizeStructured({ title, description: "", scope: "" }, title);
+  assert.deepEqual(flatFallback.decision_relevant.scope, []);
+
+  const flatScope = normalizeStructured({
+    title,
+    description: "",
+    scope: "Dokumentierter Leistungsumfang",
+  }, title);
+  assert.deepEqual(flatScope.decision_relevant.scope, ["Dokumentierter", "Leistungsumfang"]);
+
+  const titleOnly = await extractStructuredData("Kurzer Ausschreibungstitel", "Kurzer Ausschreibungstitel", { useLLM: false });
+  assert.equal(titleOnly.summary, "");
+
+  const indexed = buildTenderIndexDocument({
+    id: 42,
+    title,
+    source: "dtvp",
+    sourceKey: "dtvp",
+    url: sourceUrl,
+    deadlineAt: null,
+    firstSeenAt: null,
+    category: "Bauarbeiten",
+    metadataJson: { description: "- Verfahren - - - Lose - Ergebnisse - Verträge - - - -" },
+    structuredJson: { summary: "Strukturierte Leistungsbeschreibung", hard_facts: { location: "67549 Worms" } },
+    rawText: "",
+    contractValueMax: null,
+    slug: null,
+    readinessStatus: "pending",
+  });
+  assert.equal(indexed.description, "Strukturierte Leistungsbeschreibung");
+
+  const indexedLegacyDescription = buildTenderIndexDocument({
+    id: 43,
+    title,
+    source: "dtvp",
+    sourceKey: "dtvp",
+    url: sourceUrl,
+    deadlineAt: null,
+    firstSeenAt: null,
+    category: "Bauarbeiten",
+    metadataJson: { description: "## location" },
+    structuredJson: { summary: "## Bekanntmachung", description: "Legacy Leistungsbeschreibung" },
+    rawText: "",
+    contractValueMax: null,
+    slug: null,
+    readinessStatus: "pending",
+  });
+  assert.equal(indexedLegacyDescription.description, "Legacy Leistungsbeschreibung");
+
+  const indexedJsonStrings = buildTenderIndexDocument({
+    id: 44,
+    title,
+    source: "dtvp",
+    sourceKey: "dtvp",
+    url: sourceUrl,
+    deadlineAt: null,
+    firstSeenAt: null,
+    category: "Bauarbeiten",
+    metadataJson: JSON.stringify({ description: "## Bekanntmachung" }),
+    structuredJson: JSON.stringify({ summary: "JSON strukturierte Leistungsbeschreibung" }),
+    rawText: "",
+    contractValueMax: null,
+    slug: null,
+    readinessStatus: "pending",
+  });
+  assert.equal(indexedJsonStrings.description, "JSON strukturierte Leistungsbeschreibung");
 
   const documents = [
     { id: 1, role: "leistungsbeschreibung" as const, roles: ["leistungsbeschreibung" as const], text: rawText },

@@ -3,6 +3,7 @@ import { tenders } from "@/lib/schema";
 import { eq, and, or, gt, isNull, desc } from "drizzle-orm";
 import { CATEGORY_LABELS } from "@/lib/categories";
 import { generateTenderSlug } from "@/lib/tender-slug";
+import { readPublicTenderMeta } from "@/lib/tender-meta";
 
 export const revalidate = 3600;
 export const dynamic = "force-dynamic";
@@ -67,16 +68,14 @@ export async function GET() {
 
   const itemsXml = items
     .map((item) => {
-      const meta =
-        typeof item.metadataJson === "object" && item.metadataJson !== null
-          ? (item.metadataJson as Record<string, unknown>)
-          : {};
-      const client =
-        typeof meta.client === "string" ? escapeXml(meta.client) : "";
-      const location =
-        typeof meta.location === "string"
-          ? escapeXml(meta.location.split(",")[0].trim())
-          : "";
+      const meta = readPublicTenderMeta(item.metadataJson, {
+        title: item.title,
+        source: item.source,
+      });
+      const client = meta.client ? escapeXml(meta.client) : "";
+      const location = meta.location
+        ? escapeXml(meta.location.split(",")[0].trim())
+        : "";
       const categoryLabel = item.category
         ? CATEGORY_LABELS[item.category] ?? item.category
         : "";
@@ -94,7 +93,7 @@ export async function GET() {
         ? new Date(item.createdAt).toUTCString()
         : now.toUTCString();
 
-      const slug = item.slug ?? generateTenderSlug(item.title ?? "", typeof meta.location === "string" ? meta.location : "");
+      const slug = item.slug ?? generateTenderSlug(item.title ?? "", meta.location);
 
       return `    <item>
       <title>${escapeXml(item.title ?? `Ausschreibung #${item.id}`)}</title>

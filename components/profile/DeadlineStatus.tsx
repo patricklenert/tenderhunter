@@ -21,12 +21,14 @@ export function DeadlineStatus({ deadlineAt, deadlineDays, deadlineState }: Dead
         size="small"
         sx={{
           height: 26,
-          bgcolor: "#f1f5f7",
-          color: "#667288",
-          border: "1px solid #dbe4ea",
+          borderRadius: 1,
+          bgcolor: "background.default",
+          color: "text.secondary",
+          border: "1px solid",
+          borderColor: "divider",
           fontSize: "0.7rem",
           fontWeight: 650,
-          "& .MuiChip-icon": { color: "#8190a0", ml: 0.7 },
+          "& .MuiChip-icon": { color: "text.secondary", ml: 0.7 },
         }}
       />
     );
@@ -40,12 +42,14 @@ export function DeadlineStatus({ deadlineAt, deadlineDays, deadlineState }: Dead
         size="small"
         sx={{
           height: 26,
-          bgcolor: "#f3f4f6",
-          color: "#7b8798",
-          border: "1px solid #dce1e6",
+          borderRadius: 1,
+          bgcolor: "background.default",
+          color: "text.secondary",
+          border: "1px solid",
+          borderColor: "divider",
           fontSize: "0.7rem",
           fontWeight: 650,
-          "& .MuiChip-icon": { color: "#9aa5b1", ml: 0.7 },
+          "& .MuiChip-icon": { color: "text.secondary", ml: 0.7 },
         }}
       />
     );
@@ -66,12 +70,14 @@ export function DeadlineStatus({ deadlineAt, deadlineDays, deadlineState }: Dead
       size="small"
       sx={{
         height: 26,
-        bgcolor: urgent ? "#fff4df" : "#eef4f7",
-        color: urgent ? "#9a5a08" : "#526476",
-        border: urgent ? "1px solid #f2d59d" : "1px solid #d8e4ea",
+        borderRadius: 1,
+        bgcolor: urgent ? "warning.light" : "background.paper",
+        color: urgent ? "warning.main" : "text.secondary",
+        border: "1px solid",
+        borderColor: urgent ? "warning.light" : "divider",
         fontSize: "0.7rem",
         fontWeight: 700,
-        "& .MuiChip-icon": { color: urgent ? "#b8750b" : "#718296", ml: 0.7 },
+        "& .MuiChip-icon": { color: urgent ? "warning.main" : "text.secondary", ml: 0.7 },
       }}
     />
   );

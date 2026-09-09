@@ -1,6 +1,7 @@
 import type { DocumentRole } from "./schema";
 import type { RoleHint } from "./document-classifier";
 import { deduplicateDocumentRows } from "./document-identity";
+import { isPdfFormBoilerplate } from "./public-content-quality";
 
 export type DocumentCoverageStatus = "complete" | "partial" | "unknown" | "blocked";
 
@@ -105,7 +106,8 @@ const roleConfidence = (document: AnalyzedDocument, role: DocumentRole): number 
 const usableText = (document: AnalyzedDocument): boolean =>
   document.parseStatus === "parsed" &&
   typeof document.extractedText === "string" &&
-  document.extractedText.trim().length >= 20;
+  document.extractedText.trim().length >= 20 &&
+  !isPdfFormBoilerplate(document.extractedText);
 
 const quoteFromText = (text: string, patterns: RegExp[]): { quote: string; page: number | null } | null => {
   const pagePattern = /\[Seite\s+(\d+)\]\s*([\s\S]*?)(?=\[Seite\s+\d+\]|$)/gi;

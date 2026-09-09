@@ -7,6 +7,14 @@ import {
 } from "../lib/public-tender-scraper";
 import { isParticipationWallText } from "../lib/access-page-detector";
 import { buildTenderDescriptionMarkdown, type TenderDescriptionFacts } from "../lib/tender-description";
+import { syncTendersToMeili } from "../lib/meilisearch";
+import { markCatalogDirty } from "../lib/catalog";
+import {
+  isCanonicalPublicDescriptionMarkdown,
+  pickValidatedPublicCandidate,
+  pickValidatedPublicClient,
+  pickValidatedPublicLocationForTender,
+} from "../lib/public-content-quality";
 
 const connectionString = process.env.DATABASE_URL ?? "postgresql://tenderhunter:tenderhunter@localhost:5432/tenderhunter";
 
@@ -65,8 +73,6 @@ const stringList = (value: unknown): string[] => list(value).map(text).filter(Bo
 const listHasValue = (value: unknown): boolean => list(value).some((item) =>
   Boolean(text(item)) || Boolean(item && typeof item === "object" && !Array.isArray(item) && Object.keys(item).length > 0));
 
-const firstString = (...values: unknown[]): string => values.map(text).find(Boolean) ?? "";
-
 const firstList = (...values: unknown[]): unknown[] => values.find(listHasValue) as unknown[] ?? [];
 
 const formatDateValue = (value: Date | string | null): string => {
@@ -123,17 +129,24 @@ const structuredFacts = (
     ? `${row.contract_duration_months} Monate`
     : null;
 
+  const client = pickValidatedPublicClient(metadata.client, blob.client, hardFacts.buyer);
   return {
-    client: firstString(metadata.client, blob.client, hardFacts.buyer),
-    procedure: firstString(metadata.procedure, blob.procedure, procurement.procedure_type, hardFacts.contract_type, row.procedure_type),
-    deadline: firstString(metadata.deadline, blob.deadline, hardFacts.deadline, formatDateValue(row.deadline_at)),
-    location: firstString(metadata.location, blob.location, hardFacts.location),
+    client,
+    procedure: pickValidatedPublicCandidate(metadata.procedure, blob.procedure, procurement.procedure_type, hardFacts.contract_type, row.procedure_type),
+    deadline: pickValidatedPublicCandidate(metadata.deadline, blob.deadline, hardFacts.deadline, formatDateValue(row.deadline_at)),
+    location: pickValidatedPublicLocationForTender(
+      row.title,
+      client,
+      metadata.location,
+      blob.location,
+      hardFacts.location,
+    ),
     value: firstValue(metadata.estimatedValue, metadata.estimated_value, blob.estimatedValue, blob.estimated_value, hardFacts.budget, contractValue, databaseValue),
     duration: firstValue(metadata.duration, blob.duration, contractDuration, databaseDuration),
-    reference: firstString(metadata.referenceNumber, metadata.reference_number, blob.referenceNumber, blob.reference_number),
-    summary: cleanFactText(firstString(blob.summary, blob.description, metadata.description)),
-    subject: firstString(blob.subject, metadata.subject),
-    scope: firstString(
+    reference: pickValidatedPublicCandidate(metadata.referenceNumber, metadata.reference_number, blob.referenceNumber, blob.reference_number),
+    summary: pickValidatedPublicCandidate(blob.summary, blob.description, metadata.description),
+    subject: pickValidatedPublicCandidate(blob.subject, metadata.subject),
+    scope: pickValidatedPublicCandidate(
       blob.scope,
       metadata.scope,
       metadata.subject,
@@ -167,8 +180,14 @@ const buildRowDescriptionMarkdown = (row: TenderRow, metadata: JsonRecord, blob:
 };
 
 const canonicalMarkdown = (record: JsonRecord, markdown: string): JsonRecord => {
-  if (!markdown.trim()) return record;
-  const next: JsonRecord = { ...record, descriptionMarkdown: markdown };
+  const next: JsonRecord = { ...record };
+  const existing = [record.descriptionMarkdown, record.description_markdown]
+    .find((value): value is string => isCanonicalPublicDescriptionMarkdown(value)) ?? "";
+  const canonical = isCanonicalPublicDescriptionMarkdown(markdown)
+    ? markdown
+    : isCanonicalPublicDescriptionMarkdown(existing) ? existing : "";
+  if (canonical) next.descriptionMarkdown = canonical;
+  else delete next.descriptionMarkdown;
   delete next.description_markdown;
   return next;
 };
@@ -181,37 +200,61 @@ const idArgument = process.argv.find((arg) => arg.startsWith("--id="));
 const targetId = idArgument ? Number(idArgument.slice("--id=".length)) : null;
 const limitArgument = process.argv.find((arg) => arg.startsWith("--limit="));
 const limit = limitArgument ? Number(limitArgument.slice("--limit=".length)) : null;
+const batchArgument = process.argv.find((arg) => arg.startsWith("--batch-size="));
+const batchSize = batchArgument ? Number(batchArgument.slice("--batch-size=".length)) : 100;
+const afterArgument = process.argv.find((arg) => arg.startsWith("--after-id="));
+const afterId = afterArgument ? Number(afterArgument.slice("--after-id=".length)) : 0;
+const syncMeili = args.has("--sync-meili");
 
 async function main(): Promise<void> {
   if (targetId !== null && (!Number.isInteger(targetId) || targetId <= 0)) {
     throw new Error("--id muss eine positive Ganzzahl sein");
   }
-  if (limit !== null && (!Number.isInteger(limit) || limit <= 0)) {
-    throw new Error("--limit muss eine positive Ganzzahl sein");
+  if (limit !== null && (!Number.isInteger(limit) || limit <= 0 || limit > 10_000)) {
+    throw new Error("--limit muss zwischen 1 und 10000 liegen");
+  }
+  if (!Number.isInteger(batchSize) || batchSize <= 0 || batchSize > 1_000) {
+    throw new Error("--batch-size muss zwischen 1 und 1000 liegen");
+  }
+  if (!Number.isInteger(afterId) || afterId < 0) {
+    throw new Error("--after-id muss eine nichtnegative Ganzzahl sein");
   }
 
   const client = postgres(connectionString, { max: 1 });
   try {
-    const rows: TenderRow[] = targetId
-      ? await client<TenderRow[]>`
-          SELECT t.id, t.title, t.raw_text, t.metadata_json, t.deadline_at,
-                 t.procedure_type, t.contract_value_min, t.contract_value_max,
-                 t.contract_duration_months, sd.json_blob
-          FROM tenders t
-          LEFT JOIN structured_data sd ON sd.tender_id = t.id
-          WHERE t.id = ${targetId}
-          ORDER BY t.id ASC
-        `
-      : await client<TenderRow[]>`
-          SELECT t.id, t.title, t.raw_text, t.metadata_json, t.deadline_at,
-                 t.procedure_type, t.contract_value_min, t.contract_value_max,
-                 t.contract_duration_months, sd.json_blob
-          FROM tenders t
-          LEFT JOIN structured_data sd ON sd.tender_id = t.id
-          ORDER BY t.id ASC
-        `;
+    const maximumRows = limit ?? (targetId ? 1 : batchSize);
+    const rows: TenderRow[] = [];
+    let cursor = afterId;
+    while (rows.length < maximumRows) {
+      const pageSize = Math.min(batchSize, maximumRows - rows.length);
+      const page = targetId
+        ? await client<TenderRow[]>`
+            SELECT t.id, t.title, t.raw_text, t.metadata_json, t.deadline_at,
+                   t.procedure_type, t.contract_value_min, t.contract_value_max,
+                   t.contract_duration_months, sd.json_blob
+            FROM tenders t
+            LEFT JOIN structured_data sd ON sd.tender_id = t.id
+             WHERE t.id = ${targetId} AND t.id > ${cursor}
+             ORDER BY t.id ASC
+             LIMIT ${pageSize}
+           `
+        : await client<TenderRow[]>`
+            SELECT t.id, t.title, t.raw_text, t.metadata_json, t.deadline_at,
+                   t.procedure_type, t.contract_value_min, t.contract_value_max,
+                   t.contract_duration_months, sd.json_blob
+            FROM tenders t
+            LEFT JOIN structured_data sd ON sd.tender_id = t.id
+             WHERE t.id > ${cursor}
+             ORDER BY t.id ASC
+             LIMIT ${pageSize}
+           `;
+      if (page.length === 0) break;
+      rows.push(...page);
+      cursor = page[page.length - 1].id;
+      if (targetId) break;
+    }
 
-    const candidates = rows.slice(0, limit ?? rows.length);
+    const candidates = rows;
     let metadataChanged = 0;
     let structuredChanged = 0;
     let skippedMalformed = 0;
@@ -221,15 +264,13 @@ async function main(): Promise<void> {
       try {
         const parsedMetadata = parseRecord(row.metadata_json);
         const parsedStructured = parseRecord(row.json_blob);
-        const existingMetadataMarkdown = firstString(parsedMetadata.value.descriptionMarkdown, parsedMetadata.value.description_markdown);
-        const existingStructuredMarkdown = firstString(parsedStructured.value.descriptionMarkdown, parsedStructured.value.description_markdown);
         const generatedMarkdown = buildRowDescriptionMarkdown(row, parsedMetadata.value, parsedStructured.value);
-        const markdown = generatedMarkdown || existingMetadataMarkdown || existingStructuredMarkdown;
+        const markdown = generatedMarkdown;
 
         const nextMetadata = canonicalMarkdown(parsedMetadata.value, markdown);
         const nextStructured = canonicalMarkdown(parsedStructured.value, markdown);
-        const shouldUpdateMetadata = Boolean(markdown) && parsedMetadata.valid && !sameJson(parsedMetadata.value, nextMetadata);
-        const shouldUpdateStructured = Boolean(markdown) && row.json_blob !== null && parsedStructured.valid && !sameJson(parsedStructured.value, nextStructured);
+        const shouldUpdateMetadata = parsedMetadata.valid && !sameJson(parsedMetadata.value, nextMetadata);
+        const shouldUpdateStructured = row.json_blob !== null && parsedStructured.valid && !sameJson(parsedStructured.value, nextStructured);
 
         if (!parsedMetadata.valid || (row.json_blob !== null && !parsedStructured.valid)) skippedMalformed += 1;
         if (shouldUpdateMetadata) metadataChanged += 1;
@@ -268,6 +309,12 @@ async function main(): Promise<void> {
       skippedMalformed,
       failed,
     }));
+    if (!dryRun && (metadataChanged > 0 || structuredChanged > 0)) {
+      await markCatalogDirty();
+    }
+    if (!dryRun && syncMeili && (metadataChanged > 0 || structuredChanged > 0)) {
+      await syncTendersToMeili();
+    }
     if (failed > 0) process.exitCode = 1;
   } finally {
     await client.end();

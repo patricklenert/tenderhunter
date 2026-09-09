@@ -29,12 +29,11 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { extractPublicPortalFacts, pickPublicDescription } from "@/lib/public-tender-scraper";
-import { looksMangled, normalizeStructured } from "@/lib/structurer";
+import { normalizeStructured } from "@/lib/structurer";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 import { deriveBundesland, deriveCity, BUNDESLAND_SLUGS } from "@/lib/bundesland";
 import { CITY_SLUG_MAP } from "@/lib/cities";
 import { normalizeAgencySlug } from "@/lib/agencies";
-import { generateTenderSlug } from "@/lib/tender-slug";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 import { PdfDocumentLink } from "@/components/PdfDocumentLink";
 import { TenderQuickCheck } from "@/components/TenderQuickCheck";
@@ -46,10 +45,16 @@ import { normalizeResourceUrl } from "@/lib/resource-discovery";
 import { isPortalActionUrl } from "@/lib/resource-url";
 import { deduplicateDocumentRows, documentIdentityKey } from "@/lib/document-identity";
 import { repairKnownGermanEncoding } from "@/lib/text-normalization";
-import { readTenderMeta } from "@/lib/tender-meta";
+import { readPublicTenderMeta } from "@/lib/tender-meta";
 import { buildTenderDescriptionMarkdown } from "@/lib/tender-description";
 import { hasQueryParameters, NOINDEX_FOLLOW, type SeoSearchParams } from "@/lib/seo-indexability";
 import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
+import {
+  normalizePublicClient,
+  pickValidatedPublicCandidate,
+  pickValidatedPublicLocationForTender,
+  normalizePublicDisplayCandidate,
+} from "@/lib/public-content-quality";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -90,27 +95,30 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
       createdAt: tenders.createdAt,
       updatedAt: tenders.updatedAt,
       metadataJson: tenders.metadataJson,
-      qualityStatus: tenders.qualityStatus,
-    })
-    .from(tenders)
+       qualityStatus: tenders.qualityStatus,
+       structuredJson: structuredData.jsonBlob,
+     })
+      .from(tenders)
+      .leftJoin(structuredData, eq(structuredData.tenderId, tenders.id))
     .where(and(eq(tenders.id, numericId), eq(tenders.qualityStatus, "qualified")))
     .limit(1);
 
   if (rows.length === 0) notFound();
 
   const row = rows[0];
-  const meta = (typeof row.metadataJson === "object" && row.metadataJson !== null
-    ? row.metadataJson
-    : {}) as Record<string, unknown>;
-  const location = typeof meta.location === "string" ? meta.location.split(",")[0] : "";
-  const client = typeof meta.client === "string" ? meta.client : "";
+  const meta = readPublicTenderMeta(row.metadataJson, {
+    title: row.title,
+    source: row.source,
+  });
+  const rawTitle = pickValidatedPublicCandidate(row.title) || `Ausschreibung #${id}`;
+  const client = normalizePublicClient(meta.client);
+  const location = pickValidatedPublicLocationForTender(rawTitle, client, meta.location);
 
   const deadline = row.deadlineAt
     ? new Date(row.deadlineAt).toLocaleDateString("de-DE", { day: "numeric", month: "long", year: "numeric" })
     : "";
 
   const categoryLabel = CATEGORY_LABELS[row.category ?? "Sonstiges"] ?? row.category ?? "";
-  const rawTitle = row.title ?? `Ausschreibung #${id}`;
   const enrichedTitle = [rawTitle, categoryLabel, location].filter(Boolean).join(" – ");
   const title = enrichedTitle.length <= 80 ? enrichedTitle : rawTitle;
 
@@ -118,7 +126,7 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
   const description = `${rawTitle}. ${descParts ? descParts + ". " : ""}Öffentliche Ausschreibung aus ${row.source}. Alle Details, Anforderungen und Fristen.`;
 
   // Canonical slug: prefer persisted DB slug, fall back to live computation for legacy rows
-  const canonicalSlug = getCanonicalTenderSlug(row.slug, rawTitle, row.metadataJson);
+  const canonicalSlug = getCanonicalTenderSlug(row.slug, row.title, row.metadataJson, row.structuredJson);
   if (!slug || slug !== canonicalSlug) {
     permanentRedirect(`/ausschreibung/${id}/${canonicalSlug}`);
   }
@@ -158,7 +166,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
   const tender = row.tenders;
   const sd = row.structured_data;
 
-  const expectedSlug = getCanonicalTenderSlug(tender.slug, tender.title, tender.metadataJson);
+  const expectedSlug = getCanonicalTenderSlug(tender.slug, tender.title, tender.metadataJson, sd?.jsonBlob);
   if (!slug || slug !== expectedSlug) {
     permanentRedirect(`/ausschreibung/${tender.id}/${expectedSlug}`);
   }
@@ -204,17 +212,23 @@ export default async function TenderDetailPage({ params }: PageProps) {
   const meta = (typeof tender.metadataJson === "object" && tender.metadataJson !== null
     ? tender.metadataJson
     : {}) as Record<string, unknown>;
-  const tenderMeta = readTenderMeta(meta, tender.rawText);
+  const tenderMeta = readPublicTenderMeta(meta, {
+    title: tender.title,
+    source: tender.source,
+    sourceUrl: tender.url,
+    rawText: tender.rawText,
+  });
   const portalFacts = extractPublicPortalFacts([tender.rawText, tenderMeta.description].filter(Boolean).join("\n"));
   const fallbackFacts = {
     buyer: portalFacts.client || tenderMeta.client || null,
     procedure: portalFacts.procedure || tenderMeta.procedure || tender.procedureType || null,
     deadline: portalFacts.deadline || (tender.deadlineAt ? tender.deadlineAt.toLocaleString("de-DE") : null),
     location: portalFacts.location || tenderMeta.location || null,
+    summary: tenderMeta.description || null,
     scope: portalFacts.subject || tenderMeta.subject || null,
   };
-  const blob = sd?.jsonBlob as Record<string, unknown> | null;
-  const normalizedStructured = normalizeStructured(blob ?? meta, tender.title ?? "", fallbackFacts);
+  const structuredSource = sd?.jsonBlob ?? meta;
+  const normalizedStructured = normalizeStructured(structuredSource, tender.title ?? "", fallbackFacts);
   const tenderCheck = buildTenderCheck({
     tenderId: tender.id,
     tenderDeadlineAt: tender.deadlineAt,
@@ -241,7 +255,11 @@ export default async function TenderDetailPage({ params }: PageProps) {
     .from(tenderResources)
     .where(eq(tenderResources.tenderId, tender.id)))
     .filter((resource) => !isPortalActionUrl(resource.url));
-  const structuredMeta = readTenderMeta(normalizedStructured);
+  const structuredMeta = readPublicTenderMeta(normalizedStructured, {
+    title: tender.title,
+    source: tender.source,
+    sourceUrl: tender.url,
+  });
   const resourceUrl = (value: string | null | undefined): string | null => normalizeResourceUrl(value, tender.url);
    const resourceKey = (value: string | null | undefined): string | null =>
      documentIdentityKey({ url: value }) ?? resourceUrl(value);
@@ -383,7 +401,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
     unknown: "Unbekannt",
   };
 
-  const title = tender.title ?? `Ausschreibung #${tender.id}`;
+  const title = pickValidatedPublicCandidate(tender.title) || `Ausschreibung #${tender.id}`;
   const categoryLabel = CATEGORY_LABELS[tender.category ?? "Sonstiges"] ?? tender.category ?? "Diverse Leistungen";
   const categorySlug = CATEGORY_SLUGS[tender.category ?? "Sonstiges"] ?? "diverse";
 
@@ -393,38 +411,31 @@ export default async function TenderDetailPage({ params }: PageProps) {
   // prevents the duplicate mangled caption that previously appeared in Key Facts
   // and Beschreibung.
   const pickFirstClean = (...candidates: Array<unknown>): string => {
-    for (const c of candidates) {
-      const v = String(c ?? "").trim();
-      if (v.length === 0) continue;
-      if (looksMangled(v)) continue;
-      return v;
-    }
-    return "";
+    return pickValidatedPublicCandidate(...candidates);
   };
 
-  const description = pickPublicDescription(normalizedStructured.summary) || title;
+  const description = pickPublicDescription(
+    normalizedStructured.summary,
+    tenderMeta.description,
+    portalFacts.subject,
+  );
   const hardFacts = normalizedStructured.hard_facts as Record<string, unknown>;
   const decisionRelevant = normalizedStructured.decision_relevant as Record<string, unknown>;
   const procurement = normalizedStructured.procurement as Record<string, unknown>;
-  const client = pickFirstClean(
+  const client = normalizePublicClient(
     normalizedStructured.hard_facts.buyer,
-    typeof hardFacts.buyer === "string" ? hardFacts.buyer : null,
-    meta.client,
-  )
-    .replace(/^\/\s*/, "")
-    .replace(/Ausschreibende[rn]?\s*Stelle\s*/i, "")
-    .replace(/\s+Ausschreibungs-?\s*$/, "")
-    .trim();
-  const location = pickFirstClean(
+    tenderMeta.client,
+  );
+  const location = pickValidatedPublicLocationForTender(title, client,
     normalizedStructured.hard_facts.location,
     typeof hardFacts.location === "string" ? hardFacts.location : null,
     meta.location,
   );
-  const contactInfo = String(blob?.contact ?? "").trim();
-  const estimatedValue = String(blob?.estimatedValue ?? hardFacts.budget ?? "").trim();
-  const referenceNumber = pickFirstClean(blob?.referenceNumber, tenderMeta.referenceNumber);
+  const contactInfo = "";
+  const estimatedValue = pickFirstClean(hardFacts.budget);
+  const referenceNumber = pickFirstClean(tenderMeta.referenceNumber);
   const procedure = pickFirstClean(normalizedStructured.procurement.procedure_type, tender.procedureType);
-  const duration = pickFirstClean(blob?.duration, (procurement.contract_duration as Record<string, unknown> | undefined)?.months
+  const duration = pickFirstClean((procurement.contract_duration as Record<string, unknown> | undefined)?.months
     ? `${(procurement.contract_duration as Record<string, unknown>).months} Monate`
     : null);
 
@@ -432,10 +443,12 @@ export default async function TenderDetailPage({ params }: PageProps) {
     ...(Array.isArray(decisionRelevant.requirements) ? decisionRelevant.requirements : []),
     ...(Array.isArray(decisionRelevant.mandatory_documents) ? decisionRelevant.mandatory_documents : []),
     ...(Array.isArray(procurement.participation_requirements) ? procurement.participation_requirements : []),
-  ].filter((value, index, values): value is string => typeof value === "string" && value.trim().length > 5 && values.indexOf(value) === index);
+  ].map(normalizePublicDisplayCandidate).filter((value, index, values): value is string => value !== null && value.length > 5 && values.indexOf(value) === index);
   const awardCriteria = [
     ...(Array.isArray(decisionRelevant.award_criteria) ? decisionRelevant.award_criteria : []),
-  ].filter((value, index, values): value is string => typeof value === "string" && value.trim().length > 5 && values.indexOf(value) === index);
+    ...((Array.isArray(procurement.award_criteria_detailed) ? procurement.award_criteria_detailed : []) as Array<Record<string, unknown>>).map((value) =>
+      value.weight === null || typeof value.weight !== "number" ? value.criterion : `${value.criterion} (${value.weight}%)`),
+  ].map(normalizePublicDisplayCandidate).filter((value, index, values): value is string => value !== null && value.length > 5 && values.indexOf(value) === index);
   const scope = pickFirstClean(
     Array.isArray(decisionRelevant.scope) ? decisionRelevant.scope.join(" ") : null,
     portalFacts.subject,
@@ -461,8 +474,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
   const contractValue = estimatedValue
     || (tender.contractValueMax ? `${tender.contractValueMax.toLocaleString("de-DE", { maximumFractionDigits: 0 })} EUR` : "");
 
-  const descriptionMarkdown = normalizedStructured.descriptionMarkdown
-    || buildTenderDescriptionMarkdown({
+  const descriptionMarkdown = buildTenderDescriptionMarkdown({
       client,
       procedure,
       deadline: typeof hardFacts.deadline === "string" ? hardFacts.deadline : deadline,
@@ -507,19 +519,23 @@ export default async function TenderDetailPage({ params }: PageProps) {
     .limit(4);
 
   const similarTenders = similarRows.map((t) => {
-    const m = (typeof t.metadataJson === "object" && t.metadataJson !== null
-      ? t.metadataJson
-      : {}) as Record<string, unknown>;
-    const tLocation = typeof m.location === "string" ? m.location : "";
-    // Use DB slug with fallback for similar tenders cross-links
-    const tSlug = t.slug ?? generateTenderSlug(t.title ?? "", tLocation);
+    const m = readPublicTenderMeta(t.metadataJson, {
+      title: t.title,
+      source: t.source,
+    });
+    const tLocation = m.location;
+    // Use the same validated fallback as the detail URL and sitemap.
+    const tSlug = getCanonicalTenderSlug(t.slug, t.title, {
+      client: m.client,
+      location: tLocation,
+    });
     return {
       id: t.id,
       slug: tSlug,
       title: t.title ?? `Ausschreibung #${t.id}`,
       category: CATEGORY_LABELS[t.category ?? "Sonstiges"] ?? t.category ?? categoryLabel,
-      client: typeof m.client === "string" ? m.client : "",
-      location: typeof m.location === "string" ? m.location.split(",")[0] : "",
+      client: m.client,
+      location: m.location ? m.location.split(",")[0].trim() : "",
       deadline: t.deadlineAt
         ? new Date(t.deadlineAt).toLocaleDateString("de-DE", { day: "2-digit", month: "short", year: "numeric" })
         : null,
@@ -573,7 +589,6 @@ export default async function TenderDetailPage({ params }: PageProps) {
     headline: title,
     description: description.slice(0, 300),
     url: `${siteUrl}${tenderUrl}`,
-    image: `${siteUrl}${tenderUrl}/opengraph-image`,
     articleSection: categoryLabel,
     ...(referenceNumber ? { identifier: referenceNumber } : {}),
     keywords: categoryLabel,
@@ -992,22 +1007,20 @@ export default async function TenderDetailPage({ params }: PageProps) {
                 </Box>
               )}
               <TenderQuickCheck key={`quick-check-${tender.id}`} tenderId={tender.id} initialCheck={tenderCheck} />
-              {(descriptionMarkdown || description) && (
-                <Box component="section" aria-labelledby="beschreibung-heading" sx={sectionSx}>
-                  <Typography id="beschreibung-heading" component="h2" sx={sectionHeadingSx}>
-                    Beschreibung
-                  </Typography>
-                  <SafeMarkdown
-                    content={descriptionMarkdown}
-                    sx={{ maxWidth: "72ch", color: "#4b5565", fontSize: "1rem", lineHeight: 1.7 }}
-                    fallback={
-                      <Typography sx={{ maxWidth: "72ch", color: "#4b5565", fontSize: "1rem", lineHeight: 1.7, whiteSpace: "pre-line" }}>
-                        {description}
-                      </Typography>
-                    }
-                  />
-                </Box>
-              )}
+              <Box component="section" aria-labelledby="beschreibung-heading" sx={sectionSx}>
+                <Typography id="beschreibung-heading" component="h2" sx={sectionHeadingSx}>
+                  Beschreibung
+                </Typography>
+                <SafeMarkdown
+                  content={descriptionMarkdown}
+                  sx={{ maxWidth: "72ch", color: "#4b5565", fontSize: "1rem", lineHeight: 1.7 }}
+                  fallback={
+                    <Typography sx={{ maxWidth: "72ch", color: "#4b5565", fontSize: "1rem", lineHeight: 1.7, whiteSpace: "pre-line" }}>
+                      {description || "–"}
+                    </Typography>
+                  }
+                />
+              </Box>
 
               {scope && scope !== description && !markdownHasScope && (
                 <Box component="section" aria-labelledby="leistungsumfang-heading" sx={sectionSx}>

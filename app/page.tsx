@@ -2,11 +2,12 @@ import type { Metadata } from "next";
 import { InteractiveApp } from "@/components/seo/InteractiveApp";
 import { HomeTenderList } from "@/components/seo/HomeTenderList";
 import { SeoFooter } from "@/components/seo/SeoFooter";
+import { getListingRobots, type SeoSearchParams } from "@/lib/seo-indexability";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
+const baseMetadata: Metadata = {
   title: { absolute: "Tenderhunter – KI-Ausschreibungssoftware für deutsche Unternehmen" },
   description:
     "Finden Sie automatisch passende öffentliche Ausschreibungen in Deutschland. KI analysiert Anforderungen, Ihre Unternehmenswebsite wird gescannt, täglich passende Projekte.",
@@ -25,6 +26,17 @@ export const metadata: Metadata = {
     locale: "de_DE",
   },
 };
+
+interface PageProps {
+  searchParams: Promise<SeoSearchParams>;
+}
+
+export async function generateMetadata({ searchParams }: PageProps): Promise<Metadata> {
+  return {
+    ...baseMetadata,
+    robots: getListingRobots(await searchParams, 1, true),
+  };
+}
 
 export default function HomePage() {
   return (

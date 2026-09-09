@@ -1,8 +1,11 @@
 import { db } from "@/lib/db";
-import { tenders } from "@/lib/schema";
+import { structuredData, tenders } from "@/lib/schema";
 import { json, errorResponse } from "@/lib/http";
 import { desc, and, eq, or, like, gt, isNull, inArray } from "drizzle-orm";
-import { cleanPublicDescription, getPublicClientFallback, normalizePublicClient } from "@/lib/public-tender-scraper";
+import { readPublicTenderMeta } from "@/lib/tender-meta";
+import { pickPublicDescription } from "@/lib/public-tender-scraper";
+import { normalizeStructured } from "@/lib/structurer";
+import { pickValidatedPublicLocationForTender, pickValidatedPublicCandidate } from "@/lib/public-content-quality";
 import { formatDeadlineDE, sanitizeTenderUrl } from "@/lib/date-utils";
 
 export const runtime = "nodejs";
@@ -55,10 +58,12 @@ export async function GET(request: Request): Promise<Response> {
         id: tenders.id,
         title: tenders.title,
         source: tenders.source,
-        url: tenders.url,
-        deadlineAt: tenders.deadlineAt,
-        category: tenders.category,
-        metadataJson: tenders.metadataJson,
+         url: tenders.url,
+         deadlineAt: tenders.deadlineAt,
+         category: tenders.category,
+         metadataJson: tenders.metadataJson,
+         rawText: tenders.rawText,
+         structuredJson: structuredData.jsonBlob,
         contractValueMin: tenders.contractValueMin,
         contractValueMax: tenders.contractValueMax,
         contractDurationMonths: tenders.contractDurationMonths,
@@ -67,33 +72,52 @@ export async function GET(request: Request): Promise<Response> {
          readinessReason: tenders.readinessReason,
          createdAt: tenders.createdAt,
       })
-      .from(tenders)
+       .from(tenders)
+       .leftJoin(structuredData, eq(structuredData.tenderId, tenders.id))
       .where(where)
       .orderBy(desc(tenders.createdAt))
       .limit(limit);
 
     const mapped = items
       .map((item) => {
-        const meta = (typeof item.metadataJson === "object" && item.metadataJson !== null
-          ? item.metadataJson
-          : {}) as Record<string, unknown>;
+         const meta = readPublicTenderMeta(item.metadataJson, {
+          title: item.title,
+          source: item.source,
+          sourceUrl: item.url,
+          rawText: item.rawText,
+        });
+        const fallbackFacts = {
+          buyer: meta.client,
+          procedure: meta.procedure || item.procedureType,
+          location: meta.location,
+          summary: meta.description,
+          scope: meta.subject,
+          deadline: item.deadlineAt ? formatDeadlineDE(item.deadlineAt) : null,
+        };
+        const structured = normalizeStructured(item.structuredJson ?? item.metadataJson, item.title ?? "", fallbackFacts);
+        const title = pickValidatedPublicCandidate(structured.title, item.title) || `Ausschreibung #${item.id}`;
+        const client = structured.hard_facts.buyer || "Unbekannt";
+         const description = pickPublicDescription(
+           structured.summary,
+           meta.description,
+         );
 
         return {
           id: item.id,
-          title: item.title ?? `Ausschreibung #${item.id}`,
-          client: normalizePublicClient(meta.client, getPublicClientFallback(item.source, item.url)) || "Unbekannt",
-          location: String(meta.location ?? ""),
+          title,
+          client,
+          location: pickValidatedPublicLocationForTender(title, client, structured.hard_facts.location, meta.location),
           deadline: item.deadlineAt ? formatDeadlineDE(item.deadlineAt) : null,
           deadlineISO: item.deadlineAt ? new Date(item.deadlineAt).toISOString() : null,
           category: item.category ?? "Sonstiges",
-          description: cleanPublicDescription(String(meta.description ?? "")),
-          referenceNumber: meta.reference_number ? String(meta.reference_number) : null,
+          description,
+          referenceNumber: meta.referenceNumber,
           source: item.source,
           sourceUrl: sanitizeTenderUrl(item.url) ?? "",
           contractValueMin: item.contractValueMin,
           contractValueMax: item.contractValueMax,
           contractDurationMonths: item.contractDurationMonths,
-           procedureType: item.procedureType,
+           procedureType: structured.procurement.procedure_type || item.procedureType,
            readinessStatus: item.readinessStatus,
            readinessReason: item.readinessReason,
            createdAt: item.createdAt,

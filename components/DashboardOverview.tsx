@@ -46,7 +46,7 @@ export function DashboardOverview() {
   }, []);
 
   if (paywall) {
-    return <PaywallPanel feature="KI-Analyse" title="Die Übersicht freischalten" description="Deine Ausschreibungen bleiben frei. Billing schaltet Scoring, Empfehlungen und die Teamübersicht frei." />;
+    return <PaywallPanel feature="KI-Analyse" title="Die Übersicht freischalten" description="Ihre Ausschreibungen bleiben frei. Ein aktiver Tarif schaltet Passungsbewertungen, Empfehlungen und die Teamübersicht frei." />;
   }
 
   if (!metrics) return <Typography>Lade...</Typography>;

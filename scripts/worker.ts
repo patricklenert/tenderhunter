@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { settings } from "@/lib/config";
 import { processNextJob, cleanupExpiredTenders, cleanupExpiredUsTenders, recoverIncompleteTenderPipelines } from "@/lib/pipeline";
-import { enqueueJob, isCriticalJobType, reapStaleJobs, sanitizeErrorMessage, type JobLane } from "@/lib/queue";
+import { enqueueJob, isCriticalJobType, PUBLIC_CONTINUATION_PRIORITY, reapStaleJobs, sanitizeErrorMessage, type JobLane } from "@/lib/queue";
 import { serializeSourceItems } from "@/lib/tender-sources";
 import { shouldSchedulePublicContinuation } from "@/lib/public-pagination";
 import { JOB_CRAWL, JOB_SCRAPE_PUBLIC, JOB_SCRAPE_US, type JsonValue } from "@/lib/types";
@@ -13,6 +13,18 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
 
 const US_SCHEDULE_CHECK_MS = 60 * 1000;
 const PUBLIC_SCHEDULE_CHECK_MS = 60 * 1000;
+
+const loadPublicContinuationCursors = async () => db
+  .select({
+    sourceKey: publicSourceCursors.sourceKey,
+    cursorJson: publicSourceCursors.cursorJson,
+    exhausted: publicSourceCursors.exhausted,
+    continuationRequired: publicSourceCursors.continuationRequired,
+    lastStatus: publicSourceCursors.lastStatus,
+    lastError: publicSourceCursors.lastError,
+  })
+  .from(publicSourceCursors)
+  .where(eq(publicSourceCursors.continuationRequired, true));
 
 const args = new Set(process.argv.slice(2));
 const runOnce = args.has("--once");
@@ -71,17 +83,31 @@ const shouldEnqueuePublicScrape = async (): Promise<boolean> => {
   }
 
   if (lastRun[0].status === "failed") {
-    console.log(`[scheduler] Oeffentliche Ausschreibungen: letzter Lauf ${lastRun[0].status}, starte Recovery-Scrape.`);
-    return true;
+    const continuation = await loadPublicContinuationCursors();
+    const canRetry = continuation.length === 0 || continuation.some((row) => shouldSchedulePublicContinuation(
+      row.cursorJson as Record<string, JsonValue>,
+      row.exhausted,
+      row.continuationRequired,
+      row.lastStatus,
+      row.lastError,
+    ));
+    if (canRetry) {
+      console.log(`[scheduler] Oeffentliche Ausschreibungen: letzter Lauf ${lastRun[0].status}, starte Recovery-Scrape.`);
+      return true;
+    }
+    console.log("[scheduler] Oeffentliche Ausschreibungen: letzter Lauf fehlgeschlagen, aber alle Quellen sind noch im Backoff.");
+    return false;
   }
 
   if (lastRun[0].status === "partial") {
-    const continuation = await db
-      .select({ sourceKey: publicSourceCursors.sourceKey })
-      .from(publicSourceCursors)
-      .where(and(eq(publicSourceCursors.exhausted, false), eq(publicSourceCursors.continuationRequired, true)))
-      .limit(1);
-    if (continuation.length > 0) {
+    const continuation = await loadPublicContinuationCursors();
+    if (continuation.some((row) => shouldSchedulePublicContinuation(
+      row.cursorJson as Record<string, JsonValue>,
+      row.exhausted,
+      row.continuationRequired,
+      row.lastStatus,
+      row.lastError,
+    ))) {
       console.log("[scheduler] Oeffentliche Ausschreibungen: nicht erschöpfte Quelle vorhanden, starte Recovery.");
       return true;
     }
@@ -98,51 +124,49 @@ const shouldEnqueuePublicScrape = async (): Promise<boolean> => {
 };
 
 const enqueuePublicContinuationsIfNeeded = async (): Promise<void> => {
-  // A full run owns the source cursors for all portals. Do not start a
-  // continuation beside it, otherwise both jobs can advance the same cursor.
-  const activeFullRuns = await db
-    .select({ id: jobs.id })
-    .from(jobs)
-    .where(
-      and(
-        eq(jobs.type, JOB_SCRAPE_PUBLIC),
-        or(eq(jobs.status, "pending"), eq(jobs.status, "running")),
-        sql`${jobs.payload} ->> 'source' IS NULL`,
-      ),
-    )
-    .limit(1);
-  if (activeFullRuns.length > 0) return;
+  try {
+    // A full run owns the source cursors for all portals. Do not start a
+    // continuation beside it, otherwise both jobs can advance the same cursor.
+    const activeFullRuns = await db
+      .select({ id: jobs.id })
+      .from(jobs)
+      .where(
+        and(
+          eq(jobs.type, JOB_SCRAPE_PUBLIC),
+          or(eq(jobs.status, "pending"), eq(jobs.status, "running")),
+          sql`${jobs.payload} ->> 'source' IS NULL`,
+        ),
+      )
+      .limit(1);
+    if (activeFullRuns.length > 0) return;
 
-  const cursors = await db
-    .select({
-      sourceKey: publicSourceCursors.sourceKey,
-      cursorJson: publicSourceCursors.cursorJson,
-      exhausted: publicSourceCursors.exhausted,
-      continuationRequired: publicSourceCursors.continuationRequired,
-      lastStatus: publicSourceCursors.lastStatus,
-      lastError: publicSourceCursors.lastError,
-    })
-    .from(publicSourceCursors)
-    .where(and(eq(publicSourceCursors.exhausted, false), eq(publicSourceCursors.continuationRequired, true)));
+    const cursors = await loadPublicContinuationCursors();
 
-  for (const cursor of cursors.filter((row) => shouldSchedulePublicContinuation(
-    row.cursorJson as Record<string, JsonValue>,
-    row.exhausted,
-    row.continuationRequired,
-    row.lastStatus,
-    row.lastError,
-  ))) {
-    try {
-      await enqueueJob(JOB_SCRAPE_PUBLIC, { source: cursor.sourceKey }, {
-        jobKey: `public-continuation:${cursor.sourceKey}`,
-        groupKey: `public-source:${cursor.sourceKey}`,
-        runAfter: new Date(Date.now() + 30_000),
-        dedupeCompleted: false,
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "unbekannt";
-      console.error(`[scheduler] Public-Continuation ${cursor.sourceKey} fehlgeschlagen: ${message}`);
+    for (const cursor of cursors.filter((row) => shouldSchedulePublicContinuation(
+      row.cursorJson as Record<string, JsonValue>,
+      row.exhausted,
+      row.continuationRequired,
+      row.lastStatus,
+      row.lastError,
+    ))) {
+      try {
+        await enqueueJob(JOB_SCRAPE_PUBLIC, { source: cursor.sourceKey }, {
+          jobKey: `public-continuation:${cursor.sourceKey}`,
+          groupKey: "public-scrape",
+          // Older document-fetch jobs must be allowed to drain between source
+          // continuations; queue aging still lets this work make progress.
+          priority: PUBLIC_CONTINUATION_PRIORITY,
+          runAfter: new Date(Date.now() + 30_000),
+          dedupeCompleted: false,
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "unbekannt";
+        console.error(`[scheduler] Public-Continuation ${cursor.sourceKey} fehlgeschlagen: ${message}`);
+      }
     }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "unbekannt";
+    console.error(`[scheduler] Continuation-Check fehlgeschlagen: ${message}`);
   }
 };
 
@@ -155,12 +179,20 @@ const shouldEnqueueUsScrape = async (): Promise<boolean> => {
   if (activeJobs.length > 0) return false;
 
   const lastJob = await db
-    .select({ createdAt: jobs.createdAt, status: jobs.status })
+    .select({ createdAt: jobs.createdAt, status: jobs.status, finishedAt: jobs.finishedAt })
     .from(jobs)
     .where(eq(jobs.type, JOB_SCRAPE_US))
     .orderBy(desc(jobs.createdAt))
     .limit(1);
-  return lastJob.length === 0 || lastJob[0].status === "failed" || Date.now() - lastJob[0].createdAt.getTime() > settings.usScrapeIntervalHours * 60 * 60 * 1000;
+  if (lastJob.length === 0) return true;
+
+  const intervalMs = settings.usScrapeIntervalHours * 60 * 60 * 1000;
+  if (lastJob[0].status === "failed") {
+    // The queue already exhausted its bounded retries. Do not create a new
+    // failed job every scheduler tick; retry again with the normal interval.
+    return !lastJob[0].finishedAt || Date.now() - lastJob[0].finishedAt.getTime() > intervalMs;
+  }
+  return Date.now() - lastJob[0].createdAt.getTime() > intervalMs;
 };
 
 const enqueueUsScrapeIfDue = async (): Promise<void> => {
@@ -178,7 +210,7 @@ const enqueueUsScrapeIfDue = async (): Promise<void> => {
 const enqueuePublicScrapeIfDue = async (): Promise<void> => {
   try {
     if (await shouldEnqueuePublicScrape()) {
-      await enqueueJob(JOB_SCRAPE_PUBLIC, {}, { jobKey: JOB_SCRAPE_PUBLIC, dedupeCompleted: false });
+      await enqueueJob(JOB_SCRAPE_PUBLIC, {}, { jobKey: JOB_SCRAPE_PUBLIC, groupKey: "public-scrape", dedupeCompleted: false });
       console.log("[scheduler] scrape_public_tenders Job eingereiht.");
     }
   } catch (error) {
@@ -228,7 +260,7 @@ const initialize = async (): Promise<void> => {
 
   try {
     if (await shouldEnqueuePublicScrape()) {
-      await enqueueJob(JOB_SCRAPE_PUBLIC, {}, { jobKey: JOB_SCRAPE_PUBLIC, dedupeCompleted: false });
+      await enqueueJob(JOB_SCRAPE_PUBLIC, {}, { jobKey: JOB_SCRAPE_PUBLIC, groupKey: "public-scrape", dedupeCompleted: false });
       console.log("[scheduler] scrape_public_tenders Job eingereiht.");
     }
   } catch (error) {

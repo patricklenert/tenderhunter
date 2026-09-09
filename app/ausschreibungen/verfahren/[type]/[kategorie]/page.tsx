@@ -7,6 +7,7 @@ import { PROCEDURE_TYPES, ALL_PROCEDURE_TYPE_SLUGS, getProcedureDatabaseValues }
 import { CATEGORY_LABELS, SLUG_TO_CATEGORY, ALL_CATEGORY_SLUGS } from "@/lib/categories";
 import { TaxonomyCategoryContent } from "@/components/seo/TaxonomyCategoryContent";
 import { getListingRobots, getPageNumber, type SeoSearchParams } from "@/lib/seo-indexability";
+import { readPublicTenderMeta } from "@/lib/tender-meta";
 
 const PAGE_SIZE = 20;
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
@@ -134,10 +135,11 @@ export default async function ProcedureCategoryPage({ params, searchParams }: Pa
       .offset(offset);
 
     procTenders = rows.map((row) => {
-      const meta =
-        typeof row.metadataJson === "object" && row.metadataJson !== null
-          ? (row.metadataJson as Record<string, unknown>)
-          : {};
+      const meta = readPublicTenderMeta(row.metadataJson, {
+        title: row.title,
+        source: row.source,
+      });
+      const location = meta.location ? meta.location.split(",")[0].trim().slice(0, 60) : null;
       return {
         id: row.id,
         title: row.title ?? `Ausschreibung #${row.id}`,
@@ -145,8 +147,8 @@ export default async function ProcedureCategoryPage({ params, searchParams }: Pa
         deadline: row.deadlineAt
           ? new Date(row.deadlineAt).toLocaleDateString("de-DE", { day: "2-digit", month: "short", year: "numeric" })
           : null,
-        location: typeof meta.location === "string" ? meta.location.split(",")[0].trim().slice(0, 60) : null,
-        client: typeof meta.client === "string" ? meta.client.slice(0, 80) : null,
+        location,
+        client: meta.client ? meta.client.slice(0, 80) : null,
         slug: row.slug,
       };
     });

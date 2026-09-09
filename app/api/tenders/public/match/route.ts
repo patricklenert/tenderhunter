@@ -8,6 +8,9 @@ import { formatDeadlineDE } from "@/lib/date-utils";
 import { requirePremiumSession } from "@/lib/entitlements";
 import OpenAI from "openai";
 import { callLLM } from "@/lib/llm";
+import { readPublicTenderMeta } from "@/lib/tender-meta";
+import { pickValidatedPublicLocationForTender } from "@/lib/public-content-quality";
+import { normalizeStructured } from "@/lib/structurer";
 
 const openrouterKey = process.env.OPENROUTER_API_KEY ?? "";
 
@@ -95,14 +98,20 @@ export async function POST(request: Request): Promise<Response> {
 
     // 3. Load tender details (from metadataJson + structured_data cache if available)
     const metadata = (tender.metadataJson ?? {}) as Record<string, unknown>;
+    const metadataMeta = readPublicTenderMeta(metadata, {
+      title: tender.title,
+      source: tender.source,
+      sourceUrl: tender.url,
+      rawText: tender.rawText,
+    });
     let tenderDetails: Record<string, unknown> = {
       title: tender.title,
-      client: metadata.client ?? metadata.auftraggeber ?? "Unbekannt",
+      client: metadataMeta.client || "Unbekannt",
       deadline: tender.deadlineAt ? formatDeadlineDE(tender.deadlineAt) : null,
-      description: pickPublicDescription(metadata.description, tender.rawText),
+      description: metadataMeta.description,
       category: tender.category,
-      location: metadata.location ?? metadata.ort ?? "",
-      referenceNumber: metadata.referenceNumber ?? metadata.referenz ?? "",
+      location: metadataMeta.location,
+      referenceNumber: metadataMeta.referenceNumber ?? "",
     };
 
     const cached = await db
@@ -112,14 +121,35 @@ export async function POST(request: Request): Promise<Response> {
       .limit(1);
 
     if (cached.length > 0) {
-      const blob = cached[0].jsonBlob as Record<string, unknown>;
-      const publicDescription = pickPublicDescription(blob.description, blob.summary);
-      if (publicDescription) blob.description = publicDescription;
-      else delete blob.description;
-      const publicSummary = pickPublicDescription(blob.summary);
-      if (publicSummary) blob.summary = publicSummary;
-      else delete blob.summary;
-      tenderDetails = { ...tenderDetails, ...blob };
+      const blob = cached[0].jsonBlob;
+      const cachedMeta = readPublicTenderMeta(blob, {
+        title: tender.title,
+        source: tender.source,
+        sourceUrl: tender.url,
+      });
+      const structured = normalizeStructured(blob, tender.title ?? "", {
+        buyer: metadataMeta.client,
+         procedure: metadataMeta.procedure || tender.procedureType,
+         location: metadataMeta.location,
+         summary: metadataMeta.description,
+         scope: metadataMeta.subject,
+         deadline: tender.deadlineAt ? formatDeadlineDE(tender.deadlineAt) : null,
+      });
+      const client = structured.hard_facts.buyer || tenderDetails.client;
+      const location = pickValidatedPublicLocationForTender(tender.title, client,
+        structured.hard_facts.location, cachedMeta.location, tenderDetails.location);
+      tenderDetails = {
+        title: structured.title,
+        client,
+        deadline: structured.hard_facts.deadline,
+        description: pickPublicDescription(structured.summary, cachedMeta.description, tenderDetails.description),
+        category: tender.category,
+        location,
+        referenceNumber: cachedMeta.referenceNumber ?? tenderDetails.referenceNumber,
+        requirements: structured.decision_relevant.requirements,
+        scope: structured.decision_relevant.scope.join(" "),
+        awardCriteria: structured.decision_relevant.award_criteria,
+      };
     } else if (tender.url) {
       // Fallback: quick scrape
       try {

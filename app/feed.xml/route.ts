@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { tenders } from "@/lib/schema";
 import { eq, and, or, gt, isNull, desc } from "drizzle-orm";
 import { generateTenderSlug } from "@/lib/tender-slug";
+import { readPublicTenderMeta } from "@/lib/tender-meta";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 3600;
@@ -25,6 +26,8 @@ export async function GET() {
     .select({
       id: tenders.id,
       title: tenders.title,
+      source: tenders.source,
+      url: tenders.url,
       metadataJson: tenders.metadataJson,
       category: tenders.category,
       deadlineAt: tenders.deadlineAt,
@@ -43,13 +46,14 @@ export async function GET() {
     .limit(50);
 
   const items = rows.map((row) => {
-    const meta =
-      typeof row.metadataJson === "object" && row.metadataJson !== null
-        ? (row.metadataJson as Record<string, unknown>)
-        : {};
-    const location = typeof meta.location === "string" ? meta.location : "";
-    const client = typeof meta.client === "string" ? meta.client : "";
-    const description = typeof meta.description === "string" ? meta.description : "";
+    const meta = readPublicTenderMeta(row.metadataJson, {
+      title: row.title,
+      source: row.source,
+      sourceUrl: row.url,
+    });
+    const location = meta.location;
+    const client = meta.client;
+    const description = meta.description;
     const slug = row.slug ?? generateTenderSlug(row.title ?? "", location);
     const link = `${SITE_URL}/ausschreibung/${row.id}/${slug}`;
     const pubDate = (row.createdAt ?? row.updatedAt ?? now).toUTCString();

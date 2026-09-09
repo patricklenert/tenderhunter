@@ -10,6 +10,9 @@ export interface Article {
   relatedCategories: string[];
   // SEO: Cross-links to related articles for improved crawl depth and PageRank flow
   relatedArticles?: string[];
+  relatedGlossaryTerms?: string[];
+  sources?: Array<{ title: string; url: string }>;
+  lastReviewed?: string;
   // SEO: HowTo step data for HowTo JSON-LD rich snippets — only for step-by-step articles
   howToSteps?: Array<{ name: string; text: string }>;
 }
@@ -21,32 +24,38 @@ export const ARTICLES: Record<string, Article> = {
     description:
       "Alle Vergabeverfahren in Deutschland im Überblick: Offenes, nichtoffenes, Verhandlungsverfahren und mehr. Erfahren Sie, welche Verfahren es gibt und wie Bieter teilnehmen können.",
     datePublished: "2025-01-15",
-    dateModified: "2025-01-15",
+    dateModified: "2026-09-08",
     relatedCategories: ["Bauarbeiten", "IT-Dienstleistungen", "Planungsleistungen"],
     relatedArticles: ["vob-vergabe", "wie-funktioniert-ausschreibung", "oeffentliche-auftraege-finden"],
+    relatedGlossaryTerms: ["offenes-verfahren", "beschraenktes-verfahren", "verhandlungsverfahren", "vgv-vergabeverordnung", "uvgo", "vob-a"],
+    sources: [
+      { title: "§ 119 GWB – Verfahrensarten", url: "https://www.gesetze-im-internet.de/gwb/__119.html" },
+      { title: "BMWE: Vergabeübersicht und Rechtsgrundlagen", url: "https://www.bundeswirtschaftsministerium.de/Redaktion/DE/Artikel/Wirtschaft/vergabe-uebersicht-und-rechtsgrundlagen.html" },
+    ],
+    lastReviewed: "2026-09-08",
     content: `
 ## Was sind Vergabeverfahren?
 
-Vergabeverfahren sind die geregelten Prozesse, über die öffentliche Auftraggeber Aufträge an private Unternehmen vergeben. In Deutschland unterliegen sie dem Vergaberecht, das auf EU-Richtlinien basiert und im Gesetz gegen Wettbewerbsbeschränkungen (GWB) sowie in den Vergabeverordnungen (VgV, SektVO, VOB/A, VOL/A) geregelt ist.
+Vergabeverfahren sind die geregelten Prozesse, über die öffentliche Auftraggeber Aufträge an private Unternehmen vergeben. In Deutschland unterliegen sie dem Vergaberecht, das auf EU-Richtlinien basiert und im Gesetz gegen Wettbewerbsbeschränkungen (GWB) sowie in den einschlägigen Vergabeverordnungen (unter anderem VgV, SektVO, UVgO und VOB/A) geregelt ist.
 
 ## Die wichtigsten Verfahrenstypen
 
 ### Offenes Verfahren
 
-Das offene Verfahren ist der Standardfall bei öffentlichen Ausschreibungen. Jedes interessierte Unternehmen kann ein Angebot abgeben. Die Bekanntmachung erfolgt im Bundesanzeiger oder auf TED (Tenders Electronic Daily).
+Das offene Verfahren ermöglicht jedem interessierten Unternehmen, ein Angebot abzugeben. Die Bekanntmachung erfolgt je nach Anwendungsbereich im einschlägigen nationalen Bekanntmachungsmedium oder auf TED (Tenders Electronic Daily).
 
 **Merkmale:**
 - Keine Teilnahmebeschränkung
-- Mindestens 35 Kalendertage Angebotsfrist (EU-Schwellenwert)
+- Die Angebotsfrist richtet sich nach dem anwendbaren Regelwerk; im EU-offenen Verfahren gelten gesetzliche Mindestfristen mit möglichen Ausnahmen
 - Zwingend objektive Zuschlagskriterien
 
 ### Nichtoffenes Verfahren
 
-Beim nichtoffenen Verfahren können nur eingeladene Bieter ein Angebot abgeben. Vorher findet eine Auswahlphase statt, in der der Auftraggeber geeignete Unternehmen identifiziert.
+Beim nichtoffenen Verfahren können nur ausgewählte Bewerber ein Angebot abgeben. Vorher findet eine Auswahlphase statt, in der der Auftraggeber geeignete Unternehmen identifiziert.
 
 **Merkmale:**
 - Zwei-stufig: Auswahl + Angebotsphase
-- Mindestens 3 Bewerber müssen eingeladen werden
+- Die Zahl der einzuladenden Bewerber richtet sich nach dem anwendbaren Regelwerk und der Bekanntmachung
 - Geeignet bei komplexen Leistungen
 
 ### Verhandlungsverfahren
@@ -56,7 +65,7 @@ Beim Verhandlungsverfahren werden die Vertragsbedingungen mit den Bietern verhan
 **Merkmale:**
 - Verhandlungen über Preis und Leistung möglich
 - Besonders bei innovativen Leistungen oder unvollständigen Unterlagen
-- Mit vorheriger Bekanntmachung: mindestens 3 Bieter
+- Mit vorheriger Bekanntmachung gelten die Voraussetzungen und Mindestzahlen des jeweils anwendbaren Regelwerks
 
 ### Wettbewerblicher Dialog
 
@@ -66,14 +75,14 @@ Der wettbewerbliche Dialog wird bei besonders komplexen Projekten eingesetzt, be
 
 Die Innovationspartnerschaft wurde 2016 eingeführt und ermöglicht die Entwicklung und anschließende Beschaffung innovativer Produkte oder Dienstleistungen.
 
-## Schwellenwerte (2024/2025)
+## Schwellenwerte 2026/2027
 
 | Bereich | EU-Schwellenwert |
 |---------|-----------------|
-| Bauaufträge | 5.538.000 € |
-| Liefer- und Dienstleistungen (Bund) | 143.000 € |
-| Liefer- und Dienstleistungen (Kommunen) | 221.000 € |
-| Sektorenaufträge | 452.000 € |
+| Bauaufträge | 5.404.000 € |
+| Liefer- und Dienstleistungen (bestimmte zentrale Regierungsbehörden) | 140.000 € |
+| Liefer- und Dienstleistungen (sonstige bestimmte Auftraggeber) | 216.000 € |
+| Sektorenaufträge (Liefer- und Dienstleistungen) | 432.000 € |
 
 Unterhalb dieser Werte gelten nationale Vergaberegeln mit geringeren Formalanforderungen.
 
@@ -91,11 +100,18 @@ Unterhalb dieser Werte gelten nationale Vergaberegeln mit geringeren Formalanfor
     slug: "vob-vergabe",
     title: "VOB/A Vergabe: Was Bieter über die Vergabe- und Vertragsordnung wissen müssen",
     description:
-      "Die VOB/A regelt die Vergabe von Bauaufträgen in Deutschland. Erfahren Sie alles über Verfahren, Zuschlagskriterien und Ihre Rechte als Bieter bei Bauausschreibungen.",
+      "VOB/A, VOB/B und VOB/C verständlich erklärt: Vergabeverfahren, Bauvertragsbedingungen, technische ATV, Schwellenwerte und wichtige Hinweise für Bieter.",
     datePublished: "2025-01-15",
-    dateModified: "2025-01-15",
+    dateModified: "2026-09-06",
+    lastReviewed: "2026-09-06",
     relatedCategories: ["Bauarbeiten", "Tiefbau", "TGA", "Planungsleistungen"],
     relatedArticles: ["vergabeverfahren-uebersicht", "ausschreibung-muster", "bietergemeinschaft-gruenden"],
+    relatedGlossaryTerms: ["vob-a", "vob-b", "vob-c", "vob-a-eu", "schwellenwerte", "auftragswert", "leistungsbeschreibung", "leistungsverzeichnis", "vgv-vergabeverordnung", "gwb-vergaberecht"],
+    sources: [
+      { title: "VOB/A, Bekanntmachung vom 31. Januar 2019 (BAnz AT 19.02.2019 B2)", url: "https://www.verwaltungsvorschriften-im-internet.de/bsvwvbund_31012019_BWI781063060120180001604634.htm" },
+      { title: "§ 2 VgV – Bauaufträge", url: "https://www.gesetze-im-internet.de/vgv_2016/__2.html" },
+      { title: "BMWE: Vergabeübersicht und Rechtsgrundlagen", url: "https://www.bundeswirtschaftsministerium.de/Redaktion/DE/Artikel/Wirtschaft/vergabe-uebersicht-und-rechtsgrundlagen.html" },
+    ],
     content: `
 ## Was ist die VOB/A?
 
@@ -105,34 +121,28 @@ Die Vergabe- und Vertragsordnung für Bauleistungen (VOB) besteht aus drei Teile
 - **VOB/B** – Allgemeine Vertragsbedingungen für die Ausführung von Bauleistungen
 - **VOB/C** – Allgemeine Technische Vertragsbedingungen für Bauleistungen
 
-Die VOB/A ist der Teil, der Bieter direkt betrifft, da sie die Regeln für die Vergabe von Bauaufträgen festlegt.
+VOB/A betrifft das Vergabeverfahren. VOB/B und VOB/C werden für die spätere Vertragsausführung als Vertragsbestandteile einbezogen. Die Teile haben daher unterschiedliche Funktionen und dürfen nicht gleichgesetzt werden.
 
 ## Geltungsbereich der VOB/A
 
-Die VOB/A gilt für alle öffentlichen Auftraggeber bei der Vergabe von Bauaufträgen und Baukonzessionen. Sie wird durch die Vergabeverordnung (VgV) ergänzt, die EU-Schwellenwerte regelt.
+Für Bauaufträge unterscheidet die VOB/A drei Abschnitte: Abschnitt 1 für den nationalen Bereich, Abschnitt 2 für den EU-Oberschwellenbereich und Abschnitt 3 für verteidigungs- und sicherheitsspezifische Vergaben. § 2 VgV legt fest, welche VgV-Regeln bei Bauaufträgen zusätzlich gelten. Baukonzessionen sind gesondert zu prüfen.
 
 **Unterscheidung:**
-- **Unterhalb der EU-Schwellenwerte:** Nationale VOB/A mit vereinfachten Verfahren
-- **Oberhalb der EU-Schwellenwerte:** VOB/A in Kombination mit EU-Vorgaben
+- **Unterhalb der EU-Schwellenwerte:** VOB/A Abschnitt 1, ergänzt durch anwendbares Landes- und Haushaltsrecht
+- **Oberhalb der EU-Schwellenwerte:** VOB/A Abschnitt 2 zusammen mit GWB und den nach § 2 VgV anwendbaren Vorschriften
 
 ## Zuschlagskriterien nach VOB/A
 
 Die VOB/A kennt grundsätzlich zwei Zuschlagsmodelle:
 
-### 1. Niedrigstes Angebot (Preis allein)
-- Standard bei einfachen, gut definierten Bauleistungen
-- Das wirtschaftlichste Angebot gewinnt
-
-### 2. Wirtschaftlichstes Angebot (Preis + Qualität)
-- Qualitative, nachhaltige oder funktionale Kriterien werden berücksichtigt
-- Beispiel: Preis 70 %, Qualität 20 %, Nachhaltigkeit 10 %
+Der Zuschlag wird auf das wirtschaftlichste Angebot erteilt. Das kann bei geeigneten Bauleistungen allein über den Preis oder über das beste Preis-Leistungs-Verhältnis anhand bekannt gemachter Kriterien bestimmt werden. Eine pauschale Rangfolge „niedrigster Preis gewinnt“ gibt es nicht.
 
 ## Typische Eignungsanforderungen
 
 Öffentliche Auftraggeber prüfen die Eignung der Bieter anhand folgender Kriterien:
 
 - **Berufliche Zulassung:** Eintragung in die Handwerksrolle oder vergleichbar
-- **Leistungsreferenzen:** Nachweis vergleichbarer Bauleistungen (meist 3 Referenzen)
+   - **Leistungsreferenzen:** Nachweis vergleichbarer Bauleistungen nach den bekannt gemachten Anforderungen
 - **Finanzielle Leistungsfähigkeit:** Jahresabschlüsse, Eigenkapitalquote
 - **Technische Ausstattung:** Maschinen, Anlagen, Personal
 - **Qualitätssicherung:** Zertifikate wie ISO 9001
@@ -140,19 +150,19 @@ Die VOB/A kennt grundsätzlich zwei Zuschlagsmodelle:
 ## Besonderheiten bei Bauausschreibungen
 
 ### Teillosevergabe
-Bauaufträge müssen grundsätzlich in Lose aufgeteilt werden, damit auch kleine und mittlere Unternehmen (KMU) teilnehmen können. Ausnahmen sind möglich bei technischer oder wirtschaftlicher Untrennbarkeit.
+Bauaufträge sind grundsätzlich in Teil- und Fachlose aufzuteilen, damit auch kleine und mittlere Unternehmen teilnehmen können. Eine Gesamtvergabe muss sachlich begründet werden.
 
 ### Nebenangebote
-Nebenangebote sind zulässig, wenn sie in der Ausschreibung nicht ausdrücklich ausgeschlossen sind. Sie müssen das Mindestanforderungserfüllen und klar als Nebenangebot gekennzeichnet sein.
+Nebenangebote sind nur zu werten, wenn der Auftraggeber sie zugelassen oder nicht ausgeschlossen hat und die bekannt gemachten Mindestanforderungen eingehalten werden.
 
 ### Ortstermine
 Bei komplexen Bauvorhaben werden häufig Ortstermine angeboten. Die Teilnahme ist empfehlenswert, da sie Aufschluss über die tatsächlichen Gegebenheiten gibt.
 
 ## Rechte der Bieter
 
-- **Auskunftsrecht:** Nach Zuschlag können Bieter eine Aufklärung über den Verfahrensablauf verlangen
+- **Information:** Unter den gesetzlichen Voraussetzungen können Bieter Informationen über die Ablehnung und den vorgesehenen Zuschlag verlangen
 - **Nachprüfungsverfahren:** Bei Vergabeverstößen können Bieter eine Nachprüfung bei der zuständigen Vergabekammer beantragen
-- **Wartepflicht:** Der Auftraggeber muss nach Zuschlag 15 Kalendertage warten, bevor der Vertrag geschlossen wird
+- **Wartepflicht:** Im Anwendungsbereich des § 134 GWB beträgt die Wartefrist grundsätzlich 15 Kalendertage, bei elektronischer Übermittlung 10 Kalendertage
 `,
   },
 
@@ -464,15 +474,22 @@ Eine Bietergemeinschaft ist ein mächtiges Instrument, um bei großen öffentlic
   },
 
   // SEO: Neue Artikel für Cycle 4 — gezielte Long-Tail-Keywords abdecken
-  "schwellenwerte-vergabe-2025": {
-    slug: "schwellenwerte-vergabe-2025",
-    title: "Schwellenwerte Vergabe 2025: Übersicht für Bieter und Auftraggeber",
+  "schwellenwerte-vergabe": {
+    slug: "schwellenwerte-vergabe",
+    title: "EU-Schwellenwerte im Vergaberecht 2026 und 2027",
     description:
-      "EU-Schwellenwerte und nationale Schwellenwerte für öffentliche Aufträge 2025 im Überblick. Welche Werte gelten, ab wann gelten EU-Regeln und was bedeutet das für Ihre Ausschreibung?",
+      "EU-Schwellenwerte für öffentliche Aufträge 2026 und 2027: Bauaufträge, Lieferungen, Dienstleistungen und Konzessionen nach Auftraggeber und Leistungsart eingeordnet.",
     datePublished: "2025-06-01",
-    dateModified: "2025-06-01",
+    dateModified: "2026-09-06",
+    lastReviewed: "2026-09-06",
     relatedCategories: ["Bauarbeiten", "IT-Dienstleistungen", "Lieferung"],
     relatedArticles: ["vergabeverfahren-uebersicht", "vob-vergabe", "ausschreibung-muster"],
+    relatedGlossaryTerms: ["schwellenwerte", "auftragswert", "vob-a", "vob-a-eu", "vgv-vergabeverordnung", "gwb-vergaberecht"],
+    sources: [
+      { title: "BMWE: Vergabeübersicht und Rechtsgrundlagen", url: "https://www.bundeswirtschaftsministerium.de/Redaktion/DE/Artikel/Wirtschaft/vergabe-uebersicht-und-rechtsgrundlagen.html" },
+      { title: "Delegierte Verordnung (EU) 2025/2152", url: "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32025R2152" },
+      { title: "Delegierte Verordnung (EU) 2025/2151 für Konzessionen", url: "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32025R2151" },
+    ],
     howToSteps: [
       { name: "Schwellenwert prüfen", text: "Ermitteln Sie den geschätzten Auftragswert ohne Umsatzsteuer. Vergleichen Sie diesen mit den geltenden EU-Schwellenwerten für Ihre Leistungsart." },
       { name: "Verfahren wählen", text: "Liegt der Auftragswert über dem EU-Schwellenwert, gilt EU-Vergaberecht mit Bekanntmachung auf TED. Unterhalb gelten nationale Regeln mit vereinfachten Verfahren." },
@@ -483,38 +500,23 @@ Eine Bietergemeinschaft ist ein mächtiges Instrument, um bei großen öffentlic
 
 Schwellenwerte legen fest, ab welchem Auftragswert öffentliche Auftraggeber das EU-Vergaberecht anwenden müssen. Oberhalb dieser Werte gelten strengere Regeln: EU-weite Bekanntmachung auf TED, längere Angebotsfristen und formale Eignungsprüfungen. Unterhalb gelten nationale Vergaberegeln mit geringeren Formalanforderungen.
 
-Die Schwellenwerte werden alle zwei Jahre von der Europäischen Kommission aktualisiert. Die aktuellen Werte gelten seit Februar 2024 und voraussichtlich bis Januar 2026.
+Die Schwellenwerte werden regelmäßig angepasst. Die folgenden EU-Werte gelten ab dem 1. Januar 2026 für 2026 und 2027. Sie beziehen sich auf den geschätzten Auftragswert ohne Umsatzsteuer und nur auf den jeweils passenden Auftraggeber- und Leistungsbereich.
 
-## EU-Schwellenwerte 2024/2025
+## EU-Schwellenwerte 2026/2027
 
 | Auftragsart | EU-Schwellenwert (netto) |
 |-------------|--------------------------|
-| Bauaufträge | 5.538.000 € |
-| Liefer- und Dienstleistungen (Bund) | 143.000 € |
-| Liefer- und Dienstleistungen (Kommunen/Länder) | 221.000 € |
-| Sektorenaufträge (Wasser, Energie, Verkehr) | 452.000 € |
-| Konzessionen | 5.538.000 € |
+| Bauaufträge | 5.404.000 € |
+| Liefer- und Dienstleistungen (bestimmte zentrale Regierungsbehörden) | 140.000 € |
+| Liefer- und Dienstleistungen (sonstige bestimmte Auftraggeber) | 216.000 € |
+| Konzessionen | 5.404.000 € |
 | Soziale und andere besondere Dienstleistungen | 750.000 € |
 
-**Wichtig:** Die Werte gelten netto (ohne Umsatzsteuer). Bei der Schwellenwertberechnung darf der Auftrag nicht künstlich aufgeteilt werden, um unter den Schwellenwert zu fallen (§ 3 GWB).
+**Wichtig:** Die Werte gelten netto (ohne Umsatzsteuer). Bei der Schwellenwertberechnung sind insbesondere Optionen, Verlängerungen und der Gesamtwert von Losen zu berücksichtigen. Eine künstliche Aufteilung zur Umgehung des EU-Vergaberechts ist unzulässig.
 
-## Nationale Schwellenwerte (Unterschwellenbereich)
+## Was gilt unterhalb der EU-Schwellenwerte?
 
-Unterhalb der EU-Schwellenwerte gelten nationale Regeln. Die Vergabeverordnung (VgV) unterscheidet:
-
-### Oberschwelle (ab 100.000 € für Liefer-/Dienstleistungen)
-- Pflicht zur Bekanntmachung auf nationalen Portalen (DTVP, evergabe)
-- Mindestens 3 qualifizierte Angebote anstreben
-- Dokumentationspflicht
-
-### Mittlerer Bereich (ab 15.000 €)
-- Freihändige Vergabe zulässig, aber Vergabegrundsätze beachten
-- Mindestens 3 Angebote einholen
-- Wirtschaftlichkeit dokumentieren
-
-### Unterschwelle (unter 15.000 €)
-- Keine vergaberechtlichen Vorgaben
-- Wirtschaftlichkeit und Sparsamkeit beachten
+Unterhalb der EU-Schwellenwerte gelten die nationalen Regeln des jeweils zuständigen Auftraggebers. Bei Liefer- und Dienstleistungen kann auf Bundesebene die UVgO maßgeblich sein; bei Bauleistungen ist grundsätzlich VOB/A Abschnitt 1 relevant. Landesrecht, Haushaltsrecht und interne Wertgrenzen können zusätzliche Vorgaben machen. Es gibt daher keine einheitlichen deutschen Wertgrenzen für jede Unterschwellenvergabe.
 
 ## Praxis-Tipps für Bieter
 
@@ -522,7 +524,7 @@ Unterhalb der EU-Schwellenwerte gelten nationale Regeln. Die Vergabeverordnung (
 2. **EU-weite Bekanntmachung:** Oberhalb des Schwellenwerts muss die Ausschreibung auf TED veröffentlicht werden. Nutzen Sie Tenderhunter, um auch diese Aufträge zu finden.
 3. **Fristen beachten:** EU-Vergaben: mindestens 35 Kalendertage Angebotsfrist. Nationale Vergaben: meist 10-20 Kalendertage.
 4. **Eignungsanforderungen unterscheiden sich:** EU-Vergaben haben strengere Eignungsanforderungen (Referenzen, Bilanzen, Zertifikate). Bereiten Sie diese vor.
-5. **Teillosevergabe:** Ab EU-Schwellenwert muss der Auftrag grundsätzlich in Lose aufgeteilt werden — eine Chance für KMU.
+5. **Teillosevergabe:** Die Losbildung ist nach den jeweils anwendbaren Regeln zu prüfen; eine Gesamtvergabe muss sachlich begründet werden, wenn eine Losaufteilung geboten ist.
 
 ## Sonderfälle und Ausnahmen
 
@@ -540,13 +542,13 @@ Bei Aufträgen in Fremdwährung gilt der Euro-Referenzkurs der EZB am Tag der Be
 ## Häufige Fragen
 
 **Gilt der Schwellenwert pro Jahr oder pro Auftrag?**
-Der Schwellenwert gilt pro einzelnen Auftrag, nicht pro Jahr. Allerdings darf ein Auftrag nicht künstlich aufgeteilt werden, um unter den Schwellenwert zu fallen.
+Maßgeblich ist der geschätzte Gesamtwert des konkreten Beschaffungsvorhabens. Optionen, Verlängerungen, Rahmenverträge und Lose dürfen dabei nicht beliebig ausgeklammert werden; eine künstliche Aufteilung zur Umgehung ist unzulässig.
 
 **Was passiert, wenn der Auftragswert knapp unter dem Schwellenwert liegt?**
 Es gelten nationale Vergaberegeln. Die Vergabegrundsätze (Wirtschaftlichkeit, Transparenz, Wettbewerb) bleiben trotzdem zu beachten.
 
-**Wer überwacht die Einhaltung der Schwellenwerte?**
-Die Vergabekammern der Länder und des Bundes überwachen die Einhaltung. Bieter können bei Verstößen ein Nachprüfungsverfahren anstrengen.
+**Wer prüft die Einhaltung der Schwellenwerte?**
+Die Vergabestelle muss den Auftragswert nachvollziehbar schätzen und dokumentieren. Oberhalb der EU-Schwellenwerte können Bieter unter den gesetzlichen Voraussetzungen ein Nachprüfungsverfahren bei der zuständigen Vergabekammer einleiten.
 `,
   },
 
@@ -1319,7 +1321,7 @@ Bei dringender Eilbedürftigkeit können Unternehmen eine einstweilige Anordnung
 
 ### Digitalisierung
 
-Die Vergabe wird zunehmend digitalisiert. Seit 2024 sind elektronische Vergabeverfahren Pflicht. Das bedeutet:
+Die Vergabe wird zunehmend digitalisiert. Für viele Verfahren gelten elektronische Kommunikation und elektronische Angebotsabgabe; die konkreten Anforderungen richten sich nach dem Verfahren und den anwendbaren Vorschriften. Das bedeutet:
 - Elektronische Einreichung von Angeboten
 - Digitale Vergabeunterlagen
 - Elektronische Kommunikation
@@ -1354,14 +1356,14 @@ Das Vergaberecht ist komplex, aber durchsichtig. Wer die grundlegenden Regeln ke
 
 Die EU-Vergabe regelt die Vergabe öffentlicher Aufträge oberhalb bestimmter Schwellenwerte in allen EU-Mitgliedstaaten. Ziel ist ein europaweit einheitlicher Wettbewerb und die Öffnung des Binnenmarktes für Unternehmen aus allen Mitgliedstaaten.
 
-## EU-Schwellenwerte (2024–2025)
+## EU-Schwellenwerte (2026–2027)
 
 | Auftragsart | Schwellenwert (netto) |
 |------------|----------------------|
-| Bauaufträge | 5.538.000 € |
-| Liefer- und Dienstleistungen (Bund) | 143.000 € |
-| Liefer- und Dienstleistungen (Kommunen) | 221.000 € |
-| Sektorenaufträge | 452.000 € |
+| Bauaufträge | 5.404.000 € |
+| Liefer- und Dienstleistungen (bestimmte zentrale Regierungsbehörden) | 140.000 € |
+| Liefer- und Dienstleistungen (sonstige bestimmte Auftraggeber) | 216.000 € |
+| Sektorenaufträge (Liefer- und Dienstleistungen) | 432.000 € |
 | Soziale Dienste | 750.000 € |
 
 Oberhalb dieser Werte gelten die EU-Vergaberichtlinien und das GWB. Unterhalb gelten nationale Regeln.

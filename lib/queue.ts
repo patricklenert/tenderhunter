@@ -29,6 +29,21 @@ const STALE_RUNTIME_GRACE_MS = 5 * 60 * 1000;
 const MAX_ERROR_MESSAGE_LENGTH = 1_000;
 
 const minutes = (value: number): number => value * 60 * 1_000;
+const MAX_QUEUE_AGE_BOOST = 50;
+const QUEUE_AGE_BOOST_PER_HOUR = 10;
+const MAX_AGED_QUEUE_PRIORITY = 150;
+
+export const getEffectiveQueuePriority = (
+  basePriority: number,
+  createdAt: Date,
+  now = Date.now(),
+): number => {
+  const ageHours = Math.max(0, (now - createdAt.getTime()) / (60 * 60 * 1_000));
+  return Math.max(
+    basePriority,
+    Math.min(MAX_AGED_QUEUE_PRIORITY, basePriority + Math.min(MAX_QUEUE_AGE_BOOST, ageHours * QUEUE_AGE_BOOST_PER_HOUR)),
+  );
+};
 
 /** Hard ceilings prevent one hung portal, browser, or model call from occupying a worker forever. */
 const JOB_MAX_RUNTIME_MS: Partial<Record<JobType, number>> = {
@@ -106,20 +121,27 @@ type EnqueueOptions = {
   dedupeCompleted?: boolean;
 };
 
-// Keep analysis stages ahead of ingestion and scraping work. This prevents a
-// large public-scrape backlog from starving documents that are already queued.
+// Keep analysis stages ahead of ingestion while ensuring a public backlog can
+// still make progress ahead of lower-priority document fetches.
 export const JOB_PRIORITIES: Partial<Record<JobType, number>> = {
   [JOB_CRAWL]: 40,
-  [JOB_SCRAPE_PUBLIC]: 40,
-  [JOB_SCRAPE_US]: 40,
+  [JOB_SCRAPE_PUBLIC]: 105,
+  // Periodic source ingestion must not wait behind a large document backlog.
+  [JOB_SCRAPE_US]: 115,
   [JOB_PARSE]: 140,
   [JOB_STRUCTURE]: 130,
   [JOB_SCORE]: 120,
-  [JOB_CACHE_DETAIL]: 110,
-  [JOB_FETCH_DOCUMENTS]: 100,
+  // Keep post-processing ahead of an aged document-fetch backlog so cache
+  // work cannot remain pending indefinitely while ingestion catches up.
+  [JOB_CACHE_DETAIL]: 120,
+  [JOB_FETCH_DOCUMENTS]: 115,
   [JOB_FETCH_US_DOCUMENTS]: 95,
   [JOB_SYNC_MEILI]: 135,
 };
+
+// Continuations must drain, but they must not indefinitely starve the older
+// document-fetch backlog created by the same public scrape.
+export const PUBLIC_CONTINUATION_PRIORITY = 100;
 
 export async function enqueueJob(
   jobType: JobType,
@@ -244,12 +266,33 @@ export async function claimNextJob(workerId: string, options: ClaimJobOptions = 
         conditions.push(notInArray(jobs.type, [...CRITICAL_JOB_TYPES]));
       }
 
+      conditions.push(sql`NOT EXISTS (
+        SELECT 1 FROM jobs running_job
+        WHERE running_job.status = 'running'
+          AND (
+             CASE WHEN running_job.type = ${JOB_SCRAPE_PUBLIC} THEN 'public-scrape' ELSE running_job.group_key END
+           ) = (
+             CASE WHEN ${jobs.type} = ${JOB_SCRAPE_PUBLIC} THEN 'public-scrape' ELSE ${jobs.groupKey} END
+          )
+      )`);
+
       return tx
         .select()
         .from(jobs)
         .where(and(...conditions))
-        .orderBy(sql`${jobs.priority} DESC`, jobs.createdAt, jobs.id)
-        .limit(1)
+        .orderBy(
+          sql`(
+            GREATEST(
+              ${jobs.priority},
+              LEAST(${MAX_AGED_QUEUE_PRIORITY},
+                ${jobs.priority} + LEAST(${MAX_QUEUE_AGE_BOOST}, GREATEST(0, EXTRACT(EPOCH FROM (NOW() - ${jobs.createdAt})) / 3600) * ${QUEUE_AGE_BOOST_PER_HOUR})
+              )
+            )
+          ) DESC`,
+          jobs.createdAt,
+          jobs.id,
+        )
+        .limit(25)
         .for("update", { skipLocked: true });
     };
 
@@ -261,7 +304,29 @@ export async function claimNextJob(workerId: string, options: ClaimJobOptions = 
 
     if (rows.length === 0) return null;
 
-    const job = rows[0];
+    let job: Job | undefined;
+    for (const candidate of rows) {
+      const effectiveGroup = candidate.type === JOB_SCRAPE_PUBLIC ? "public-scrape" : candidate.groupKey;
+      if (effectiveGroup) {
+        // The candidate query avoids known conflicts. The advisory lock and
+        // second check close the race where two workers selected a group at
+        // the same time.
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${effectiveGroup}, 0))`);
+        const running = await tx
+          .select({ id: jobs.id })
+          .from(jobs)
+          .where(and(
+            eq(jobs.status, "running"),
+             sql`CASE WHEN ${jobs.type} = ${JOB_SCRAPE_PUBLIC} THEN 'public-scrape' ELSE ${jobs.groupKey} END = ${effectiveGroup}`,
+          ))
+          .limit(1);
+        if (running.length > 0) continue;
+      }
+      job = candidate;
+      break;
+    }
+
+    if (!job) return null;
 
     await tx
       .update(jobs)

@@ -1,22 +1,3 @@
-// Benutzerdefinierte Sidebar-Icons als SVG-React-Komponenten
-// Um die ursprünglichen Lucide-Icons wiederherzustellen, diese Datei löschen
-// und die Imports in Shell.tsx zurücksetzen.
-
-export function AnalyseIcon({ size = 24, color = "currentColor", ...props }: { size?: number; color?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width={size}
-      height={size}
-      fill={color}
-      aria-hidden="true"
-      {...props}
-    >
-      <path d="M10.059 2.593c1.175-.784 2.707-.784 3.882 0l6.5 4.333C21.415 7.575 22 8.668 22 9.838V18.5c0 1.933-1.567 3.5-3.5 3.5h-4.25v-5.25c0-1.243-1.007-2.25-2.25-2.25s-2.25 1.007-2.25 2.25V22H5.5C3.567 22 2 20.433 2 18.5V9.838c0-1.17.585-2.263 1.559-2.912l6.5-4.333z" />
-    </svg>
-  );
-}
-
 export function SearchLocationIcon({ size = 24, color = "currentColor", ...props }: { size?: number; color?: string }) {
   return (
     <svg

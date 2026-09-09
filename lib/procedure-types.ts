@@ -32,7 +32,7 @@ export const PROCEDURE_TYPES: Record<string, ProcedureTypeEntry> = {
       {
         question: "Welche Fristen gelten beim offenen Verfahren?",
         answer:
-          "Die Angebotsfrist beträgt mindestens35 Tage bei Aufträgen über dem EU-Schwellenwert (5.538.000€ für Bauaufträge, 143.000€ für Liefer- und Dienstleistungen). Unterhalb dieser Werte gelten nationale Fristen von mindestens20 Tagen.",
+          "Die Angebotsfrist richtet sich nach dem konkreten Verfahren und den einschlägigen Vorschriften. Im EU-Oberschwellenbereich gelten die jeweils aktuellen EU-Schwellenwerte und formalen Fristvorgaben; unterhalb gelten nationale Regeln.",
       },
       {
         question: "Für welche Aufträge eignet sich das offene Verfahren?",

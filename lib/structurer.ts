@@ -2,8 +2,15 @@ import OpenAI from "openai";
 import { callLLM } from "@/lib/llm";
 import type { DocumentAnalysis } from "@/lib/document-analysis";
 import { buildTenderDescriptionMarkdown } from "@/lib/tender-description";
-import { isPublicNavigationSummary } from "@/lib/public-tender-scraper";
 import { decodeHtmlEntities } from "@/lib/text-normalization";
+import {
+  isPublicNavigationSummary,
+  normalizePublicClient,
+  normalizePublicDisplayCandidate,
+  pickValidatedPublicCandidate,
+  pickValidatedPublicLocation,
+  pickValidatedPublicLocationForTender,
+} from "@/lib/public-content-quality";
 import {
   createCommercialBriefFallback,
   validateCommercialBrief,
@@ -40,6 +47,26 @@ const uniqueTextValues = (values: string[]): string[] => {
     seen.add(key);
     return true;
   });
+};
+
+const recordValue = (value: unknown): Record<string, unknown> =>
+  value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+
+const normalizedTextList = (value: unknown): string[] => {
+  const values = Array.isArray(value) ? value : value === null || value === undefined ? [] : [value];
+  return uniqueTextValues(values.map(sanitizeTenderText).filter(Boolean));
+};
+
+const normalizedAwardCriteria = (value: unknown): AwardCriterion[] => {
+  const values = Array.isArray(value) ? value : value === null || value === undefined ? [] : [value];
+  return values.map((criterion) => {
+    if (typeof criterion === "string") return { criterion: sanitizeTenderText(criterion), weight: null };
+    const item = recordValue(criterion);
+    return {
+      criterion: sanitizeTenderText(item.criterion ?? item.name ?? item.title),
+      weight: typeof item.weight === "number" && Number.isFinite(item.weight) ? item.weight : null,
+    };
+  }).filter((criterion) => Boolean(criterion.criterion));
 };
 
 const normalizeUmlauts = (value: string): string =>
@@ -85,7 +112,7 @@ const isLabelLine = (line: string, keyword: string): boolean => {
   return !exactBuyerKeyword || !/^[a-z]/i.test(normalized.slice(index + keyword.length));
 };
 
-const firstMatchingLine = (lines: string[], keywords: string[]): string | null => {
+const firstMatchingLine = (lines: string[], keywords: string[], validate: (value: string) => boolean = () => true): string | null => {
   for (let i = 0; i < lines.length; i++) {
     if (!keywords.some((keyword) => isLabelLine(lines[i], keyword))) continue;
 
@@ -104,12 +131,12 @@ const firstMatchingLine = (lines: string[], keywords: string[]): string | null =
       const candidate = cleaned.length > 2 ? cleaned : nextLine;
       // Reject obviously mangled candidates (whitespace lost between HTML elements)
       if (looksMangled(candidate)) break;
-      return candidate.slice(0, 400);
+      if (validate(candidate)) return candidate.slice(0, 400);
     }
 
     // Try extracting value from the same line (label: value format)
     const sameLineValue = extractValueFromLine(lines[i], keywords);
-    if (sameLineValue && !looksMangled(sameLineValue)) {
+    if (sameLineValue && !looksMangled(sameLineValue) && validate(sameLineValue)) {
       return sameLineValue.slice(0, 400);
     }
 
@@ -341,6 +368,7 @@ export interface StructuredFallbackFacts {
   deadline?: string | null;
   location?: string | null;
   procedure?: string | null;
+  summary?: string | null;
   scope?: string | null;
 }
 
@@ -418,8 +446,7 @@ const PORTAL_TEXT_MARKERS = [
 ];
 
 export const sanitizeTenderText = (value: unknown): string => {
-  if (typeof value !== "string") return "";
-  const text = decodeHtmlEntities(value).replace(/\s+/g, " ").trim();
+  const text = normalizePublicDisplayCandidate(value) ?? "";
   if (!text || text.length > 1_600 || isPublicNavigationSummary(text)) return "";
 
   const lower = text.toLowerCase();
@@ -429,36 +456,65 @@ export const sanitizeTenderText = (value: unknown): string => {
 };
 
 export function normalizeStructured(raw: unknown, fallbackTitle: string, fallbackFacts: StructuredFallbackFacts = {}): StructuredData {
-  const obj = raw as Record<string, unknown>;
+  const obj = recordValue(raw);
+  const safeFallbackTitle = sanitizeTenderText(fallbackTitle);
   if (obj && typeof obj === "object" && obj.decision_relevant) {
     const structured = raw as unknown as StructuredData;
+    const hardFacts = recordValue(structured.hard_facts);
+    const decisionRelevant = recordValue(structured.decision_relevant);
+    const procurement = recordValue(structured.procurement);
     const normalized = {
       ...structured,
-      title: sanitizeTenderText(structured.title) || decodeHtmlEntities(fallbackTitle).trim(),
-      summary: sanitizeTenderText(structured.summary) || sanitizeTenderText(fallbackFacts.scope) || decodeHtmlEntities(fallbackTitle).trim(),
-      hard_facts: {
-        ...structured.hard_facts,
+      title: sanitizeTenderText(structured.title) || safeFallbackTitle,
+      summary: pickValidatedPublicCandidate(
+        structured.summary,
+        obj.description,
+        fallbackFacts.summary,
+         fallbackFacts.scope,
+       ),
+       hard_facts: {
         // Parsed portal labels are more reliable than legacy cache fragments
         // such as "## Kurzinfo" or a lone postal code.
-        buyer: sanitizeTenderText(fallbackFacts.buyer) || sanitizeTenderText(structured.hard_facts?.buyer) || null,
-        deadline: sanitizeTenderText(fallbackFacts.deadline) || sanitizeTenderText(structured.hard_facts?.deadline) || null,
-        location: sanitizeTenderText(fallbackFacts.location) || sanitizeTenderText(structured.hard_facts?.location) || null,
+          buyer: normalizePublicClient(fallbackFacts.buyer) || normalizePublicClient(hardFacts.buyer) || null,
+          deadline: sanitizeTenderText(fallbackFacts.deadline) || sanitizeTenderText(hardFacts.deadline) || null,
+          budget: sanitizeTenderText(hardFacts.budget) || null,
+          contract_type: sanitizeTenderText(hardFacts.contract_type) || null,
+          location: pickValidatedPublicLocationForTender(
+            safeFallbackTitle,
+             fallbackFacts.buyer || hardFacts.buyer,
+            fallbackFacts.location,
+             hardFacts.location,
+          ) || null,
       },
-      decision_relevant: {
-        ...structured.decision_relevant,
-        scope: uniqueTextValues((structured.decision_relevant.scope ?? []).map(sanitizeTenderText).filter(Boolean)),
-        requirements: uniqueTextValues((structured.decision_relevant.requirements ?? []).map(sanitizeTenderText).filter(Boolean)),
-        mandatory_documents: uniqueTextValues((structured.decision_relevant.mandatory_documents ?? []).map(sanitizeTenderText).filter(Boolean)),
+       decision_relevant: {
+         scope: normalizedTextList(decisionRelevant.scope),
+         requirements: normalizedTextList(decisionRelevant.requirements),
+         mandatory_documents: normalizedTextList(decisionRelevant.mandatory_documents),
+         award_criteria: normalizedTextList(decisionRelevant.award_criteria),
       },
-      procurement: {
-        ...structured.procurement,
-        procedure_type: sanitizeTenderText(fallbackFacts.procedure)
-          || sanitizeTenderText(structured.procurement?.procedure_type)
-          || "",
+       procurement: {
+          contract_value: {
+            min: typeof recordValue(procurement.contract_value).min === "number" ? recordValue(procurement.contract_value).min as number : null,
+            max: typeof recordValue(procurement.contract_value).max === "number" ? recordValue(procurement.contract_value).max as number : null,
+            currency: sanitizeTenderText(recordValue(procurement.contract_value).currency) || "EUR",
+          },
+          contract_duration: {
+            months: typeof recordValue(procurement.contract_duration).months === "number" ? recordValue(procurement.contract_duration).months as number : null,
+            renewal: recordValue(procurement.contract_duration).renewal === true,
+          },
+          procedure_type: sanitizeTenderText(fallbackFacts.procedure)
+           || sanitizeTenderText(procurement.procedure_type)
+           || "",
+         participation_requirements: normalizedTextList(procurement.participation_requirements),
+         award_criteria_detailed: normalizedAwardCriteria(procurement.award_criteria_detailed),
+         cpv_codes: normalizedTextList(procurement.cpv_codes),
       },
     };
     const canonical = {
       ...normalized,
+      ...(Object.prototype.hasOwnProperty.call(obj, "description")
+        ? { description: pickValidatedPublicCandidate(obj.description) }
+        : {}),
       descriptionMarkdown: buildStructuredDescriptionMarkdown(normalized, obj.referenceNumber ?? obj.reference_number),
       commercialBrief: normalized.commercialBrief
         ? validateCommercialBrief(normalized.commercialBrief, commercialBriefFacts(normalized)).brief
@@ -470,23 +526,32 @@ export function normalizeStructured(raw: unknown, fallbackTitle: string, fallbac
   const flat = obj as Record<string, unknown>;
   const scopeStr = sanitizeTenderText(flat.scope);
   const descStr = sanitizeTenderText(flat.description);
-  const reqArr = Array.isArray(flat.requirements) ? (flat.requirements as string[]).map(sanitizeTenderText).filter(Boolean) : [];
-  const awardArr = Array.isArray(flat.awardCriteria) ? (flat.awardCriteria as string[]) : [];
-  const titleStr = sanitizeTenderText(flat.title) || decodeHtmlEntities(fallbackTitle).trim();
+  const reqArr = normalizedTextList(flat.requirements);
+  const awardArr = normalizedTextList(flat.awardCriteria ?? flat.award_criteria);
+  const titleStr = sanitizeTenderText(flat.title) || safeFallbackTitle;
+  const buyerStr = normalizePublicClient(flat.client) || normalizePublicClient(fallbackFacts.buyer) || null;
+  const scopeWords = scopeStr && scopeStr.toLocaleLowerCase("de-DE") !== titleStr.toLocaleLowerCase("de-DE")
+    ? scopeStr.split(/\s+/).filter((word) => word.length > 3)
+    : [];
 
   const normalized = {
     title: titleStr,
-    summary: descStr || scopeStr || sanitizeTenderText(fallbackFacts.scope) || titleStr,
+    summary: pickValidatedPublicCandidate(
+      descStr,
+      scopeStr,
+         fallbackFacts.summary,
+         fallbackFacts.scope,
+       ),
     confidence: 0.5,
     hard_facts: {
-      location: sanitizeTenderText(flat.location) || sanitizeTenderText(fallbackFacts.location) || null,
+      location: pickValidatedPublicLocationForTender(titleStr, buyerStr, flat.location, fallbackFacts.location) || null,
       deadline: sanitizeTenderText(flat.deadline) || sanitizeTenderText(fallbackFacts.deadline) || null,
-      budget: (flat.estimatedValue as string | null) ?? null,
-      buyer: sanitizeTenderText(flat.client) || sanitizeTenderText(fallbackFacts.buyer) || null,
+      budget: sanitizeTenderText(flat.estimatedValue ?? flat.value) || null,
+      buyer: buyerStr,
       contract_type: sanitizeTenderText(flat.procedure) || sanitizeTenderText(fallbackFacts.procedure) || null,
     },
     decision_relevant: {
-      scope: [...scopeStr.split(/\s+/).filter((w) => w.length > 3), ...titleStr.split(/\s+/).filter((w) => w.length > 3)],
+      scope: scopeWords,
       requirements: reqArr,
       mandatory_documents: [],
       award_criteria: awardArr,
@@ -510,11 +575,11 @@ export function normalizeStructured(raw: unknown, fallbackTitle: string, fallbac
       value: flat.estimatedValue ?? flat.value,
       duration: flat.duration,
       reference: flat.referenceNumber ?? flat.reference_number,
-      summary: descStr || scopeStr,
+      summary: normalized.summary,
       scope: scopeStr,
       requirements: reqArr,
       awardCriteria: awardArr,
-      cpv: flat.cpvCodes ?? flat.cpv_codes,
+     cpv: normalizedTextList(flat.cpvCodes ?? flat.cpv_codes),
     }),
     commercialBrief: createCommercialBriefFallback(commercialBriefFacts(normalized)),
   };
@@ -601,15 +666,15 @@ async function extractWithLLM(title: string, rawText: string): Promise<LLMExtrac
       contract_duration_renewal: Boolean(parsed.contract_duration_renewal),
       award_criteria: Array.isArray(parsed.award_criteria) 
         ? parsed.award_criteria.map((c: { criterion?: string; weight?: number }) => ({
-            criterion: String(c.criterion || ""),
+            criterion: sanitizeTenderText(c.criterion),
             weight: typeof c.weight === "number" ? c.weight : null,
           })).filter((c: AwardCriterion) => c.criterion.length > 0)
         : [],
       participation_requirements: Array.isArray(parsed.participation_requirements)
-        ? parsed.participation_requirements.map(String).filter(Boolean)
+        ? parsed.participation_requirements.map(sanitizeTenderText).filter(Boolean)
         : [],
       cpv_codes: Array.isArray(parsed.cpv_codes)
-        ? parsed.cpv_codes.map(String).filter(Boolean)
+        ? parsed.cpv_codes.map(sanitizeTenderText).filter(Boolean)
         : [],
       procedure_type: ["offen", "beschränkt", "verhandelt", "dialog", "innovation"].includes(parsed.procedure_type)
         ? parsed.procedure_type
@@ -626,11 +691,12 @@ async function extractWithLLM(title: string, rawText: string): Promise<LLMExtrac
 // Avoids the previous bug where `rawText.slice(0, 3000)` dumped mangled
 // single-line captions (labels glued to values) into the summary field.
 // Picks at most two well-formed lines, never a portal/PDF dump.
-const buildSummary = (lines: string[], rawText: string): string => {
+const buildSummary = (lines: string[], rawText: string, excludedTitle: string): string => {
   const picked: string[] = [];
   let total = 0;
   for (const line of lines) {
     if (line.length < 40) continue;
+    if (excludedTitle && compactSpaces(line).toLocaleLowerCase("de-DE") === compactSpaces(excludedTitle).toLocaleLowerCase("de-DE")) continue;
     if (looksMangled(line)) continue;
     picked.push(line);
     total += line.length + 1;
@@ -639,7 +705,10 @@ const buildSummary = (lines: string[], rawText: string): string => {
   if (picked.length === 0) {
     // Last resort: keep the old behaviour but only if the input does not look mangled.
     const head = rawText.slice(0, 420).trim();
-    return looksMangled(head) ? "" : head;
+    if (head.length < 40 || looksMangled(head)) return "";
+    return compactSpaces(head).toLocaleLowerCase("de-DE") === compactSpaces(excludedTitle).toLocaleLowerCase("de-DE")
+      ? ""
+      : head;
   }
   return picked.join(" ").slice(0, 420);
 };
@@ -649,6 +718,7 @@ export const extractStructuredData = async (
   rawText: string,
   options: { useLLM?: boolean; reference?: string | null } = {},
 ): Promise<StructuredData> => {
+  const safeTitle = pickValidatedPublicCandidate(title) || "Ausschreibung";
   const normalizedRawText = decodeHtmlEntities(rawText);
   const opportunityStatus = classifyOpportunityStatus(title, normalizedRawText);
   const lines = normalizedRawText
@@ -658,18 +728,28 @@ export const extractStructuredData = async (
 
   const deadline = extractDeadline(lines);
   const budget = extractBudget(normalizedRawText);
-  const location = firstMatchingLine(lines, ["ort der ausf", "ort der leistung", "ausfuehrungsort", "ausfuhrungsort", "erfuellungsort", "erfuellungsort"]);
-  const buyer = firstMatchingLine(lines, [
+  const buyer = normalizePublicClient(firstMatchingLine(lines, [
     "zur angebotsabgabe / teilnahme auffordernde stelle",
     "ausschreibende stelle",
     "oeffentlicher auftraggeber",
     "auftraggeber",
     "vergabestelle",
     "beschaffer",
-  ]);
+  ], (candidate) => Boolean(normalizePublicClient(candidate))));
+  const location = pickValidatedPublicLocationForTender(
+    title,
+    buyer,
+    firstMatchingLine(
+      lines,
+      ["ort der ausf", "ort der leistung", "ausfuehrungsort", "ausfuhrungsort", "erfuellungsort", "erfuellungsort"],
+      (candidate) => Boolean(pickValidatedPublicLocationForTender(title, buyer, pickValidatedPublicLocation(candidate))),
+    ),
+  );
   const contractType = detectContractType(rawText);
 
   const requirements = uniqueTextValues(matchingLines(lines, ["eignung", "mindestanforderung", "fachkunde", "leistungsfaehigkeit"])
+    .map(sanitizeTenderText)
+    .filter(Boolean)
     .filter((value) => !/^[a-z]\)\s*(?:beurteilung der eignung|zuschlagskriterien)$/i.test(value)));
   const scope = matchingLinesWithContext(lines, ["art und umfang der leistung", "leistungsbeschreibung", "leistungsumfang", "gegenstand der ausschreibung", "art und umfang", "umfang der leistung", "beschreibung der leistung", "auftragsgegenstand"])
     .map(sanitizeTenderText)
@@ -687,7 +767,9 @@ export const extractStructuredData = async (
     .filter(Boolean)
     .filter((value, index, values) => !values.some((other, otherIndex) =>
       otherIndex !== index && other.length > value.length && other.includes(value))));
-  const mandatoryDocuments = uniqueTextValues(matchingLines(lines, ["nachweis", "zertifikat", "referenz", "pflichtunterlage", "muss"]));
+  const mandatoryDocuments = uniqueTextValues(matchingLines(lines, ["nachweis", "zertifikat", "referenz", "pflichtunterlage", "muss"])
+    .map(sanitizeTenderText)
+    .filter(Boolean));
 
   // Regex-based procurement data
   const contractValueRegex = extractContractValue(normalizedRawText);
@@ -737,9 +819,12 @@ export const extractStructuredData = async (
   const present = coveragePoints.reduce((sum, item) => (hasValue(item) ? sum + 1 : sum), 0);
   const confidence = Math.min(1, Number((present / 7).toFixed(2)));
 
-  const summary = sanitizeTenderText(scope[0]) || sanitizeTenderText(buildSummary(lines, normalizedRawText)) || title;
+  const summary = pickValidatedPublicCandidate(
+    scope[0],
+    buildSummary(lines, normalizedRawText, safeTitle),
+  );
   const structured: StructuredData = {
-    title,
+    title: safeTitle,
     descriptionMarkdown: "",
     hard_facts: {
       deadline,

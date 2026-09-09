@@ -56,7 +56,7 @@ export function TendersSection() {
             Noch keine Ausschreibungen
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            Wechsle zur Uebersicht und starte eine Suche.
+            Wechseln Sie zur Analyse und starten Sie eine Suche.
           </Typography>
         </Box>
       </Box>

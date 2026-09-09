@@ -6,7 +6,7 @@ import { buildTenderCheck } from "@/lib/tender-check";
 import { extractPublicPortalFacts } from "@/lib/public-tender-scraper";
 import { formatDeadlineDE } from "@/lib/date-utils";
 import { normalizeStructured } from "@/lib/structurer";
-import { readTenderMeta } from "@/lib/tender-meta";
+import { readPublicTenderMeta } from "@/lib/tender-meta";
 import { buildTenderCalendarIcs, calendarFilename } from "@/lib/tender-calendar";
 
 export const runtime = "nodejs";
@@ -58,13 +58,19 @@ export async function GET(request: Request): Promise<Response> {
   const metadata = typeof tender.metadataJson === "object" && tender.metadataJson !== null
     ? tender.metadataJson as Record<string, unknown>
     : {};
-  const tenderMeta = readTenderMeta(metadata, tender.rawText);
+  const tenderMeta = readPublicTenderMeta(metadata, {
+    title: tender.title,
+    source: tender.source,
+    sourceUrl: tender.url,
+    rawText: tender.rawText,
+  });
   const portalFacts = extractPublicPortalFacts([tender.rawText, tenderMeta.description].filter(Boolean).join("\n"));
   const fallbackFacts = {
     buyer: portalFacts.client || tenderMeta.client || null,
     procedure: portalFacts.procedure || tenderMeta.procedure || tender.procedureType || null,
     deadline: portalFacts.deadline || (tender.deadlineAt ? formatDeadlineDE(tender.deadlineAt) : null),
     location: portalFacts.location || tenderMeta.location || null,
+    summary: tenderMeta.description || null,
     scope: portalFacts.subject || tenderMeta.subject || null,
   };
   const structured = normalizeStructured(

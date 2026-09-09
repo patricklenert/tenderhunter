@@ -9,12 +9,13 @@ import { CITY_SLUG_MAP, ALL_CITY_SLUGS, CITY_LABEL_MAP } from "@/lib/cities";
 import { getLatestTenders } from "@/components/seo/HomeTenderList";
 import { PORTALS, ALL_PORTAL_SLUGS } from "@/lib/portal-content";
 import { SiteFooter } from "@/components/seo/SiteFooter";
+import { getListingRobots, type SeoSearchParams } from "@/lib/seo-indexability";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
+const baseMetadata: Metadata = {
   title: "Ausschreibungen Deutschland – aktuelle Vergaben und Aufträge",
   description:
     "Alle öffentlichen Ausschreibungen in Deutschland nach Kategorie: Bauarbeiten, Tiefbau, IT, Facility Management, Reinigung und mehr. Täglich aktuelle Vergaben und Aufträge der öffentlichen Hand.",
@@ -27,6 +28,17 @@ export const metadata: Metadata = {
     locale: "de_DE",
   },
 };
+
+interface PageProps {
+  searchParams: Promise<SeoSearchParams>;
+}
+
+export async function generateMetadata({ searchParams }: PageProps): Promise<Metadata> {
+  return {
+    ...baseMetadata,
+    robots: getListingRobots(await searchParams, 1, true),
+  };
+}
 
 // SEO: FAQ data for the Ausschreibungen hub page — enables FAQPage rich snippets in Google SERP
 const HUB_FAQS = [

@@ -1,3 +1,5 @@
+import { normalizePublicDisplayCandidate } from "@/lib/public-content-quality";
+
 export interface TenderDescriptionFacts {
   client?: unknown;
   procedure?: unknown;
@@ -34,14 +36,14 @@ export const escapeMarkdownText = (value: string): string => {
   const normalized = normalizeText(value);
   let escaped = "";
   for (const character of normalized) {
-    if ("\\`*_[]{}()<>#+|!".includes(character)) escaped += "\\";
+    if ("\\`*_[]{}()<>#+|!~".includes(character)) escaped += "\\";
     escaped += character;
   }
   return escaped;
 };
 
 const directText = (value: unknown): string => {
-  if (typeof value === "string") return normalizeText(value);
+  if (typeof value === "string") return normalizePublicDisplayCandidate(value) ?? "";
   if (typeof value === "number" && Number.isFinite(value)) return String(value);
   return "";
 };

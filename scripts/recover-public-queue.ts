@@ -2,7 +2,7 @@ import "dotenv/config";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "../lib/db";
 import { jobs, publicSourceCursors } from "../lib/schema";
-import { enqueueJob } from "../lib/queue";
+import { enqueueJob, PUBLIC_CONTINUATION_PRIORITY } from "../lib/queue";
 import { cursorPendingDetails, shouldSchedulePublicContinuation, type PublicSourceCursor } from "../lib/public-pagination";
 import { JOB_SCRAPE_PUBLIC } from "../lib/types";
 
@@ -57,7 +57,7 @@ const main = async (): Promise<void> => {
   const activeKeys = new Set(activeRows.flatMap((row) => row.jobKey ? [row.jobKey] : []));
 
   const candidates: RecoveryCandidate[] = cursors.flatMap((cursor) => {
-    if (cursor.exhausted || !cursor.continuationRequired) return [];
+    if (!cursor.continuationRequired) return [];
     const pending = cursorPendingDetails((cursor.cursorJson ?? {}) as PublicSourceCursor);
     const retryable = pending.filter((reference) => reference.blocked !== true);
     const jobKey = `public-continuation:${cursor.sourceKey}`;
@@ -87,7 +87,8 @@ const main = async (): Promise<void> => {
     for (const candidate of candidates) {
       const jobId = await enqueueJob(JOB_SCRAPE_PUBLIC, { source: candidate.sourceKey }, {
         jobKey: `public-continuation:${candidate.sourceKey}`,
-        groupKey: `public-source:${candidate.sourceKey}`,
+        groupKey: "public-scrape",
+        priority: PUBLIC_CONTINUATION_PRIORITY,
         dedupeCompleted: false,
       });
       console.log(`  ${candidate.sourceKey}: Job #${jobId} eingereiht.`);

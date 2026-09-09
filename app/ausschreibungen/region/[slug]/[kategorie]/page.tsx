@@ -24,7 +24,7 @@ import { BUNDESLAND_CONTENT } from "@/lib/bundesland-content";
 import { ARTICLES } from "@/lib/articles";
 import { CITIES } from "@/lib/cities";
 import { searchTenders } from "@/lib/meilisearch";
-import { generateTenderSlug } from "@/lib/tender-slug";
+import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 import { getListingRobots, getPageNumber, type SeoSearchParams } from "@/lib/seo-indexability";
 
@@ -143,7 +143,7 @@ export default async function RegionCategoryPage({ params, searchParams }: PageP
       deadline: hit.deadlineAt
         ? new Date(hit.deadlineAt).toLocaleDateString("de-DE", { day: "2-digit", month: "short", year: "numeric" })
         : null,
-      slug: hit.slug ?? generateTenderSlug(hit.title || "", hit.location || ""),
+      slug: getCanonicalTenderSlug(hit.slug ?? null, hit.title, { client: hit.client, location: hit.location }),
     }));
   } catch {
     // Meilisearch unavailable — page renders empty with noindex

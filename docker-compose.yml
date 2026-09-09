@@ -45,6 +45,16 @@ services:
       timeout: 5s
       retries: 5
 
+  obscura:
+    image: h4ckf0r0day/obscura
+    container_name: tenderhunter-obscura
+    restart: always
+    # Rust headless browser (CDP); replaces in-process Playwright Chromium.
+    # Image is distroless (no shell/wget), so no in-container healthcheck is
+    # possible — restart: always covers crash recovery.
+    mem_limit: 1g
+    memswap_limit: 1g
+
   app:
     build: .
     container_name: tenderhunter
@@ -56,6 +66,7 @@ services:
       - "3025:3000"
     environment:
       DATABASE_URL: postgresql://tenderhunter:tenderhunter@postgres:5432/tenderhunter
+      OBSCURA_CDP_URL: ws://obscura:9222
       SAM_API_KEY: ${SAM_API_KEY:-}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-alerts@tenderhunter.us}
@@ -94,6 +105,8 @@ services:
         condition: service_started
       meilisearch:
         condition: service_healthy
+      obscura:
+        condition: service_started
     volumes:
       - app_data:/app/data
 
@@ -102,16 +115,17 @@ services:
     container_name: tenderhunter-worker
     restart: always
     init: true
-    # Node heap (1536m) plus Playwright Chromium need >2g; the kernel OOM-killer
-    # terminated the worker every ~20 minutes under the old 2g cgroup limit.
-    mem_limit: 3g
-    memswap_limit: 3g
+    # Chromium now runs in the shared obscura container; the worker only holds
+    # the Node heap (1536m), so 2g is sufficient again.
+    mem_limit: 2g
+    memswap_limit: 2g
     pids_limit: 256
     command: ["worker"]
     env_file:
       - .env
     environment:
       DATABASE_URL: postgresql://tenderhunter:tenderhunter@postgres:5432/tenderhunter
+      OBSCURA_CDP_URL: ws://obscura:9222
       SAM_API_KEY: ${SAM_API_KEY:-}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-alerts@tenderhunter.us}
@@ -141,6 +155,8 @@ services:
         condition: service_started
       meilisearch:
         condition: service_healthy
+      obscura:
+        condition: service_started
     volumes:
       - app_data:/app/data
 

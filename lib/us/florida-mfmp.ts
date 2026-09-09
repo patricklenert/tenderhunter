@@ -1,10 +1,10 @@
 import * as cheerio from "cheerio";
 import type { AnyNode } from "domhandler";
-import { chromium } from "playwright";
+import type { Browser } from "playwright";
+import { getBrowser } from "@/lib/firecrawl";
 import { dedupeUsAttachments, normalizeUsDate, type UsContact, type UsExtractedTender } from "@/lib/us/types";
 
 const MFMP_URL = "https://vendor.myfloridamarketplace.com/search/bids";
-const BROWSER_ARGS = ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"];
 const cleanText = (value: string): string => value.replace(/\s+/g, " ").trim();
 const MFMP_ATTACHMENT_HINT = /(?:attachment|download|document|file|addendum|exhibit|appendix|\.pdf(?:$|[?#])|\.docx?(?:$|[?#])|\.xlsx?(?:$|[?#])|\.zip(?:$|[?#]))/i;
 
@@ -90,7 +90,7 @@ export const parseFloridaMfmpDetailAttachments = (html: string, baseUrl: string)
 };
 
 const captureFloridaDetail = async (
-  browser: Awaited<ReturnType<typeof chromium.launch>>,
+  browser: Browser,
   listing: FloridaMfmpListing,
 ): Promise<{ detail: FloridaMfmpDetail; attachments: Array<{ name: string; url: string }> }> => {
   const page = await browser.newPage();
@@ -130,7 +130,7 @@ const captureFloridaDetail = async (
 };
 
 export async function fetchFloridaMfmpOpportunities(): Promise<UsExtractedTender[]> {
-  const browser = await chromium.launch({ headless: true, args: BROWSER_ARGS });
+  const browser = await getBrowser();
   const page = await browser.newPage();
 
   try {
@@ -184,6 +184,7 @@ export async function fetchFloridaMfmpOpportunities(): Promise<UsExtractedTender
     });
   } finally {
     await page.close().catch(() => {});
-    await browser.close().catch(() => {});
+    // Shared Obscura CDP connection: closing the browser would disconnect
+    // every other scraper; the idle timer in firecrawl.ts handles it.
   }
 }

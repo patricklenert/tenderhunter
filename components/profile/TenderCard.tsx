@@ -22,14 +22,15 @@ interface TenderCardProps {
 
 const metaChipSx = {
   height: 26,
-  borderRadius: "7px",
-  bgcolor: "#f3f6f8",
-  color: "#596a7b",
-  border: "1px solid #e0e8ed",
+  borderRadius: 1,
+  bgcolor: "background.default",
+  color: "text.secondary",
+  border: "1px solid",
+  borderColor: "divider",
   fontSize: "0.7rem",
   fontWeight: 600,
   "& .MuiChip-label": { px: 0.9 },
-  "& .MuiChip-icon": { color: "#7a8b9b", ml: 0.65 },
+  "& .MuiChip-icon": { color: "text.secondary", ml: 0.65 },
 };
 
 export function TenderCard({
@@ -60,25 +61,22 @@ export function TenderCard({
         p: { xs: 1.75, sm: 2, md: 2.25 },
         minHeight: { sm: 138 },
         border: "1px solid",
-        borderColor: isExpired ? "#dce2e7" : "#d6e1e8",
-        borderRadius: "13px",
+        borderColor: "divider",
+        borderRadius: 2,
         textDecoration: "none",
         color: "inherit",
-        bgcolor: isExpired ? "#f3f5f6" : "#fbfcfd",
+        bgcolor: isExpired ? "background.default" : "background.paper",
         opacity: isExpired ? 0.76 : 1,
-        boxShadow: isExpired ? "none" : "0 3px 10px rgba(45, 53, 68, 0.045)",
-        transition: "border-color 180ms ease-out, background-color 180ms ease-out, box-shadow 180ms ease-out, transform 180ms ease-out",
+        boxShadow: "none",
+        transition: "border-color 180ms ease-out, background-color 180ms ease-out, transform 180ms ease-out",
         "&:hover": {
-          borderColor: isExpired ? "#cbd5dc" : "#bdcdd7",
-          bgcolor: isExpired ? "#f1f3f4" : "#ffffff",
-          boxShadow: isExpired ? "none" : "0 8px 18px rgba(45, 53, 68, 0.08)",
+          borderColor: isExpired ? "divider" : "primary.light",
+          bgcolor: isExpired ? "background.default" : "background.paper",
           transform: isExpired ? "none" : "translateY(-1px)",
           "& .tender-chevron": { transform: "translateX(3px)", opacity: 0.9 },
         },
         "&:focus-visible": {
-          outline: "3px solid rgba(233, 100, 77, 0.3)",
-          outlineOffset: "3px",
-          borderColor: "#e9644d",
+          borderColor: "primary.main",
         },
       }}
     >
@@ -89,7 +87,7 @@ export function TenderCard({
             sx={{
               minWidth: 0,
               flex: 1,
-              color: isExpired ? "#687786" : "#263242",
+              color: isExpired ? "text.secondary" : "text.primary",
               fontSize: { xs: "0.95rem", md: "1rem" },
               fontWeight: 750,
               letterSpacing: "-0.01em",
@@ -109,12 +107,14 @@ export function TenderCard({
             sx={{
               flexShrink: 0,
               height: 24,
-              bgcolor: isExpired ? "#e9edf0" : "#e5f3e9",
-              color: isExpired ? "#7b8793" : "#277544",
-              border: isExpired ? "1px solid #dce2e7" : "1px solid #c9e6d1",
+              borderRadius: 1,
+              bgcolor: isExpired ? "background.default" : "success.light",
+              color: isExpired ? "text.secondary" : "success.dark",
+              border: "1px solid",
+              borderColor: isExpired ? "divider" : "success.light",
               fontSize: "0.66rem",
               fontWeight: 750,
-              "& .MuiChip-icon": { color: isExpired ? "#909ca7" : "#3b8c56", ml: 0.6 },
+              "& .MuiChip-icon": { color: isExpired ? "text.secondary" : "success.main", ml: 0.6 },
               "& .MuiChip-label": { px: 0.8 },
             }}
           />
@@ -123,10 +123,11 @@ export function TenderCard({
         {description ? (
           <Typography
             sx={{
-              color: isExpired ? "#7f8b97" : "#596a7b",
+              color: "text.secondary",
               fontSize: "0.8rem",
               lineHeight: 1.55,
               mt: 0.75,
+              opacity: isExpired ? 0.8 : 1,
               maxWidth: "78ch",
               display: "-webkit-box",
               WebkitLineClamp: 2,
@@ -137,8 +138,8 @@ export function TenderCard({
             {description}
           </Typography>
         ) : (
-          <Typography sx={{ color: "#8995a2", fontSize: "0.76rem", fontStyle: "italic", mt: 0.75 }}>
-            Keine weiteren Angaben verfügbar
+          <Typography sx={{ color: "text.secondary", fontSize: "0.76rem", mt: 0.75 }}>
+            –
           </Typography>
         )}
 
@@ -161,6 +162,7 @@ export function TenderCard({
           flexShrink: 0,
           alignSelf: { xs: "flex-end", sm: "center" },
           mt: { xs: -0.5, sm: 0 },
+          color: "text.secondary",
         }}
       >
         <FitScore value={fit} />
@@ -169,7 +171,7 @@ export function TenderCard({
           className="tender-chevron"
           aria-hidden="true"
           style={{ opacity: 0.35, transition: "transform 180ms ease-out, opacity 180ms ease-out" }}
-          color="#66788a"
+          color="currentColor"
         />
       </Box>
     </Paper>

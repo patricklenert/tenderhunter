@@ -5,7 +5,7 @@ import { Home as HomeIcon, Clock } from "lucide-react";
 import Fristenrechner from "@/components/tools/Fristenrechner";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://palemaz.com";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
 
 export const revalidate = 3600;
 

@@ -4,17 +4,20 @@ import { json, errorResponse } from "@/lib/http";
 import { and, eq } from "drizzle-orm";
 import { enqueueJob } from "@/lib/queue";
 import { JOB_CACHE_DETAIL } from "@/lib/types";
-import { extractPublicPortalFacts, getPublicClientFallback, normalizePublicClient } from "@/lib/public-tender-scraper";
+import { buildPublicAccessLimitedDescription, buildPublicAccessLimitedDescriptionMarkdown, extractPublicPortalFacts, getPublicClientFallback, normalizePublicClient, pickPublicDescription } from "@/lib/public-tender-scraper";
 import { formatDeadlineDE, sanitizeTenderUrl } from "@/lib/date-utils";
 import { detectAccessPage } from "@/lib/access-page-detector";
 import { buildDocumentAnalysis, type AnalyzedDocument } from "@/lib/document-analysis";
 import { deduplicateDocumentRows, documentIdentityKey } from "@/lib/document-identity";
-import { buildTenderCheck } from "@/lib/tender-check";
 import { normalizeStructured } from "@/lib/structurer";
 import { normalizeResourceUrl } from "@/lib/resource-discovery";
 import { isPortalActionUrl } from "@/lib/resource-url";
-import { readTenderMeta, type TenderResourceMeta } from "@/lib/tender-meta";
+import { readPublicTenderMeta, type TenderResourceMeta } from "@/lib/tender-meta";
 import { repairKnownGermanEncoding } from "@/lib/text-normalization";
+import {
+  isCanonicalPublicDescriptionMarkdown,
+  pickValidatedPublicLocationForTender,
+} from "@/lib/public-content-quality";
 
 export const runtime = "nodejs";
 
@@ -330,7 +333,12 @@ export async function POST(request: Request): Promise<Response> {
       })
       .from(tenderResources)
       .where(eq(tenderResources.tenderId, tenderId));
-    const tenderMeta = readTenderMeta(tender.metadataJson, tender.rawText);
+    const tenderMeta = readPublicTenderMeta(tender.metadataJson, {
+      title: tender.title,
+      source: tender.source,
+      sourceUrl: tender.url,
+      rawText: tender.rawText,
+    });
     const portalFacts = extractPublicPortalFacts([tender.rawText, tenderMeta.description].filter(Boolean).join("\n"));
     const fallbackFacts = {
       buyer: normalizePublicClient(
@@ -340,6 +348,7 @@ export async function POST(request: Request): Promise<Response> {
       procedure: portalFacts.procedure || tenderMeta.procedure || tender.procedureType || null,
       deadline: portalFacts.deadline || (tender.deadlineAt ? formatDeadlineDE(tender.deadlineAt) : null),
       location: portalFacts.location || tenderMeta.location || null,
+      summary: tenderMeta.description || null,
       scope: portalFacts.subject || tenderMeta.subject || null,
     };
     const documentsPayload = documentRows.map((document) => safeDocumentMetadata(document, tender.url));
@@ -376,16 +385,32 @@ export async function POST(request: Request): Promise<Response> {
       const sevenDays = 7 * 24 * 60 * 60 * 1000;
       if (age < sevenDays) {
         const blob = sanitizeStructuredValue(cached[0].jsonBlob) as Record<string, unknown>;
-        const accessPage = detectAccessPage(JSON.stringify(blob), { title: tender.title ?? undefined, url: tender.url });
-        if (accessPage.blocked) {
-          await db.delete(structuredData).where(eq(structuredData.tenderId, tenderId));
-        } else {
-          const normalized = normalizeStructured(blob, tender.title ?? "", fallbackFacts);
-          const cachedMeta = readTenderMeta(blob);
-          if (typeof blob.sourceUrl === "string") {
-            blob.sourceUrl = sanitizeTenderUrl(blob.sourceUrl, blob.sourceUrl as string) ?? "";
-          }
-          const descriptionMarkdown = normalized.descriptionMarkdown ?? null;
+         const accessPage = detectAccessPage(
+           `${String(tenderMeta.description ?? "")} ${tender.rawText ?? ""}`,
+           { title: tender.title ?? undefined, url: tender.url },
+         );
+         if (accessPage.blocked && !blob.decision_relevant) {
+           await db.delete(structuredData).where(eq(structuredData.tenderId, tenderId));
+         } else {
+           const normalized = normalizeStructured(blob, tender.title ?? "", fallbackFacts);
+            const cachedMeta = readPublicTenderMeta(blob, {
+              title: tender.title,
+              source: tender.source,
+              sourceUrl: tender.url,
+            });
+            const cachedAccess = accessPage.blocked
+              || blob.accessLimited === true
+              || blob.access_limited === true;
+            const descriptionMarkdown = cachedAccess
+              ? buildPublicAccessLimitedDescriptionMarkdown(tender.title ?? "", portalFacts)
+              : isCanonicalPublicDescriptionMarkdown(normalized.descriptionMarkdown)
+                ? normalized.descriptionMarkdown
+                : null;
+            const description = pickPublicDescription(
+              normalized.summary,
+              cachedMeta.description,
+              tenderMeta.description,
+            );
            const cachedResources = buildResourceMetadata(
             tender.url,
             resourceRows,
@@ -396,40 +421,47 @@ export async function POST(request: Request): Promise<Response> {
             ],
              documentRows,
            );
-           const documentCheck = buildTenderCheck({
-             tenderId,
-             tenderDeadlineAt: tender.deadlineAt,
-             structured: normalized,
-             rawText: tender.rawText,
-             documents: documentRows as AnalyzedDocument[],
-             documentAnalysis,
-           });
-           return json({
-            ...blob,
-            title: normalized.title,
-            summary: normalized.summary,
-            description: normalized.summary,
-            descriptionMarkdown,
-            client: normalized.hard_facts.buyer ?? "",
-            deadline: normalized.hard_facts.deadline,
-            location: normalized.hard_facts.location ?? "",
-            procedure: normalized.procurement.procedure_type,
-            requirements: normalized.decision_relevant.requirements,
-            scope: normalized.decision_relevant.scope.join(" "),
-            awardCriteria: normalized.decision_relevant.award_criteria,
-            commercialBrief: normalized.commercialBrief,
-            ...coveragePayload,
+            const cachedDeadline = normalized.hard_facts.deadline;
+            const cachedLocation = pickValidatedPublicLocationForTender(tender.title, normalized.hard_facts.buyer,
+              normalized.hard_facts.location, fallbackFacts.location, tenderMeta.location);
+            return json({
+             title: normalized.title,
+              summary: description,
+              description,
+             descriptionMarkdown,
+             client: normalized.hard_facts.buyer ?? "",
+             deadline: cachedDeadline,
+             deadlineISO: tender.deadlineAt ? new Date(tender.deadlineAt).toISOString() : null,
+             location: cachedLocation,
+             procedure: normalized.procurement.procedure_type,
+             requirements: normalized.decision_relevant.requirements,
+             scope: normalized.decision_relevant.scope.join(" "),
+             awardCriteria: normalized.decision_relevant.award_criteria,
+             hard_facts: normalized.hard_facts,
+             decision_relevant: normalized.decision_relevant,
+             procurement: normalized.procurement,
+             confidence: normalized.confidence,
+             contact: "",
+             duration: normalized.procurement.contract_duration.months
+               ? `${normalized.procurement.contract_duration.months} Monate` : "",
+             referenceNumber: cachedMeta.referenceNumber ?? tenderMeta.referenceNumber,
+             pdfUrls: cachedMeta.pdfUrls,
+             estimatedValue: normalized.hard_facts.budget,
+             sourceUrl: sanitizeTenderUrl(tender.url, cachedMeta.sourceUrl || tenderMeta.sourceUrl) ?? "",
+             divisible: null,
+             ...coveragePayload,
             resourceCoverage: cachedResources.coverage,
             resources: cachedResources.resources,
             resourceCandidates: cachedResources.resources,
             readinessStatus: tender.readinessStatus,
              readinessReason: tender.readinessReason,
              documentAnalysis,
-             documentCheck,
-             cached: true,
+              cached: true,
             documentsLocked: false,
-            scrapedAt: cached[0].updatedAt,
-          });
+             scrapedAt: cached[0].updatedAt,
+             accessLimited: cachedAccess,
+             blockedReason: cachedAccess ? "participation_required" : null,
+           });
         }
       }
     }
@@ -446,30 +478,30 @@ export async function POST(request: Request): Promise<Response> {
       console.warn(`[tender-detail] Quelle vorübergehend blockiert für ${tenderId} (${accessPage.reason}), starte Reprocessing`);
     }
     const fallbackStructured = normalizeStructured(meta, tender.title ?? "", fallbackFacts);
-    const documentCheck = buildTenderCheck({
-      tenderId,
-      tenderDeadlineAt: tender.deadlineAt,
-      structured: fallbackStructured,
-      rawText: tender.rawText,
-      documents: documentRows as AnalyzedDocument[],
-      documentAnalysis,
-    });
-
-    const result = {
+     const accessLimited = accessPage.blocked || meta.access_limited === true || meta.accessLimited === true;
+     const result = {
       title: fallbackStructured.title,
       client: fallbackStructured.hard_facts.buyer || "Unbekannt",
       deadline: tender.deadlineAt ? formatDeadlineDE(tender.deadlineAt) : null,
       deadlineISO: tender.deadlineAt ? new Date(tender.deadlineAt).toISOString() : null,
-      description: fallbackStructured.summary,
-      descriptionMarkdown: fallbackStructured.descriptionMarkdown ?? null,
-      commercialBrief: fallbackStructured.commercialBrief,
-      requirements: fallbackStructured.decision_relevant.requirements,
+        description: accessLimited
+          ? buildPublicAccessLimitedDescription(tender.title ?? "", portalFacts)
+          : pickPublicDescription(
+               fallbackStructured.summary,
+               tenderMeta.description,
+             ),
+       descriptionMarkdown: accessLimited
+         ? buildPublicAccessLimitedDescriptionMarkdown(tender.title ?? "", portalFacts)
+         : isCanonicalPublicDescriptionMarkdown(fallbackStructured.descriptionMarkdown)
+           ? fallbackStructured.descriptionMarkdown
+           : null,
+       requirements: fallbackStructured.decision_relevant.requirements,
       scope: fallbackStructured.decision_relevant.scope.join(" "),
       contact: "",
       procedure: fallbackStructured.procurement.procedure_type,
       awardCriteria: fallbackStructured.decision_relevant.award_criteria,
       duration: tender.contractDurationMonths ? `${tender.contractDurationMonths} Monate` : "",
-      location: fallbackStructured.hard_facts.location,
+        location: pickValidatedPublicLocationForTender(tender.title, fallbackStructured.hard_facts.buyer, fallbackStructured.hard_facts.location, fallbackFacts.location, tenderMeta.location),
       referenceNumber: tenderMeta.referenceNumber,
       pdfUrls: tenderMeta.pdfUrls,
       estimatedValue: tender.contractValueMax ? `${tender.contractValueMax} EUR` : null,
@@ -481,9 +513,10 @@ export async function POST(request: Request): Promise<Response> {
       readinessStatus: tender.readinessStatus,
       readinessReason: tender.readinessReason,
       documentAnalysis,
-      documentCheck,
-      ...coveragePayload,
+       ...coveragePayload,
       scrapedAt: new Date().toISOString(),
+       accessLimited,
+       blockedReason: accessLimited ? accessPage.reason ?? "participation_required" : null,
     };
     // 4. Queue background enrichment (LLM extraction) — ALWAYS
     if (tender.url) {

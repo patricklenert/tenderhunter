@@ -1,20 +1,20 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Manrope } from "next/font/google";
 import { ThemeRegistry } from "@/components/ThemeRegistry";
 import { SiteHeader } from "@/components/seo/SiteHeader";
 import { SwetrixAnalytics } from "@/components/SwetrixAnalytics";
 import "./globals.css";
 
-const inter = Inter({
+const manrope = Manrope({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: ["400", "500", "600", "700", "800"],
   display: "swap",
 });
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
 
 export const viewport: Viewport = {
-  themeColor: "#e9644d",
+  themeColor: "#1e3a5f",
 };
 
 export const metadata: Metadata = {
@@ -163,7 +163,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           dangerouslySetInnerHTML={{ __html: JSON.stringify(siteOrganizationJsonLd) }}
         />
       </head>
-      <body className={inter.className}>
+      <body className={manrope.className}>
         <ThemeRegistry>
           <SiteHeader />
           {children}

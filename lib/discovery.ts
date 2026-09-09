@@ -26,7 +26,7 @@ export interface PublicProfileMatchOptions {
 
 const fallbackStructured = (title: string): StructuredTenderData => ({
   title,
-  summary: title,
+  summary: "",
   confidence: 0.3,
   hard_facts: { location: null, deadline: null, budget: null, buyer: null, contract_type: null },
   decision_relevant: {

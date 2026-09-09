@@ -1,27 +1,63 @@
 @import "tailwindcss";
 
 @theme {
-  --color-canvas: oklch(96.7% 0.01 238);
-  --color-canvas-soft: oklch(98.1% 0.006 238);
-  --color-surface: oklch(99.2% 0.004 238);
+  --color-brand-primary: oklch(31.5% 0.08 252);
+  --color-brand-signal: oklch(58% 0.13 35);
+  --color-brand-signal-soft: oklch(92.8% 0.034 35);
+  --color-brand-signal-border: oklch(58% 0.13 35 / 42%);
+  --color-surface-canvas: oklch(96.7% 0.01 238);
+  --color-surface-panel: oklch(98.1% 0.006 238);
+  --color-surface-elevated: oklch(99.2% 0.004 238);
   --color-surface-strong: oklch(95.6% 0.014 238);
   --color-text-primary: oklch(27.5% 0.028 240);
-  --color-text-muted: oklch(45.3% 0.022 240);
-  --color-border: oklch(84% 0.012 236);
-  --color-accent: oklch(58% 0.13 35);
-  --color-accent-soft: oklch(92.8% 0.034 35);
-  --color-success: oklch(58% 0.12 152);
-  --color-risk: oklch(56.2% 0.18 25);
-  --font-sans: "Inter", sans-serif;
+  --color-text-secondary: oklch(45.3% 0.022 240);
+  --color-border-subtle: oklch(84% 0.012 236);
+  --color-action-primary: oklch(58% 0.13 35);
+  --color-action-secondary: oklch(31.5% 0.08 252);
+  --color-status-success: oklch(50% 0.12 152);
+  --color-status-warning: oklch(58% 0.14 75);
+  --color-status-danger: oklch(49% 0.18 25);
+  --color-fit-high: oklch(50% 0.12 152);
+  --color-fit-medium: oklch(58% 0.14 75);
+  --color-fit-low: oklch(45.3% 0.022 240);
+  --color-focus-ring: oklch(92.8% 0.034 35);
+  --font-sans: "Manrope", sans-serif;
+}
+
+@theme inline {
+  /* Legacy aliases keep existing Tailwind surfaces on the same semantic scale. */
+  --color-canvas: var(--color-surface-canvas);
+  --color-canvas-soft: var(--color-surface-panel);
+  --color-surface: var(--color-surface-elevated);
+  --color-text-muted: var(--color-text-secondary);
+  --color-border: var(--color-border-subtle);
+  --color-accent: var(--color-action-primary);
+  --color-accent-soft: var(--color-brand-signal-soft);
+  --color-success: var(--color-status-success);
+  --color-success-soft: oklch(94% 0.04 152);
+  --color-risk: var(--color-status-danger);
+  --color-foreground: var(--color-text-primary);
+  --color-muted: var(--color-surface-strong);
+  --color-muted-foreground: var(--color-text-secondary);
+  --color-primary: var(--color-action-primary);
+  --color-primary-foreground: var(--color-surface-elevated);
+  --color-secondary: var(--color-action-secondary);
+  --color-secondary-foreground: var(--color-surface-elevated);
 }
 
 @layer base {
   html, body {
     margin: 0;
-    background-color: #ffffff;
+    min-height: 100%;
+    background-color: var(--color-surface-canvas);
     color: var(--color-text-primary);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--color-focus-ring);
+    outline-offset: 2px;
   }
 }

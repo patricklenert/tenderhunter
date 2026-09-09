@@ -7,7 +7,8 @@ import { eq, and, or, isNull, gt, asc } from "drizzle-orm";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 import { BUNDESLAND_SLUGS } from "@/lib/bundesland";
 import { CITIES } from "@/lib/cities";
-import { generateTenderSlug } from "@/lib/tender-slug";
+import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
+import { readPublicTenderMeta } from "@/lib/tender-meta";
 
 // SEO: Server-rendered content for homepage so crawlers see h1, body text, and internal links.
 // The existing InteractiveApp is a client component — invisible to Googlebot in initial HTML.
@@ -28,30 +29,49 @@ const TOP_CITIES = CITIES.slice(0, 10);
 
 export async function HomeSeoContent() {
   const now = new Date();
-  const rows = await db
-    .select({
-      id: tenders.id,
-      title: tenders.title,
-      category: tenders.category,
-      deadlineAt: tenders.deadlineAt,
-      metadataJson: tenders.metadataJson,
-      slug: tenders.slug,
-    })
-    .from(tenders)
-    .where(
-      and(
-        eq(tenders.qualityStatus, "qualified"),
-        or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
-      ),
-    )
-    .orderBy(asc(tenders.deadlineAt))
-    .limit(12);
+  let rows: Array<{
+    id: number;
+    title: string | null;
+    category: string | null;
+    source: string;
+    url: string | null;
+    deadlineAt: Date | null;
+    metadataJson: unknown;
+    slug: string | null;
+  }> = [];
+
+  try {
+    rows = await db
+      .select({
+        id: tenders.id,
+        title: tenders.title,
+        category: tenders.category,
+        source: tenders.source,
+        url: tenders.url,
+        deadlineAt: tenders.deadlineAt,
+        metadataJson: tenders.metadataJson,
+        slug: tenders.slug,
+      })
+      .from(tenders)
+      .where(
+        and(
+          eq(tenders.qualityStatus, "qualified"),
+          or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
+        ),
+      )
+      .orderBy(asc(tenders.deadlineAt))
+      .limit(12);
+  } catch {
+    // Keep the substantive editorial content available without the live catalog.
+  }
 
   const latestTenders = rows.map((row) => {
-    const meta =
-      typeof row.metadataJson === "object" && row.metadataJson !== null
-        ? (row.metadataJson as Record<string, unknown>)
-        : {};
+    const meta = readPublicTenderMeta(row.metadataJson, {
+      title: row.title,
+      source: row.source,
+      sourceUrl: row.url,
+    });
+    const location = meta.location ? meta.location.split(",")[0].trim().slice(0, 60) : null;
     return {
       id: row.id,
       title: row.title ?? `Ausschreibung #${row.id}`,
@@ -60,8 +80,8 @@ export async function HomeSeoContent() {
       deadline: row.deadlineAt
         ? new Date(row.deadlineAt).toLocaleDateString("de-DE", { day: "2-digit", month: "short", year: "numeric" })
         : null,
-      location: typeof meta.location === "string" ? meta.location.split(",")[0].trim().slice(0, 60) : null,
-      slug: row.slug ?? generateTenderSlug(row.title ?? "", typeof meta.location === "string" ? meta.location : ""),
+      location,
+       slug: getCanonicalTenderSlug(row.slug, row.title, row.metadataJson),
     };
   });
 

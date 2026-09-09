@@ -192,7 +192,7 @@ export function UsTendersSection({ initialItems, initialTotal }: { initialItems?
       <Collapse in={alertOpen} unmountOnExit>
         {alertPaywall ? (
           <Box sx={{ mb: 3 }}>
-            <PaywallPanel feature="U.S. Alerts" title="Such-Alerts für neue Chancen freischalten" description="Deine Filter bleiben frei. Mit einem Billing-Plan erhältst du automatisch neue passende U.S. Opportunities per E-Mail." />
+            <PaywallPanel feature="U.S. Alerts" title="Such-Alerts für neue Chancen freischalten" description="Ihre Filter bleiben frei. Mit einem aktiven Tarif erhalten Sie automatisch passende US-Chancen per E-Mail." />
           </Box>
         ) : (
           <Paper

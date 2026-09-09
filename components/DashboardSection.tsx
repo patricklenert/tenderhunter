@@ -131,9 +131,9 @@ const JOB_LABELS: Record<string, string> = {
   crawl_sources: "Quellen",
   fetch_documents: "Dokumente",
   parse_documents: "Texte",
-  structure_tender: "Struktur",
-  score_tender: "Scoring",
-  generate_insight: "Insights",
+  structure_tender: "Strukturierung",
+  score_tender: "Passung bewerten",
+  generate_insight: "Bewertung erstellen",
   notify_company: "Benachrichtigung",
 };
 
@@ -363,7 +363,7 @@ function TagList({ items, emptyLabel }: { items?: string[]; emptyLabel: string }
 
 function QueueLaneList({ lanes }: { lanes: Array<{ type: string; count: number }> }) {
   if (lanes.length === 0) {
-    return <Typography variant="body2" color="text.secondary">Noch keine Queue-Jobs sichtbar.</Typography>;
+    return <Typography variant="body2" color="text.secondary">Noch keine Verarbeitungsschritte sichtbar.</Typography>;
   }
 
   const maxCount = lanes.reduce((currentMax, lane) => Math.max(currentMax, lane.count), 1);
@@ -442,7 +442,7 @@ function PaginationControls({
           disabled={currentPage <= 1}
           sx={{ textTransform: "none", fontSize: "0.75rem", fontWeight: 600 }}
         >
-          Zurueck
+          Zurück
         </Button>
         <Typography variant="caption" color="#475569" sx={{ minWidth: 96, textAlign: "center" }}>
           Seite {currentPage} / {totalPages}
@@ -1090,7 +1090,7 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
         "Aufwand",
         "Stopp",
         "Kurzbewertung",
-        "Naechste Schritte",
+        "Nächste Schritte",
         "Fehlende Unterlagen",
       ].join(";"),
       ...filteredResultTenders.map((tender) =>
@@ -1183,11 +1183,11 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
         );
 
         addSpacer(4);
-        writeParagraph(`Kurzbewertung: ${tender.explanation ?? "Noch keine Begruendung verfuegbar."}`, 11, 15);
+        writeParagraph(`Kurzbewertung: ${tender.explanation ?? "Noch keine Begründung verfügbar."}`, 11, 15);
 
         if (tender.actions.length > 0) {
           addSpacer(4);
-          writeParagraph(`Naechste Schritte: ${tender.actions.join(" | ")}`, 11, 15);
+          writeParagraph(`Nächste Schritte: ${tender.actions.join(" | ")}`, 11, 15);
         }
 
         if (tender.missingItems.length > 0) {
@@ -1198,7 +1198,7 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
         if (tender.details) {
           addSpacer(4);
           writeParagraph(
-            `Scoring-Faktoren: Domaenenfit ${tender.details.domainMatch}%, Deckung ${tender.details.requirementCoverage}%, Region ${tender.details.regionMatch}%, Groesse ${tender.details.sizeMatch}%, Komplexitaet ${tender.details.complexity}%`,
+            `Bewertungsfaktoren: Domänenfit ${tender.details.domainMatch}%, Deckung ${tender.details.requirementCoverage}%, Region ${tender.details.regionMatch}%, Größe ${tender.details.sizeMatch}%, Komplexität ${tender.details.complexity}%`,
             11,
             15,
           );
@@ -1564,14 +1564,14 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
                 }}
               >
                 <SummaryCard label="Treffer" value={matchCount} detail="bereits sichtbar" />
-                <SummaryCard label="Offene Jobs" value={status?.summary.pendingJobs ?? 0} detail="warten in der Queue" />
-                <SummaryCard label="Aktiv" value={status?.summary.runningJobs ?? 0} detail="werden gerade verarbeitet" />
+                <SummaryCard label="Offene Aufgaben" value={status?.summary.pendingJobs ?? 0} detail="warten auf Verarbeitung" />
+                <SummaryCard label="In Arbeit" value={status?.summary.runningJobs ?? 0} detail="werden gerade verarbeitet" />
               </Box>
 
               <Box>
                 <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5 }}>
                   <Typography variant="caption" fontWeight={600} textTransform="uppercase" letterSpacing="0.05em" color="#475569">
-                    Queue
+                    Verarbeitung
                   </Typography>
                   {status?.summary.failedJobs ? (
                     <Chip label={`${status.summary.failedJobs} Fehler`} size="small" color="error" sx={{ fontWeight: 700 }} />
@@ -1616,7 +1616,7 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
                       Noch keine Treffer sichtbar
                     </Typography>
                     <Typography variant="body2" color="#475569" sx={{ mt: 0.5 }}>
-                      Sobald Scoring-Ergebnisse vorliegen, erscheinen sie hier sofort.
+                       Sobald Bewertungsergebnisse vorliegen, erscheinen sie hier sofort.
                     </Typography>
                   </Box>
                 </Box>
@@ -1669,7 +1669,7 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
                   <TagList items={session.extracted.certifications} emptyLabel="Keine Nachweise erkannt." />
                   {session.extracted.team_size ? (
                     <Typography variant="body2" color="#334155" sx={{ mt: 2 }}>
-                      Teamgroesse: <Box component="span" fontWeight={600} color="#1e293b">{session.extracted.team_size}</Box>
+                      Teamgröße: <Box component="span" fontWeight={600} color="#1e293b">{session.extracted.team_size}</Box>
                     </Typography>
                   ) : null}
                 </Paper>
@@ -1714,7 +1714,7 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
             </Typography>
             <Typography variant="body2" color="#334155" sx={{ mt: 0.75 }}>
               passende Ausschreibungen
-              {data.company.name ? ` fuer ${data.company.name}` : ""}
+              {data.company.name ? ` für ${data.company.name}` : ""}
             </Typography>
           </Box>
           <Box sx={{ textAlign: { sm: "right" } }}>
@@ -1733,8 +1733,8 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
         {showPremiumGate && (
           <PaywallPanel
             feature="Exporte"
-            title="Ergebnisse für dein Team mitnehmen"
-            description="Exporte und weitere Arbeitsaktionen sind im Billing-Plan enthalten. Deine Treffer und Filter bleiben erhalten."
+            title="Ergebnisse für Ihr Team mitnehmen"
+            description="Exporte und weitere Arbeitsaktionen sind im aktiven Tarif enthalten. Ihre Treffer und Filter bleiben erhalten."
           />
         )}
 
@@ -1787,7 +1787,7 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
               ) : null}
               {data.extracted.team_size ? (
                 <Typography variant="body2" color="#334155" sx={{ mt: 2 }}>
-                  Teamgroesse: <Box component="span" fontWeight={600} color="#1e293b">{data.extracted.team_size}</Box>
+                  Teamgröße: <Box component="span" fontWeight={600} color="#1e293b">{data.extracted.team_size}</Box>
                 </Typography>
               ) : null}
             </Paper>
@@ -1871,7 +1871,7 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
                     >
                       <MenuItem value="winProbability">Beste Gewinnchance</MenuItem>
                       <MenuItem value="fit">Beste Passung</MenuItem>
-                      <MenuItem value="coverage">Hoechste Deckung</MenuItem>
+                      <MenuItem value="coverage">Höchste Deckung</MenuItem>
                       <MenuItem value="effort">Niedrigster Aufwand</MenuItem>
                       <MenuItem value="title">Titel A-Z</MenuItem>
                     </Select>
@@ -1945,7 +1945,7 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
                       {filteredResultTenders.length} von {resultTenders.length} Treffern sichtbar. Export basiert auf der aktuellen Filterung.
                     </Typography>
                     <Typography variant="caption" color="#475569" sx={{ mt: 0.5, display: "block" }}>
-                      Filter und Seitengroesse werden lokal im Browser gespeichert.
+                      Filter und Seitengröße werden lokal im Browser gespeichert.
                     </Typography>
                   </Box>
 
@@ -1956,7 +1956,7 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
                       onClick={handleResetFilters}
                       sx={{ textTransform: "none", fontSize: "0.75rem", fontWeight: 600 }}
                     >
-                      Filter zuruecksetzen
+                      Filter zurücksetzen
                     </Button>
                     <Button
                       variant="outlined"
@@ -1989,16 +1989,16 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
                   Keine Treffer
                 </Typography>
                 <Typography variant="body2" color="#475569" sx={{ mt: 0.5 }}>
-                  Fuer dieses Profil wurden keine passenden Ausschreibungen gefunden.
+                  Für dieses Profil wurden keine passenden Ausschreibungen gefunden.
                 </Typography>
               </Paper>
             ) : filteredResultTenders.length === 0 ? (
               <Paper variant="outlined" sx={{ borderRadius: 1.5, py: 6, px: 3, textAlign: "center" }}>
                 <Typography variant="body2" fontWeight={500} sx={{ color: "#1e293b" }}>
-                  Keine Treffer fuer die aktuelle Filterung
+                  Keine Treffer für die aktuelle Filterung
                 </Typography>
                 <Typography variant="body2" color="#475569" sx={{ mt: 0.5 }}>
-                  Passe Suche, Quelle, Status oder Mindestpassung an.
+                  Passen Sie Suche, Quelle, Status oder Mindestpassung an.
                 </Typography>
               </Paper>
             ) : (

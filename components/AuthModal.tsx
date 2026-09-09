@@ -67,7 +67,7 @@ export function AuthModal({ open, onClose, defaultTab = "login", onSuccess }: Au
           name,
         });
         if (res.error) {
-          setError(res.error.message ?? "Registrierung fehlgeschlagen");
+          setError(res.error.message ?? "Registrierung fehlgeschlagen.");
         } else {
           onSuccess?.();
           handleClose();
@@ -79,7 +79,7 @@ export function AuthModal({ open, onClose, defaultTab = "login", onSuccess }: Au
           password,
         });
         if (res.error) {
-          setError(res.error.message ?? "Anmeldung fehlgeschlagen");
+          setError(res.error.message ?? "Anmeldung fehlgeschlagen.");
         } else {
           onSuccess?.();
           handleClose();
@@ -87,7 +87,7 @@ export function AuthModal({ open, onClose, defaultTab = "login", onSuccess }: Au
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ein Fehler ist aufgetreten");
+      setError(err instanceof Error ? err.message : "Ein Fehler ist aufgetreten.");
     } finally {
       setLoading(false);
     }
@@ -102,7 +102,7 @@ export function AuthModal({ open, onClose, defaultTab = "login", onSuccess }: Au
         callbackURL: "/",
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Google-Anmeldung fehlgeschlagen");
+      setError(err instanceof Error ? err.message : "Google-Anmeldung fehlgeschlagen.");
     } finally {
       setLoading(false);
     }
@@ -115,14 +115,14 @@ export function AuthModal({ open, onClose, defaultTab = "login", onSuccess }: Au
     try {
       const res = await authClient.signIn.passkey();
       if (res.error) {
-        setError(res.error.message ?? "Passkey-Anmeldung fehlgeschlagen");
+        setError(res.error.message ?? "Passkey-Anmeldung fehlgeschlagen.");
       } else {
         onSuccess?.();
         handleClose();
         window.location.reload();
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Passkey-Anmeldung fehlgeschlagen");
+      setError(err instanceof Error ? err.message : "Passkey-Anmeldung fehlgeschlagen.");
     } finally {
       setLoading(false);
     }
@@ -166,8 +166,8 @@ export function AuthModal({ open, onClose, defaultTab = "login", onSuccess }: Au
           </Typography>
           <Typography variant="body2" sx={{ color: "text.secondary" }}>
             {tab === "login"
-              ? "Melde dich an, um Ausschreibungen zu suchen"
-              : "Registriere dich, um loszulegen"}
+              ? "Melden Sie sich an, um Ausschreibungen zu suchen"
+              : "Registrieren Sie sich, um zu starten"}
           </Typography>
         </Box>
 

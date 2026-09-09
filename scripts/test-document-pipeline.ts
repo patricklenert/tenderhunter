@@ -5,7 +5,11 @@ import {
   classifyResourceCandidate,
   decideDocumentPersistence,
   isFetchableResourceCandidate,
+  isPermanentResourceFailure,
+  mergeMetadata,
+  mergeParsedTenderText,
   mergeResourceCandidates,
+  shouldUseRenderedResourceDiscovery,
   type ResourceCandidateRecord,
 } from "../lib/pipeline";
 import { buildSafeRequestHeaders } from "../lib/storage";
@@ -26,7 +30,34 @@ const combinedCandidate: ResourceCandidateRecord = {
   contentDisposition: null,
 };
 
+const canonicalMarkdown = "- **Auftraggeber:** Stadt Mainz";
+assert.equal(
+  mergeMetadata({ descriptionMarkdown: canonicalMarkdown }, { descriptionMarkdown: "## Ungeprüft" })?.descriptionMarkdown,
+  canonicalMarkdown,
+  "invalid incoming markdown must preserve canonical markdown",
+);
+assert.equal(
+  mergeMetadata({ descriptionMarkdown: canonicalMarkdown }, { description_markdown: "- Rohtext" })?.descriptionMarkdown,
+  canonicalMarkdown,
+  "invalid incoming legacy markdown must preserve canonical markdown",
+);
+assert.equal(
+  mergeMetadata({ description: "## Bekanntmachung" }, { description: "" })?.description,
+  undefined,
+  "invalid persisted descriptions must not survive a metadata merge",
+);
+assert.equal(
+  mergeMetadata({ description: "Gute Leistungsbeschreibung" }, { description: "## Bekanntmachung" })?.description,
+  "Gute Leistungsbeschreibung",
+  "invalid incoming descriptions must not replace a valid persisted description",
+);
+
 assert.equal(isFetchableResourceCandidate(combinedCandidate), true, "extensionless download resources are fetchable");
+assert.equal(isPermanentResourceFailure("Dokument konnte nicht geladen werden: 401"), true, "authentication-required resources are not retried forever");
+assert.equal(isPermanentResourceFailure("Zugriffsblockierte Seite statt Dokument (participation_required)"), true, "participation-required resources are permanent without user access");
+assert.equal(isPermanentResourceFailure("Timeout beim Abruf"), false, "transient resource failures remain retryable");
+assert.equal(shouldUseRenderedResourceDiscovery([combinedCandidate]), false, "a known download does not need browser discovery");
+assert.equal(shouldUseRenderedResourceDiscovery([{ ...combinedCandidate, resourceType: "page", url: "https://example.test/tender/42" }]), true, "page-only resources retain browser fallback");
 assert.equal(isFetchableResourceCandidate({
   ...combinedCandidate,
   url: "https://example.test/projectForwarding.do?pid=42",
@@ -86,6 +117,22 @@ assert.notEqual(
   buildFetchDocumentsJobKey(42, buildResourceFingerprint("https://example.test/tender/42", metadataA)),
   buildFetchDocumentsJobKey(42, buildResourceFingerprint("https://example.test/tender/42", { pdf_urls: ["https://example.test/b.pdf"] })),
 );
+assert.notEqual(
+  buildFetchDocumentsJobKey(42, buildResourceFingerprint("https://example.test/tender/42", metadataA), 1),
+  buildFetchDocumentsJobKey(42, buildResourceFingerprint("https://example.test/tender/42", metadataA), 2),
+  "changed tender versions must start a new document pipeline",
+);
+
+const listingText = "Ausschreibung für Straßenbau";
+const parsedSections = "[ROLLEN: leistungsbeschreibung] [ROLLE: leistungsbeschreibung] [DOKUMENT-ID: 7]\nUmfang: 500 Meter Straße\n\n[ROLLEN: anlage] [ROLLE: anlage] [DOKUMENT-ID: 8]\n";
+const partialText = mergeParsedTenderText(listingText, parsedSections, true);
+assert.match(partialText, /Umfang: 500 Meter Straße/, "successful documents remain available on partial parses");
+assert.equal(
+  mergeParsedTenderText(partialText, parsedSections, true),
+  partialText,
+  "partial parse retries do not duplicate document sections",
+);
+assert.equal(mergeParsedTenderText(listingText, parsedSections, false), parsedSections.trim(), "complete parses replace the listing snapshot");
 
 const safeHeaders = buildSafeRequestHeaders({
   headers: {

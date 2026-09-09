@@ -93,10 +93,10 @@ const STATUS_FILTER_OPTIONS: Array<{ value: TrackedStatusFilter; label: string }
   { value: "lost", label: TRACKED_TENDER_STATUS_LABELS.lost },
 ];
 
-const progressColor = (value: number): "success" | "warning" | "error" => {
+const progressColor = (value: number): "success" | "warning" | "info" => {
   if (value >= 70) return "success";
   if (value >= 40) return "warning";
-  return "error";
+  return "info";
 };
 
 const statusChipColor = (status: TrackedTenderStatus): "success" | "error" | "info" | "default" => {
@@ -252,7 +252,7 @@ function TrackedTenderCard({ item, onOpen }: { item: TrackedTenderItem; onOpen: 
                 WebkitBoxOrient: "vertical",
               }}
             >
-              {item.notes.trim() || item.explanation || "Noch keine internen Notizen. Im Detail kannst du direkt den naechsten Geschaeftsfuehrer-Schritt dokumentieren."}
+              {item.notes.trim() || item.explanation || "Noch keine internen Notizen. Im Detail können Sie direkt den nächsten Bearbeitungsschritt dokumentieren."}
             </Typography>
           </Box>
 
@@ -278,7 +278,7 @@ function TrackedTenderCard({ item, onOpen }: { item: TrackedTenderItem; onOpen: 
                 startIcon={<ArrowUpRight size={16} />}
                 sx={{ borderRadius: 2, textTransform: "none", fontWeight: 600 }}
               >
-                Original oeffnen
+                Original öffnen
               </Button>
             ) : null}
           </Stack>
@@ -423,7 +423,7 @@ export function TrackedTendersSection() {
                 Verfolgte Ausschreibungen
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 1, maxWidth: 800, lineHeight: 1.6 }}>
-                Diese Ansicht ist fuer die taegliche Geschaeftsfuehrer-Steuerung gedacht: aktive Faelle zuerst, klare Fristen, klare Verantwortung und schnelle Bearbeitung direkt im Detailbereich.
+                Diese Ansicht unterstützt die tägliche Bearbeitung: aktive Fälle zuerst, klare Fristen, klare Verantwortung und schnelle nächste Schritte im Detailbereich.
               </Typography>
             </Box>
 
@@ -442,7 +442,7 @@ export function TrackedTendersSection() {
               <SummaryTile label="Aktiv" value={summary?.active ?? 0} detail="Verfolgt, in Bearbeitung oder eingereicht" />
             </Grid>
             <Grid size={{ xs: 12, sm: 6, xl: 3 }}>
-              <SummaryTile label="Fristen bald" value={summary?.dueSoon ?? 0} detail="Naechste 7 Tage" />
+              <SummaryTile label="Fristen bald" value={summary?.dueSoon ?? 0} detail="Nächste 7 Tage" />
             </Grid>
             <Grid size={{ xs: 12, sm: 6, xl: 3 }}>
               <SummaryTile label="Gewonnen" value={summary?.won ?? 0} detail="Bereits positiv entschieden" />
@@ -460,7 +460,7 @@ export function TrackedTendersSection() {
             <TextField
               size="small"
               fullWidth
-              placeholder="Titel, Firma, Quelle, Owner oder Notiz durchsuchen"
+              placeholder="Titel, Unternehmen, Quelle oder Notiz durchsuchen"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               slotProps={{
@@ -530,7 +530,7 @@ export function TrackedTendersSection() {
             Noch keine verfolgten Ausschreibungen
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            Markiere zuerst im Dashboard passende Treffer als verfolgt. Sie erscheinen dann automatisch hier.
+            Markieren Sie in der Analyse passende Treffer als verfolgt. Sie erscheinen dann automatisch hier.
           </Typography>
         </Box>
       ) : (

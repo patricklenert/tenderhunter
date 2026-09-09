@@ -5,12 +5,12 @@ import { Home as HomeIcon, Calculator } from "lucide-react";
 import SchwellenwertRechner from "@/components/tools/SchwellenwertRechner";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://palemaz.com";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
 
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
-  title: "Schwellenwert-Rechner – VgV, UVgO oder SektVO? (2024/2025)",
+  title: "Schwellenwert-Rechner – VgV, UVgO oder SektVO? (2026/2027)",
   description:
     "Kostenloser Schwellenwert-Rechner für öffentliche Vergaben. Geben Sie den Auftragswert ein und sofort sehen Sie: Welches Vergaberecht gilt (VgV, UVgO, SektVO) und ob EU-Bekanntmachungspflicht besteht.",
   alternates: { canonical: "/tools/schwellenwert-rechner", languages: { "de-DE": "/tools/schwellenwert-rechner" } },
@@ -42,7 +42,7 @@ export default function SchwellenwertRechnerPage() {
         name: "Was ist der aktuelle Schwellenwert für Bauleistungen?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "Der EU-Schwellenwert für Bauaufträge liegt bei 5.538.000 € (Stand 2024–2025). Ab diesem Betrag gilt das VgV (Oberschwelle) mit verpflichtender EU-Bekanntmachung, darunter vergibt nach UVgO oder Landesvergaberecht (Unterschwelle).",
+          text: "Der EU-Schwellenwert für Bauaufträge beträgt 5.404.000 € für 2026/2027. Maßgeblich sind der Auftraggeber und die Leistungsart; oberhalb greifen GWB, VOB/A Abschnitt 2 und die nach § 2 VgV anwendbaren Vorschriften.",
         },
       },
       {
@@ -50,7 +50,7 @@ export default function SchwellenwertRechnerPage() {
         name: "Was ist der Schwellenwert für Liefer- und Dienstleistungen?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "Für Liefer- und Dienstleistungen liegt der Schwellenwert bei 221.000 € (über zentrale Beschaffungsstellen) bzw. 143.000 € (sonstige Auftraggeber). Ab diesen Beträgen gilt das VgV mit EU-Bekanntmachungspflicht.",
+          text: "Für Liefer- und Dienstleistungen gelten 2026/2027 je nach Auftraggeber 140.000 € oder 216.000 €. Diese Werte gelten nicht pauschal für jede öffentliche Beschaffung; oberhalb ist grundsätzlich das einschlägige EU-Vergaberecht zu prüfen.",
         },
       },
       {
@@ -58,7 +58,7 @@ export default function SchwellenwertRechnerPage() {
         name: "Was bedeutet Unterschwellenvergabe?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "Bei Aufträgen unterhalb der EU-Schwellenwerte gilt die UVgO (Unterschwellenvergabeverordnung, für den Bund) oder das jeweilige Landesvergaberecht. Hier besteht keine EU-Bekanntmachungspflicht, die Vergabestelle hat freie Verfahrenswahl.",
+          text: "Bei Aufträgen unterhalb der EU-Schwellenwerte gelten die Regeln des zuständigen Auftraggebers, etwa die UVgO auf Bundesebene oder Landesvergaberecht. Eine EU-Bekanntmachungspflicht folgt daraus nicht automatisch; nationale Vorgaben bleiben zu beachten.",
         },
       },
       {
@@ -66,7 +66,7 @@ export default function SchwellenwertRechnerPage() {
         name: "Wann gilt die SektVO?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "Die Sektorenvergabeverordnung (SektVO) gilt für Auftraggeber in den Sektoren Trinkwasser, Energie, Verkehr und Postdienste (§ 100 GWB). Der Schwellenwert liegt hier bei 5.538.000 € (Bau) bzw. 443.000 € (Liefer-/Dienstleistungen).",
+          text: "Die SektVO gilt für Auftraggeber in den Sektoren Trinkwasser, Energie, Verkehr und Postdienste (§ 100 GWB). Für 2026/2027 beträgt der Schwellenwert für Sektorenbau 5.404.000 € und für Liefer-/Dienstleistungen 432.000 €.",
         },
       },
     ],
@@ -117,7 +117,7 @@ export default function SchwellenwertRechnerPage() {
             </Typography>
             <Typography variant="body1" color="text.secondary" sx={{ maxWidth: "75ch", lineHeight: 1.8, fontSize: "1.1rem" }}>
               Geben Sie den Auftragswert ein und sofort sehen Sie, welches Vergaberecht gilt: VgV (Oberschwelle), UVgO
-              (Unterschwelle) oder SektVO (Sektorenauftraggeber). Mit aktuellen EU-Schwellenwerten 2024–2025.
+              (Unterschwelle) oder SektVO (Sektorenauftraggeber). Mit aktuellen EU-Schwellenwerten 2026–2027.
             </Typography>
           </Box>
 
@@ -130,24 +130,24 @@ export default function SchwellenwertRechnerPage() {
             </Typography>
             <Typography variant="body1" component="p" sx={{ mb: 2, lineHeight: 1.8, color: "text.secondary", maxWidth: "75ch" }}>
               Schwellenwerte bestimmen, welches Vergaberecht für einen öffentlichen Auftrag gilt. Liegt der
-              Auftragswert <strong>über</strong> dem Schwellenwert (Oberschwelle), greift das Vergabevergabegesetz
-              (VgV) mit verpflichtender EU-weiter Bekanntmachung im TED. Liegt er <strong>darunter</strong>
-              (Unterschwelle), gilt die UVgO oder das jeweilige Landesvergaberecht mit freier Verfahrenswahl.
+              Auftragswert <strong>über</strong> dem passenden Schwellenwert (Oberschwelle), ist das einschlägige
+              EU-Vergaberecht mit den jeweiligen Bekanntmachungspflichten zu prüfen. Liegt er <strong>darunter</strong>,
+              gelten die nationalen Regeln des zuständigen Auftraggebers.
             </Typography>
             <Typography variant="body1" component="p" sx={{ mb: 2, lineHeight: 1.8, color: "text.secondary", maxWidth: "75ch" }}>
               Die EU-Schwellenwerte werden alle zwei Jahre von der Europäischen Kommission angepasst. Die aktuell
-              geltenden Werte (Stand: 2024–2025) beruhen auf der <strong>Verordnung (EU) 2022/2577</strong>.
+              geltenden Werte (Stand: 2026–2027) beruhen auf den einschlägigen delegierten EU-Verordnungen.
             </Typography>
 
             <Typography variant="h6" component="h3" fontWeight={700} sx={{ mt: 3, mb: 1.5, fontSize: "1.1rem" }}>
               Die wichtigsten Schwellenwerte im Überblick
             </Typography>
             <Box component="ul" sx={{ m: 0, pl: 2.5, color: "text.secondary" }}>
-              <li><strong>Bauaufträge:</strong> 5.538.000 €</li>
-              <li><strong>Liefer-/Dienstleistungen (zentral):</strong> 221.000 €</li>
-              <li><strong>Liefer-/Dienstleistungen (sonstige):</strong> 143.000 €</li>
-              <li><strong>Sektoren (Liefer/Dienst):</strong> 443.000 €</li>
-              <li><strong>Soziale und besondere Dienste:</strong> 443.000 €</li>
+              <li><strong>Bauaufträge:</strong> 5.404.000 €</li>
+              <li><strong>Liefer-/Dienstleistungen (bestimmte zentrale Behörden):</strong> 140.000 €</li>
+              <li><strong>Liefer-/Dienstleistungen (sonstige bestimmte Auftraggeber):</strong> 216.000 €</li>
+              <li><strong>Sektoren (Liefer/Dienst):</strong> 432.000 €</li>
+              <li><strong>Soziale und besondere Dienstleistungen:</strong> 750.000 €</li>
             </Box>
           </Paper>
         </Container>

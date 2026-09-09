@@ -188,7 +188,7 @@ export function TenderQuickCheck({ tenderId, initialCheck = null }: TenderQuickC
             Schnellcheck
           </Typography>
           <Typography variant="body2" sx={{ mt: 0.5, color: "#38505b", lineHeight: 1.55 }}>
-            In kurzer Zeit sehen, was fehlt, was auffällt und bis wann du handeln musst.
+            In kurzer Zeit sehen, was fehlt, was auffällt und bis wann Sie handeln müssen.
           </Typography>
         </Box>
 

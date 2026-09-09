@@ -12,6 +12,14 @@ export interface GlossaryEntry {
   faq: Array<{ question: string; answer: string }>;
   relatedTerms?: string[];
   relatedCategories?: string[];
+  relatedArticles?: string[];
+  sources?: ContentSource[];
+  lastReviewed?: string;
+}
+
+export interface ContentSource {
+  title: string;
+  url: string;
 }
 
 export const GLOSSARY: GlossaryEntry[] = [
@@ -52,17 +60,17 @@ export const GLOSSARY: GlossaryEntry[] = [
     slug: "vgv-vergabeverordnung",
     term: "VgV (Vergabeverordnung)",
     category: "Rechtsgrundlagen",
-    shortDefinition: "Die VgV regelt das Vergabeverfahren für öffentliche Aufträge oberhalb der EU-Schwellenwerte im Bereich Lieferungen und Dienstleistungen.",
+    shortDefinition: "Die VgV regelt vor allem die Vergabe öffentlicher Liefer- und Dienstleistungsaufträge oberhalb der EU-Schwellenwerte und enthält Sonderregeln für bestimmte Bau- und Planungsaufträge.",
     definition: [
       "Die Vergabeverordnung (VgV) ist die zentrale Rechtsverordnung für die Vergabe öffentlicher Liefer- und Dienstleistungsaufträge oberhalb der EU-Schwellenwerte. Sie konkretisiert die Vorgaben des vierten Teils des GWB und setzt die europäischen Vergaberichtlinien in deutsches Recht um.",
       "Die VgV regelt detailliert die Durchführung der verschiedenen Vergabeverfahren (offenes Verfahren, beschränktes Verfahren, Verhandlungsverfahren, wettbewerblicher Dialog, Innovationspartnerschaft), die Anforderungen an die Auftragsbekanntmachung, die Fristen und die Eignungsprüfung.",
-      "Für Bauleistungen oberhalb der Schwellenwerte gilt nicht die VgV, sondern § 3 VOB/A (Vergabe- und Vertragsordnung für Bauleistungen, Teil A). Für Unterschwellenvergaben bei Lieferungen und Dienstleistungen gilt die UVgO.",
+      "Bei Bauaufträgen ist § 2 VgV maßgeblich: Für sie gelten Abschnitt 1 und Abschnitt 2 Unterabschnitt 2 der VgV; im Übrigen ist VOB/A Teil A Abschnitt 2 anzuwenden. Für als Los eines Bauauftrags vergebene Planungsleistungen gilt die VgV.",
     ],
     keyPoints: [
-      "Gilt für Liefer- und Dienstleistungsaufräge über EU-Schwellenwerten",
+      "Gilt vor allem für Liefer- und Dienstleistungsaufträge oberhalb der EU-Schwellenwerte",
       "Regelt 5 Vergabeverfahren: Offen, Beschränkt, Verhandelt, Dialog, Innovation",
       "Enthält detaillierte Vorgaben zu Bekanntmachung, Fristen und Eignungsprüfung",
-      "Nicht anwendbar auf Bauleistungen (dort gilt VOB/A)",
+      "Bei Bauaufträgen gilt die besondere Zuordnung nach § 2 VgV",
     ],
     faq: [
       {
@@ -71,11 +79,11 @@ export const GLOSSARY: GlossaryEntry[] = [
       },
       {
         question: "Was ist der Unterschied zwischen VgV und UVgO?",
-        answer: "Die VgV gilt für Vergaben oberhalb der EU-Schwellenwerte, die UVgO für Vergaben unterhalb der Schwellenwerte. Beide betreffen Lieferungen und Dienstleistungen, nicht aber Bauleistungen (dafür gilt die VOB/A).",
+        answer: "Die VgV gilt grundsätzlich für Liefer- und Dienstleistungen oberhalb der EU-Schwellenwerte, die UVgO grundsätzlich für Liefer- und Dienstleistungen darunter. Bei Bauaufträgen bestimmt § 2 VgV, welche VgV-Regeln neben VOB/A Abschnitt 2 gelten.",
       },
       {
         question: "Wo gilt die VgV nicht?",
-        answer: "Die VgV gilt nicht für Bauleistungen (dort gilt VOB/A), nicht für Sektorenauftraggeber (dort gilt die SektVO) und nicht für Konzessionen (dort gilt die KonzVgV). Für Unterschwellenvergaben bei Lieferungen/Dienstleistungen gilt die UVgO.",
+        answer: "Für Sektorenauftraggeber und Konzessionen gelten regelmäßig besondere Regelwerke. Bei Bauaufträgen gilt nicht pauschal ein vollständiger Ausschluss der VgV: § 2 VgV ordnet die Anwendung bestimmter VgV-Teile an und verweist im Übrigen auf VOB/A Abschnitt 2.",
       },
     ],
     relatedTerms: ["uvgo", "vob-a", "gwb-vergaberecht", "sektvo", "konzvgv"],
@@ -87,9 +95,9 @@ export const GLOSSARY: GlossaryEntry[] = [
     category: "Rechtsgrundlagen",
     shortDefinition: "Die UVgO regelt die Vergabe öffentlicher Liefer- und Dienstleistungsaufträge unterhalb der EU-Schwellenwerte. Sie löste 2017 die VOL/A ab.",
     definition: [
-      "Die Unterschwellenvergabeordnung (UVgO) ist die zentrale Vergabevorschrift für öffentliche Auftraggeber in Deutschland bei der Vergabe von Liefer- und Dienstleistungsaufrägen unterhalb der EU-Schwellenwerte. Sie trat am 01. Mai 2017 in Kraft und löste den Teil A der VOL (Vergabe- und Vertragsordnung für Leistungen) in diesem Bereich ab.",
+      "Die Unterschwellenvergabeordnung (UVgO) ist eine zentrale Vergabevorschrift für öffentliche Auftraggeber bei Liefer- und Dienstleistungsaufträgen unterhalb der EU-Schwellenwerte. Sie löste den Teil A der VOL in diesem Bereich ab; verbindlich wird sie durch die jeweilige haushalts- oder landesrechtliche Einführung.",
       "Die UVgO zielt darauf ab, den Wettbewerb bei Unterschwellenvergaben zu stärken, den Mittelstand zu fördern und die Bürokratie zu reduzieren. Sie ermöglicht flexiblere Verfahren und kürzere Fristen als die VgV, wahrt aber die Grundprinzipien von Transparenz, Wettbewerb und Gleichbehandlung.",
-      "Ein wichtiges Instrument der UVgO ist die freiwillige Vergabebekanntmachung, die Auftraggeern die Möglichkeit gibt, ihre Absicht zur Vergabe auch unterhalb der Schwellenwerte europaweit bekannt zu machen.",
+      "Ein Instrument der UVgO ist die freiwillige Vergabebekanntmachung, die Auftraggebern eine zusätzliche Veröffentlichung auch unterhalb der Schwellenwerte ermöglicht.",
     ],
     keyPoints: [
       "Gilt für Liefer- und Dienstleistungen unter EU-Schwellenwerten",
@@ -100,15 +108,15 @@ export const GLOSSARY: GlossaryEntry[] = [
     faq: [
       {
         question: "Was ist die UVgO?",
-        answer: "Die UVgO (Unterschwellenvergabeordnung) regelt die Vergabe öffentlicher Liefer- und Dienstleistungsaufräge unterhalb der EU-Schwellenwerte in Deutschland. Sie löste 2017 die VOL/A ab.",
+        answer: "Die UVgO (Unterschwellenvergabeordnung) regelt die Vergabe öffentlicher Liefer- und Dienstleistungsaufträge unterhalb der EU-Schwellenwerte, soweit sie im jeweiligen Geltungsbereich eingeführt ist. Sie löste 2017 die VOL/A ab.",
       },
       {
         question: "Ab welchem Betrag gilt die UVgO?",
-        answer: "Die UVgO gilt für Liefer- und Dienstleistungsaufräge unterhalb der EU-Schwellenwerte. Derzeit (Stand 2024) liegt der Schwellenwert bei 221.000 EUR (bzw. 442.000 EUR für zentrale Beschaffungsstellen). Bis zu diesen Beträgen gilt die UVgO.",
+        answer: "Die UVgO betrifft grundsätzlich Liefer- und Dienstleistungen unterhalb der EU-Schwellenwerte. Die konkrete Verbindlichkeit und mögliche landesrechtliche Besonderheiten richten sich nach der Einführung im jeweiligen Geltungsbereich; für Bauleistungen ist grundsätzlich die VOB/A einschlägig.",
       },
       {
         question: "Gilt die UVgO auch für Bauleistungen?",
-        answer: "Nein, die UVgO gilt nicht für Bauleistungen. Für Bauleistungen unterhalb der EU-Schwellenwerte gilt weiterhin die VOB/A (genauer: die Unterschwellenvergabeordnung für Bauleistungen in § 3 VOB/A).",
+        answer: "Die UVgO ist grundsätzlich keine allgemeine Bauvergabeordnung. Für Bauleistungen im nationalen Bereich ist grundsätzlich VOB/A Abschnitt 1 einschlägig; die konkrete Anwendung richtet sich zusätzlich nach dem maßgeblichen Landes- und Haushaltsrecht.",
       },
     ],
     relatedTerms: ["vgv-vergabeverordnung", "vob-a", "vol-a"],
@@ -116,36 +124,110 @@ export const GLOSSARY: GlossaryEntry[] = [
   },
   {
     slug: "vob-a",
-    term: "VOB/A (Vergabeordnung für Bauleistungen)",
+    term: "VOB/A (Vergabe- und Vertragsordnung für Bauleistungen, Teil A)",
     category: "Rechtsgrundlagen",
-    shortDefinition: "Die VOB/A regelt die Vergabe von Bauleistungen durch öffentliche Auftraggeber — sowohl oberhalb als auch unterhalb der EU-Schwellenwerte.",
+    shortDefinition: "Die VOB/A enthält die Vergaberegeln für öffentliche Bauaufträge. Abschnitt 1 gilt national, Abschnitt 2 für Bauaufträge im EU-Oberschwellenbereich und Abschnitt 3 für verteidigungs- und sicherheitsspezifische Vergaben.",
     definition: [
-      "Die Vergabe- und Vertragsordnung für Bauleistungen, Teil A (VOB/A) ist die zentrale Vergabevorschrift für öffentliche Bauleistungen in Deutschland. Sie gilt sowohl für Vergaben oberhalb als auch unterhalb der EU-Schwellenwerte. § 3 VOB/A regelt dabei die Unterschwellenvergabe, die §§ 4–16 VOB/A die Oberschwellenvergabe.",
-      "Die VOB/A detailliert die Anforderungen an die Vergabe von Bauleistungen, einschließlich der Eignungsprüfung, der Leistungsbeschreibung, der Angebotsprüfung und der Zuschlagserteilung. Sie arbeitet eng mit der VOB/B (Vertragsbedingungen) und VOB/C (technische Richtlinien) zusammen.",
-      "Im Gegensatz zur UVgO und VgV, die für Lieferungen und Dienstleistungen gelten, bleibt die VOB/A die maßgebliche Vergabevorschrift für Bauaufträge jeglicher Größenordnung bei öffentlichen Auftraggebern.",
+      "Die Vergabe- und Vertragsordnung für Bauleistungen, Teil A (VOB/A) regelt den vergaberechtlichen Teil öffentlicher Bauaufträge. Sie unterscheidet zwischen Abschnitt 1 für den nationalen Unterschwellenbereich, Abschnitt 2 für den EU-Oberschwellenbereich und Abschnitt 3 für verteidigungs- und sicherheitsspezifische Aufträge.",
+      "Bei Bauaufträgen oberhalb der EU-Schwellenwerte ist die VOB/A Abschnitt 2 nicht isoliert zu lesen. § 2 VgV ordnet an, welche Teile der VgV zusätzlich gelten; für die Vergabe von Planungsleistungen, die als Los eines Bauauftrags vergeben werden, gilt die VgV nach dieser Vorschrift unmittelbar.",
+      "Die VOB/A betrifft das Vergabeverfahren, etwa Leistungsbeschreibung, Eignung, Angebote und Zuschlag. Die VOB/B regelt dagegen Vertragsbedingungen für die Ausführung, die VOB/C technische Vertragsbedingungen und Abrechnungsgrundlagen.",
     ],
     keyPoints: [
-      "Gilt für alle öffentlichen Bauleistungen (über und unter Schwellenwerten)",
-      "§ 3 VOB/A = Unterschwellenvergabe; §§ 4–16 VOB/A = Oberschwellenvergabe",
-      "Detaillierte Regeln für Leistungsbeschreibung, Eignung und Zuschlag",
-      "Eng verzahnt mit VOB/B (Vertragsbedingungen) und VOB/C (technische Richtlinien)",
+      "Abschnitt 1 = nationale Vergabe von Bauleistungen",
+      "Abschnitt 2 = EU-Oberschwellenbereich bei Bauaufträgen",
+      "Abschnitt 3 = verteidigungs- und sicherheitsspezifische Vergaben",
+      "Regelt das Verfahren, nicht die späteren Bauvertragsbedingungen",
     ],
     faq: [
       {
         question: "Was ist die VOB/A?",
-        answer: "Die VOB/A (Vergabe- und Vertragsordnung für Bauleistungen, Teil A) regelt die Vergabe von öffentlichen Bauleistungen. Sie gilt für Bauaufträge ober- und unterhalb der EU-Schwellenwerte.",
+        answer: "Die VOB/A (Vergabe- und Vertragsordnung für Bauleistungen, Teil A) regelt die Vergabe öffentlicher Bauaufträge. Sie besteht aus Abschnitt 1 für nationale Vergaben, Abschnitt 2 für den EU-Oberschwellenbereich und Abschnitt 3 für verteidigungs- und sicherheitsspezifische Vergaben.",
       },
       {
         question: "Wann gilt VOB/A und wann UVgO?",
-        answer: "Die VOB/A gilt für Bauleistungen, die UVgO für Liefer- und Dienstleistungen unterhalb der EU-Schwellenwerte. Beide Vorschriften gelten nicht gleichzeitig, sondern ergänzen sich je nach Auftragsart.",
+        answer: "Die VOB/A gilt für Bauleistungen. Die UVgO betrifft grundsätzlich Liefer- und Dienstleistungen unterhalb der EU-Schwellenwerte. Bei Bauaufträgen im EU-Oberschwellenbereich sind neben VOB/A Abschnitt 2 die in § 2 VgV genannten Teile der VgV zu beachten.",
       },
       {
         question: "Was ist der Unterschied zwischen VOB/A und VgV?",
-        answer: "Die VOB/A regelt die Vergabe von Bauleistungen, die VgV die Vergabe von Liefer- und Dienstleistungen oberhalb der EU-Schwellenwerte. Für Bauleistungen gilt immer die VOB/A, auch oberhalb der Schwellenwerte.",
+        answer: "Die VOB/A regelt die Vergabe von Bauleistungen. Die VgV regelt grundsätzlich Liefer- und Dienstleistungen oberhalb der EU-Schwellenwerte; § 2 VgV bestimmt aber auch ihre Anwendung bei Bauaufträgen und bei bestimmten Planungsleistungen. Deshalb ist keine pauschale Entweder-oder-Aussage richtig.",
       },
     ],
-    relatedTerms: ["vgv-vergabeverordnung", "uvgo", "gwb-vergaberecht"],
-    relatedCategories: ["Bauarbeiten", "Tiefbau", "TGA"],
+    relatedTerms: ["vob-b", "vob-c", "vob-a-eu", "schwellenwerte", "auftragswert", "leistungsbeschreibung", "leistungsverzeichnis", "vgv-vergabeverordnung", "gwb-vergaberecht"],
+    relatedCategories: ["Bauarbeiten", "Tiefbau", "TGA", "Gartenarbeiten"],
+    relatedArticles: ["vob-vergabe"],
+    sources: [
+      { title: "VOB/A, Bekanntmachung vom 31. Januar 2019 (BAnz AT 19.02.2019 B2)", url: "https://www.verwaltungsvorschriften-im-internet.de/bsvwvbund_31012019_BWI781063060120180001604634.htm" },
+      { title: "§ 2 VgV – Bauaufträge", url: "https://www.gesetze-im-internet.de/vgv_2016/__2.html" },
+      { title: "BMWE: Vergabeübersicht und Rechtsgrundlagen", url: "https://www.bundeswirtschaftsministerium.de/Redaktion/DE/Artikel/Wirtschaft/vergabe-uebersicht-und-rechtsgrundlagen.html" },
+    ],
+    lastReviewed: "2026-09-06",
+  },
+  {
+    slug: "vob-b",
+    term: "VOB/B (Allgemeine Vertragsbedingungen für die Ausführung von Bauleistungen)",
+    category: "Rechtsgrundlagen",
+    shortDefinition: "Die VOB/B enthält allgemeine Vertragsbedingungen für die Ausführung von Bauleistungen. Sie ist keine Vergabeordnung, sondern wird als Vertragsbestandteil vereinbart.",
+    definition: [
+      "Die VOB/B regelt das Verhältnis zwischen Auftraggeber und Auftragnehmer nach Abschluss eines Bauvertrags. Sie behandelt unter anderem Ausführung, Anordnungen, Abnahme, Vergütung, Änderungen und Nachträge, Mängel, Kündigung, Fristen und Zahlungen.",
+      "Die VOB/B gilt nicht automatisch allein deshalb, weil ein öffentlicher Bauauftrag vorliegt. Sie wird Bestandteil des Vertrags, wenn sie wirksam vereinbart und in den Vergabeunterlagen einbezogen wird. Maßgeblich sind außerdem die konkrete Vertragsgestaltung und zwingendes Gesetzesrecht.",
+      "Für Bieter ist die VOB/B wichtig, weil ihre Regelungen bereits bei der Kalkulation berücksichtigt werden müssen. Änderungen, Abnahmen, Mängelansprüche und Zahlungsbedingungen können erhebliche Auswirkungen auf Preis und Ausführungsrisiko haben.",
+    ],
+    keyPoints: ["Vertragsbedingungen für die Bauausführung", "Nicht mit VOB/A als Vergabeverfahrensordnung verwechseln", "Regelt unter anderem Abnahme, Vergütung, Änderungen, Mängel und Kündigung", "Einbeziehung in den Bauvertrag muss aus den Vergabeunterlagen hervorgehen"],
+    faq: [
+      { question: "Was ist der Unterschied zwischen VOB/A und VOB/B?", answer: "VOB/A regelt das Vergabeverfahren für Bauleistungen. VOB/B enthält Vertragsbedingungen für die Ausführung eines Bauvertrags nach dem Zuschlag." },
+      { question: "Gilt die VOB/B automatisch bei öffentlichen Bauaufträgen?", answer: "Nein. Die VOB/B muss grundsätzlich als Vertragsbestandteil vereinbart und in den Vergabeunterlagen eindeutig einbezogen werden." },
+    ],
+    relatedTerms: ["vob-a", "vob-c", "leistungsbeschreibung", "leistungsverzeichnis"],
+    relatedCategories: ["Bauarbeiten", "Tiefbau", "TGA", "Gartenarbeiten"],
+    relatedArticles: ["vob-vergabe"],
+    sources: [{ title: "VOB/A, Abschnitt 1, § 8a (Einbeziehung von VOB/B und VOB/C)", url: "https://www.verwaltungsvorschriften-im-internet.de/bsvwvbund_31012019_BWI781063060120180001604634.htm" }],
+    lastReviewed: "2026-09-06",
+  },
+  {
+    slug: "vob-c",
+    term: "VOB/C (Allgemeine Technische Vertragsbedingungen für Bauleistungen)",
+    category: "Rechtsgrundlagen",
+    shortDefinition: "Die VOB/C bündelt Allgemeine Technische Vertragsbedingungen und ATV für Bauleistungen. Sie konkretisiert technische Anforderungen, Ausführung und Abrechnung.",
+    definition: [
+      "Die VOB/C besteht aus Allgemeinen Technischen Vertragsbedingungen (ATV), die für verschiedene Gewerke technische Anforderungen beschreiben. Sie unterstützt eine eindeutige Leistungsbeschreibung und legt Regeln für Ausführung, Nebenleistungen, besondere Leistungen und Abrechnung fest.",
+      "Im Vergabeverfahren hilft die VOB/C dabei, die geschuldete Bauleistung technisch eindeutig zu beschreiben. Im Bauvertrag kann sie als technische Vertragsbedingung einbezogen werden; die konkrete Ausschreibung und die vereinbarten Vertragsunterlagen bleiben entscheidend.",
+      "VOB/C ist von VOB/A abzugrenzen: VOB/A betrifft die Auswahl und Beauftragung, VOB/C die technischen Vertragsbedingungen. VOB/B regelt die allgemeinen rechtlichen Vertragsbedingungen der Ausführung.",
+    ],
+    keyPoints: ["ATV und technische Vertragsbedingungen für Bauleistungen", "Hilft bei Leistungsbeschreibung, Ausführung und Abrechnung", "VOB/A = Vergabeverfahren, VOB/B = Vertragsbedingungen, VOB/C = Technik", "Gewerkespezifische ATV müssen passend zu den ausgeschriebenen Leistungen herangezogen werden"],
+    faq: [
+      { question: "Was regelt die VOB/C?", answer: "Die VOB/C regelt technische Anforderungen und Abrechnungsgrundlagen für unterschiedliche Bauleistungen, insbesondere über die jeweiligen ATV." },
+      { question: "Was ist der Unterschied zwischen VOB/B und VOB/C?", answer: "VOB/B enthält allgemeine rechtliche Vertragsbedingungen für die Bauausführung. VOB/C enthält technische, gewerkespezifische Vertragsbedingungen." },
+    ],
+    relatedTerms: ["vob-a", "vob-b", "leistungsbeschreibung", "leistungsverzeichnis"],
+    relatedCategories: ["Bauarbeiten", "Tiefbau", "TGA", "Gartenarbeiten"],
+    relatedArticles: ["vob-vergabe"],
+    sources: [{ title: "VOB/A, Abschnitt 1, § 8a (Einbeziehung von VOB/B und VOB/C)", url: "https://www.verwaltungsvorschriften-im-internet.de/bsvwvbund_31012019_BWI781063060120180001604634.htm" }],
+    lastReviewed: "2026-09-06",
+  },
+  {
+    slug: "vob-a-eu",
+    term: "VOB/A EU (VOB/A Abschnitt 2)",
+    category: "Rechtsgrundlagen",
+    shortDefinition: "VOB/A EU bezeichnet Abschnitt 2 der VOB/A für Bauaufträge im EU-Oberschwellenbereich. Sie gilt zusammen mit den nach § 2 VgV anwendbaren Vorschriften und dem GWB.",
+    definition: [
+      "VOB/A EU ist die gebräuchliche Bezeichnung für VOB/A Abschnitt 2. Dieser Abschnitt enthält die besonderen Vergaberegeln für öffentliche Bauaufträge oberhalb des einschlägigen EU-Schwellenwerts, darunter Vorgaben zu Bekanntmachung, Verfahren, Fristen, Eignung, Angeboten und Zuschlag.",
+      "Die Einordnung beginnt mit dem geschätzten Auftragswert ohne Umsatzsteuer und dem konkreten Auftraggeber- und Leistungsbereich. Für Bauaufträge ordnet § 2 VgV an, dass Abschnitt 1 und Abschnitt 2 Unterabschnitt 2 der VgV sowie im Übrigen VOB/A Teil A Abschnitt 2 anzuwenden sind. Planungsleistungen, die als Los eines Bauauftrags vergeben werden, unterliegen nach § 2 VgV der VgV.",
+      "VOB/A EU ist daher weder eine eigene vierte VOB noch ein vollständiger Ersatz für GWB und VgV. Abschnitt 1 der VOB/A bleibt der nationale Bereich; Abschnitt 3 betrifft verteidigungs- und sicherheitsspezifische Vergaben.",
+    ],
+    keyPoints: ["VOB/A EU = VOB/A Abschnitt 2", "Für Bauaufträge im EU-Oberschwellenbereich", "GWB und die nach § 2 VgV anwendbaren VgV-Regeln sind mitzudenken", "Nicht mit VOB/A Abschnitt 1 oder Abschnitt 3 gleichsetzen"],
+    faq: [
+      { question: "Ab wann gilt VOB/A EU?", answer: "VOB/A EU kommt bei Bauaufträgen im EU-Oberschwellenbereich zur Anwendung, wenn der geschätzte Auftragswert ohne Umsatzsteuer den einschlägigen EU-Schwellenwert erreicht oder überschreitet und keine Sonderregel greift." },
+      { question: "Ist VOB/A EU dasselbe wie VgV?", answer: "Nein. VOB/A EU ist Abschnitt 2 der VOB/A. Bei Bauaufträgen gelten daneben die in § 2 VgV genannten VgV-Vorschriften sowie der vierte Teil des GWB." },
+    ],
+    relatedTerms: ["vob-a", "schwellenwerte", "auftragswert", "vgv-vergabeverordnung", "gwb-vergaberecht"],
+    relatedCategories: ["Bauarbeiten", "Tiefbau", "TGA", "Gartenarbeiten"],
+    relatedArticles: ["vob-vergabe", "schwellenwerte-vergabe"],
+    sources: [
+      { title: "§ 2 VgV – Bauaufträge", url: "https://www.gesetze-im-internet.de/vgv_2016/__2.html" },
+      { title: "§ 106 GWB – Schwellenwerte", url: "https://www.gesetze-im-internet.de/gwb/__106.html" },
+      { title: "VOB/A, Abschnitt 2, Bekanntmachung vom 31. Januar 2019", url: "https://www.verwaltungsvorschriften-im-internet.de/bsvwvbund_31012019_BWI781063060120180001604634.htm" },
+    ],
+    lastReviewed: "2026-09-06",
   },
   {
     slug: "vol-a",
@@ -254,7 +336,7 @@ export const GLOSSARY: GlossaryEntry[] = [
       },
       {
         question: "Was sind EU-Schwellenwerte?",
-        answer: "Die EU-Schwellenwerte sind monetäre Grenzen, ab denen eine europaweite Vergabebekanntmachung erforderlich ist. Sie werden von der EU-Kommission alle zwei Jahre angepasst und liegen derzeit (Stand 2024) bei 221.000 EUR für Lieferungen/Dienstleistungen bzw. 5.538.000 EUR für Bauleistungen.",
+        answer: "Die EU-Schwellenwerte sind monetäre Grenzen, ab denen der EU-Oberschwellenbereich greift. Die konkreten Werte hängen von Leistungsart und Auftraggeber ab und werden regelmäßig angepasst; für 2026/2027 gelten beispielsweise 216.000 EUR für bestimmte sonstige Liefer- und Dienstleistungsaufträge und 5.404.000 EUR für Bauaufträge.",
       },
     ],
     relatedTerms: ["vgv-vergabeverordnung", "gwb-vergaberecht", "schwellenwerte"],
@@ -850,22 +932,22 @@ export const GLOSSARY: GlossaryEntry[] = [
     definition: [
       "Schwellenwerte sind zentrale vergaberechtliche Grenzwerte, die bestimmen, ab welchem Auftragswert die vergaberechtlichen Vorschriften des europäischen Vergaberechts (Oberschwellenbereich) gelten. Unterhalb der Schwellenwerte gilt das nationale Vergaberecht (Unterschwellenbereich).",
       "Die Schwellenwerte werden von der Europäischen Kommission alle zwei Jahre überprüft und angepasst. Sie unterscheiden sich nach Auftragsart (Lieferungen, Dienstleistungen, Bauleistungen) und Auftraggeberart (klassische Auftraggeber, Sektorenauftraggeber).",
-      "Für die meisten Auftraggeber gelten derzeit (Stand 2024) folgende Schwellenwerte: 221.000 EUR für Liefer- und Dienstleistungen (442.000 EUR für zentrale Beschaffungsstellen), 5.538.000 EUR für Bauleistungen.",
+      "Für 2026/2027 gelten je nach Auftraggeber und Leistungsart unterschiedliche EU-Schwellenwerte. Beispielsweise gelten 140.000 EUR für bestimmte zentrale Regierungsbehörden, 216.000 EUR für sonstige bestimmte Liefer- und Dienstleistungsaufträge und 5.404.000 EUR für Bauaufträge.",
     ],
     keyPoints: [
       "Grenzwert zwischen Ober- und Unterschwellenbereich",
       "Werden alle 2 Jahre von der EU-Kommission angepasst",
-      "Aktuell: 221.000 EUR (Lieferungen/Dienstleistungen)",
-      "5.538.000 EUR für Bauleistungen",
+      "2026/2027: 140.000 EUR bzw. 216.000 EUR für bestimmte Liefer- und Dienstleistungsaufträge",
+      "2026/2027: 5.404.000 EUR für Bauaufträge",
     ],
     faq: [
       {
-        question: "Was sind die aktuellen Schwellenwerte 2024?",
-        answer: "Die aktuellen EU-Schwellenwerte (Stand 2024) liegen bei 221.000 EUR für Liefer- und Dienstleistungen (442.000 EUR für zentrale Beschaffungsstellen) und 5.538.000 EUR für Bauleistungen. Die Werte werden alle zwei Jahre angepasst.",
+        question: "Welche EU-Schwellenwerte gelten 2026 und 2027?",
+        answer: "Für 2026 und 2027 gelten je nach Auftraggeber und Auftragsart unterschiedliche Werte. Die zentralen Kontrollwerte sind 140.000 EUR für bestimmte zentrale Regierungsbehörden, 216.000 EUR für sonstige bestimmte Liefer- und Dienstleistungsaufträge sowie 5.404.000 EUR für Bauaufträge; Konzessionen liegen ebenfalls bei 5.404.000 EUR.",
       },
       {
         question: "Was passiert bei Überschreitung des Schwellenwerts?",
-        answer: "Bei Überschreitung des Schwellenwerts gelten die Regeln des Oberschwellenbereichs: EU-weite Bekanntmachung, strengere Verfahrensvorschriften, VgV (statt UVgO) bzw. §§ 4–16 VOB/A (statt § 3 VOB/A), und das Nachprüfungsverfahren nach GWB.",
+        answer: "Bei Überschreitung des einschlägigen Schwellenwerts gelten die Regeln des Oberschwellenbereichs. Dazu gehören insbesondere die EU-weite Bekanntmachung und die Vorschriften des vierten Teils des GWB. Bei Liefer- und Dienstleistungen ist regelmäßig die VgV maßgeblich; bei Bauaufträgen gelten VOB/A Abschnitt 2 und die nach § 2 VgV anwendbaren Vorschriften. Unter den gesetzlichen Voraussetzungen ist ein Nachprüfungsverfahren nach dem GWB möglich.",
       },
       {
         question: "Wie wird der Auftragswert berechnet?",
@@ -873,6 +955,7 @@ export const GLOSSARY: GlossaryEntry[] = [
       },
     ],
     relatedTerms: ["auftragswert", "vgv-vergabeverordnung", "uvgo", "eu-vergaberichtlinien"],
+    relatedArticles: ["schwellenwerte-vergabe", "vob-vergabe"],
   },
   {
     slug: "auftragswert",
@@ -901,6 +984,7 @@ export const GLOSSARY: GlossaryEntry[] = [
       },
     ],
     relatedTerms: ["schwellenwerte", "vgv-vergabeverordnung", "uvgo"],
+    relatedArticles: ["schwellenwerte-vergabe"],
   },
 
   // === NACHPRÜFUNG ===
@@ -910,9 +994,9 @@ export const GLOSSARY: GlossaryEntry[] = [
     category: "Nachprüfung",
     shortDefinition: "Das Nachprüfungsverfahren erlaubt es Bietern, Verstöße gegen Vergabevorschriften durch öffentliche Auftraggeber zu rügen.",
     definition: [
-      "Das Nachprüfungsverfahren ist ein förmliches Verfahren, das es Unternehmen ermöglicht, vermeintliche Verstöße gegen das Vergaberecht durch öffentliche Auftraggeber zu rügen und überprüfen zu lassen. Es ist im vierten Teil des GWB (§§ 155–173) geregelt.",
+      "Das Nachprüfungsverfahren ist ein förmliches Verfahren, das es Unternehmen ermöglicht, vermeintliche Verstöße gegen das Vergaberecht durch öffentliche Auftraggeber überprüfen zu lassen. Es ist im vierten Teil des GWB geregelt.",
       "Zuständig für das Nachprüfungsverfahren sind die Vergabekammern des Bundes und der Länder. Gegen Entscheidungen der Vergabekammer kann Beschwerde bei den Vergabesenaten der Oberlandesgerichte eingelegt werden.",
-      "Voraussetzung für ein Nachprüfungsverfahren ist in der Regel, dass der Bieter zunächst versucht hat, den Verstoß im Vergabeverfahren selbst zu rügen (Rügepflicht). Erst wenn diese Rüge erfolglos bleibt, kann der Vergabenachprüfungsausschuss angerufen werden.",
+      "Vor einem Nachprüfungsantrag ist ein erkannter Verstoß grundsätzlich gegenüber dem Auftraggeber zu rügen. Für die Zulässigkeit gelten die gesetzlichen Fristen und Anforderungen, insbesondere § 160 Absatz 3 GWB. Zuständig ist die Vergabekammer, nicht ein allgemeiner Vergabenachprüfungsausschuss.",
     ],
     keyPoints: [
       "Förmliches Verfahren zur Rüge von Vergaberechtsverstößen",
@@ -971,8 +1055,8 @@ export const GLOSSARY: GlossaryEntry[] = [
     shortDefinition: "Die Vergabekammer ist die zuständige Behörde für die Nachprüfung von Vergabeverfahren bei Streitigkeiten zwischen Bietern und Auftraggebern.",
     definition: [
       "Die Vergabekammer ist eine beim Bundeskartellamt oder bei den Landesbehörden angesiedelte Einrichtung, die für die Nachprüfung von Vergabeverfahren zuständig ist. Sie ist die erste Instanz für Nachprüfungsanträge von Bietern, die sich gegen Entscheidungen von öffentlichen Auftraggebern wehren wollen.",
-      "Die Vergabekammer prüft, ob der öffentliche Auftraggeber gegen Vergaberecht verstoßen hat. Sie kann Aufträge aufheben, neue Vergabeverfahren anordnen oder Schadensersatz zusprechen. Ihre Entscheidungen sind verbindlich.",
-      "Gegen Entscheidungen der Vergabekammer kann Beschwerde bei den Vergabesenaten der Oberlandesgerichte eingelegt werden. Die Vergabekammern sind im Vergaberechtsfortbildungsgesetz geregelt.",
+      "Die Vergabekammer prüft, ob der öffentliche Auftraggeber gegen Vergaberecht verstoßen hat, und kann im Rahmen ihrer gesetzlichen Befugnisse Maßnahmen zur Beseitigung des Verstoßes anordnen. Ein Anspruch auf Schadensersatz ist davon zu unterscheiden und wird nicht durch die Vergabekammer zugesprochen.",
+      "Gegen Entscheidungen der Vergabekammer kann unter den gesetzlichen Voraussetzungen sofortige Beschwerde beim zuständigen Oberlandesgericht eingelegt werden. Die Zuständigkeit und das Verfahren ergeben sich aus dem vierten Teil des GWB.",
     ],
     keyPoints: [
       "Zuständig für die Nachprüfung von Vergabeverfahren",
@@ -1000,7 +1084,7 @@ export const GLOSSARY: GlossaryEntry[] = [
     definition: [
       "Der Vergabesenat ist die zweite Instanz im Nachprüfungsverfahren. Er ist bei den Oberlandesgerichten (OLG) angesiedelt und entscheidet über Beschwerden gegen Entscheidungen der Vergabekammern.",
       "Der Vergabesenat prüft, ob die Vergabekammer das Vergaberecht richtig angewendet hat. Er kann die Entscheidung der Vergabekammer bestätigen, ändern oder aufheben und an die Vergabekammer zurückverweisen.",
-      "Gegen Entscheidungen des Vergabesenats ist keine weitere Beschwerde möglich. Die Entscheidungen des Vergabesenats sind endgültig.",
+      "Eine weitere Rechtsbeschwerde zum Bundesgerichtshof kommt nur unter den gesetzlichen Voraussetzungen in Betracht. Ob ein Rechtsmittel möglich ist, hängt daher von der konkreten Entscheidung und den Vorgaben des GWB ab.",
     ],
     keyPoints: [
       "Berufungsinstanz bei Oberlandesgerichten (OLG)",
@@ -1059,26 +1143,26 @@ export const GLOSSARY: GlossaryEntry[] = [
     slug: "eforms",
     term: "eForms",
     category: "Technik & Standards",
-    shortDefinition: "eForms ist der neue EU-Standard für elektronische Vergabebekanntmachungen, der ab 2025 verpflichtend wird.",
+    shortDefinition: "eForms ist der EU-Standard für strukturierte elektronische Vergabebekanntmachungen, der seit 2025 stufenweise verwendet wird.",
     definition: [
       "eForms ist ein neuer, standardisierter elektronischer Standard für Vergabebekanntmachungen in der Europäischen Union. Er löst die bisherigen Formulare (wie die Standardformulare für Bekanntmachungen) ab und soll die Transparenz, Vergleichbarkeit und Auffindbarkeit von Vergabeverfahren verbessern.",
       "eForms basiert auf einem strukturierten XML-Format und ermöglicht die maschinenlesbare Verarbeitung von Bekanntmachungen. Dadurch können Ausschreibungen leichter durchsucht, gefiltert und analysiert werden — ein Vorteil sowohl für Auftraggeber als auch für Bieter.",
-      "Die Nutzung von eForms wird ab 2025 in allen EU-Mitgliedstaaten verpflichtend. Das bedeutet, dass alle Oberschwellenbekanntmachungen in diesem Format eingereicht werden müssen.",
+      "eForms werden seit 2025 für die unionsrechtlich erfassten Bekanntmachungen stufenweise eingesetzt. Die konkrete Umsetzung erfolgt über die zuständigen elektronischen Vergabesysteme und die jeweils geltenden Bekanntmachungspflichten.",
     ],
     keyPoints: [
       "Neuer EU-Standard für Vergabebekanntmachungen",
       "Löst bisherige Standardformulare ab",
       "Maschinenlesbares XML-Format",
-      "Ab 2025 in allen EU-Mitgliedstaaten verpflichtend",
+      "Seit 2025 unionsweit maßgeblicher Bekanntmachungsstandard",
     ],
     faq: [
       {
         question: "Was sind eForms?",
-        answer: "eForms ist ein neuer EU-Standard für elektronische Vergabebekanntmachungen, ab 2025 verpflichtend. Sie basieren auf einem maschinenlesbaren XML-Format und verbessern Transparenz und Auffindbarkeit von Vergaben.",
+        answer: "eForms ist der EU-Standard für strukturierte elektronische Vergabebekanntmachungen. Die Formulare basieren auf maschinenlesbaren Daten und verbessern Transparenz und Auffindbarkeit.",
       },
       {
         question: "Ab wann sind eForms verpflichtend?",
-        answer: "eForms werden ab 2025 für alle Oberschwellenbekanntmachungen in der EU verpflichtend. Auftraggeber müssen ihre Bekanntmachungen dann in diesem Format einreichen.",
+        answer: "eForms werden seit 2025 unionsweit für die einschlägigen Bekanntmachungen eingesetzt. Welche Bekanntmachung konkret erforderlich ist, richtet sich nach dem Verfahren und den geltenden elektronischen Vergaberegeln.",
       },
     ],
     relatedTerms: ["cpv-code", "eu-vergaberichtlinien", "gaeb"],
@@ -1377,13 +1461,13 @@ export const GLOSSARY: GlossaryEntry[] = [
     definition: [
       "Das Wirtschaftlichkeitsprinzip ist ein zentraler Grundsatz des öffentlichen Vergaberechts. Es verlangt, dass öffentliche Auftraggeber ihre Aufträge wirtschaftlich und sparsam vergeben, also das beste Preis-Leistungs-Verhältnis erzielen.",
       "Wirtschaftlichkeit bedeutet nicht, dass immer der niedrigste Preis den Zuschlag erhält. Vielmehr ist das wirtschaftlichste Angebot gesucht, das die beste Kombination aus Preis, Qualität, Lebenszykluskosten und anderen Faktoren bietet.",
-      "Das Wirtschaftlichkeitsprinzip ist im § 97 Abs. 1 GWB geregelt: 'Öffentliche Auftraggeber und Sektorenauftraggeber nehmen Wettbewerbe im Rahmen dieses Teils mit dem Ziel durch, durch Transparenz von Vergabeverfahren den freien Verkehr von Waren und Dienstleistungen in der Europäischen Union zu gewährleisten.'",
+      "Das Wirtschaftlichkeitsprinzip wird durch die Grundsätze des GWB und die jeweils anwendbaren Vergabeordnungen umgesetzt. Für den Zuschlag ist insbesondere das wirtschaftlichste Angebot maßgeblich; dabei können neben dem Preis auch qualitative und weitere bekannt gemachte Kriterien berücksichtigt werden.",
     ],
     keyPoints: [
       "Zentraler Grundsatz des Vergaberechts",
       "Bestes Preis-Leistungs-Verhältnis als Ziel",
       "Nicht zwingend der niedrigste Preis",
-      "Geregelt in § 97 Abs. 1 GWB",
+      "Ausprägung in GWB und den jeweils anwendbaren Vergabeordnungen",
     ],
     faq: [
       {
@@ -1396,6 +1480,11 @@ export const GLOSSARY: GlossaryEntry[] = [
       },
     ],
     relatedTerms: ["zuschlagskriterien", "gwb-vergaberecht"],
+    sources: [
+      { title: "§ 97 GWB – Allgemeine Grundsätze", url: "https://www.gesetze-im-internet.de/gwb/__97.html" },
+      { title: "§ 127 GWB – Zuschlag", url: "https://www.gesetze-im-internet.de/gwb/__127.html" },
+    ],
+    lastReviewed: "2026-09-08",
   },
   {
     slug: "transparenzprinzip",

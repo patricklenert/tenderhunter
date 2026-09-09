@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 import { BUNDESLAND_SLUGS } from "@/lib/bundesland";
-import { generateTenderSlug } from "@/lib/tender-slug";
+import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
 
 interface PortalTender {
   id: number;
@@ -81,7 +81,7 @@ export function PortalPageContent({
     itemListElement: tenders.slice(0, 10).map((t, i) => ({
       "@type": "ListItem",
       position: i + 1,
-      url: `${siteUrl}/ausschreibung/${t.id}/${t.slug ?? generateTenderSlug(t.title, t.location ?? "")}`,
+      url: `${siteUrl}/ausschreibung/${t.id}/${getCanonicalTenderSlug(t.slug ?? null, t.title, { client: t.client, location: t.location })}`,
       name: t.title,
     })),
   };
@@ -150,7 +150,7 @@ export function PortalPageContent({
               {tenders.map((tender) => (
                 <Link
                   key={tender.id}
-                  href={`/ausschreibung/${tender.id}/${tender.slug ?? generateTenderSlug(tender.title, tender.location ?? "")}`}
+                  href={`/ausschreibung/${tender.id}/${getCanonicalTenderSlug(tender.slug ?? null, tender.title, { client: tender.client, location: tender.location })}`}
                   style={{ textDecoration: "none", color: "inherit" }}
                 >
                   <Paper

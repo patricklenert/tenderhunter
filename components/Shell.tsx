@@ -18,10 +18,10 @@ import {
   Menu as MenuIcon,
   BriefcaseBusiness,
   Globe2,
-  // Crosshair,  // Ursprüngliches Analyse-Icon (Lucide) — auskommentiert für Rollback
-  // Building2,  // Ursprüngliches Ausschreibungen-Icon (Lucide) — auskommentiert für Rollback
+  Radar,
 } from "lucide-react";
-import { AnalyseIcon, SearchLocationIcon } from "@/components/icons/SidebarIcons";
+import { SearchLocationIcon } from "@/components/icons/SidebarIcons";
+import { BrandMark } from "@/components/BrandMark";
 import { AuthModal } from "@/components/AuthModal";
 import { UserMenu } from "@/components/UserMenu";
 import Link from "next/link";
@@ -39,10 +39,8 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  // { key: "discovery", label: "Analyse", icon: Crosshair },  // Ursprüngliches Lucide-Icon — auskommentiert für Rollback
-  { key: "discovery", label: "Analyse", icon: AnalyseIcon },
+  { key: "discovery", label: "Analyse", icon: Radar },
   { key: "trackedTenders", label: "Verfolgte Ausschreibungen", icon: BriefcaseBusiness },
-  // { key: "publicTenders", label: "Ausschreibungen", icon: Building2 },  // Ursprüngliches Lucide-Icon — auskommentiert für Rollback
   { key: "publicTenders", label: "Ausschreibungen", icon: SearchLocationIcon },
   { key: "usOpportunities", label: "U.S. Opportunities", icon: Globe2 },
 ];
@@ -128,6 +126,7 @@ export function Shell({ children }: ShellProps) {
       <Box
         component={Link}
         href="/"
+        aria-label="Tenderhunter Startseite"
         sx={{
           display: "flex",
           alignItems: "center",
@@ -146,14 +145,14 @@ export function Shell({ children }: ShellProps) {
             width: 40,
             height: 40,
             borderRadius: 2,
-            bgcolor: "primary.main",
+            bgcolor: "var(--color-brand-primary)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             flexShrink: 0,
           }}
         >
-          <AnalyseIcon size={22} color="#fff" />
+          <BrandMark size={24} color="var(--color-brand-signal)" />
         </Box>
         <Typography variant="subtitle1" fontWeight={700} noWrap>
           Tenderhunter
@@ -166,37 +165,37 @@ export function Shell({ children }: ShellProps) {
           const active = currentView === item.key;
 
           return (
-              <ListItemButton
-                key={item.key}
-                selected={active}
-                aria-current={active ? "page" : undefined}
-                onClick={() => {
-                  setCurrentView(item.key);
-                  setMobileOpen(false);
-                }}
-                sx={{
-                  minHeight: 44,
-                  border: "1px solid transparent",
-                  borderRadius: 1.5,
-                  mb: 0.5,
-                  px: 1.25,
-                  py: 1,
-                  color: "text.primary",
-                  "&.Mui-selected": {
-                    bgcolor: "rgba(233, 100, 77, 0.08)",
-                    borderColor: "rgba(233, 100, 77, 0.42)",
-                    color: "primary.dark",
-                    "&:hover": { bgcolor: "rgba(233, 100, 77, 0.1)" },
-                  },
-                  "&:not(.Mui-selected):hover": {
-                    bgcolor: "action.hover",
-                  },
-                }}
-              >
-                <ListItemIcon sx={{ minWidth: 36, color: "inherit" }}>
-                  <Icon size={20} color={active ? theme.palette.primary.dark : theme.palette.text.secondary} />
-                </ListItemIcon>
-                <ListItemText primary={item.label} primaryTypographyProps={{ fontWeight: active ? 700 : 600, fontSize: 15 }} />
+            <ListItemButton
+              key={item.key}
+              selected={active}
+              aria-current={active ? "page" : undefined}
+              onClick={() => {
+                setCurrentView(item.key);
+                setMobileOpen(false);
+              }}
+              sx={{
+                minHeight: 44,
+                border: "1px solid transparent",
+                borderRadius: 1.5,
+                mb: 0.5,
+                px: 1.25,
+                py: 1,
+                color: "text.primary",
+                "&.Mui-selected": {
+                  bgcolor: "var(--color-brand-signal-soft)",
+                  borderColor: "var(--color-brand-signal-border)",
+                  color: "var(--color-brand-primary)",
+                  "&:hover": { bgcolor: "var(--color-brand-signal-soft)" },
+                },
+                "&:not(.Mui-selected):hover": {
+                  bgcolor: "var(--color-surface-strong)",
+                },
+              }}
+            >
+              <ListItemIcon sx={{ minWidth: 36, color: "inherit" }}>
+                <Icon size={20} color={active ? theme.palette.primary.dark : theme.palette.text.secondary} />
+              </ListItemIcon>
+              <ListItemText primary={item.label} primaryTypographyProps={{ fontWeight: active ? 700 : 600, fontSize: 15 }} />
             </ListItemButton>
           );
         })}
@@ -259,7 +258,7 @@ export function Shell({ children }: ShellProps) {
               <IconButton
                 edge="start"
                 onClick={() => setMobileOpen(true)}
-                aria-label="Open navigation"
+                aria-label="Navigation öffnen"
                 aria-controls="main-navigation"
                 aria-expanded={mobileOpen}
                 sx={{ ml: -0.5, mr: 1, color: "text.primary" }}

@@ -103,14 +103,31 @@ export const shouldSchedulePublicContinuation = (
   lastError: string | null | undefined,
   now: Date = new Date(),
 ): boolean => {
-  if (exhausted || !continuationRequired) return false;
+  if (!continuationRequired) return false;
   const nowMs = now.getTime();
+  const sourceFailureRetryAt = cursorString(cursor, "sourceFailureRetryAt");
+  // A source-level failure parks the whole source, including pending detail
+  // references, until the source backoff expires.
+  if ((lastStatus === "failed" || (lastStatus === "partial" && lastError)) && sourceFailureRetryAt) {
+    const retryAt = Date.parse(sourceFailureRetryAt);
+    if (!Number.isFinite(retryAt) || retryAt > nowMs) return false;
+  }
   const pendingDetails = cursorPendingDetails(cursor);
   if (pendingDetails.some((reference) => isDueDetailReference(reference, nowMs))) return true;
   if (isPermanentPublicSourceError(lastError)) return false;
-  // Without due details a run can only advance the listing itself — that is
-  // only legitimate after a clean run, never to spin on error/partial loops.
-  return pendingDetails.length === 0 && lastStatus === "success";
+  // Older failed cursors predate persisted source backoff metadata. Retry them
+  // once so a fixed scraper is not permanently stranded by stale state.
+  if (lastStatus === "failed" && !sourceFailureRetryAt) return true;
+  if ((lastStatus === "failed" || (lastStatus === "partial" && lastError)) && sourceFailureRetryAt) {
+    const retryAt = Date.parse(sourceFailureRetryAt);
+    return !Number.isFinite(retryAt) || retryAt <= nowMs;
+  }
+  if (exhausted) return false;
+  // A source reports "partial" when the listing has more pages to visit. It
+  // is safe to continue that clean pagination run when no source error was
+  // recorded; failed/errored partial runs must stay parked.
+  return pendingDetails.length === 0
+    && (lastStatus === "success" || (lastStatus === "partial" && !lastError));
 };
 
 export const isPublicSourceCursorV2 = (
