@@ -13,3 +13,6 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .gitnexus
+.cai-store/
+.firecrawl/
+google-indexing/*.zip
