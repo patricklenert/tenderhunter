@@ -1,37 +1,42 @@
 ---
 status: draft
 owner: OpenCode
-last_verified: 2026-08-07
+last_verified: 2026-09-14
 ---
 
 # Marketing Brand System
 
 ## Brand Personality
 
-Tenderhunter is calm, precise, reliable, and useful under time pressure. The
-cartoon layer adds warmth and memorability without turning the product into a
-game or making procurement work look foolish.
+Tenderhunter is calm, precise, reliable, and useful under time pressure. A
+restrained editorial illustration layer can add warmth and memorability without
+turning the product into a game or making procurement work look foolish.
 
 ## Visual Bridge To The Product
 
 The product uses a restrained light interface. Marketing can be more expressive
 but should still share these anchors:
 
-- Accent orange: `#e9644d`
-- Accent soft: `#f8d8d2`
-- Canvas blue-gray: `#f0f4f8`
-- Surface: `#fbfcfd`
-- Primary text: `#2d3544`
-- Muted text: `#667288`
-- Success: `#4cd964`
-- Risk: `#e44c20`
+- Brand primary: `BRAND_COLORS.brandPrimary` (`#1e3a5f`)
+- Brand signal: `BRAND_COLORS.brandSignal` (`#e9644d`)
+- Signal soft: `BRAND_COLORS.brandSignalSoft` (`#f8d8d2`)
+- Canvas: `BRAND_COLORS.surfaceCanvas` (`#f0f4f8`)
+- Surface: `BRAND_COLORS.surfaceElevated` (`#fbfcfd`)
+- Primary text: `BRAND_COLORS.textPrimary` (`#2d3544`)
+- Secondary text: `BRAND_COLORS.textSecondary` (`#667288`)
+- Success: `BRAND_COLORS.statusSuccess` (`#277544`)
+- Danger: `BRAND_COLORS.statusDanger` (`#c62828`)
+
+The implementation source for these values is `lib/brand-tokens.ts`. Public
+metadata images use the shared `components/BrandLockup.tsx` and the same mark as
+the application shell and favicon.
 
 Use orange for action and attention. Use green and red only for meaningful
 status signals. Do not turn the entire video into a neon palette.
 
 ## Cartoon Direction
 
-- Flat editorial cartoon with readable silhouettes.
+- Flat editorial illustration with readable silhouettes.
 - Slate outlines and warm paper or off-white backgrounds.
 - Simple shapes that survive 16:9, 1:1, and 9:16 crops.
 - Gentle squash, slide, blink, and paper-motion animation.
@@ -45,8 +50,8 @@ status signals. Do not turn the entire video into a neon palette.
 The first campaign uses two recurring roles rather than a complicated cast:
 
 1. A capable but overloaded small-business owner surrounded by tender papers.
-2. A compact Tenderhunter guide represented by a magnifying-glass or hunter
-   motif, not a literal aggressive hunter.
+2. A compact Tenderhunter guide represented by a scan or signal motif, not a
+   literal aggressive hunter.
 
 The owner should look competent and relatable. The problem is document overload,
 not personal incompetence. The guide should point, sort, and clarify instead of

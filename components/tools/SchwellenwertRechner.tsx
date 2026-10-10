@@ -18,7 +18,6 @@ import {
   TrendingUp,
   TrendingDown,
   CheckCircle2,
-  XCircle,
   Info,
   Building2,
   Truck,
@@ -59,7 +58,7 @@ const SCHWELLEN: Record<Leistungstyp, SchwelleConfig> = {
     threshold: 140_000,
     lawAbove: "VgV / § 99 GWB (Oberschwelle)",
     lawBelow: "UVgO oder Landesvergaberecht (Unterschwelle)",
-    beschreibung: "Liefer- und Dienstleistungen über zentrale Beschaffungsstellen",
+    beschreibung: "Liefer- und Dienstleistungen bestimmter zentraler Regierungsbehörden",
   },
   lieferDienstSonst: {
     label: "Lieferung/Dienst (sonstige)",
@@ -74,7 +73,7 @@ const SCHWELLEN: Record<Leistungstyp, SchwelleConfig> = {
     icon: Factory,
     threshold: 5_404_000,
     lawAbove: "SektVO / § 100 GWB (Sektoren)",
-    lawBelow: "SektVO unterschwellig (freie Verfahrenswahl)",
+    lawBelow: "Nationale bzw. landesrechtliche Regeln im jeweiligen Sektorenbereich",
     beschreibung: "Bauaufträge von Sektorenauftraggebern (Energie, Wasser, Verkehr)",
   },
   sektorenLieferDienst: {
@@ -82,7 +81,7 @@ const SCHWELLEN: Record<Leistungstyp, SchwelleConfig> = {
     icon: Factory,
     threshold: 432_000,
     lawAbove: "SektVO / § 100 GWB (Sektoren)",
-    lawBelow: "SektVO unterschwellig (freie Verfahrenswahl)",
+    lawBelow: "Nationale bzw. landesrechtliche Regeln im jeweiligen Sektorenbereich",
     beschreibung: "Liefer-/Dienstleistungen von Sektorenauftraggebern",
   },
   sozialeDienste: {
@@ -111,7 +110,6 @@ export default function SchwellenwertRechner() {
   const config = SCHWELLEN[typ];
   const isAbove = betragNummer >= config.threshold;
   const hasInput = betragNummer > 0;
-  const Icon = config.icon;
 
   return (
     <Stack spacing={4}>
@@ -239,16 +237,17 @@ export default function SchwellenwertRechner() {
               <Stack direction="row" spacing={1} alignItems="flex-start">
                 <CheckCircle2 size={18} color="#2e7d32" style={{ flexShrink: 0, marginTop: 3 }} />
                 <Typography variant="body2" color="text.secondary">
-                  <strong>Europaweite Bekanntmachung</strong> im TED (Supplement zum Amtsblatt der EU) ist verpflichtend.
-                  Das offene Verfahren ist das Standardverfahren; auftragsbezogene Ausnahmen möglich.
+                   <strong>Unionsweite Bekanntmachung</strong> im TED (Supplement zum Amtsblatt der EU) ist im einschlägigen Anwendungsbereich erforderlich.
+                   Das offene Verfahren ist eine mögliche Verfahrensart. Welche Verfahrensart zulässig ist, hängt vom
+                   konkreten Auftrag und den gesetzlichen Voraussetzungen ab.
                 </Typography>
               </Stack>
             ) : (
               <Stack direction="row" spacing={1} alignItems="flex-start">
                 <Info size={18} color="#ed6c02" style={{ flexShrink: 0, marginTop: 3 }} />
                 <Typography variant="body2" color="text.secondary">
-                  <strong>Keine EU-Bekanntmachungspflicht.</strong> Vergeben wird nach UVgO (Bund) oder dem jeweiligen
-                  Landesvergaberecht. Freie Verfahrenswahl, Bekanntmachung interregional empfohlen.
+                   <strong>Keine EU-Bekanntmachungspflicht allein wegen dieses Schwellenwerts.</strong> Maßgeblich sind
+                   das einschlägige nationale, Landes- oder Sektorenrecht und der konkrete Auftraggeber.
                 </Typography>
               </Stack>
             )}

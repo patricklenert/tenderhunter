@@ -3,6 +3,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
 import { passkey } from "@better-auth/passkey";
 import { db } from "./db";
+import { getSiteHostname, getSiteUrl } from "./site-config";
 
 const googleClientId = process.env.GOOGLE_CLIENT_ID;
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
@@ -15,7 +16,7 @@ export const auth = betterAuth({
   plugins: [
     nextCookies(),
     passkey({
-      rpID: "palemaz.com",
+       rpID: getSiteHostname(),
       rpName: "Tenderhunter",
     }),
   ],
@@ -41,7 +42,7 @@ export const auth = betterAuth({
   },
   trustedOrigins: [
     "http://localhost:3025",
-    "https://palemaz.com",
+     getSiteUrl(),
     process.env.BETTER_AUTH_URL ?? "",
   ].filter(Boolean),
   advanced: {

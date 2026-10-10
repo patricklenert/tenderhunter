@@ -5,6 +5,7 @@ import {
   Box,
   Button,
   Avatar,
+  ButtonBase,
   Menu,
   MenuItem,
   ListItemIcon,
@@ -145,16 +146,23 @@ export function UserMenu({ onOpenAuth }: UserMenuProps) {
 
   return (
     <>
-      <Box
+      <ButtonBase
+        id="user-menu-trigger"
         onClick={handleMenuOpen}
+        aria-label="Benutzermenü öffnen"
+        aria-haspopup="menu"
+        aria-expanded={Boolean(anchorEl)}
+        aria-controls={anchorEl ? "user-menu" : undefined}
         sx={{
           display: "flex",
           alignItems: "center",
           gap: 1.5,
-          cursor: "pointer",
+          minHeight: 44,
           borderRadius: 2,
           px: 1.5,
           py: 0.5,
+          color: "inherit",
+          textAlign: "left",
           "&:hover": { bgcolor: "action.hover" },
         }}
       >
@@ -177,9 +185,10 @@ export function UserMenu({ onOpenAuth }: UserMenuProps) {
             {user.email}
           </Typography>
         </Box>
-      </Box>
+      </ButtonBase>
 
       <Menu
+        id="user-menu"
         anchorEl={anchorEl}
         open={Boolean(anchorEl)}
         onClose={handleMenuClose}

@@ -1,76 +1,58 @@
 "use client";
 
 import { createTheme } from "@mui/material/styles";
+import { BRAND_COLORS } from "@/lib/brand-tokens";
 
-// Hex approximations of the semantic OKLCH tokens defined in DESIGN.md.
-const colors = {
-  brandPrimary: "#1e3a5f",
-  brandSignal: "#e9644d",
-  canvas: "#f0f4f8",
-  surfacePanel: "#f7fafc",
-  surface: "#fbfcfd",
-  surfaceStrong: "#e8eff5",
-  textPrimary: "#2d3544",
-  textMuted: "#667288",
-  border: "#d1d5db",
-  accentSoft: "#f8d8d2",
-  success: "#277544",
-  successSoft: "#e5f3e9",
-  warning: "#9a5a08",
-  warningSoft: "#fff4df",
-  risk: "#c62828",
-  riskSoft: "#ffebee",
-  info: "#526476",
-};
+const colors = BRAND_COLORS;
 
 const theme = createTheme({
   palette: {
     mode: "light",
     primary: {
       main: colors.brandSignal,
-      light: colors.accentSoft,
-      dark: "#b34d3d",
-      contrastText: "#ffffff",
+      light: colors.brandSignalSoft,
+      dark: colors.brandSignalDark,
+      contrastText: colors.onBrand,
     },
     secondary: {
       main: colors.brandPrimary,
-      light: "#e5edf5",
-      dark: "#152a45",
-      contrastText: "#ffffff",
+      light: colors.brandPrimaryLight,
+      dark: colors.brandPrimaryDark,
+      contrastText: colors.onBrand,
     },
     background: {
-      default: colors.canvas,
-      paper: colors.surface,
+      default: colors.surfaceCanvas,
+      paper: colors.surfaceElevated,
     },
     error: {
-      main: colors.risk,
-      light: colors.riskSoft,
-      dark: "#8e0000",
-      contrastText: "#ffffff",
+      main: colors.statusDanger,
+      light: colors.statusDangerSoft,
+      dark: colors.statusDangerDark,
+      contrastText: colors.onBrand,
     },
     success: {
-      main: colors.success,
-      light: colors.successSoft,
-      dark: "#1b5e32",
-      contrastText: "#ffffff",
+      main: colors.statusSuccess,
+      light: colors.statusSuccessSoft,
+      dark: colors.statusSuccessDark,
+      contrastText: colors.onBrand,
     },
     warning: {
-      main: colors.warning,
-      light: colors.warningSoft,
-      dark: "#7a4507",
-      contrastText: "#ffffff",
+      main: colors.statusWarning,
+      light: colors.statusWarningSoft,
+      dark: colors.statusWarningDark,
+      contrastText: colors.onBrand,
     },
     info: {
-      main: colors.info,
-      light: "#eef4f7",
-      dark: "#334155",
-      contrastText: "#ffffff",
+      main: colors.statusInfo,
+      light: colors.statusInfoSoft,
+      dark: colors.statusInfoDark,
+      contrastText: colors.onBrand,
     },
     text: {
       primary: colors.textPrimary,
-      secondary: colors.textMuted,
+      secondary: colors.textSecondary,
     },
-    divider: colors.border,
+    divider: colors.borderSubtle,
   },
   typography: {
     fontFamily: '"Manrope", "Roboto", "Helvetica", "Arial", sans-serif',
@@ -89,9 +71,9 @@ const theme = createTheme({
     MuiButtonBase: {
       styleOverrides: {
         root: {
-          "&:focus-visible": {
-            outline: `3px solid ${colors.accentSoft}`,
-            outlineOffset: 2,
+          "&:focus-visible, &.Mui-focusVisible": {
+            outline: `3px solid ${colors.brandPrimary}`,
+            outlineOffset: 3,
           },
         },
       },
@@ -103,6 +85,35 @@ const theme = createTheme({
           borderRadius: 4,
           fontWeight: 600,
           padding: "10px 20px",
+          minHeight: 44,
+        },
+      },
+    },
+    MuiIconButton: {
+      styleOverrides: {
+        root: {
+          minWidth: 44,
+          minHeight: 44,
+        },
+      },
+    },
+    MuiListItemButton: {
+      styleOverrides: {
+        root: {
+          minHeight: 44,
+        },
+      },
+    },
+    MuiMenuItem: {
+      styleOverrides: {
+        root: {
+          minHeight: 44,
+        },
+      },
+    },
+    MuiTab: {
+      styleOverrides: {
+        root: {
           minHeight: 44,
         },
       },
@@ -119,7 +130,7 @@ const theme = createTheme({
         root: {
           borderRadius: 4,
           boxShadow: "none",
-          border: `1px solid ${colors.border}`,
+          border: `1px solid ${colors.borderSubtle}`,
         },
       },
     },
@@ -140,7 +151,7 @@ const theme = createTheme({
           "& .MuiOutlinedInput-root": {
           borderRadius: 4,
             "& fieldset": {
-              borderColor: colors.border,
+              borderColor: colors.borderSubtle,
             },
           },
         },

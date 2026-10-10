@@ -17,8 +17,9 @@ import {
   type SelectChangeEvent,
   TextField,
   Typography,
+  useMediaQuery,
 } from "@mui/material";
-import { ArrowUpRight, Check, ChevronDown, Crosshair, Download, Rocket, SlidersHorizontal } from "lucide-react";
+import { ArrowUpRight, Check, ChevronDown, Download, Radar, Rocket, SlidersHorizontal } from "lucide-react";
 import { TenderDetailDrawer, type FollowState, type TenderDetailItem } from "@/components/TenderDetailDrawer";
 import { CompanySelector, type UserCompany } from "@/components/CompanySelector";
 import { useSession } from "@/lib/auth-client";
@@ -240,11 +241,18 @@ const filterAndSortTenders = (
 
 function AnimatedCounter({ target, duration = 1200 }: { target: number; duration?: number }) {
   const [value, setValue] = useState(0);
+  const reduceMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
   const startRef = useRef<number | null>(null);
+  const frameRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (target === 0) {
-      setValue(0);
+    if (frameRef.current !== null) {
+      cancelAnimationFrame(frameRef.current);
+      frameRef.current = null;
+    }
+
+    if (target === 0 || reduceMotion) {
+      setValue(target);
       return;
     }
 
@@ -255,40 +263,36 @@ function AnimatedCounter({ target, duration = 1200 }: { target: number; duration
       const progress = Math.min(elapsed / duration, 1);
       const eased = 1 - Math.pow(1 - progress, 3);
       setValue(Math.round(eased * target));
-      if (progress < 1) requestAnimationFrame(step);
+      if (progress < 1) {
+        frameRef.current = requestAnimationFrame(step);
+      }
     };
 
-    requestAnimationFrame(step);
-  }, [target, duration]);
+    frameRef.current = requestAnimationFrame(step);
+
+    return () => {
+      if (frameRef.current !== null) {
+        cancelAnimationFrame(frameRef.current);
+      }
+    };
+  }, [duration, reduceMotion, target]);
 
   return <>{value}</>;
 }
 
-function MetricBar({ value, accent = false }: { value: number; accent?: boolean }) {
-  const barColor = accent
-    ? value >= 75
-      ? "success.main"
-      : value >= 50
-        ? "warning.main"
-        : "grey.400"
-    : value >= 75
-      ? "success.main"
-      : value >= 50
-        ? "primary.main"
-        : value >= 25
-          ? "warning.main"
-          : "grey.400";
+function MetricBar({ value }: { value: number }) {
+  const barColor = value >= 70 ? "success.main" : value >= 40 ? "warning.main" : "text.secondary";
 
   return (
     <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-      <Box sx={{ flex: 1, height: 8, borderRadius: 4, bgcolor: "grey.200", overflow: "hidden" }}>
+      <Box sx={{ flex: 1, height: 8, borderRadius: 4, bgcolor: "background.default", overflow: "hidden" }}>
         <Box
           sx={{
             height: "100%",
             borderRadius: 4,
             bgcolor: barColor,
             width: `${Math.max(0, Math.min(100, value))}%`,
-            transition: "width 0.7s cubic-bezier(0.4, 0, 0.2, 1)",
+            transition: (theme) => theme.transitions.create("width", { duration: theme.transitions.duration.short }),
           }}
         />
       </Box>
@@ -313,29 +317,29 @@ function SummaryCard({
   detail?: string;
 }) {
   return (
-    <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1.5 }}>
-      <Typography variant="caption" fontWeight={600} textTransform="uppercase" letterSpacing="0.05em" color="#475569">
+    <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+      <Typography variant="caption" fontWeight={600} textTransform="uppercase" letterSpacing="0.05em" color="text.secondary">
         {label}
       </Typography>
-      <Typography variant="h5" component="p" fontWeight={600} sx={{ mt: 1, lineHeight: 1, fontVariantNumeric: "tabular-nums", color: "#1e293b" }}>
+      <Typography variant="h5" component="p" fontWeight={600} sx={{ mt: 1, lineHeight: 1, fontVariantNumeric: "tabular-nums", color: "text.primary" }}>
         {value}
       </Typography>
       {detail ? (
-        <Typography variant="caption" color="#475569" sx={{ mt: 1, display: "block" }}>
+        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
           {detail}
         </Typography>
-      ) : null}
+                  ) : null}
     </Paper>
   );
 }
 
 function DetailMetric({ label, value }: { label: string; value: string | number }) {
   return (
-    <Box sx={{ borderRadius: 1.5, bgcolor: "#f8fafc", px: 1.5, py: 1 }}>
-      <Typography variant="caption" fontWeight={600} textTransform="uppercase" letterSpacing="0.05em" color="#475569">
+    <Box sx={{ borderRadius: 2, bgcolor: "background.default", px: 1.5, py: 1 }}>
+      <Typography variant="caption" fontWeight={600} textTransform="uppercase" letterSpacing="0.05em" color="text.secondary">
         {label}
       </Typography>
-      <Typography variant="body2" fontWeight={600} sx={{ mt: 0.5, fontVariantNumeric: "tabular-nums", color: "#1e293b" }}>
+      <Typography variant="body2" fontWeight={600} sx={{ mt: 0.5, fontVariantNumeric: "tabular-nums", color: "text.primary" }}>
         {value}
       </Typography>
     </Box>
@@ -354,7 +358,7 @@ function TagList({ items, emptyLabel }: { items?: string[]; emptyLabel: string }
           key={item}
           label={item}
           size="small"
-          sx={{ bgcolor: "#f1f5f9", color: "#1e293b", fontWeight: 500, fontSize: "0.6875rem", height: 22, borderRadius: "4px" }}
+          sx={{ bgcolor: "action.hover", color: "text.primary", fontWeight: 500, fontSize: "0.6875rem", height: 22, borderRadius: 1 }}
         />
       ))}
     </Box>
@@ -373,21 +377,21 @@ function QueueLaneList({ lanes }: { lanes: Array<{ type: string; count: number }
       {lanes.map((lane) => (
         <Box key={lane.type} sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2 }}>
-            <Typography variant="caption" fontWeight={500} sx={{ color: "#475569" }}>
+            <Typography variant="caption" fontWeight={500} color="text.secondary">
               {formatLaneLabel(lane.type)}
             </Typography>
-            <Typography variant="caption" color="#475569" sx={{ fontVariantNumeric: "tabular-nums" }}>
+            <Typography variant="caption" color="text.secondary" sx={{ fontVariantNumeric: "tabular-nums" }}>
               {lane.count}
             </Typography>
           </Box>
-          <Box sx={{ height: 4, borderRadius: 2, bgcolor: "grey.200", overflow: "hidden" }}>
+          <Box sx={{ height: 4, borderRadius: 2, bgcolor: "background.default", overflow: "hidden" }}>
             <Box
               sx={{
                 height: "100%",
                 borderRadius: 2,
                 bgcolor: "primary.main",
                 width: `${Math.max(8, Math.round((lane.count / maxCount) * 100))}%`,
-                transition: "width 0.5s",
+                transition: (theme) => theme.transitions.create("width", { duration: theme.transitions.duration.short }),
               }}
             />
           </Box>
@@ -425,12 +429,12 @@ function PaginationControls({
         alignItems: { sm: "center" },
         justifyContent: "space-between",
         gap: 1.5,
-        borderRadius: 1.5,
+        borderRadius: 2,
         px: 2,
         py: 1,
       }}
     >
-      <Typography variant="body2" color="#475569">
+      <Typography variant="body2" color="text.secondary">
         Zeige {pageStart}-{pageEnd} von {totalItems} Treffern
       </Typography>
 
@@ -444,7 +448,7 @@ function PaginationControls({
         >
           Zurück
         </Button>
-        <Typography variant="caption" color="#475569" sx={{ minWidth: 96, textAlign: "center" }}>
+        <Typography variant="caption" color="text.secondary" sx={{ minWidth: 96, textAlign: "center" }}>
           Seite {currentPage} / {totalPages}
         </Typography>
         <Button
@@ -483,12 +487,16 @@ function MatchCard({
       variant="outlined"
       sx={{
         p: 1.5,
-        borderRadius: 1.5,
-        transition: "border-color 0.2s",
+        borderRadius: 2,
+        transition: (theme) => theme.transitions.create("border-color", { duration: theme.transitions.duration.short }),
         "&:hover": { borderColor: "primary.main", borderOpacity: 0.3 },
         opacity: 0,
         animation: "fadeIn 0.4s ease-out forwards",
         animationDelay: `${index * 60}ms`,
+        "@media (prefers-reduced-motion: reduce)": {
+          animation: "none",
+          opacity: 1,
+        },
         "@keyframes fadeIn": {
           from: { opacity: 0, transform: "translateY(8px)" },
           to: { opacity: 1, transform: "translateY(0)" },
@@ -503,10 +511,10 @@ function MatchCard({
             </Typography>
             {live ? <Chip label="Live" size="small" color="primary" sx={{ height: 20, fontSize: "0.65rem", fontWeight: 700 }} /> : null}
           </Box>
-          <Typography variant="body2" fontWeight={600} sx={{ lineHeight: 1.375, fontSize: "0.9375rem", color: "#1e293b" }}>
+          <Typography variant="body2" fontWeight={600} sx={{ lineHeight: 1.375, fontSize: "0.9375rem", color: "text.primary" }}>
             {tender.title || `Ausschreibung #${tender.id}`}
           </Typography>
-          <Typography variant="caption" color="#475569" sx={{ mt: 0.5, display: "block" }}>
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: "block" }}>
             {tender.source}
           </Typography>
         </Box>
@@ -519,7 +527,7 @@ function MatchCard({
 
       <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-          <Typography variant="caption" color="#475569" sx={{ width: 80, flexShrink: 0 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ width: 80, flexShrink: 0 }}>
             Passung
           </Typography>
           <Box sx={{ flex: 1 }}>
@@ -527,11 +535,11 @@ function MatchCard({
           </Box>
         </Box>
         <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-          <Typography variant="caption" color="#475569" sx={{ width: 80, flexShrink: 0 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ width: 80, flexShrink: 0 }}>
             Gewinnchance
           </Typography>
           <Box sx={{ flex: 1 }}>
-            <MetricBar value={tender.winProbability} accent />
+            <MetricBar value={tender.winProbability} />
           </Box>
         </Box>
 
@@ -540,19 +548,19 @@ function MatchCard({
           <DetailMetric label="Aufwand" value={`${tender.effort}%`} />
         </Box>
 
-        <Box sx={{ borderRadius: 1.5, bgcolor: "#f8fafc", px: 1.5, py: 1 }}>
-          <Typography variant="caption" fontWeight={600} textTransform="uppercase" letterSpacing="0.05em" color="#475569" sx={{ mb: 0.5, display: "block", fontSize: "0.6875rem" }}>
+        <Box sx={{ borderRadius: 2, bgcolor: "background.default", px: 1.5, py: 1 }}>
+          <Typography variant="caption" fontWeight={600} textTransform="uppercase" letterSpacing="0.05em" color="text.secondary" sx={{ mb: 0.5, display: "block", fontSize: "0.6875rem" }}>
             Kurzbewertung
           </Typography>
-          <Typography variant="body2" sx={{ lineHeight: 1.5, color: "#334155", fontSize: "0.9375rem" }}>
+          <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.5, fontSize: "0.9375rem" }}>
             {preview}
           </Typography>
         </Box>
 
         <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, alignItems: { sm: "center" }, justifyContent: "space-between", gap: 1.5 }}>
           <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-            <Typography variant="caption" color="#475569">{tender.actions.length} Schritte</Typography>
-            <Typography variant="caption" color="#475569">{tender.missingItems.length} Unterlagen</Typography>
+            <Typography variant="caption" color="text.secondary">{tender.actions.length} Schritte</Typography>
+            <Typography variant="caption" color="text.secondary">{tender.missingItems.length} Unterlagen</Typography>
           </Box>
 
           <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
@@ -1246,7 +1254,7 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
             alignItems: "stretch",
           }}
         >
-          <Paper component="section" aria-labelledby="website-analysis-title" variant="outlined" sx={{ height: "100%", p: { xs: 2, sm: 3 }, borderRadius: 1.5 }}>
+          <Paper component="section" aria-labelledby="website-analysis-title" variant="outlined" sx={{ height: "100%", p: { xs: 2, sm: 3 }, borderRadius: 2 }}>
             <Typography id="website-analysis-title" component="h2" fontWeight={600} sx={{ fontSize: { xs: "1.25rem", lg: "1.2rem" }, lineHeight: 1.3 }}>
               Website analysieren
             </Typography>
@@ -1331,9 +1339,9 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
               </Button>
             </Box>
 
-            <Box sx={{ mt: 2.75, p: 1.5, border: 1, borderColor: "divider", borderRadius: 1.5, bgcolor: "background.default" }}>
+            <Box sx={{ mt: 2.75, p: 1.5, border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.default" }}>
               <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}>
-                <Box sx={{ width: 24, height: 24, borderRadius: "50%", display: "grid", placeItems: "center", flexShrink: 0, bgcolor: "rgba(233, 100, 77, 0.08)", color: "primary.dark" }}>
+                <Box sx={{ width: 24, height: 24, borderRadius: "50%", display: "grid", placeItems: "center", flexShrink: 0, bgcolor: "primary.light", color: "primary.dark" }}>
                   <Check size={14} aria-hidden="true" />
                 </Box>
                 <Box sx={{ minWidth: 0, flex: 1 }}>
@@ -1372,7 +1380,7 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
               activeCompanyId={activeCompanyId}
             />
           ) : (
-            <Paper component="section" aria-labelledby="existing-profile-title" variant="outlined" sx={{ height: "100%", p: { xs: 2, sm: 3 }, borderRadius: 1.5 }}>
+            <Paper component="section" aria-labelledby="existing-profile-title" variant="outlined" sx={{ height: "100%", p: { xs: 2, sm: 3 }, borderRadius: 2 }}>
               <Typography id="existing-profile-title" component="h2" fontWeight={600} sx={{ fontSize: { xs: "1.25rem", lg: "1.05rem" }, lineHeight: 1.3, letterSpacing: "-0.01em", whiteSpace: { lg: "nowrap" } }}>
                 Vorhandenes Unternehmensprofil auswählen
               </Typography>
@@ -1385,7 +1393,7 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
 
         <Box aria-live="polite">
           {error ? <Alert severity="error">{error}</Alert> : null}
-          {previewBusy ? <Box role="status" sx={{ display: "flex", alignItems: "center", minHeight: 44, px: 1.5, border: 1, borderColor: "divider", borderRadius: 1.5, bgcolor: "background.paper" }}><Typography variant="body2">Wir prüfen Ihre Website und berechnen die drei stärksten Treffer.</Typography></Box> : null}
+          {previewBusy ? <Box role="status" sx={{ display: "flex", alignItems: "center", minHeight: 44, px: 1.5, border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.paper" }}><Typography variant="body2">Wir prüfen Ihre Website und berechnen die drei stärksten Treffer.</Typography></Box> : null}
           {preview && preview.status === "failed" ? <Alert severity="error">Die Vorschau konnte nicht erstellt werden. Bitte prüfen Sie die Website-URL und versuchen Sie es erneut.</Alert> : null}
           {preview && preview.status === "expired" ? <Alert severity="info">Diese Vorschau ist abgelaufen. Starten Sie eine neue Prüfung für aktuelle Treffer.</Alert> : null}
           {preview?.status === "completed" ? (
@@ -1395,7 +1403,7 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
                 {preview.company?.name ?? "Unternehmen"}{preview.company?.industry ? ` · ${preview.company.industry}` : ""}
               </Typography>
               {preview.company?.capabilities?.length ? <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>Erkannt: {preview.company.capabilities.slice(0, 5).join(", ")}</Typography> : null}
-              <Box sx={{ mt: 2, border: 1, borderColor: "divider", borderRadius: 1.5, overflow: "hidden" }}>
+              <Box sx={{ mt: 2, border: 1, borderColor: "divider", borderRadius: 2, overflow: "hidden" }}>
                 {preview.matches.length === 0 ? <Typography variant="body2" color="text.secondary" sx={{ p: 1.5 }}>Aktuell wurde kein belastbarer Treffer erkannt.</Typography> : preview.matches.slice(0, 3).map((match, index) => (
                   <Box key={match.tenderId} sx={{ p: 1.5, borderBottom: index < Math.min(preview.matches.length, 3) - 1 ? 1 : 0, borderColor: "divider" }}>
                     <Typography variant="subtitle2" fontWeight={600}>{match.rank}. {match.title}</Typography>
@@ -1420,7 +1428,7 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
               ["Passende Ausschreibungen ermitteln", "Tenderhunter vergleicht Ihr Profil mit verfügbaren Ausschreibungen."],
             ].map(([title, description], index) => (
               <Box component="li" key={title} sx={{ display: "grid", gridTemplateColumns: "28px minmax(0, 1fr)", gap: 1.25, alignItems: "start" }}>
-                <Box sx={{ width: 28, height: 28, borderRadius: "50%", display: "grid", placeItems: "center", bgcolor: "rgba(233, 100, 77, 0.08)", border: "1px solid", borderColor: "rgba(233, 100, 77, 0.22)", color: "primary.dark", fontSize: "0.75rem", fontWeight: 700 }}>
+                <Box sx={{ width: 28, height: 28, borderRadius: "50%", display: "grid", placeItems: "center", bgcolor: "primary.light", border: "1px solid", borderColor: "primary.light", color: "primary.dark", fontSize: "0.75rem", fontWeight: 700 }}>
                   {index + 1}
                 </Box>
                 <Box>
@@ -1446,7 +1454,7 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
               gridTemplateColumns: { xs: "1fr", lg: "minmax(0, 1.05fr) minmax(0, 0.95fr)" },
             }}
           >
-            <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 1.5 }}>
+            <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
               <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
                 <Box sx={{ position: "relative", width: 64, height: 64, flexShrink: 0 }}>
                   <Box
@@ -1466,6 +1474,9 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
                       border: "2px solid transparent",
                       borderTopColor: "primary.main",
                       animation: "spin 1.4s linear infinite",
+                      "@media (prefers-reduced-motion: reduce)": {
+                        animation: "none",
+                      },
                       "@keyframes spin": {
                         "0%": { transform: "rotate(0deg)" },
                         "100%": { transform: "rotate(360deg)" },
@@ -1485,34 +1496,34 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
                       color: "primary.main",
                     }}
                   >
-                    <Crosshair size={20} />
+                    <Radar size={20} aria-hidden="true" />
                   </Box>
                 </Box>
                 <Box>
-                  <Typography variant="caption" fontWeight={600} textTransform="uppercase" letterSpacing="0.05em" color="#475569">
+                  <Typography variant="caption" fontWeight={600} textTransform="uppercase" letterSpacing="0.05em" color="text.secondary">
                     Pipeline
                   </Typography>
-                  <Typography variant="h6" component="p" fontWeight={600} sx={{ mt: 0.5, color: "#1e293b" }}>
+                  <Typography variant="h6" component="p" fontWeight={600} sx={{ mt: 0.5, color: "text.primary" }}>
                     Analyse läuft
                   </Typography>
-                  <Typography variant="body2" color="#475569" sx={{ mt: 0.5 }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                     Treffer werden angezeigt, sobald sie berechnet sind.
                   </Typography>
                 </Box>
               </Box>
 
               {session ? (
-                <Paper sx={{ mb: 2, borderRadius: 1.5, bgcolor: "#f8fafc", p: 1.5 }} elevation={0}>
-                  <Typography variant="caption" fontWeight={600} textTransform="uppercase" letterSpacing="0.05em" color="#475569">
+                <Paper sx={{ mb: 2, borderRadius: 2, bgcolor: "background.default", p: 1.5 }} elevation={0}>
+                  <Typography variant="caption" fontWeight={600} textTransform="uppercase" letterSpacing="0.05em" color="text.secondary">
                     Unternehmen
                   </Typography>
-                  <Typography variant="h6" component="p" fontWeight={600} sx={{ mt: 1, color: "#1e293b" }}>
+                  <Typography variant="h6" component="p" fontWeight={600} sx={{ mt: 1, color: "text.primary" }}>
                     {session.company.name}
                   </Typography>
                   {session.extracted.description ? (
-                    <Typography variant="body2" color="#334155" sx={{ mt: 1, lineHeight: 1.5, fontSize: "0.9375rem" }}>
-                      {session.extracted.description}
-                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1, lineHeight: 1.5, fontSize: "0.9375rem" }}>
+                       {session.extracted.description}
+                     </Typography>
                   ) : null}
                 </Paper>
               ) : null}
@@ -1531,12 +1542,12 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
                         flexShrink: 0,
                         fontSize: "0.75rem",
                         fontWeight: 700,
-                        transition: "all 0.3s",
+                        transition: (theme) => theme.transitions.create(["background-color", "color", "border-color"], { duration: theme.transitions.duration.short }),
                         ...(step.status === "done"
                           ? { bgcolor: "primary.main", color: "primary.contrastText" }
                           : step.status === "active"
                             ? { bgcolor: "primary.light", color: "primary.main", border: "1px solid", borderColor: "primary.light" }
-                            : { bgcolor: "grey.200", color: "text.secondary" }),
+                            : { bgcolor: "background.default", color: "text.secondary" }),
                       }}
                     >
                       {step.status === "done" ? <Check size={14} /> : index + 1}
@@ -1544,7 +1555,7 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
                     <Typography
                       variant="body2"
                       sx={{
-                        transition: "color 0.3s",
+                        transition: (theme) => theme.transitions.create("color", { duration: theme.transitions.duration.short }),
                         fontWeight: step.status === "pending" ? 400 : 500,
                         color: step.status === "pending" ? "text.secondary" : "text.primary",
                       }}
@@ -1570,7 +1581,7 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
 
               <Box>
                 <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5 }}>
-                  <Typography variant="caption" fontWeight={600} textTransform="uppercase" letterSpacing="0.05em" color="#475569">
+                  <Typography variant="caption" fontWeight={600} textTransform="uppercase" letterSpacing="0.05em" color="text.secondary">
                     Verarbeitung
                   </Typography>
                   {status?.summary.failedJobs ? (
@@ -1581,13 +1592,13 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
               </Box>
             </Paper>
 
-            <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 1.5 }}>
+            <Paper variant="outlined" sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
               <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, mb: 2 }}>
                 <Box>
-                  <Typography variant="caption" fontWeight={600} textTransform="uppercase" letterSpacing="0.05em" color="#475569">
+                  <Typography variant="caption" fontWeight={600} textTransform="uppercase" letterSpacing="0.05em" color="text.secondary">
                     Zwischenergebnisse
                   </Typography>
-                  <Typography variant="h6" component="p" fontWeight={600} sx={{ mt: 0.5, color: "#1e293b" }}>
+                  <Typography variant="h6" component="p" fontWeight={600} sx={{ mt: 0.5, color: "text.primary" }}>
                     Live-Treffer
                   </Typography>
                 </Box>
@@ -1600,10 +1611,10 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
                 <Box
                   sx={{
                     minHeight: 280,
-                    borderRadius: 3,
+                    borderRadius: 2,
                     border: "1px dashed",
                     borderColor: "divider",
-                    bgcolor: "grey.50",
+                    bgcolor: "background.default",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -1612,11 +1623,11 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
                   }}
                 >
                   <Box>
-                    <Typography variant="body2" fontWeight={500} sx={{ color: "#1e293b" }}>
+                    <Typography variant="body2" fontWeight={500} sx={{ color: "text.primary" }}>
                       Noch keine Treffer sichtbar
                     </Typography>
-                    <Typography variant="body2" color="#475569" sx={{ mt: 0.5 }}>
-                       Sobald Bewertungsergebnisse vorliegen, erscheinen sie hier sofort.
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                      Sobald Bewertungsergebnisse vorliegen, erscheinen sie hier sofort.
                     </Typography>
                   </Box>
                 </Box>
@@ -1647,29 +1658,29 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
                 gridTemplateColumns: { xs: "1fr", lg: "repeat(3, 1fr)" },
               }}
             >
-              <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1.5 }}>
-                <Typography variant="caption" fontWeight={600} textTransform="uppercase" letterSpacing="0.05em" color="#475569" sx={{ mb: 1, display: "block" }}>
+              <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+                <Typography variant="caption" fontWeight={600} textTransform="uppercase" letterSpacing="0.05em" color="text.secondary" sx={{ mb: 1, display: "block" }}>
                   Leistungen
                 </Typography>
                 <TagList items={session.extracted.capabilities} emptyLabel="Keine Leistungen erkannt." />
               </Paper>
               {session.extracted.regions && session.extracted.regions.length > 0 && (
-                <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1.5 }}>
-                  <Typography variant="caption" fontWeight={600} textTransform="uppercase" letterSpacing="0.05em" color="#475569" sx={{ mb: 1, display: "block" }}>
+                <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+                  <Typography variant="caption" fontWeight={600} textTransform="uppercase" letterSpacing="0.05em" color="text.secondary" sx={{ mb: 1, display: "block" }}>
                     Regionen
                   </Typography>
                   <TagList items={session.extracted.regions} emptyLabel="Keine Regionen erkannt." />
                 </Paper>
               )}
               {session.extracted.certifications && session.extracted.certifications.length > 0 && (
-                <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1.5 }}>
-                  <Typography variant="caption" fontWeight={600} textTransform="uppercase" letterSpacing="0.05em" color="#475569" sx={{ mb: 1, display: "block" }}>
+                <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+                  <Typography variant="caption" fontWeight={600} textTransform="uppercase" letterSpacing="0.05em" color="text.secondary" sx={{ mb: 1, display: "block" }}>
                     Nachweise
                   </Typography>
                   <TagList items={session.extracted.certifications} emptyLabel="Keine Nachweise erkannt." />
                   {session.extracted.team_size ? (
-                    <Typography variant="body2" color="#334155" sx={{ mt: 2 }}>
-                      Teamgröße: <Box component="span" fontWeight={600} color="#1e293b">{session.extracted.team_size}</Box>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                      Teamgröße: <Box component="span" fontWeight={600} color="text.primary">{session.extracted.team_size}</Box>
                     </Typography>
                   ) : null}
                 </Paper>
@@ -1706,22 +1717,22 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
       <Box sx={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, alignItems: { xs: "flex-start", sm: "flex-end" }, gap: 3 }}>
           <Box sx={{ flex: 1 }}>
-            <Typography variant="caption" fontWeight={600} textTransform="uppercase" letterSpacing="0.05em" color="#475569" sx={{ mb: 1, display: "block" }}>
+            <Typography variant="caption" fontWeight={600} textTransform="uppercase" letterSpacing="0.05em" color="text.secondary" sx={{ mb: 1, display: "block" }}>
               Gefunden
             </Typography>
-            <Typography variant="h2" fontWeight={600} letterSpacing="-0.025em" lineHeight={1} sx={{ color: "#1e293b" }}>
+            <Typography variant="h2" fontWeight={600} letterSpacing="-0.025em" lineHeight={1} sx={{ color: "text.primary" }}>
               <AnimatedCounter target={resultTenders.length} />
             </Typography>
-            <Typography variant="body2" color="#334155" sx={{ mt: 0.75 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
               passende Ausschreibungen
               {data.company.name ? ` für ${data.company.name}` : ""}
             </Typography>
           </Box>
           <Box sx={{ textAlign: { sm: "right" } }}>
-            <Typography variant="caption" fontWeight={600} textTransform="uppercase" letterSpacing="0.05em" color="#475569" sx={{ mb: 0.5, display: "block" }}>
+            <Typography variant="caption" fontWeight={600} textTransform="uppercase" letterSpacing="0.05em" color="text.secondary" sx={{ mb: 0.5, display: "block" }}>
               Durchschnittliche Passung
             </Typography>
-            <Typography variant="h3" component="p" fontWeight={600} letterSpacing="-0.025em" lineHeight={1} sx={{ color: "#1e293b" }}>
+            <Typography variant="h3" component="p" fontWeight={600} letterSpacing="-0.025em" lineHeight={1} sx={{ color: "text.primary" }}>
               <AnimatedCounter target={avgFit} />%
             </Typography>
           </Box>
@@ -1746,8 +1757,8 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
           }}
         >
           <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1.5 }}>
-              <Typography variant="caption" fontWeight={600} textTransform="uppercase" letterSpacing="0.05em" color="#475569">
+            <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+              <Typography variant="caption" fontWeight={600} textTransform="uppercase" letterSpacing="0.05em" color="text.secondary">
                 Unternehmen
               </Typography>
               <Box sx={{ display: "flex", alignItems: "center", gap: 2, mt: 1 }}>
@@ -1759,7 +1770,7 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
                     sx={{
                       width: 48,
                       height: 48,
-                      borderRadius: 1.5,
+                      borderRadius: 2,
                       objectFit: "contain",
                       bgcolor: "background.paper",
                       border: "1px solid",
@@ -1772,7 +1783,7 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
                   />
                 )}
                 <Box>
-                  <Typography variant="h6" component="p" fontWeight={600} sx={{ color: "#1e293b" }}>
+                  <Typography variant="h6" component="p" fontWeight={600} sx={{ color: "text.primary" }}>
                     {data.company.name}
                   </Typography>
                   {session?.cached && (
@@ -1781,27 +1792,27 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
                 </Box>
               </Box>
               {data.extracted.description ? (
-                <Typography variant="body2" color="#334155" sx={{ mt: 1.5, lineHeight: 1.5, fontSize: "0.9375rem" }}>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5, lineHeight: 1.5, fontSize: "0.9375rem" }}>
                   {data.extracted.description}
                 </Typography>
               ) : null}
               {data.extracted.team_size ? (
-                <Typography variant="body2" color="#334155" sx={{ mt: 2 }}>
-                  Teamgröße: <Box component="span" fontWeight={600} color="#1e293b">{data.extracted.team_size}</Box>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                  Teamgröße: <Box component="span" fontWeight={600} color="text.primary">{data.extracted.team_size}</Box>
                 </Typography>
               ) : null}
             </Paper>
 
-            <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1.5 }}>
-              <Typography variant="caption" fontWeight={600} textTransform="uppercase" letterSpacing="0.05em" color="#475569" sx={{ mb: 1, display: "block" }}>
+            <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+              <Typography variant="caption" fontWeight={600} textTransform="uppercase" letterSpacing="0.05em" color="text.secondary" sx={{ mb: 1, display: "block" }}>
                 Leistungen
               </Typography>
               <TagList items={data.extracted.capabilities} emptyLabel="Keine Leistungen erkannt." />
             </Paper>
 
             {data.extracted.regions && data.extracted.regions.length > 0 && (
-              <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1.5 }}>
-                <Typography variant="caption" fontWeight={600} textTransform="uppercase" letterSpacing="0.05em" color="#475569" sx={{ mb: 1, display: "block" }}>
+              <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+                <Typography variant="caption" fontWeight={600} textTransform="uppercase" letterSpacing="0.05em" color="text.secondary" sx={{ mb: 1, display: "block" }}>
                   Regionen
                 </Typography>
                 <TagList items={data.extracted.regions} emptyLabel="Keine Regionen erkannt." />
@@ -1809,8 +1820,8 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
             )}
 
             {data.extracted.certifications && data.extracted.certifications.length > 0 && (
-              <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1.5 }}>
-                <Typography variant="caption" fontWeight={600} textTransform="uppercase" letterSpacing="0.05em" color="#475569" sx={{ mb: 1, display: "block" }}>
+              <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+                <Typography variant="caption" fontWeight={600} textTransform="uppercase" letterSpacing="0.05em" color="text.secondary" sx={{ mb: 1, display: "block" }}>
                   Nachweise
                 </Typography>
                 <TagList items={data.extracted.certifications} emptyLabel="Keine Nachweise erkannt." />
@@ -1820,7 +1831,7 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
 
           <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2 }}>
-              <Typography variant="caption" fontWeight={600} textTransform="uppercase" letterSpacing="0.05em" color="#475569">
+              <Typography variant="caption" fontWeight={600} textTransform="uppercase" letterSpacing="0.05em" color="text.secondary">
                 Ergebnisse
               </Typography>
               <Button
@@ -1834,12 +1845,12 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
             </Box>
 
             {resultTenders.length > 0 ? (
-              <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1.5, display: "flex", flexDirection: "column", gap: 2 }}>
+              <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2, display: "flex", flexDirection: "column", gap: 2 }}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                   <Box sx={{ color: "primary.main" }}>
                     <SlidersHorizontal size={16} />
                   </Box>
-                  <Typography variant="body2" fontWeight={600} sx={{ color: "#1e293b" }}>
+                  <Typography variant="body2" fontWeight={600} sx={{ color: "text.primary" }}>
                     Sortierung, Filter und Export
                   </Typography>
                 </Box>
@@ -1941,10 +1952,10 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
 
                 <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, alignItems: { sm: "center" }, justifyContent: "space-between", gap: 1.5 }}>
                   <Box>
-                    <Typography variant="body2" color="#475569">
+                    <Typography variant="body2" color="text.secondary">
                       {filteredResultTenders.length} von {resultTenders.length} Treffern sichtbar. Export basiert auf der aktuellen Filterung.
                     </Typography>
-                    <Typography variant="caption" color="#475569" sx={{ mt: 0.5, display: "block" }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: "block" }}>
                       Filter und Seitengröße werden lokal im Browser gespeichert.
                     </Typography>
                   </Box>
@@ -1984,20 +1995,20 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
             ) : null}
 
             {resultTenders.length === 0 ? (
-              <Paper variant="outlined" sx={{ borderRadius: 1.5, py: 6, px: 3, textAlign: "center" }}>
-                <Typography variant="body2" fontWeight={500} sx={{ color: "#1e293b" }}>
+              <Paper variant="outlined" sx={{ borderRadius: 2, py: 6, px: 3, textAlign: "center" }}>
+                <Typography variant="body2" fontWeight={500} sx={{ color: "text.primary" }}>
                   Keine Treffer
                 </Typography>
-                <Typography variant="body2" color="#475569" sx={{ mt: 0.5 }}>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                   Für dieses Profil wurden keine passenden Ausschreibungen gefunden.
                 </Typography>
               </Paper>
             ) : filteredResultTenders.length === 0 ? (
-              <Paper variant="outlined" sx={{ borderRadius: 1.5, py: 6, px: 3, textAlign: "center" }}>
-                <Typography variant="body2" fontWeight={500} sx={{ color: "#1e293b" }}>
+              <Paper variant="outlined" sx={{ borderRadius: 2, py: 6, px: 3, textAlign: "center" }}>
+                <Typography variant="body2" fontWeight={500} sx={{ color: "text.primary" }}>
                   Keine Treffer für die aktuelle Filterung
                 </Typography>
-                <Typography variant="body2" color="#475569" sx={{ mt: 0.5 }}>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                   Passen Sie Suche, Quelle, Status oder Mindestpassung an.
                 </Typography>
               </Paper>

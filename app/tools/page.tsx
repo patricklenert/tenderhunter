@@ -5,14 +5,16 @@ import { Home as HomeIcon, Calculator, Clock, Gavel, ArrowRight, Wrench } from "
 import { SiteFooter } from "@/components/seo/SiteFooter";
 import { GLOSSARY } from "@/lib/glossary";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+import { getSiteUrl } from "@/lib/site-config";
+
+const siteUrl = getSiteUrl();
 
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
   title: "Kostenlose Vergabe-Tools – Schwellenwert, Fristen & Rüge berechnen",
   description:
-    "Praktische Online-Tools für Bieter und Auftraggeber: Schwellenwert-Rechner (VgV/UVgO/SektVO), Vergabe-Fristenrechner und Rügefrist-Rechner nach § 160 GWB. Kostenlos, sofort einsetzbar.",
+    "Praktische Online-Tools für Bieter und Auftraggeber: Schwellenwert-Rechner für VgV, VOB/A, UVgO und SektVO, Vergabe-Fristenrechner sowie Rügefrist-Rechner nach § 160 GWB. Kostenlos, sofort einsetzbar.",
   alternates: { canonical: "/tools", languages: { "de-DE": "/tools" } },
   openGraph: {
     title: "Kostenlose Vergabe-Tools – Schwellenwert, Fristen & Rüge",
@@ -35,9 +37,9 @@ const TOOLS: ToolMeta[] = [
   {
     slug: "schwellenwert-rechner",
     title: "Schwellenwert-Rechner",
-    kurz: "VgV, UVgO oder SektVO?",
+    kurz: "VgV, VOB/A, UVgO oder SektVO?",
     beschreibung:
-      "Geben Sie den Auftragswert ein und sofort sehen Sie, welches Vergaberecht gilt und ob EU-Bekanntmachungspflicht besteht.",
+      "Geben Sie den Auftragswert ein und ordnen Sie ihn dem passenden Vergaberegelwerk zu: etwa VgV, VOB/A, UVgO oder SektVO.",
     icon: Calculator,
     labels: ["§ 3 VgV", "EU-Schwellenwerte", "Bekanntmachung"],
   },
@@ -46,18 +48,18 @@ const TOOLS: ToolMeta[] = [
     title: "Vergabe-Fristenrechner",
     kurz: "Wann ist Angebotsabgabe?",
     beschreibung:
-      "Berechnen Sie die gesetzliche Mindestfrist für die Angebotsabgabe nach § 17 VgV oder § 12 UVgO – ab Bekanntmachungsdatum.",
+       "Berechnen Sie EU-Mindestfristen nach VgV ab Bekanntmachungsdatum. Für UVgO-Vergaben zeigt das Tool die angemessene Frist im Einzelfall.",
     icon: Clock,
-    labels: ["§ 17 VgV", "§ 12 UVgO", "Kalendertage"],
+    labels: ["§ 15 VgV", "§ 13 UVgO", "Kalendertage"],
   },
   {
     slug: "ruegefrist-rechner",
     title: "Rügefrist-Rechner",
-    kurz: "14 Tage Rüge, 15 Tage Nachprüfung",
+    kurz: "10 Tage Rüge, 15 Tage Nachprüfung",
     beschreibung:
-      "Vergabeverstoß erkannt? Berechnen Sie die Rügefrist (14 Tage) und Nachprüfungsantragsfrist (15 Tage) nach § 160 GWB inkl. Wochenend-Verlängerung.",
+       "Vergabeverstoß erkannt? Berechnen Sie die 10-Tage-Rügefrist und die 15-Tage-Frist nach Nichtabhilfe gemäß § 160 GWB.",
     icon: Gavel,
-    labels: ["§ 160 GWB", "§ 193 BGB", "Vergabesenat"],
+    labels: ["§ 160 GWB", "Vergabekammer", "15 Tage"],
   },
 ];
 
@@ -110,7 +112,7 @@ export default function ToolsHubPage() {
             </Typography>
             <Typography variant="body1" color="text.secondary" sx={{ maxWidth: "75ch", lineHeight: 1.8, fontSize: "1.1rem" }}>
               Praxisrechner für die tägliche Arbeit im Vergabewesen: Schwellenwerte bestimmen, Fristen berechnen,
-              Rügefristen überwachen. Alle Tools basieren auf aktuellem Vergaberecht (GWB, VgV, UVgO, SektVO).
+              Rügefristen überwachen. Alle Tools basieren auf aktuellem Vergaberecht (GWB, VgV, VOB/A, UVgO, SektVO).
             </Typography>
           </Box>
 

@@ -72,7 +72,7 @@ export default function RuegefristRechner() {
     const parsed = new Date(kenntnisDatum);
     if (isNaN(parsed.getTime())) return null;
 
-    const frist = addiereTage(kenntnisDatum, 14);
+     const frist = addiereTage(kenntnisDatum, 10);
     let endgueltig = frist;
     if (istWochenende(frist)) {
       endgueltig = naechsterWerktag(frist);
@@ -111,7 +111,7 @@ export default function RuegefristRechner() {
         </Stack>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3, maxWidth: "75ch" }}>
           Sie haben einen Vergabeverstoß erkannt? Dann müssen Sie diesen innerhalb von{" "}
-          <strong>14 Kalendertagen</strong> beim Auftraggeber rügen.
+           <strong>10 Kalendertagen</strong> beim Auftraggeber rügen.
         </Typography>
         <TextField
           fullWidth
@@ -162,7 +162,7 @@ export default function RuegefristRechner() {
             {ruege.verschoben && (
               <Alert severity="info" sx={{ mt: 2, py: 1 }}>
                 <Typography variant="caption">
-                  Der 14. Tag fällt auf ein Wochenende. Die Frist verlängert sich nach § 193 BGB auf den nächsten Werktag.
+                   Der 10. Tag fällt auf ein Wochenende. Die Frist verlängert sich auf den nächsten Werktag.
                 </Typography>
               </Alert>
             )}
@@ -180,7 +180,7 @@ export default function RuegefristRechner() {
         </Stack>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3, maxWidth: "75ch" }}>
           Der Auftraggeber hat Ihre Rüge abgelehnt („nicht abgeholfen“)? Sie haben{" "}
-          <strong>15 Kalendertage</strong> für den Nachprüfungsantrag beim Vergabesenat.
+           <strong>15 Kalendertage</strong> für den Nachprüfungsantrag bei der Vergabekammer.
         </Typography>
         <TextField
           fullWidth
@@ -231,7 +231,7 @@ export default function RuegefristRechner() {
             {nachpruef.verschoben && (
               <Alert severity="info" sx={{ mt: 2, py: 1 }}>
                 <Typography variant="caption">
-                  Der 15. Tag fällt auf ein Wochenende. Die Frist verlängert sich nach § 193 BGB auf den nächsten Werktag.
+                   Der 15. Tag fällt auf ein Wochenende. Die Frist verlängert sich auf den nächsten Werktag.
                 </Typography>
               </Alert>
             )}
@@ -243,7 +243,8 @@ export default function RuegefristRechner() {
       <Alert severity="warning" icon={<Clock size={20} />}>
         <Typography variant="body2">
           <strong>Wichtig:</strong> Verstreichen diese Fristen ungenutzt, ist der Vergabenachprüfungsantrag{" "}
-          <strong>unzulässig</strong> (§ 160 Abs. 3 Satz 1 GWB). Die Fristen sind absolut – es gibt keine Verlängerung.
+           <strong>unzulässig</strong> (§ 160 Abs. 3 GWB). Die Berechnung ersetzt keine Prüfung der konkreten
+           Verfahrenssituation und der weiteren Voraussetzungen.
         </Typography>
       </Alert>
     </Stack>

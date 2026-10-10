@@ -34,7 +34,7 @@ type Verfahren =
 interface VerfahrenConfig {
   label: string;
   icon: typeof Gavel;
-  minFrist: number;
+  minFrist: number | null;
   gesetz: string;
   beschreibung: string;
   hinweis: string;
@@ -44,42 +44,42 @@ const VERFAHREN: Record<Verfahren, VerfahrenConfig> = {
   offenEU: {
     label: "Offen (EU/VgV)",
     icon: Gavel,
-    minFrist: 52,
-    gesetz: "§ 17 Abs. 1 VgV",
+    minFrist: 35,
+    gesetz: "§ 15 Abs. 2 VgV",
     beschreibung: "Offenes Verfahren oberhalb EU-Schwellenwert",
-    hinweis: "52 Kalendertage ab Versand der Bekanntmachung. Elektronische Einreichung: Verkürzung auf 35 Tage möglich.",
+    hinweis: "Mindestens 35 Kalendertage ab Absendung der Bekanntmachung. Die konkrete Bekanntmachung kann eine längere Frist vorsehen.",
   },
   nichtoffenEU: {
     label: "Nicht offen (EU/VgV)",
     icon: FileText,
     minFrist: 30,
-    gesetz: "§ 14 Abs. 2 VgV",
+    gesetz: "§ 16 Abs. 2 VgV",
     beschreibung: "Beschränktes Verfahren, Frist für Teilnahmeantrag",
-    hinweis: "30 Kalendertage für Teilnahmeantrag ab Versand. Anschließend 35 Tage für Angebot.",
+    hinweis: "Mindestens 30 Kalendertage für den Teilnahmeantrag. Für die anschließende Angebotsphase gelten eigene Vorgaben.",
   },
   verhandlungEU: {
     label: "Verhandlung (EU/VgV)",
     icon: Handshake,
     minFrist: 30,
-    gesetz: "§ 15 Abs. 2 VgV",
+    gesetz: "§ 17 Abs. 2 VgV",
     beschreibung: "Verhandlungsverfahren mit Teilnahmewettbewerb",
-    hinweis: "30 Kalendertage für Teilnahmeantrag. Angebot wird mit verkürzter Frist angefordert.",
+    hinweis: "Mindestens 30 Kalendertage für den Teilnahmeantrag. Die Angebotsfrist richtet sich nach den Umständen des Verfahrens.",
   },
   uvgOStandard: {
     label: "UVgO Standard",
     icon: FileText,
-    minFrist: 17,
-    gesetz: "§ 12 Abs. 2 UVgO",
-    beschreibung: "Unterschwellenvergabe, Standardfrist",
-    hinweis: "Mindestens 17 Kalendertage ab Bekanntmachung. Bei Aufträgen bis 25.000 € genügen 10 Tage.",
+    minFrist: null,
+    gesetz: "§ 13 Abs. 1 UVgO",
+    beschreibung: "Unterschwellenvergabe, angemessene Frist",
+    hinweis: "Die UVgO schreibt keine einheitliche Zahl von Kalendertagen vor. Die Angebotsfrist muss angemessen sein und steht in den Vergabeunterlagen.",
   },
   uvgOKomplex: {
     label: "UVgO Komplex",
     icon: FileText,
-    minFrist: 26,
-    gesetz: "§ 12 Abs. 2 UVgO",
-    beschreibung: "Unterschwellenvergabe, bei besonderer Komplexität",
-    hinweis: "26 Kalendertage bei besonders komplexen Liefer- und Dienstleistungen.",
+    minFrist: null,
+    gesetz: "§ 13 Abs. 1 UVgO",
+    beschreibung: "Unterschwellenvergabe, komplexe Leistung",
+    hinweis: "Auch bei komplexen Leistungen gibt es nach der UVgO keine pauschale gesetzliche Mindestzahl. Die Frist muss dem Auftrag angemessen sein.",
   },
 };
 
@@ -121,7 +121,8 @@ export default function Fristenrechner() {
     const parsed = new Date(datumInput);
     if (isNaN(parsed.getTime())) return null;
 
-    const cfg = VERFAHREN[verfahren];
+     const cfg = VERFAHREN[verfahren];
+     if (cfg.minFrist === null) return null;
     const abgabeDatum = addiereTage(datumInput, cfg.minFrist);
     const jetzt = new Date();
     const verbleibend = tageZwischen(abgabeDatum, jetzt);
@@ -178,7 +179,7 @@ export default function Fristenrechner() {
                 </Typography>
                 <Chip
                   size="small"
-                  label={`mind. ${cfg.minFrist} Tage`}
+                   label={cfg.minFrist === null ? "angemessene Frist" : `mind. ${cfg.minFrist} Tage`}
                   sx={{ mt: 0.5, fontSize: "0.7rem", fontWeight: 600, bgcolor: "grey.100" }}
                 />
               </ToggleButton>
@@ -266,6 +267,12 @@ export default function Fristenrechner() {
             </Stack>
           </Stack>
         </Paper>
+      )}
+      {datumInput && !result && VERFAHREN[verfahren].minFrist === null && (
+        <Alert severity="info">
+          <strong>Keine pauschale Berechnung möglich:</strong> Nach § 13 Abs. 1 UVgO muss die Angebotsfrist angemessen
+          sein. Maßgeblich ist die konkrete Frist in den Vergabeunterlagen.
+        </Alert>
       )}
     </Stack>
   );

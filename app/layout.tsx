@@ -3,6 +3,8 @@ import { Manrope } from "next/font/google";
 import { ThemeRegistry } from "@/components/ThemeRegistry";
 import { SiteHeader } from "@/components/seo/SiteHeader";
 import { SwetrixAnalytics } from "@/components/SwetrixAnalytics";
+import { BRAND_COLORS, BRAND_METADATA } from "@/lib/brand-tokens";
+import { getSiteUrl } from "@/lib/site-config";
 import "./globals.css";
 
 const manrope = Manrope({
@@ -11,20 +13,19 @@ const manrope = Manrope({
   display: "swap",
 });
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+const siteUrl = getSiteUrl();
 
 export const viewport: Viewport = {
-  themeColor: "#1e3a5f",
+  themeColor: BRAND_COLORS.brandPrimary,
 };
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "Tenderhunter – KI-Ausschreibungssoftware für deutsche Unternehmen",
-    template: "%s | Tenderhunter",
+    default: BRAND_METADATA.defaultTitle,
+    template: BRAND_METADATA.titleTemplate,
   },
-  description:
-    "Finden Sie automatisch passende öffentliche Ausschreibungen in Deutschland. KI analysiert Anforderungen, Ihre Unternehmenswebsite wird gescannt, täglich passende Projekte.",
+  description: BRAND_METADATA.description,
   keywords: [
     "Ausschreibungen",
     "öffentliche Ausschreibungen",
@@ -37,8 +38,8 @@ export const metadata: Metadata = {
     "KI Ausschreibungssuche",
     "Ausschreibungen Deutschland",
   ],
-  authors: [{ name: "Tenderhunter" }],
-  creator: "Tenderhunter",
+  authors: [{ name: BRAND_METADATA.name }],
+  creator: BRAND_METADATA.name,
   alternates: {
     canonical: "/",
     languages: {
@@ -53,16 +54,14 @@ export const metadata: Metadata = {
     type: "website",
     locale: "de_DE",
     url: siteUrl,
-    siteName: "Tenderhunter",
-    title: "Tenderhunter – KI-Ausschreibungssoftware für deutsche Unternehmen",
-    description:
-      "Finden Sie automatisch passende öffentliche Ausschreibungen. KI analysiert Anforderungen, Unternehmenswebsite scannen, täglich passende Projekte.",
+    siteName: BRAND_METADATA.name,
+    title: BRAND_METADATA.defaultTitle,
+    description: BRAND_METADATA.description,
   },
   twitter: {
     card: "summary_large_image",
-    title: "Tenderhunter – KI-Ausschreibungssoftware",
-    description:
-      "Deutsche Ausschreibungsportale automatisch durchsuchen. KI-gestütztes Matching für Ihr Unternehmen.",
+    title: BRAND_METADATA.socialTitle,
+    description: BRAND_METADATA.socialDescription,
     images: [`${siteUrl}/opengraph-image`],
   },
   robots: {
@@ -88,7 +87,7 @@ export const metadata: Metadata = {
 const organizationJsonLd = {
   "@context": "https://schema.org",
   "@type": ["WebApplication", "SoftwareApplication"],
-  name: "Tenderhunter",
+   name: BRAND_METADATA.name,
   description:
     "KI-gestützte Ausschreibungssoftware für deutsche Unternehmen. Automatische Suche, Analyse und Matching von öffentlichen Ausschreibungen.",
   applicationCategory: "BusinessApplication",
@@ -118,26 +117,17 @@ const organizationJsonLd = {
 const websiteJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebSite",
-  name: "Tenderhunter",
+   name: BRAND_METADATA.name,
   url: siteUrl,
-  // SEO: Enables Google sitelinks search box in SERP
-  potentialAction: {
-    "@type": "SearchAction",
-    target: {
-      "@type": "EntryPoint",
-      urlTemplate: `${siteUrl}/?q={search_term_string}`,
-    },
-    "query-input": "required name=search_term_string",
-  },
 };
 
 const siteOrganizationJsonLd = {
   "@context": "https://schema.org",
   "@type": "Organization",
   "@id": `${siteUrl}#organization`,
-  name: "Tenderhunter",
+   name: BRAND_METADATA.name,
   url: siteUrl,
-  logo: `${siteUrl}/logo.webp`,
+   logo: `${siteUrl}/apple-icon`,
   description:
     "KI-gestützte Ausschreibungssoftware für deutsche Unternehmen. Automatische Suche, Analyse und Matching von öffentlichen Ausschreibungen.",
   areaServed: {

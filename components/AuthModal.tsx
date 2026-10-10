@@ -146,6 +146,7 @@ export function AuthModal({ open, onClose, defaultTab = "login", onSuccess }: Au
         {/* Close button */}
         <IconButton
           onClick={handleClose}
+          aria-label="Dialog schließen"
           sx={{
             position: "absolute",
             top: 12,
@@ -297,6 +298,7 @@ export function AuthModal({ open, onClose, defaultTab = "login", onSuccess }: Au
                       onClick={() => setShowPassword((p) => !p)}
                       edge="end"
                       size="small"
+                      aria-label={showPassword ? "Passwort verbergen" : "Passwort anzeigen"}
                       sx={{ color: "text.secondary" }}
                     >
                       {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}

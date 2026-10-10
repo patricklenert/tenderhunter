@@ -11,6 +11,7 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
+  Divider,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
@@ -19,6 +20,7 @@ import {
   BriefcaseBusiness,
   Globe2,
   Radar,
+  Bot,
 } from "lucide-react";
 import { SearchLocationIcon } from "@/components/icons/SidebarIcons";
 import { BrandMark } from "@/components/BrandMark";
@@ -30,7 +32,8 @@ export type ViewKey =
   | "discovery"
   | "trackedTenders"
   | "publicTenders"
-  | "usOpportunities";
+  | "usOpportunities"
+  | "mcp";
 
 export interface NavItem {
   key: ViewKey;
@@ -43,6 +46,7 @@ export const NAV_ITEMS: NavItem[] = [
   { key: "trackedTenders", label: "Verfolgte Ausschreibungen", icon: BriefcaseBusiness },
   { key: "publicTenders", label: "Ausschreibungen", icon: SearchLocationIcon },
   { key: "usOpportunities", label: "U.S. Opportunities", icon: Globe2 },
+  { key: "mcp", label: "MCP", icon: Bot },
 ];
 
 const HASH_TO_VIEW: Record<string, ViewKey> = {
@@ -50,6 +54,7 @@ const HASH_TO_VIEW: Record<string, ViewKey> = {
   "analyse": "discovery",
   "verfolgt": "trackedTenders",
   "us": "usOpportunities",
+  "mcp": "mcp",
 };
 
 const VIEW_TO_HASH: Record<ViewKey, string> = {
@@ -57,6 +62,7 @@ const VIEW_TO_HASH: Record<ViewKey, string> = {
   trackedTenders: "verfolgt",
   publicTenders: "ausschreibungen",
   usOpportunities: "us",
+  mcp: "mcp",
 };
 
 function getViewFromHash(): ViewKey | null {
@@ -165,38 +171,40 @@ export function Shell({ children }: ShellProps) {
           const active = currentView === item.key;
 
           return (
-            <ListItemButton
-              key={item.key}
-              selected={active}
-              aria-current={active ? "page" : undefined}
-              onClick={() => {
-                setCurrentView(item.key);
-                setMobileOpen(false);
-              }}
-              sx={{
-                minHeight: 44,
-                border: "1px solid transparent",
-                borderRadius: 1.5,
-                mb: 0.5,
-                px: 1.25,
-                py: 1,
-                color: "text.primary",
-                "&.Mui-selected": {
-                  bgcolor: "var(--color-brand-signal-soft)",
-                  borderColor: "var(--color-brand-signal-border)",
-                  color: "var(--color-brand-primary)",
-                  "&:hover": { bgcolor: "var(--color-brand-signal-soft)" },
-                },
-                "&:not(.Mui-selected):hover": {
-                  bgcolor: "var(--color-surface-strong)",
-                },
-              }}
-            >
-              <ListItemIcon sx={{ minWidth: 36, color: "inherit" }}>
-                <Icon size={20} color={active ? theme.palette.primary.dark : theme.palette.text.secondary} />
-              </ListItemIcon>
-              <ListItemText primary={item.label} primaryTypographyProps={{ fontWeight: active ? 700 : 600, fontSize: 15 }} />
-            </ListItemButton>
+            <Box key={item.key}>
+              {item.key === "mcp" && <Divider sx={{ my: 1.5 }} />}
+              <ListItemButton
+                selected={active}
+                aria-current={active ? "page" : undefined}
+                onClick={() => {
+                  setCurrentView(item.key);
+                  setMobileOpen(false);
+                }}
+                sx={{
+                  minHeight: 44,
+                  border: "1px solid transparent",
+                  borderRadius: 1.5,
+                  mb: 0.5,
+                  px: 1.25,
+                  py: 1,
+                  color: "text.primary",
+                  "&.Mui-selected": {
+                    bgcolor: "var(--color-brand-signal-soft)",
+                    borderColor: "var(--color-brand-signal-border)",
+                    color: "var(--color-brand-primary)",
+                    "&:hover": { bgcolor: "var(--color-brand-signal-soft)" },
+                  },
+                  "&:not(.Mui-selected):hover": {
+                    bgcolor: "var(--color-surface-strong)",
+                  },
+                }}
+              >
+                <ListItemIcon sx={{ minWidth: 36, color: "inherit" }}>
+                  <Icon size={20} color={active ? theme.palette.primary.dark : theme.palette.text.secondary} />
+                </ListItemIcon>
+                <ListItemText primary={item.label} primaryTypographyProps={{ fontWeight: active ? 700 : 600, fontSize: 15 }} />
+              </ListItemButton>
+            </Box>
           );
         })}
       </Box>

@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+import { getSiteUrl } from "@/lib/site-config";
 
 export type CheckoutBillingPlan = "weekly" | "quarterly";
 export type BillingPlan = CheckoutBillingPlan | "yearly";
@@ -84,5 +85,5 @@ export function billingPlanFromPriceId(priceId: string | null | undefined): Bill
 }
 
 export function getBillingSiteUrl(): string {
-  return "https://palemaz.com";
+  return getSiteUrl();
 }

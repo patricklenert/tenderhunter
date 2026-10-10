@@ -5,6 +5,8 @@
   --color-brand-signal: oklch(58% 0.13 35);
   --color-brand-signal-soft: oklch(92.8% 0.034 35);
   --color-brand-signal-border: oklch(58% 0.13 35 / 42%);
+  --color-smallvendor-soft: oklch(93.5% 0.03 175);
+  --color-smallvendor-border: oklch(55% 0.09 175 / 35%);
   --color-surface-canvas: oklch(96.7% 0.01 238);
   --color-surface-panel: oklch(98.1% 0.006 238);
   --color-surface-elevated: oklch(99.2% 0.004 238);
@@ -20,7 +22,7 @@
   --color-fit-high: oklch(50% 0.12 152);
   --color-fit-medium: oklch(58% 0.14 75);
   --color-fit-low: oklch(45.3% 0.022 240);
-  --color-focus-ring: oklch(92.8% 0.034 35);
+  --color-focus-ring: var(--color-brand-primary);
   --font-sans: "Manrope", sans-serif;
 }
 
@@ -58,6 +60,21 @@
 
   :focus-visible {
     outline: 3px solid var(--color-focus-ring);
-    outline-offset: 2px;
+    outline-offset: 3px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto !important;
+    }
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 }

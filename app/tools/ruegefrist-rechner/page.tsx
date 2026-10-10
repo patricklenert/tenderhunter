@@ -5,14 +5,16 @@ import { Home as HomeIcon, Gavel } from "lucide-react";
 import RuegefristRechner from "@/components/tools/RuegefristRechner";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+import { getSiteUrl } from "@/lib/site-config";
+
+const siteUrl = getSiteUrl();
 
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
   title: "Rügefrist-Rechner – § 160 GWB Fristen exakt berechnen",
   description:
-    "Kostenloser Rügefrist-Rechner nach § 160 GWB: Berechnen Sie die 14-Tage-Rügefrist und die 15-Tage-Nachprüfungsantragsfrist inkl. Wochenend-Verlängerung nach § 193 BGB.",
+    "Kostenloser Rügefrist-Rechner nach § 160 GWB: Berechnen Sie die 10-Tage-Frist für erkannte Verstöße und die 15-Tage-Frist nach Nichtabhilfe.",
   alternates: { canonical: "/tools/ruegefrist-rechner", languages: { "de-DE": "/tools/ruegefrist-rechner" } },
   openGraph: {
     title: "Rügefrist-Rechner – § 160 GWB Fristen exakt berechnen",
@@ -42,15 +44,15 @@ export default function RuegefristRechnerPage() {
         name: "Wie lange habe ich Zeit, um einen Vergabeverstoß zu rügen?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "Nach § 160 Abs. 3 Satz 1 GWB beträgt die Rügefrist 14 Kalendertage ab Kenntnis des Vergabeverstoßes. Fällt der letzte Tag auf ein Wochenende oder Feiertag, verlängert sich die Frist auf den nächsten Werktag (§ 193 BGB).",
+          text: "Nach § 160 Abs. 3 Satz 1 Nummer 1 GWB muss ein erkannter Vergabeverstoß innerhalb von zehn Kalendertagen gegenüber dem Auftraggeber gerügt werden. Für erkennbare Fehler in Bekanntmachung oder Vergabeunterlagen gelten die dort genannten Fristenden.",
         },
       },
       {
         "@type": "Question",
-        name: "Wie lange habe ich für den Nachprüfungsantrag beim Vergabesenat?",
+        name: "Wie lange habe ich für den Nachprüfungsantrag bei der Vergabekammer?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "Nach § 160 Abs. 3 Satz 4 GWB haben Sie 15 Kalendertage ab Eingang der Mitteilung des Auftraggebers, der Rüge nicht abzuhelfen. Alternativ endet die Frist spätestens 15 Kalendertage nach Ablauf der Stillhaltefrist (Zuschlagserteilung).",
+          text: "Nach § 160 Abs. 3 Satz 1 Nummer 4 GWB ist der Antrag unzulässig, wenn mehr als 15 Kalendertage nach Eingang der Mitteilung vergangen sind, dass der Auftraggeber der Rüge nicht abhelfen will.",
         },
       },
       {
@@ -58,7 +60,7 @@ export default function RuegefristRechnerPage() {
         name: "Was passiert, wenn ich die Rügefrist verstreichen lasse?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "Verstreichene Rügefristen führen zur Unzulässigkeit des Nachprüfungsantrags (§ 160 Abs. 3 Satz 1 GWB). Der Vergabeverstoß kann dann nicht mehr gerichtlich geltend gemacht werden – es sei denn, eine Ausnahme nach § 160 Abs. 3 Satz 1 lit. a-e GWB greift.",
+          text: "Ein Antrag kann nach § 160 Abs. 3 GWB unzulässig sein, wenn der Verstoß nicht rechtzeitig gerügt wurde. Nummern 2 bis 5 enthalten weitere Frist- und Zulässigkeitsregeln; ein Antrag auf Feststellung der Unwirksamkeit nach § 135 Absatz 1 Nummer 2 ist ausgenommen.",
         },
       },
       {
@@ -66,7 +68,7 @@ export default function RuegefristRechnerPage() {
         name: "Muss ich immer erst rügen, bevor ich Nachprüfung beantrage?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "Ja, grundsätzlich herrscht Rügeobliegenheit. Ausnahmen bestehen nur, wenn der Auftraggeber nicht über die Zuschlagserteilung informiert hat, die Frist für die Information unzumutbar verkürzt wurde, oder weitere Ausnahmen nach § 160 Abs. 3 Satz 1 lit. a-e GWB vorliegen.",
+          text: "Eine vorherige Rüge ist nicht in jedem Fall gleich zu beurteilen. § 160 Abs. 3 GWB enthält je nach Art und Zeitpunkt des Verstoßes unterschiedliche Anforderungen und Ausnahmen.",
         },
       },
     ],
@@ -81,7 +83,7 @@ export default function RuegefristRechnerPage() {
     operatingSystem: "Web",
     offers: { "@type": "Offer", price: "0", priceCurrency: "EUR" },
     description:
-      "Berechnen Sie die Rügefrist (14 Tage) und Nachprüfungsantragsfrist (15 Tage) nach § 160 GWB inkl. Wochenend-Verlängerung.",
+       "Berechnen Sie die 10-Tage-Rügefrist für erkannte Verstöße und die 15-Tage-Frist nach Nichtabhilfe gemäß § 160 GWB.",
   };
 
   return (
@@ -116,9 +118,9 @@ export default function RuegefristRechnerPage() {
               Rügefrist-Rechner
             </Typography>
             <Typography variant="body1" color="text.secondary" sx={{ maxWidth: "75ch", lineHeight: 1.8, fontSize: "1.1rem" }}>
-              Vergabeverstöße haben strenge Fristen: 14 Kalendertage für die Rüge, 15 Kalendertage für den
-              Nachprüfungsantrag beim Vergabesenat. Berechnen Sie beide Fristen inkl. Wochenend-Verlängerung nach
-              § 193 BGB.
+               Vergabeverstöße haben strenge Fristen: regelmäßig 10 Kalendertage für einen erkannten Verstoß und 15
+               Kalendertage nach der Mitteilung, dass der Auftraggeber der Rüge nicht abhilft. Der Antrag wird bei der
+               zuständigen Vergabekammer gestellt.
             </Typography>
           </Box>
 
@@ -131,19 +133,18 @@ export default function RuegefristRechnerPage() {
             </Typography>
             <Typography variant="body1" component="p" sx={{ mb: 2, lineHeight: 1.8, color: "text.secondary", maxWidth: "75ch" }}>
               Das deutsche Vergaberecht folgt dem <strong>Rügeprinzip</strong>: Wer einen Vergabeverstoß erkennt,
-              muss diesen zunächst beim Auftraggeber rügen. Erst wenn der Auftraggeber die Rüge ablehnt, kann der
-              Vergabenachprüfungsantrag bei der zuständigen Vergabekammer gestellt werden.
+               muss diesen zunächst beim Auftraggeber rügen. Ein Nachprüfungsantrag bei der zuständigen Vergabekammer
+               setzt die weiteren Voraussetzungen des § 160 GWB voraus.
             </Typography>
             <Typography variant="body1" component="p" sx={{ mb: 2, lineHeight: 1.8, color: "text.secondary", maxWidth: "75ch" }}>
-              Die Fristen sind <strong>absolut</strong>: Eine Verlängerung gibt es nicht. Versäumnisse führen zur
-              Unzulässigkeit des Nachprüfungsantrags – der Vergabeverstoß kann dann nicht mehr gerichtlich verfolgt
-              werden. Ausnahmen sind in § 160 Abs. 3 Satz 1 lit. a-e GWB geregelt (z. B. fehlende Information über
-              die Zuschlagserteilung).
+               Die gesetzlichen Fristen sind strikt einzuhalten. Versäumnisse können zur Unzulässigkeit des
+               Nachprüfungsantrags führen. Weitere Regeln und Ausnahmen stehen in § 160 Abs. 3 GWB, etwa für Verstöße
+               aus der Bekanntmachung oder den Vergabeunterlagen.
             </Typography>
             <Box component="ul" sx={{ m: 0, pl: 2.5, color: "text.secondary" }}>
-              <li><strong>§ 160 Abs. 3 Satz 1 GWB:</strong> Rügefrist 14 Kalendertage</li>
-              <li><strong>§ 160 Abs. 3 Satz 4 GWB:</strong> Nachprüfungsantragsfrist 15 Kalendertage</li>
-              <li><strong>§ 193 BGB:</strong> Wochenende/Feiertag → nächster Werktag</li>
+              <li><strong>§ 160 Abs. 3 Satz 1 Nummer 1 GWB:</strong> zehn Kalendertage für erkannte Verstöße</li>
+              <li><strong>§ 160 Abs. 3 Satz 1 Nummer 4 GWB:</strong> 15 Kalendertage nach Mitteilung der Nichtabhilfe</li>
+              <li><strong>§ 160 Abs. 3 GWB:</strong> Bekanntmachungs- und Unterlagenfehler müssen spätestens bis zum jeweiligen Fristende gerügt werden</li>
             </Box>
           </Paper>
         </Container>

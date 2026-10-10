@@ -1,9 +1,10 @@
 import { ImageResponse } from "next/og";
-import { BrandMark } from "@/components/BrandMark";
+import { BrandLockup } from "@/components/BrandLockup";
+import { BRAND_COLORS, BRAND_METADATA } from "@/lib/brand-tokens";
 
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
-export const alt = "Tenderhunter – KI-Ausschreibungssoftware für deutsche Unternehmen";
+export const alt = BRAND_METADATA.defaultTitle;
 
 export default function OgImage() {
   return new ImageResponse(
@@ -15,37 +16,20 @@ export default function OgImage() {
           display: "flex",
           flexDirection: "column",
           justifyContent: "space-between",
-          background: "#ffffff",
+           background: BRAND_COLORS.surfaceElevated,
           padding: 60,
           fontFamily: "sans-serif",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <div
-            style={{
-              width: 48,
-              height: 48,
-              borderRadius: 12,
-              background: "#1e3a5f",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "#e9644d",
-            }}
-          >
-            <BrandMark size={30} color="#e9644d" />
-          </div>
-          <div style={{ fontSize: 28, fontWeight: 700, color: "#1a1a2e" }}>
-            Tenderhunter
-          </div>
-        </div>
+        <BrandLockup />
 
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           <div
             style={{
+              display: "flex",
               fontSize: 56,
               fontWeight: 800,
-              color: "#1a1a2e",
+              color: BRAND_COLORS.textPrimary,
               lineHeight: 1.15,
               letterSpacing: "-0.02em",
               maxWidth: 900,
@@ -55,8 +39,9 @@ export default function OgImage() {
           </div>
           <div
             style={{
+              display: "flex",
               fontSize: 26,
-              color: "#667288",
+              color: BRAND_COLORS.textSecondary,
               maxWidth: 800,
               lineHeight: 1.5,
             }}
@@ -72,23 +57,23 @@ export default function OgImage() {
             alignItems: "center",
             gap: 24,
             fontSize: 22,
-            color: "#667288",
+            color: BRAND_COLORS.textSecondary,
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ color: "#e9644d", fontWeight: 700 }}>✓</span> DTVP
+            <span style={{ color: BRAND_COLORS.brandSignal, fontWeight: 700 }}>•</span> DTVP
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ color: "#e9644d", fontWeight: 700 }}>✓</span> TED
+            <span style={{ color: BRAND_COLORS.brandSignal, fontWeight: 700 }}>•</span> TED
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ color: "#e9644d", fontWeight: 700 }}>✓</span> evergabe
+            <span style={{ color: BRAND_COLORS.brandSignal, fontWeight: 700 }}>•</span> evergabe
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ color: "#e9644d", fontWeight: 700 }}>✓</span> Bauportal
+            <span style={{ color: BRAND_COLORS.brandSignal, fontWeight: 700 }}>•</span> Bauportal
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ color: "#e9644d", fontWeight: 700 }}>✓</span> Niedersachsen
+            <span style={{ color: BRAND_COLORS.brandSignal, fontWeight: 700 }}>•</span> Niedersachsen
           </div>
         </div>
       </div>

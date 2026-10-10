@@ -5,14 +5,16 @@ import { Home as HomeIcon, Clock } from "lucide-react";
 import Fristenrechner from "@/components/tools/Fristenrechner";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+import { getSiteUrl } from "@/lib/site-config";
+
+const siteUrl = getSiteUrl();
 
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
   title: "Vergabe-Fristenrechner – Angebotsfrist nach VgV & UVgO berechnen",
   description:
-    "Kostenloser Fristenrechner für öffentliche Vergaben: Wählen Sie das Verfahren und das Datum der Bekanntmachung – sofort sehen Sie den frühesten Abgabetermin nach § 17 VgV bzw. § 12 UVgO.",
+    "Kostenloser Fristenrechner für öffentliche Vergaben: Ermitteln Sie EU-Mindestfristen nach VgV. Für UVgO-Vergaben zeigt das Tool, warum die Frist im Einzelfall angemessen festgelegt werden muss.",
   alternates: { canonical: "/tools/fristenrechner", languages: { "de-DE": "/tools/fristenrechner" } },
   openGraph: {
     title: "Vergabe-Fristenrechner – Angebotsfrist nach VgV & UVgO",
@@ -42,7 +44,7 @@ export default function FristenrechnerPage() {
         name: "Wie lange ist die Angebotsfrist beim offenen Verfahren nach VgV?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "Die Mindestfrist beträgt 52 Kalendertage ab Versand der Bekanntmachung (§ 17 Abs. 1 VgV). Bei elektronischer Einreichung kann sie auf 35 Kalendertage verkürzt werden.",
+          text: "Die Mindestfrist im offenen Verfahren beträgt 35 Kalendertage ab Absendung der Bekanntmachung (§ 15 Abs. 2 VgV). Die konkrete Bekanntmachung kann eine längere Frist vorsehen.",
         },
       },
       {
@@ -50,7 +52,7 @@ export default function FristenrechnerPage() {
         name: "Wie lange ist die Frist bei Unterschwellenvergaben (UVgO)?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "Nach § 12 Abs. 2 UVgO beträgt die Frist mindestens 17 Kalendertage, bei besonders komplexen Leistungen 26 Kalendertage. Bei Aufträgen bis 25.000 € genügen 10 Kalendertage.",
+          text: "Nach § 13 Abs. 1 UVgO gibt es keine einheitliche gesetzliche Zahl von Kalendertagen. Die Angebotsfrist muss angemessen sein und steht in den Vergabeunterlagen.",
         },
       },
       {
@@ -109,7 +111,8 @@ export default function FristenrechnerPage() {
             </Typography>
             <Typography variant="body1" color="text.secondary" sx={{ maxWidth: "75ch", lineHeight: 1.8, fontSize: "1.1rem" }}>
               Wählen Sie das Vergabeverfahren und das Datum der Bekanntmachung – sofort sehen Sie den frühesten
-              Abgabetermin nach § 17 VgV bzw. § 12 UVgO. Including aktueller Kalender mit Wochenenden.
+               Abgabetermin nach den einschlägigen VgV-Regeln. Bei UVgO-Vergaben muss die Frist im Einzelfall angemessen
+               festgelegt werden. Der Rechner berücksichtigt Kalendertage und Wochenenden.
             </Typography>
           </Box>
 
@@ -123,12 +126,12 @@ export default function FristenrechnerPage() {
             <Typography variant="body1" component="p" sx={{ mb: 2, lineHeight: 1.8, color: "text.secondary", maxWidth: "75ch" }}>
               Die gesetzlichen Mindestfristen sichern Bietern ausreichend Zeit für die Angebotserstellung. Sie sind
               <strong> Untergrenzen</strong> – der Auftraggeber kann sie verlängern, aber nicht unterschreiten.
-              Verkürzungen sind nur unter engen Voraussetzungen möglich (z. B. elektronische Einreichung beim offenen
-              Verfahren: 52 → 35 Tage).
+               Verkürzungen oder besondere Fristregeln hängen vom Verfahren und den gesetzlichen Voraussetzungen ab. Die
+               konkrete Frist in der Bekanntmachung oder den Vergabeunterlagen ist maßgeblich.
             </Typography>
             <Typography variant="body1" component="p" sx={{ lineHeight: 1.8, color: "text.secondary", maxWidth: "75ch" }}>
               <strong>Fällt der letzte Tag auf ein Wochenende oder einen Feiertag</strong>, verlängert sich die Frist
-              auf den nächsten Werktag (§ 193 BGB analog). Die hier berechneten Fristen sind <strong>Kalendertage</strong>
+               auf den nächsten Werktag. Die hier berechneten Fristen sind <strong>Kalendertage</strong>
               und enthalten Wochenenden.
             </Typography>
           </Paper>

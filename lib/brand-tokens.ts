@@ -1,0 +1,40 @@
+export const BRAND_COLORS = {
+  brandPrimary: "#1e3a5f",
+  brandPrimaryLight: "#e5edf5",
+  brandPrimaryDark: "#152a45",
+  brandSignal: "#e9644d",
+  brandSignalSoft: "#f8d8d2",
+  brandSignalDark: "#b34d3d",
+  surfaceCanvas: "#f0f4f8",
+  surfacePanel: "#f7fafc",
+  surfaceElevated: "#fbfcfd",
+  surfaceStrong: "#e8eff5",
+  textPrimary: "#2d3544",
+  textSecondary: "#4b5861",
+  borderSubtle: "#d1d5db",
+  statusSuccess: "#277544",
+  statusSuccessSoft: "#e5f3e9",
+  statusSuccessDark: "#1b5e32",
+  statusWarning: "#9a5a08",
+  statusWarningSoft: "#fff4df",
+  statusWarningDark: "#7a4507",
+  statusDanger: "#c62828",
+  statusDangerSoft: "#ffebee",
+  statusDangerDark: "#8e0000",
+  statusInfo: "#526476",
+  statusInfoSoft: "#eef4f7",
+  statusInfoDark: "#334155",
+  onBrand: "#ffffff",
+} as const;
+
+export const BRAND_METADATA = {
+  name: "Tenderhunter",
+  defaultTitle: "Tenderhunter – KI-Ausschreibungssoftware für deutsche Unternehmen",
+  titleTemplate: "%s | Tenderhunter",
+  description:
+    "Finden Sie automatisch passende öffentliche Ausschreibungen in Deutschland. KI analysiert Anforderungen, Ihre Unternehmenswebsite wird gescannt, täglich passende Projekte.",
+  socialTitle: "Tenderhunter – KI-Ausschreibungssoftware",
+  socialDescription:
+    "Deutsche Ausschreibungsportale automatisch durchsuchen. KI-gestütztes Matching für Ihr Unternehmen.",
+  tagline: "Öffentliche Aufträge. Früh erkannt. Klar bewertet.",
+} as const;

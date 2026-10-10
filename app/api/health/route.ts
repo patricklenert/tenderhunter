@@ -113,7 +113,7 @@ export async function GET(): Promise<Response> {
               FROM jobs continuation
               WHERE continuation.type = 'scrape_public_tenders'
                 AND continuation.status IN ('pending', 'running')
-                AND continuation.job_key = 'public-continuation:' || public_source_cursors.source_key
+                AND continuation.payload ->> 'source' = public_source_cursors.source_key
             )
             AND (
               (

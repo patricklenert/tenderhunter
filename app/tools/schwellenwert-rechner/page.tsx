@@ -5,14 +5,16 @@ import { Home as HomeIcon, Calculator } from "lucide-react";
 import SchwellenwertRechner from "@/components/tools/SchwellenwertRechner";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+import { getSiteUrl } from "@/lib/site-config";
+
+const siteUrl = getSiteUrl();
 
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
   title: "Schwellenwert-Rechner – VgV, UVgO oder SektVO? (2026/2027)",
   description:
-    "Kostenloser Schwellenwert-Rechner für öffentliche Vergaben. Geben Sie den Auftragswert ein und sofort sehen Sie: Welches Vergaberecht gilt (VgV, UVgO, SektVO) und ob EU-Bekanntmachungspflicht besteht.",
+    "Kostenloser Schwellenwert-Rechner für öffentliche Vergaben. Ordnen Sie den Auftragswert dem passenden Vergaberegelwerk zu (VgV, VOB/A, UVgO oder SektVO) und prüfen Sie den EU-Anwendungsbereich.",
   alternates: { canonical: "/tools/schwellenwert-rechner", languages: { "de-DE": "/tools/schwellenwert-rechner" } },
   openGraph: {
     title: "Schwellenwert-Rechner – VgV, UVgO oder SektVO?",
@@ -81,7 +83,7 @@ export default function SchwellenwertRechnerPage() {
     operatingSystem: "Web",
     offers: { "@type": "Offer", price: "0", priceCurrency: "EUR" },
     description:
-      "Berechnen Sie sofort, welches Vergaberecht für Ihren Auftrag gilt: VgV, UVgO oder SektVO. Geben Sie einfach den Auftragswert ein.",
+     "Ordnen Sie einen Auftragswert dem passenden Vergaberegelwerk zu: VgV, VOB/A, UVgO oder SektVO.",
   };
 
   return (
@@ -116,8 +118,8 @@ export default function SchwellenwertRechnerPage() {
               Schwellenwert-Rechner
             </Typography>
             <Typography variant="body1" color="text.secondary" sx={{ maxWidth: "75ch", lineHeight: 1.8, fontSize: "1.1rem" }}>
-              Geben Sie den Auftragswert ein und sofort sehen Sie, welches Vergaberecht gilt: VgV (Oberschwelle), UVgO
-              (Unterschwelle) oder SektVO (Sektorenauftraggeber). Mit aktuellen EU-Schwellenwerten 2026–2027.
+               Geben Sie den Auftragswert ein und ordnen Sie ihn dem passenden Vergaberegelwerk zu: VgV, VOB/A, UVgO
+               oder SektVO. Mit aktuellen EU-Schwellenwerten 2026–2027.
             </Typography>
           </Box>
 

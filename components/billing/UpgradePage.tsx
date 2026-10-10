@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import {
   Accordion,
@@ -27,6 +26,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { AuthModal } from "@/components/AuthModal";
+import { BrandLockup } from "@/components/BrandLockup";
 import { UpgradeProductPreview } from "@/components/billing/UpgradeProductPreview";
 import { BILLING_PLANS, parseBillingPlan, type CheckoutBillingPlan } from "@/lib/billing";
 import { useSession } from "@/lib/auth-client";
@@ -173,10 +173,10 @@ export function UpgradePage() {
   return (
     <Box component="main" sx={{ minHeight: "100vh", bgcolor: "background.default", color: "text.primary" }}>
       <Container maxWidth="sm" sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, md: 3 } }}>
-        <Box component="header" sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 36, mb: { xs: 3, md: 4 } }}>
-          <Link href="/" aria-label="Tenderhunter Startseite" style={{ display: "inline-flex", alignItems: "center", textDecoration: "none" }}>
-            <Image src="/logo.webp" alt="Tenderhunter" width={112} height={35} priority />
-          </Link>
+          <Box component="header" sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 36, mb: { xs: 3, md: 4 } }}>
+            <Link href="/" aria-label="Tenderhunter Startseite" style={{ display: "inline-flex", alignItems: "center", textDecoration: "none" }}>
+              <BrandLockup size={36} labelSize={20} gap={10} />
+            </Link>
           <Button component={Link} href="/" variant="text" color="inherit" startIcon={<ArrowLeft size={16} />} sx={{ color: "#9ca3af", fontSize: "0.8125rem", px: 1, minHeight: 36 }}>
             Zur App
           </Button>
