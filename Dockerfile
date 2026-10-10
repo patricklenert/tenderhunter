@@ -4,6 +4,12 @@ FROM node:20-bookworm
 # needs the playwright client library, so browser downloads are skipped.
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
+# Cold-storage hydration of tender documents streams .tar.zst archives back
+# into the object store; zstd is not part of the base image.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends zstd \
+ && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 COPY package*.json ./

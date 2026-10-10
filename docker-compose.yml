@@ -64,12 +64,20 @@ services:
       - .env
     ports:
       - "3025:3000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       DATABASE_URL: postgresql://tenderhunter:tenderhunter@postgres:5432/tenderhunter
       OBSCURA_CDP_URL: ws://obscura:9222
+      COLD_S3_ENDPOINT: ${COLD_S3_ENDPOINT:-http://host.docker.internal:9000}
+      COLD_S3_BUCKET: ${COLD_S3_BUCKET:-tender-cold}
+      COLD_S3_ACCESS_KEY: ${COLD_S3_ACCESS_KEY:-minioadmin}
+      COLD_S3_SECRET_KEY: ${COLD_S3_SECRET_KEY:-minioadmin}
       SAM_API_KEY: ${SAM_API_KEY:-}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-alerts@tenderhunter.us}
+      ZAI_API_KEY: ${ZAI_API_KEY:-}
+      LLM_PAID_DAILY_BUDGET_EUR: ${LLM_PAID_DAILY_BUDGET_EUR:-0.1}
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       STRIPE_PRICE_WEEKLY: ${STRIPE_PRICE_WEEKLY:-}
@@ -123,12 +131,20 @@ services:
     command: ["worker"]
     env_file:
       - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       DATABASE_URL: postgresql://tenderhunter:tenderhunter@postgres:5432/tenderhunter
       OBSCURA_CDP_URL: ws://obscura:9222
+      COLD_S3_ENDPOINT: ${COLD_S3_ENDPOINT:-http://host.docker.internal:9000}
+      COLD_S3_BUCKET: ${COLD_S3_BUCKET:-tender-cold}
+      COLD_S3_ACCESS_KEY: ${COLD_S3_ACCESS_KEY:-minioadmin}
+      COLD_S3_SECRET_KEY: ${COLD_S3_SECRET_KEY:-minioadmin}
       SAM_API_KEY: ${SAM_API_KEY:-}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-alerts@tenderhunter.us}
+      ZAI_API_KEY: ${ZAI_API_KEY:-}
+      LLM_PAID_DAILY_BUDGET_EUR: ${LLM_PAID_DAILY_BUDGET_EUR:-0.1}
       SBA_SUBNET_URL: ${SBA_SUBNET_URL:-https://subnet.sba.gov/client/dsp_Landing.cfm}
       US_SCRAPE_INTERVAL_HOURS: ${US_SCRAPE_INTERVAL_HOURS:-24}
       PUBLIC_SCRAPE_INTERVAL_HOURS: ${PUBLIC_SCRAPE_INTERVAL_HOURS:-48}

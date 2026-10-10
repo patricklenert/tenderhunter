@@ -2,10 +2,11 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  skipTrailingSlashRedirect: true,
   async redirects() {
     return [
-      { source: "/us", destination: "/#us", permanent: true },
-      { source: "/wissen/schwellenwerte-vergabe-2025", destination: "/wissen/schwellenwerte-vergabe", permanent: true },
+      { source: "/us", destination: "/#us", statusCode: 301 },
+      { source: "/wissen/schwellenwerte-vergabe-2025", destination: "/wissen/schwellenwerte-vergabe", statusCode: 301 },
     ];
   },
   experimental: {
