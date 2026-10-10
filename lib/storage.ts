@@ -69,6 +69,9 @@ const CANONICAL_REQUEST_HEADERS: Record<string, string> = {
   "user-agent": "User-Agent",
 };
 
+export const isDocumentTooLargeError = (error: unknown): boolean =>
+  /Dokument zu gr(?:oß|oss)/iu.test(error instanceof Error ? error.message : String(error));
+
 const boundedHeaderValue = (value: unknown, maxLength = 2_000): string | null => {
   if (typeof value !== "string") return null;
   const bounded = value.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, maxLength);
@@ -245,6 +248,9 @@ export const fetchAndStore = async (url: string, relativePath: string, options?:
   try {
     return await fetchAndStoreDirect(url, relativePath, options);
   } catch (directError) {
+    // The browser-session retry cannot make an oversized document smaller and
+    // may buffer the entire response in memory. Preserve the configured limit.
+    if (isDocumentTooLargeError(directError)) throw directError;
     const sessionPageUrl = options?.sessionPageUrl;
     if (!sessionPageUrl) throw directError;
 
@@ -252,6 +258,7 @@ export const fetchAndStore = async (url: string, relativePath: string, options?:
       const browserResult = await fetchResourceWithBrowserSession(sessionPageUrl, url, {
         accept: options?.headers?.Accept ?? DEFAULT_ACCEPT,
         userAgent: options?.userAgent,
+        maxBodyBytes: MAX_FILE_SIZE_BYTES,
       });
       return persistBrowserResource(relativePath, browserResult);
     } catch (browserError) {

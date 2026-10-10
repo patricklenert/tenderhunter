@@ -3,6 +3,7 @@ import {
   serial,
   text,
   integer,
+  bigint,
   real,
   timestamp,
   jsonb,
@@ -647,9 +648,10 @@ export const jobs = pgTable(
     status: jobStatusEnum("status").notNull().default("pending"),
     priority: integer("priority").notNull().default(100),
     retries: integer("retries").notNull().default(0),
-     maxRetries: integer("max_retries").notNull().default(3),
-     runAfter: timestamp("run_after", { withTimezone: true }).notNull().defaultNow(),
-     lockedAt: timestamp("locked_at", { withTimezone: true }),
+      maxRetries: integer("max_retries").notNull().default(3),
+      runAfter: timestamp("run_after", { withTimezone: true }).notNull().defaultNow(),
+      runtimeTimeoutEnforced: boolean("runtime_timeout_enforced").notNull().default(false),
+      lockedAt: timestamp("locked_at", { withTimezone: true }),
      lockedBy: text("locked_by"),
      jobKey: text("job_key"),
      groupKey: text("group_key"),
@@ -699,6 +701,22 @@ export const catalogState = pgTable("catalog_state", {
     syncStartedAt: timestamp("sync_started_at", { withTimezone: true }),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export type DeepDiveStatus = "pending" | "running" | "ready" | "failed";
+
+export const tenderDeepDives = pgTable("tender_deep_dives", {
+  tenderId: integer("tender_id")
+    .primaryKey()
+    .references(() => tenders.id, { onDelete: "cascade" }),
+  status: text("status").$type<DeepDiveStatus>().notNull().default("pending"),
+  model: text("model"),
+  resultJson: jsonb("result_json"),
+  corpusStats: jsonb("corpus_stats"),
+  error: text("error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 
 export const publicScrapeRuns = pgTable(
   "public_scrape_runs",
@@ -928,6 +946,17 @@ export type CompanyUrlCache = typeof companyUrlCache.$inferSelect;
 export type CompanyUrlMatchCache = typeof companyUrlMatchCache.$inferSelect;
 export type CompanyMatchPreview = typeof companyMatchPreviews.$inferSelect;
 export type CatalogState = typeof catalogState.$inferSelect;
+export type TenderDeepDive = typeof tenderDeepDives.$inferSelect;
+export type NewTenderDeepDive = typeof tenderDeepDives.$inferInsert;
+
+export const llmSpendDays = pgTable("llm_spend_days", {
+  day: text("day").primaryKey(),
+  microEur: bigint("micro_eur", { mode: "number" }).notNull().default(0),
+  paidCalls: integer("paid_calls").notNull().default(0),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type LlmSpendDay = typeof llmSpendDays.$inferSelect;
 export type PublicScrapeRun = typeof publicScrapeRuns.$inferSelect;
 export type PublicSourceRun = typeof publicSourceRuns.$inferSelect;
 export type Job = typeof jobs.$inferSelect;

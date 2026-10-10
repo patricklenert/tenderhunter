@@ -408,6 +408,7 @@ async function main() {
         retries INTEGER NOT NULL DEFAULT 0,
         max_retries INTEGER NOT NULL DEFAULT 3,
          run_after TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+         runtime_timeout_enforced BOOLEAN NOT NULL DEFAULT FALSE,
          locked_at TIMESTAMPTZ,
          locked_by TEXT,
          job_key TEXT,
@@ -431,6 +432,7 @@ async function main() {
     await client`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS queue_latency_ms INTEGER`;
     await client`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS duration_ms INTEGER`;
     await client`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS priority INTEGER NOT NULL DEFAULT 100`;
+    await client`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS runtime_timeout_enforced BOOLEAN NOT NULL DEFAULT FALSE`;
 
     await client`
       CREATE TABLE IF NOT EXISTS api_jobs (
@@ -851,6 +853,28 @@ async function main() {
      await client`CREATE UNIQUE INDEX IF NOT EXISTS idx_company_profiles_slug ON company_profiles(slug)`;
      await client`CREATE UNIQUE INDEX IF NOT EXISTS idx_user_companies_user_company ON user_companies(user_id, company_id)`;
      await client`CREATE INDEX IF NOT EXISTS idx_user_companies_user_active ON user_companies(user_id, is_active)`;
+
+    await client`
+      CREATE TABLE IF NOT EXISTS tender_deep_dives (
+        tender_id INTEGER PRIMARY KEY REFERENCES tenders(id) ON DELETE CASCADE,
+        status TEXT NOT NULL DEFAULT 'pending',
+        model TEXT,
+        result_json JSONB,
+        corpus_stats JSONB,
+        error TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+
+    await client`
+      CREATE TABLE IF NOT EXISTS llm_spend_days (
+        day TEXT PRIMARY KEY,
+        micro_eur BIGINT NOT NULL DEFAULT 0,
+        paid_calls INTEGER NOT NULL DEFAULT 0,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
 
     console.log("Database migration completed successfully!");
   } finally {

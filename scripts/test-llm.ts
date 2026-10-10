@@ -3,21 +3,18 @@ import OpenAI from "openai";
 import { callLLM, MODEL_CASCADE, resetLLMCooldownsForTests } from "@/lib/llm";
 
 assert.deepEqual([...MODEL_CASCADE], [
+  "inclusionai/ling-3.1-flash",
   "poolside/laguna-s-2.1:free",
   "poolside/laguna-xs-2.1:free",
   "nvidia/nemotron-3-ultra-550b-a55b:free",
   "nvidia/nemotron-3-super-120b-a12b:free",
   "google/gemma-4-31b-it:free",
-  "inclusionai/ling-3.0-flash",
-  "meta/muse-spark-1.3-contributor",
+  "nvidia/nemotron-3.5-lightning:free",
+  "google/gemma-4-26b-a4b-it:free",
+  "inclusionai/ling-3.0-flash-sante:free",
 ]);
 
-assert.equal(MODEL_CASCADE.at(-1), "meta/muse-spark-1.3-contributor");
-  assert.equal(MODEL_CASCADE.slice(0, 5).every((model) => model.endsWith(":free")), true);
-  assert.deepEqual([...MODEL_CASCADE.slice(5)], [
-    "inclusionai/ling-3.0-flash",
-    "meta/muse-spark-1.3-contributor",
-]);
+assert.equal(MODEL_CASCADE[0], "inclusionai/ling-3.1-flash");
 
 async function main() {
   const requestedModels: string[] = [];
@@ -70,7 +67,11 @@ async function main() {
   } as unknown as OpenAI;
   await assert.rejects(() => callLLM(policyBlockedClient, { messages: [] }), { status: 404 });
   await assert.rejects(() => callLLM(policyBlockedClient, { messages: [] }), { status: 404 });
-  assert.deepEqual(policyBlockedModels, [...MODEL_CASCADE, ...MODEL_CASCADE.slice(0, 6)]);
+  assert.deepEqual(policyBlockedModels, [
+    ...MODEL_CASCADE,
+    ...MODEL_CASCADE.slice(0, 6),
+    ...MODEL_CASCADE.slice(7),
+  ]);
   resetLLMCooldownsForTests();
 
   const unavailableModels: string[] = [];
@@ -79,13 +80,13 @@ async function main() {
       completions: {
         create: async ({ model }: { model: string }) => {
           unavailableModels.push(model);
-          if (model === MODEL_CASCADE[5]) {
+          if (model === MODEL_CASCADE[0]) {
             throw Object.assign(
-              new Error("Ling-3.0-flash is no longer available as a free model"),
+              new Error("Ling-3.1-flash is no longer available as a free model"),
               { status: 404, code: 404 },
             );
           }
-          if (model === MODEL_CASCADE[6]) {
+          if (model === MODEL_CASCADE[1]) {
             return { choices: [{ message: { content: "fallback response" } }] };
           }
           throw Object.assign(new Error("No endpoints found"), { status: 404, code: 404 });
@@ -96,29 +97,79 @@ async function main() {
   assert.equal(await callLLM(unavailableClient, { messages: [] }), "fallback response");
   assert.equal(await callLLM(unavailableClient, { messages: [] }), "fallback response");
   assert.deepEqual(unavailableModels, [
-    ...MODEL_CASCADE.slice(0, 7),
-    ...MODEL_CASCADE.slice(0, 5),
-    MODEL_CASCADE[6],
+    ...MODEL_CASCADE.slice(0, 2),
+    MODEL_CASCADE[1],
   ]);
   resetLLMCooldownsForTests();
 
-  const rateLimitedThenPaidModels: string[] = [];
-  const rateLimitedThenPaidClient = {
+  const newlyPaidModel = MODEL_CASCADE[6];
+  const newlyPaidModels: string[] = [];
+  const newlyPaidClient = {
     chat: {
       completions: {
         create: async ({ model }: { model: string }) => {
-          rateLimitedThenPaidModels.push(model);
-          if (model !== "meta/muse-spark-1.3-contributor") {
-            throw Object.assign(new Error("Model rate limit exceeded"), { status: 429, code: 429 });
+          newlyPaidModels.push(model);
+          if (model === newlyPaidModel) {
+            throw Object.assign(
+              new Error("This model is unavailable for free. The paid version is available now - use this slug instead."),
+              { status: 404, code: 404 },
+            );
           }
-          return { choices: [{ message: { content: "paid fallback response" } }] };
+          throw Object.assign(new Error("No endpoints found"), { status: 404, code: 404 });
         },
       },
     },
   } as unknown as OpenAI;
-  const paidFallbackResponse = await callLLM(rateLimitedThenPaidClient, { messages: [] });
-  assert.equal(paidFallbackResponse, "paid fallback response");
-  assert.deepEqual(rateLimitedThenPaidModels, [...MODEL_CASCADE]);
+  await assert.rejects(() => callLLM(newlyPaidClient, { messages: [] }), { status: 404 });
+  await assert.rejects(() => callLLM(newlyPaidClient, { messages: [] }), { status: 404 });
+  assert.deepEqual(newlyPaidModels, [
+    ...MODEL_CASCADE,
+    ...MODEL_CASCADE.filter((model) => model !== newlyPaidModel),
+  ], "a provider's current unavailable-for-free 404 must remove that model from later cascades");
+  resetLLMCooldownsForTests();
+
+  const structuredUnsupportedModels: string[] = [];
+  const structuredUnsupportedClient = {
+    chat: {
+      completions: {
+        create: async ({ model }: { model: string }) => {
+          structuredUnsupportedModels.push(model);
+          if (model === MODEL_CASCADE[0]) {
+            throw Object.assign(new Error("400 Provider returned error"), {
+              status: 400,
+              code: 400,
+              error: {
+                message: "Provider returned error",
+                metadata: { raw: `model: ${model} does not support feature: structured-outputs` },
+              },
+            });
+          }
+          return { choices: [{ message: { content: "structured fallback" } }] };
+        },
+      },
+    },
+  } as unknown as OpenAI;
+  const jsonFormat = { type: "json_object" as const };
+  assert.equal(await callLLM(structuredUnsupportedClient, { messages: [], response_format: jsonFormat }), "structured fallback");
+  assert.equal(await callLLM(structuredUnsupportedClient, { messages: [], response_format: jsonFormat }), "structured fallback");
+  assert.deepEqual(structuredUnsupportedModels, [MODEL_CASCADE[0], MODEL_CASCADE[1], MODEL_CASCADE[1]]);
+  resetLLMCooldownsForTests();
+
+  const malformedModels: string[] = [];
+  const malformedResponseClient = {
+    chat: {
+      completions: {
+        create: async ({ model }: { model: string }) => {
+          malformedModels.push(model);
+          if (model === MODEL_CASCADE[0]) return {};
+          return { choices: [{ message: { content: "valid fallback" } }] };
+        },
+      },
+    },
+  } as unknown as OpenAI;
+  assert.equal(await callLLM(malformedResponseClient, { messages: [] }), "valid fallback");
+  assert.equal(await callLLM(malformedResponseClient, { messages: [] }), "valid fallback");
+  assert.deepEqual(malformedModels, [MODEL_CASCADE[0], MODEL_CASCADE[1], MODEL_CASCADE[1]]);
   resetLLMCooldownsForTests();
 
   const authFailedModels: string[] = [];
@@ -150,11 +201,9 @@ async function main() {
   await assert.rejects(() => callLLM(rateLimitedClient, { messages: [] }), { status: 429 });
   assert.deepEqual(rateLimitedModels, [...MODEL_CASCADE]);
 
-  // Regression (global cooldown): when every model 429s in one burst, the
-  // free-model quota reset header (midnight UTC) used to put the whole
-  // subsystem — including the working paid fallbacks — on cooldown for hours.
-  // Cooldowns are per model now; transient 429s without a reset header do not
-  // cool a model down at all.
+  // Regression (global cooldown): free-model quota reset headers used to put
+  // every model on cooldown. Cooldowns are per model; transient 429s without a
+  // reset header do not cool a model down at all.
   const quotaBurstModels: string[][] = [];
   let quotaBurstCall = 0;
   const quotaBurstClient = {
@@ -172,7 +221,7 @@ async function main() {
               { status: 429, code: 429, ...(headers ? { headers } : {}) },
             );
           }
-          return { choices: [{ message: { content: "recovered paid response" } }] };
+          return { choices: [{ message: { content: "recovered response" } }] };
         },
       },
     },
@@ -180,10 +229,10 @@ async function main() {
   await assert.rejects(() => callLLM(quotaBurstClient, { messages: [] }), { status: 429 });
   quotaBurstCall += 1;
   const recoveredResponse = await callLLM(quotaBurstClient, { messages: [] });
-  assert.equal(recoveredResponse, "recovered paid response");
-  // Second call skips the cooled-down free models and lands on the first paid
-  // model without a cooldown.
-  assert.deepEqual(quotaBurstModels[1], [MODEL_CASCADE[5]]);
+  assert.equal(recoveredResponse, "recovered response");
+  // Ling 3.1's transient limit does not cool it down, so it can be retried
+  // before the other free models whose quota reset headers are still active.
+  assert.deepEqual(quotaBurstModels[1], [MODEL_CASCADE[0]]);
   resetLLMCooldownsForTests();
 }
 
