@@ -1,14 +1,15 @@
 import { db } from "@/lib/db";
 import { settings } from "@/lib/config";
-import { companyProfiles, tenders, scores, jobs, insights, userCompanies } from "@/lib/schema";
+import { companyProfiles, tenders, scores, jobs, insights, userCompanies, structuredData } from "@/lib/schema";
 import { errorResponse, json, parseJsonBody } from "@/lib/http";
 import { scrapeWebsite } from "@/lib/firecrawl";
 import { extractCompanyProfile } from "@/lib/perplexity";
 import { enqueueJob } from "@/lib/queue";
 import { JOB_CRAWL, JOB_DISCOVER_COMPANY } from "@/lib/types";
-import { and, desc, eq, gte, or } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, or, sql } from "drizzle-orm";
 import { buildDefaultTenderSources, serializeSourceItems } from "@/lib/tender-sources";
 import { requirePremiumSession } from "@/lib/entitlements";
+import { isSmallVendorTenderModeEnabled, analyzeTenderForSmallVendor } from "@/lib/small-vendor";
 
 export const runtime = "nodejs";
 
@@ -45,6 +46,51 @@ const toRoundedScore = (value: unknown): number => {
 const toOptionalString = (value: unknown): string | undefined =>
   typeof value === "string" && value.trim().length > 0 ? value : undefined;
 
+const parseBlob = (value: unknown): Record<string, unknown> | null => {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  if (typeof value === "string") {
+    try {
+      const parsed: unknown = JSON.parse(value);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? (parsed as Record<string, unknown>)
+        : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+};
+
+const applySmallVendorFit = async <T extends { id: number; title: string; winProbability: number }>(
+  items: T[],
+  smallVendorMode: boolean,
+): Promise<T[]> => {
+  if (!smallVendorMode || items.length === 0) {
+    return items;
+  }
+
+  const blobRows = await db
+    .select({ tenderId: structuredData.tenderId, jsonBlob: structuredData.jsonBlob })
+    .from(structuredData)
+    .where(inArray(structuredData.tenderId, items.map((item) => item.id)));
+  const blobById = new Map(blobRows.map((row) => [row.tenderId, row.jsonBlob]));
+
+  return (items
+    .map((item) => {
+      const blob = parseBlob(blobById.get(item.id));
+      return { ...item, smallVendorFit: blob ? analyzeTenderForSmallVendor(item.title, blob).fit : 0 };
+    })
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => {
+      const scoreA = 0.6 * a.item.smallVendorFit + 0.4 * a.item.winProbability;
+      const scoreB = 0.6 * b.item.smallVendorFit + 0.4 * b.item.winProbability;
+      return scoreB - scoreA || a.index - b.index;
+    })
+    .map(({ item }) => item)) as T[];
+};
+
 const normalizeScoreDetails = (value: unknown) => {
   if (!value || typeof value !== "object") {
     return null;
@@ -68,7 +114,7 @@ const normalizeScoreDetails = (value: unknown) => {
   };
 };
 
-const listMatchedTenders = async (companyId: number, since: Date) => {
+const listMatchedTenders = async (companyId: number, since: Date, smallVendorMode: boolean) => {
   const rows = await db
     .select({
       id: scores.tenderId,
@@ -95,12 +141,13 @@ const listMatchedTenders = async (companyId: number, since: Date) => {
         gte(scores.updatedAt, since),
         eq(tenders.qualityStatus, "qualified"),
         eq(tenders.readinessStatus, "ready"),
+        sql`${tenders.rawText} IS NOT NULL AND BTRIM(${tenders.rawText}) <> ''`,
       ),
     )
     .orderBy(desc(scores.winProbability), desc(scores.fit))
     .limit(200);
 
-  return rows.map((row) => ({
+  return applySmallVendorFit(rows.map((row) => ({
       id: row.id,
       title: row.title ?? `Ausschreibung #${row.id}`,
       source: row.source ?? "Unbekannte Quelle",
@@ -114,7 +161,7 @@ const listMatchedTenders = async (companyId: number, since: Date) => {
       actions: toStringList(row.actionsJson),
       missingItems: toStringList(row.missingItemsJson),
       details: normalizeScoreDetails(row.detailsJson),
-    }));
+    })), smallVendorMode);
 };
 
 const getSessionSources = () => {
@@ -171,7 +218,8 @@ export async function GET(request: Request): Promise<Response> {
       )
       .orderBy(jobs.id);
 
-    const matched = await listMatchedTenders(companyId, since);
+    const smallVendorMode = isSmallVendorTenderModeEnabled(premiumOrResponse.session.user);
+    const matched = await listMatchedTenders(companyId, since, smallVendorMode);
     const crawlJobs = sessionJobs.filter((job) => job.type === JOB_CRAWL);
     const activeJobs = sessionJobs.filter((job) => ACTIVE_JOB_STATUSES.has(job.status));
     const activeCrawlJobs = crawlJobs.filter((job) => ACTIVE_JOB_STATUSES.has(job.status));
@@ -221,7 +269,7 @@ export async function GET(request: Request): Promise<Response> {
   }
 }
 
-const listCachedTenders = async (companyId: number) => {
+const listCachedTenders = async (companyId: number, smallVendorMode: boolean) => {
   const rows = await db
     .select({
       id: scores.tenderId,
@@ -247,12 +295,13 @@ const listCachedTenders = async (companyId: number) => {
         eq(scores.killSwitch, false),
         eq(tenders.qualityStatus, "qualified"),
         eq(tenders.readinessStatus, "ready"),
+        sql`${tenders.rawText} IS NOT NULL AND BTRIM(${tenders.rawText}) <> ''`,
       ),
     )
     .orderBy(desc(scores.winProbability), desc(scores.fit))
     .limit(200);
 
-  return rows.map((row) => ({
+  return applySmallVendorFit(rows.map((row) => ({
     id: row.id,
     title: row.title ?? `Ausschreibung #${row.id}`,
     source: row.source ?? "Unbekannte Quelle",
@@ -266,7 +315,7 @@ const listCachedTenders = async (companyId: number) => {
     actions: toStringList(row.actionsJson),
     missingItems: toStringList(row.missingItemsJson),
     details: normalizeScoreDetails(row.detailsJson),
-  }));
+  })), smallVendorMode);
 };
 
 export async function POST(request: Request): Promise<Response> {
@@ -323,7 +372,8 @@ export async function POST(request: Request): Promise<Response> {
           .where(and(eq(userCompanies.userId, userId), eq(userCompanies.companyId, existing.id)));
       }
 
-      const matched = await listCachedTenders(existing.id);
+      const smallVendorMode = isSmallVendorTenderModeEnabled(premiumOrResponse.session.user);
+      const matched = await listCachedTenders(existing.id, smallVendorMode);
 
       return json({
         company: { id: existing.id, name: existing.name },
@@ -409,7 +459,7 @@ export async function POST(request: Request): Promise<Response> {
 
     await enqueueJob(JOB_CRAWL, {
       sources: serializeSourceItems(getSessionSources()),
-    }, { jobKey: JOB_CRAWL, groupKey: discoveryGroup, dedupeCompleted: false });
+    }, { jobKey: `${JOB_CRAWL}:${discoveryId}`, groupKey: discoveryGroup, dedupeCompleted: false });
     const scoreJobId = await enqueueJob(
       JOB_DISCOVER_COMPANY,
       { company_id: companyId, discovery_id: discoveryId },

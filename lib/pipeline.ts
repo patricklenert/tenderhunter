@@ -29,23 +29,23 @@ import {
   type CompanyProfile as CompanyProfileType,
 } from "@/lib/schema";
 import { generateInsight } from "@/lib/insights";
-import { extractTextFromFile } from "@/lib/parser";
+import { extractTextFromFile, formatExtractedDocumentText } from "@/lib/parser";
 import { decodeTextBuffer, repairKnownGermanEncoding } from "@/lib/text-normalization";
-import { buildJobKey, claimNextJob, enqueueJob, getJobMaxRuntimeMs, heartbeatJob, markDone, markFailed, PUBLIC_CONTINUATION_PRIORITY, sanitizeErrorMessage, type ClaimJobOptions } from "@/lib/queue";
-import { buildTenderMatchDocument, computeScores, getDomainEligibility, getLocationEligibility, llmBatchDomainMatch, type CompanyRow, type ScoreResult } from "@/lib/scoring";
+import { buildJobKey, buildTenderPipelineGroupKey, claimNextJob, enqueueJob, getJobMaxRuntimeMs, heartbeatJob, markDone, markFailed, PUBLIC_CONTINUATION_PRIORITY, sanitizeErrorMessage, type ClaimJobOptions } from "@/lib/queue";
+import { buildTenderMatchDocument, computeScores, getDomainEligibility, getLocationEligibility, llmBatchDomainMatch, type CompanyRow } from "@/lib/scoring";
 import { ensureExtension, fetchAndStore, objectAbsolutePath, suggestedFilename } from "@/lib/storage";
+import { ensureLocalStored } from "@/lib/object-store-cold";
 import { buildStructuredDescriptionMarkdown, extractStructuredData, normalizeStructured, type StructuredData } from "@/lib/structurer";
 import { assessTenderQuality } from "@/lib/tender-quality";
 import { resolveSourceItem } from "@/lib/tender-sources";
 import {
   canonicalPublicSourceKey,
-  getPublicClientFallback,
   normalizePublicClient,
   pickPublicDescription,
   scrapeAllPublicTenders,
   type ExtractedTender,
 } from "@/lib/public-tender-scraper";
-import { cursorNumber, shouldSchedulePublicContinuation, type PublicSourceCursor } from "@/lib/public-pagination";
+import { buildPublicContinuationJobKey, cursorNumber, resolvePublicSourcePersistenceError, shouldCommitPublicCursor, shouldSchedulePublicContinuation, type PublicSourceCursor } from "@/lib/public-pagination";
 import { resolvePublicSourceKey } from "@/lib/public-source-registry";
 import { scrapeAllUsTenders, type UsExtractedTender } from "@/lib/us-tender-scraper";
 import { dedupeUsAttachments } from "@/lib/us/types";
@@ -60,11 +60,18 @@ import {
   type OeffentlicheVergabeDetails,
 } from "@/lib/public-tender-scraper";
 import { buildTenderDescriptionMarkdown } from "@/lib/tender-description";
+import { pickPublicTenderDescription, readPublicTenderMeta } from "@/lib/tender-meta";
 import {
   isCanonicalPublicDescriptionMarkdown,
+  isPdfFormBoilerplate,
   normalizePublicDisplayCandidate,
   pickValidatedPublicCandidate,
+  pickSourceBackedPublicCandidate,
+  pickValidatedPublicProcedure,
   pickValidatedPublicLocationForTender,
+  projectPublicDisplayFields,
+  groundPublicTenderFields,
+  isSourceBackedPublicValue,
 } from "@/lib/public-content-quality";
 import { generateTenderSlug } from "@/lib/tender-slug";
 import { scoreKnownTenders } from "@/lib/discovery";
@@ -85,14 +92,15 @@ import {
   type ResourceType,
 } from "@/lib/resource-discovery";
 import { isPortalActionUrl } from "@/lib/resource-url";
-import { documentIdentityKey } from "@/lib/document-identity";
+import { documentIdentityKey, isHtmlContentType } from "@/lib/document-identity";
 import { processCompanyUrlPreview } from "@/lib/preview";
 import { getCatalogState, markCatalogDirty, releaseCatalogSync } from "@/lib/catalog";
 import { classifyDocumentRole, rolePriority } from "@/lib/document-classifier";
 import { buildDocumentAnalysis, withEvidenceValues, type AnalyzedDocument } from "@/lib/document-analysis";
 import { deduplicateParsedDocuments, type ParsedTenderDocument } from "@/lib/document-aggregation";
-import { evaluateTenderReadiness } from "@/lib/tender-readiness";
+import { evaluateTenderReadiness, isScorableReadiness } from "@/lib/tender-readiness";
 import { runApiAnalysisJob } from "@/app/api/v1/analyze/route";
+import { runDeepDiveAnalysis } from "@/lib/small-vendor-deep-dive";
 import {
   JOB_CRAWL,
   JOB_FETCH_DOCUMENTS,
@@ -109,6 +117,7 @@ import {
   JOB_SCRAPE_US,
   JOB_PREVIEW_COMPANY_URL,
   JOB_API_ANALYZE,
+  JOB_SMALL_VENDOR_DEEP_DIVE,
   type JobProcessResult,
   type JobType,
   type JsonValue,
@@ -116,7 +125,9 @@ import {
 } from "@/lib/types";
 
 const INDEXNOW_KEY = "4ebe462f0c8f45cbaa9b6bae50dc57dc";
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://palemaz.com";
+import { getSiteHost, getSiteUrl } from "@/lib/site-config";
+
+const SITE_URL = getSiteUrl();
 const MAX_TENDER_TEXT_CHARS = 250_000;
 const MAX_DOCUMENT_TEXT_CHARS = 100_000;
 const CLEANUP_BATCH_SIZE = 250;
@@ -155,22 +166,76 @@ const appendBoundedTenderText = (current: string, addition: string): string => {
   return `${current}${separator}${addition}`.slice(0, MAX_TENDER_TEXT_CHARS);
 };
 
+const replaceParsedDocumentSections = (existing: string, parsed: string): string => {
+  const parsedIds = [...parsed.matchAll(/\[DOKUMENT-ID:\s*(\d+)\]/gu)].map((match) => match[1]);
+  if (parsedIds.length === 0) return existing;
+  const ids = new Set(parsedIds);
+  const sectionStartPattern = /(?:^|\n\n)(?:\[Dokument\]\n)?\[ROLLEN:/gu;
+  const starts = [...existing.matchAll(sectionStartPattern)];
+  if (starts.length === 0) return existing;
+
+  let result = "";
+  let cursor = 0;
+  for (let index = 0; index < starts.length; index += 1) {
+    const start = starts[index].index ?? 0;
+    const end = starts[index + 1]?.index ?? existing.length;
+    const section = existing.slice(start, end);
+    const documentId = section.match(/\[DOKUMENT-ID:\s*(\d+)\]/u)?.[1];
+    result += existing.slice(cursor, start);
+    if (!documentId || !ids.has(documentId)) result += section;
+    cursor = end;
+  }
+  return `${result}${existing.slice(cursor)}`.replace(/\n{3,}/g, "\n\n").trim();
+};
+
 export const mergeParsedTenderText = (existingRawText: string | null | undefined, parsedText: string, partial: boolean): string => {
   const existing = existingRawText?.trim() ?? "";
   const parsed = parsedText.trim();
   if (!parsed) return existing;
   if (!partial || !existing) return parsed.slice(0, MAX_TENDER_TEXT_CHARS);
 
-  // Keep the listing snapshot on partial runs, but add newly parsed document
-  // sections. Document IDs make retries idempotent instead of duplicating text.
+  // Keep the listing snapshot on partial runs, replacing changed document
+  // sections while retaining documents that were not part of this parse.
   const sections = parsed.split(/\n\n(?=\[ROLLEN:)/u);
-  const missing = sections.filter((section) => {
-    const documentId = section.match(/\[DOKUMENT-ID: (\d+)\]/u)?.[1];
-    return documentId ? !existing.includes(`[DOKUMENT-ID: ${documentId}]`) : !existing.includes(section);
-  });
-  if (missing.length === 0) return existing;
-  return appendBoundedTenderText(existing, missing.join("\n\n").trim());
+  const replacement = sections.join("\n\n").trim();
+  const withoutPrevious = replaceParsedDocumentSections(existing, replacement);
+  if (withoutPrevious !== existing) return appendBoundedTenderText(withoutPrevious, replacement);
+  const missing = sections.filter((section) => !existing.includes(section));
+  return missing.length === 0 ? existing : appendBoundedTenderText(existing, missing.join("\n\n").trim());
 };
+
+/** Remove document sections that were later identified as portal HTML. */
+export const removeParsedDocumentSections = (
+  rawText: string | null | undefined,
+  documentIds: readonly number[],
+): string => {
+  const existing = rawText?.trim() ?? "";
+  const ids = new Set(documentIds);
+  if (!existing || ids.size === 0) return existing;
+
+  const sectionStartPattern = /(?:^|\n\n)(?:\[Dokument\]\n)?\[ROLLEN:/gu;
+  const starts = [...existing.matchAll(sectionStartPattern)];
+  if (starts.length === 0) return existing;
+
+  let result = "";
+  let cursor = 0;
+  for (let index = 0; index < starts.length; index += 1) {
+    const match = starts[index];
+    const start = match.index ?? 0;
+    const end = starts[index + 1]?.index ?? existing.length;
+    const documentId = existing.slice(start, end).match(/\[DOKUMENT-ID:\s*(\d+)\]/u)?.[1];
+    result += existing.slice(cursor, start);
+    if (!documentId || !ids.has(Number(documentId))) result += existing.slice(start, end);
+    cursor = end;
+  }
+  return `${result}${existing.slice(cursor)}`
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+};
+
+/** Keep valid document text out of the corpus only when the shared validator rejects it. */
+export const shouldIncludeParsedDocumentText = (value: string): boolean =>
+  value.trim().length >= 20 && !isPdfFormBoilerplate(value);
 
 const submitToIndexNow = async (urls: string[]): Promise<void> => {
   if (urls.length === 0) return;
@@ -179,9 +244,9 @@ const submitToIndexNow = async (urls: string[]): Promise<void> => {
       method: "POST",
       headers: { "Content-Type": "application/json; charset=utf-8" },
       body: JSON.stringify({
-        host: "palemaz.com",
+        host: getSiteHost(),
         key: INDEXNOW_KEY,
-        keyLocation: `https://palemaz.com/${INDEXNOW_KEY}.txt`,
+        keyLocation: `${getSiteUrl()}/${INDEXNOW_KEY}.txt`,
         urlList: urls,
       }),
     });
@@ -205,6 +270,21 @@ const parseRecord = (value: string | Record<string, JsonValue>): Record<string, 
     return {};
   }
 };
+
+const pipelineVersionFromPayload = (payload: unknown): number | null => {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+  const raw = (payload as Record<string, unknown>).pipeline_version;
+  const version = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : Number.NaN;
+  return Number.isInteger(version) && version > 0 ? version : null;
+};
+
+export const pipelineVersionPayload = (payload: unknown): Record<string, JsonValue> => {
+  const version = pipelineVersionFromPayload(payload);
+  return version === null ? {} : { pipeline_version: version };
+};
+
+export const isCurrentPipelineVersion = (payload: unknown, currentVersion: number): boolean =>
+  pipelineVersionFromPayload(payload) === currentVersion;
 
 const scoringInputSignature = (value: Record<string, unknown>): string => {
   const hardFacts = value.hard_facts as Record<string, unknown> | undefined;
@@ -252,6 +332,18 @@ interface UpsertTenderResult {
   inserted: boolean;
 }
 
+/**
+ * Preserve the distinction between an omitted snapshot and an explicitly
+ * empty snapshot. Omitted raw text must not erase an existing corpus, while a
+ * scraper that actually observed an empty description must clear it.
+ */
+export const resolveEffectiveRawText = (
+  boundedRawText: string | null | undefined,
+): string | null | undefined => {
+  if (boundedRawText === undefined) return undefined;
+  return boundedRawText !== null && boundedRawText.trim().length > 0 ? boundedRawText : null;
+};
+
 const stableValue = (value: unknown): unknown => {
   if (Array.isArray(value)) return value.map(stableValue);
   if (value && typeof value === "object") {
@@ -275,10 +367,8 @@ const metadataRecord = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 
 const metadataArray = (record: Record<string, unknown>, keys: string[]): unknown[] => {
-  for (const key of keys) {
-    if (Array.isArray(record[key])) return record[key] as unknown[];
-  }
-  return [];
+  const values = keys.flatMap((key) => Array.isArray(record[key]) ? record[key] as unknown[] : []);
+  return values.filter((value, index) => values.findIndex((candidate) => sameValue(candidate, value)) === index);
 };
 
 const metadataResourceUrl = (value: unknown): string | null => {
@@ -349,6 +439,14 @@ export const buildResourceFingerprint = (sourceUrl: string, metadata: unknown): 
     .slice(0, 24);
 };
 
+export const hasResourceSnapshotChanged = (
+  currentUrl: string,
+  currentMetadata: unknown,
+  nextUrl: string,
+  nextMetadata: unknown,
+): boolean => buildResourceFingerprint(currentUrl, currentMetadata)
+  !== buildResourceFingerprint(nextUrl, nextMetadata);
+
 const documentRefreshBucket = (): number =>
   Math.floor(Date.now() / (settings.documentRefreshHours * 60 * 60 * 1000));
 
@@ -409,7 +507,9 @@ export const mergeMetadata = (
       && !Object.prototype.hasOwnProperty.call(incoming, key)) continue;
     const incomingDescription = pickPublicDescription(incoming[key]);
     const existingDescription = pickPublicDescription(existingRecord[key]);
-    if (incomingDescription) merged[key] = incomingDescription;
+    const incomingIsMateriallyThinner = incomingDescription && existingDescription
+      && incomingDescription.length < existingDescription.length * 0.8;
+    if (incomingDescription && !incomingIsMateriallyThinner) merged[key] = incomingDescription;
     else if (existingDescription) merged[key] = existingDescription;
     else delete merged[key];
   }
@@ -532,42 +632,88 @@ const upsertTender = async ({ source, sourceKey, url, title, externalId, metadat
             .limit(1);
 
   if (existing.length > 0) {
-    const current = existing[0];
+    const id = existing[0].id;
+    const result = await db.transaction(async (tx) => {
+      const lockedRows = await tx
+        .select({
+          id: tenders.id,
+          sourceKey: tenders.sourceKey,
+          url: tenders.url,
+          title: tenders.title,
+          externalId: tenders.externalId,
+          metadataJson: tenders.metadataJson,
+          deadlineAt: tenders.deadlineAt,
+          category: tenders.category,
+          rawText: tenders.rawText,
+        })
+        .from(tenders)
+        .where(eq(tenders.id, id))
+        .for("update");
+      const current = lockedRows[0];
+      if (!current) throw new Error(`Tender ${id} wurde während des Upserts entfernt`);
 
-    // Non-destructive merge: don't let empty new values erase non-empty existing ones.
-    const mergedMeta = mergeMetadata(current.metadataJson, metadata);
-    const effectiveDeadline = deadlineAt !== undefined ? (deadlineAt ?? current.deadlineAt ?? null) : undefined;
-    const effectiveRawText = boundedRawText !== undefined ? (boundedRawText || current.rawText || null) : undefined;
+      // Non-destructive merge: don't let empty new values erase non-empty existing ones.
+      const mergedMeta = mergeMetadata(current.metadataJson, metadata);
+      const effectiveDeadline = deadlineAt !== undefined ? (deadlineAt ?? current.deadlineAt ?? null) : undefined;
+      const effectiveRawText = resolveEffectiveRawText(boundedRawText);
 
-    const changed =
-      (sourceKey !== undefined && current.sourceKey !== sourceKey) ||
-      current.url !== url ||
-      current.title !== title ||
-      (externalId !== undefined && current.externalId !== externalId) ||
-      (mergedMeta !== undefined && !sameValue(current.metadataJson, mergedMeta)) ||
-      (effectiveDeadline !== undefined && !sameDate(current.deadlineAt, effectiveDeadline)) ||
-      (category !== undefined && current.category !== category) ||
-      (effectiveRawText !== undefined && current.rawText !== effectiveRawText);
+      const changed =
+        (sourceKey !== undefined && current.sourceKey !== sourceKey) ||
+        current.url !== url ||
+        current.title !== title ||
+        (externalId !== undefined && current.externalId !== externalId) ||
+        (mergedMeta !== undefined && !sameValue(current.metadataJson, mergedMeta)) ||
+        (effectiveDeadline !== undefined && !sameDate(current.deadlineAt, effectiveDeadline)) ||
+        (category !== undefined && current.category !== category) ||
+        (effectiveRawText !== undefined && current.rawText !== effectiveRawText);
+      const nextMetadata = mergedMeta ?? current.metadataJson;
+      const resourceSnapshotChanged = hasResourceSnapshotChanged(current.url, current.metadataJson, url, nextMetadata);
 
-    const updateData: Record<string, unknown> = { lastSeenAt: new Date() };
-    if (changed) {
-      updateData.updatedAt = new Date();
-      updateData.version = sql`${tenders.version} + 1`;
-      if (sourceKey !== undefined) updateData.sourceKey = sourceKey;
-      updateData.url = url;
-      updateData.title = title;
-      if (externalId !== undefined) updateData.externalId = externalId;
-      if (mergedMeta !== undefined) updateData.metadataJson = mergedMeta;
-      if (effectiveDeadline !== undefined) updateData.deadlineAt = effectiveDeadline;
-      if (category !== undefined) updateData.category = category;
-      if (effectiveRawText !== undefined) updateData.rawText = effectiveRawText;
-    }
-    await db
-      .update(tenders)
-      .set(updateData)
-      .where(eq(tenders.id, current.id));
-    if (changed) await markCatalogDirty();
-    return { id: current.id, changed, inserted: false };
+      const updateData: Record<string, unknown> = { lastSeenAt: new Date() };
+      if (changed) {
+        // Invalidate derived state atomically with the version bump so a stage
+        // cannot commit stale output between these operations.
+        await tx.delete(structuredData).where(eq(structuredData.tenderId, id));
+        await tx.delete(insights).where(eq(insights.tenderId, id));
+        await tx.delete(scores).where(eq(scores.tenderId, id));
+        if (resourceSnapshotChanged) {
+          const oldDocuments = await tx.select({ id: documents.id }).from(documents).where(eq(documents.tenderId, id));
+          await tx.delete(documents).where(eq(documents.tenderId, id));
+          await tx.delete(tenderResources).where(eq(tenderResources.tenderId, id));
+          if (effectiveRawText === undefined && oldDocuments.length > 0) {
+            updateData.rawText = removeParsedDocumentSections(
+              current.rawText,
+              oldDocuments.map((document) => document.id),
+            ) || null;
+          }
+        }
+        updateData.updatedAt = new Date();
+        updateData.version = sql`${tenders.version} + 1`;
+        if (sourceKey !== undefined) updateData.sourceKey = sourceKey;
+        updateData.url = url;
+        updateData.title = title;
+        if (externalId !== undefined) updateData.externalId = externalId;
+        if (mergedMeta !== undefined) updateData.metadataJson = mergedMeta;
+        if (effectiveDeadline !== undefined) updateData.deadlineAt = effectiveDeadline;
+        if (category !== undefined) updateData.category = category;
+        if (effectiveRawText !== undefined) updateData.rawText = effectiveRawText;
+        updateData.qualityStatus = "candidate";
+        updateData.qualityReason = null;
+        updateData.readinessStatus = "pending";
+        updateData.readinessReason = "Ausschreibung wurde aktualisiert und wird erneut analysiert.";
+        updateData.readinessUpdatedAt = new Date();
+        updateData.contentFingerprint = null;
+        updateData.duplicateOfTenderId = null;
+        updateData.contractValueMin = null;
+        updateData.contractValueMax = null;
+        updateData.contractDurationMonths = null;
+        updateData.procedureType = null;
+      }
+      await tx.update(tenders).set(updateData).where(eq(tenders.id, id));
+      return { id, changed, inserted: false };
+    });
+    if (result.changed) await markCatalogDirty();
+    return result;
   }
 
   const result = await db
@@ -581,7 +727,7 @@ const upsertTender = async ({ source, sourceKey, url, title, externalId, metadat
       metadataJson: metadata ?? undefined,
       deadlineAt: deadlineAt ?? undefined,
       category: category ?? undefined,
-      rawText: boundedRawText ?? undefined,
+      rawText: resolveEffectiveRawText(boundedRawText) ?? undefined,
     })
     .returning({ id: tenders.id });
 
@@ -600,7 +746,8 @@ const upsertUsTender = async (tender: UsExtractedTender): Promise<UpsertTenderRe
     attachments: tender.attachments.map((attachment) => ({ name: attachment.name, url: attachment.url })),
     discovered_at: new Date().toISOString(),
   };
-  const existingByExternalId = await db
+  const existingByExternalId = tender.externalId
+    ? await db
     .select({
       id: usTenders.id,
       url: usTenders.url,
@@ -620,7 +767,8 @@ const upsertUsTender = async (tender: UsExtractedTender): Promise<UpsertTenderRe
     })
     .from(usTenders)
     .where(and(eq(usTenders.source, tender.source), eq(usTenders.externalId, tender.externalId)))
-    .limit(1);
+    .limit(1)
+    : [];
   const existing = existingByExternalId.length > 0
     ? existingByExternalId
     : await db
@@ -707,11 +855,13 @@ const queueTenderStage = async (
   payload: Record<string, JsonValue> = {},
   keySuffix?: string,
 ): Promise<number> => {
+  const tender = await getTender(tenderId);
   return enqueueJob(
     jobType,
-    { tender_id: tenderId, ...payload },
+    { tender_id: tenderId, ...payload, pipeline_version: pipelineVersionFromPayload(payload) ?? tender.version },
     {
       jobKey: buildJobKey(jobType, tenderId, keySuffix),
+      groupKey: buildTenderPipelineGroupKey(tenderId),
       // A completed stage only describes the input generation it processed.
       // Active jobs are still coalesced by jobKey, but a later fetch or
       // enrichment must be able to run the stage again.
@@ -764,8 +914,45 @@ const queueTenderProcessing = async (tenderId: number, retryKey?: string): Promi
   await enqueueJob(
     JOB_FETCH_DOCUMENTS,
     { tender_id: tenderId, resource_fingerprint: resourceFingerprint, pipeline_version: tender.version },
-    { jobKey },
+    { jobKey, groupKey: buildTenderPipelineGroupKey(tenderId) },
   );
+};
+
+const ensureCurrentPipelineVersion = async (
+  tenderId: number,
+  payload: Record<string, JsonValue>,
+): Promise<boolean> => {
+  const current = await getTender(tenderId);
+  if (isCurrentPipelineVersion(payload, current.version)) return true;
+  await queueTenderProcessing(tenderId, "stale-version");
+  return false;
+};
+
+type TenderPipelineTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+type TenderPipelineDatabase = typeof db | TenderPipelineTransaction;
+
+const withCurrentPipelineVersion = async <T>(
+  tenderId: number,
+  payload: Record<string, JsonValue>,
+  persist: (tx: TenderPipelineTransaction) => Promise<T>,
+): Promise<{ current: true; value: T } | { current: false }> => {
+  const result = await db.transaction(async (tx) => {
+    const current = await tx
+      .select({ version: tenders.version })
+      .from(tenders)
+      .where(eq(tenders.id, tenderId))
+      .for("update");
+    if (!current[0] || !isCurrentPipelineVersion(payload, current[0].version)) {
+      return { current: false as const };
+    }
+    return { current: true as const, value: await persist(tx) };
+  });
+
+  if (!result.current) {
+    await queueTenderProcessing(tenderId, "stale-version");
+    return result;
+  }
+  return result;
 };
 
 const TENDER_PIPELINE_STAGES = [
@@ -778,11 +965,36 @@ const TENDER_PIPELINE_STAGES = [
 
 const FAILED_PIPELINE_RECOVERY_COOLDOWN_MS = 60 * 60 * 1000;
 
+export const shouldRecoverFailedPipelineStage = (
+  stage: { status: string; finishedAt: Date | null } | undefined,
+  now = Date.now(),
+): boolean => (
+  !stage
+  || stage.status === "done"
+  || (stage.status === "failed"
+    && (!stage.finishedAt || now - stage.finishedAt.getTime() >= FAILED_PIPELINE_RECOVERY_COOLDOWN_MS))
+);
+
+export const isTenderDocumentRefreshDue = (
+  lastFetchedAt: Date | null | undefined,
+  now = Date.now(),
+  refreshIntervalMs = settings.documentRefreshHours * 60 * 60 * 1_000,
+): boolean => (
+  !lastFetchedAt
+  || !Number.isFinite(lastFetchedAt.getTime())
+  || now - lastFetchedAt.getTime() >= refreshIntervalMs
+);
+
+const currentPipelineVersionSql = (jobAlias: string) => sql.raw(
+  `(CASE WHEN ${jobAlias}.payload ->> 'pipeline_version' ~ '^[0-9]+$' `
+  + `THEN (${jobAlias}.payload ->> 'pipeline_version')::integer ELSE 0 END) = tenders.version`,
+);
+
 /** Requeue the first missing or permanently failed stage after a re-discovery. */
 export const recoverTenderProcessing = async (tenderId: number): Promise<void> => {
   const tender = await getTender(tenderId);
   const stageRows = await db
-    .select({ type: jobs.type, status: jobs.status, lastError: jobs.lastError, finishedAt: jobs.finishedAt })
+    .select({ type: jobs.type, status: jobs.status, lastError: jobs.lastError, finishedAt: jobs.finishedAt, payload: jobs.payload })
     .from(jobs)
     .where(and(
       inArray(jobs.type, [...TENDER_PIPELINE_STAGES]),
@@ -791,17 +1003,11 @@ export const recoverTenderProcessing = async (tenderId: number): Promise<void> =
     .orderBy(sql`${jobs.id} DESC`);
   const latestByStage = new Map<string, { status: string; lastError: string | null; finishedAt: Date | null }>();
   for (const row of stageRows) {
+    if (pipelineVersionFromPayload(row.payload) !== tender.version) continue;
     if (!latestByStage.has(row.type)) {
       latestByStage.set(row.type, { status: row.status, lastError: row.lastError, finishedAt: row.finishedAt });
     }
   }
-
-  const failedStageRecoveryDue = (stage: { status: string; finishedAt: Date | null } | undefined): boolean => (
-    !stage
-    || stage.status === "done"
-    || (stage.status === "failed"
-      && (!stage.finishedAt || Date.now() - stage.finishedAt.getTime() >= FAILED_PIPELINE_RECOVERY_COOLDOWN_MS))
-  );
 
   const failedResource = await db
     .select({ attempts: tenderResources.attempts })
@@ -810,7 +1016,7 @@ export const recoverTenderProcessing = async (tenderId: number): Promise<void> =
     .limit(1);
   if (failedResource.length > 0) {
     const fetchStage = latestByStage.get(JOB_FETCH_DOCUMENTS);
-    if (failedStageRecoveryDue(fetchStage)) {
+    if (shouldRecoverFailedPipelineStage(fetchStage)) {
       await queueTenderProcessing(tenderId, `resource-${failedResource[0].attempts}`);
     }
     return;
@@ -827,23 +1033,34 @@ export const recoverTenderProcessing = async (tenderId: number): Promise<void> =
     .limit(1);
   if (failedParseDocument.length > 0) {
     const parseStage = latestByStage.get(JOB_PARSE);
-    if (failedStageRecoveryDue(parseStage)) {
+    if (shouldRecoverFailedPipelineStage(parseStage)) {
       await queueTenderStage(
         JOB_PARSE,
         tenderId,
-        {},
+        { pipeline_version: tender.version },
         `retry-${failedParseDocument[0].id}-${failedParseDocument[0].updatedAt.getTime()}`,
       );
     }
     return;
   }
 
-  const fetchStatus = latestByStage.get(JOB_FETCH_DOCUMENTS)?.status;
-  if (!fetchStatus || fetchStatus === "failed") {
+  const fetchStage = latestByStage.get(JOB_FETCH_DOCUMENTS);
+  const fetchStatus = fetchStage?.status;
+  if (!fetchStatus) {
     await queueTenderProcessing(tenderId);
     return;
   }
+  if (fetchStatus === "failed") {
+    if (shouldRecoverFailedPipelineStage(latestByStage.get(JOB_FETCH_DOCUMENTS))) await queueTenderProcessing(tenderId);
+    return;
+  }
   if (fetchStatus !== "done") return;
+  if (isTenderDocumentRefreshDue(fetchStage?.finishedAt)) {
+    // Unchanged rediscoveries still need to refresh portal documents: a file
+    // can change at the same URL without changing the tender listing itself.
+    await queueTenderProcessing(tenderId);
+    return;
+  }
 
   const structureStage = latestByStage.get(JOB_STRUCTURE);
   if (structureStage?.status === "done"
@@ -857,7 +1074,7 @@ export const recoverTenderProcessing = async (tenderId: number): Promise<void> =
     if ((structuredRows[0]?.confidence ?? 0) < 0.35) {
       // A deterministic fallback can be persisted when the LLM cascade is
       // unavailable, but it must be retried later instead of staying partial.
-      await queueTenderStage(JOB_STRUCTURE, tenderId, {}, "recovery-low-confidence");
+      await queueTenderStage(JOB_STRUCTURE, tenderId, { pipeline_version: tender.version }, "recovery-low-confidence");
       return;
     }
   }
@@ -866,9 +1083,18 @@ export const recoverTenderProcessing = async (tenderId: number): Promise<void> =
     const status = latestByStage.get(stage)?.status;
     // Do not keep requeuing structure for tenders whose listing and document
     // fetch produced no usable text. A later rediscovery can restart fetching.
-    if (stage === JOB_STRUCTURE && !tender.rawText?.trim()) return;
-    if (!status || status === "failed") {
-      await queueTenderStage(stage, tenderId);
+    if (stage === JOB_STRUCTURE && !tender.rawText?.trim()) {
+      await markTenderWithoutUsableContent(tenderId, { pipeline_version: tender.version });
+      return;
+    }
+    if (!status) {
+      await queueTenderStage(stage, tenderId, { pipeline_version: tender.version });
+      return;
+    }
+    if (status === "failed") {
+      if (shouldRecoverFailedPipelineStage(latestByStage.get(stage))) {
+        await queueTenderStage(stage, tenderId, { pipeline_version: tender.version });
+      }
       return;
     }
     if (status !== "done") return;
@@ -880,17 +1106,41 @@ export const recoverTenderProcessing = async (tenderId: number): Promise<void> =
     .where(eq(structuredData.tenderId, tenderId))
     .limit(1);
   if (structured.length === 0) {
-    if (!tender.rawText?.trim()) return;
-    await queueTenderStage(JOB_STRUCTURE, tenderId, {}, "recovery");
+    if (!tender.rawText?.trim()) {
+      await markTenderWithoutUsableContent(tenderId, { pipeline_version: tender.version });
+      return;
+    }
+    await queueTenderStage(JOB_STRUCTURE, tenderId, { pipeline_version: tender.version }, "recovery");
     return;
   }
 
   if (tender.qualityStatus !== "qualified") return;
 
-  if (tender.readinessStatus === "ready") {
+  if (isScorableReadiness(tender.readinessStatus)) {
     const scoreStatus = latestByStage.get(JOB_SCORE)?.status;
-    if (!scoreStatus || scoreStatus === "failed") {
-      await queueTenderStage(JOB_SCORE, tenderId);
+    if (!scoreStatus) {
+      await queueTenderStage(JOB_SCORE, tenderId, { pipeline_version: tender.version });
+      return;
+    }
+    if (scoreStatus === "done") {
+      const missingCompanyScore = await db
+        .select({ companyId: companyProfiles.id })
+        .from(companyProfiles)
+        .leftJoin(scores, and(
+          eq(scores.companyId, companyProfiles.id),
+          eq(scores.tenderId, tenderId),
+        ))
+        .where(isNull(scores.id))
+        .limit(1);
+      if (missingCompanyScore.length > 0) {
+        await queueTenderStage(JOB_SCORE, tenderId, { pipeline_version: tender.version }, "recovery-missing-scores");
+        return;
+      }
+    }
+    if (scoreStatus === "failed") {
+      if (shouldRecoverFailedPipelineStage(latestByStage.get(JOB_SCORE))) {
+        await queueTenderStage(JOB_SCORE, tenderId, { pipeline_version: tender.version });
+      }
       return;
     }
     if (scoreStatus !== "done") return;
@@ -900,8 +1150,10 @@ export const recoverTenderProcessing = async (tenderId: number): Promise<void> =
   if (cacheStage?.status === "failed" && /participation_required|\b(?:403|404)\b|not found|nicht gefunden/iu.test(cacheStage.lastError ?? "")) {
     return;
   }
-  if (!cacheStage || cacheStage.status === "failed") {
-    await queueTenderStage(JOB_CACHE_DETAIL, tenderId);
+  if (!cacheStage) {
+    await queueTenderStage(JOB_CACHE_DETAIL, tenderId, { pipeline_version: tender.version });
+  } else if (cacheStage.status === "failed" && shouldRecoverFailedPipelineStage(cacheStage)) {
+    await queueTenderStage(JOB_CACHE_DETAIL, tenderId, { pipeline_version: tender.version });
   }
 };
 
@@ -914,13 +1166,49 @@ export const recoverIncompleteTenderPipelines = async (limit = 50): Promise<numb
     .where(and(
       or(eq(tenders.qualityStatus, "candidate"), eq(tenders.qualityStatus, "qualified")),
       sql`(
-        NOT EXISTS (
-          SELECT 1 FROM jobs active_stage
-          WHERE active_stage.status IN ('pending', 'running')
-            AND active_stage.type IN ('fetch_documents', 'parse_documents', 'structure_tender', 'score_tender', 'cache_detail')
-            AND active_stage.payload ->> 'tender_id' = ${tenders.id}::text
-        )
-        AND (
+         NOT EXISTS (
+           SELECT 1 FROM jobs active_stage
+           WHERE active_stage.status IN ('pending', 'running')
+             AND active_stage.type IN ('fetch_documents', 'parse_documents', 'structure_tender', 'score_tender', 'cache_detail')
+             AND active_stage.payload ->> 'tender_id' = ${tenders.id}::text
+             AND ${currentPipelineVersionSql("active_stage")}
+          )
+         AND NOT EXISTS (
+           -- A recent, latest failure is already waiting for its cooldown.
+           -- Do not let those rows occupy every limited recovery batch.
+           SELECT 1 FROM jobs recent_failure
+           WHERE recent_failure.status = 'failed'
+             AND recent_failure.type IN ('fetch_documents', 'parse_documents', 'structure_tender', 'score_tender', 'cache_detail')
+             AND recent_failure.finished_at > NOW() - (${FAILED_PIPELINE_RECOVERY_COOLDOWN_MS} * INTERVAL '1 millisecond')
+             AND recent_failure.payload ->> 'tender_id' = ${tenders.id}::text
+             AND ${currentPipelineVersionSql("recent_failure")}
+             AND (recent_failure.type <> 'score_tender' OR ${tenders.readinessStatus} IN ('ready', 'partial'))
+             AND NOT EXISTS (
+               SELECT 1 FROM jobs newer_failure
+               WHERE newer_failure.type = recent_failure.type
+                 AND newer_failure.payload ->> 'tender_id' = recent_failure.payload ->> 'tender_id'
+                 AND newer_failure.id > recent_failure.id
+                 AND ${currentPipelineVersionSql("newer_failure")}
+             )
+         )
+         AND NOT EXISTS (
+           -- These cache errors are deliberately terminal until explicit
+           -- reprocessing or a newer pipeline stage is created.
+           SELECT 1 FROM jobs terminal_cache_failure
+           WHERE terminal_cache_failure.type = 'cache_detail'
+             AND terminal_cache_failure.status = 'failed'
+             AND terminal_cache_failure.last_error ~* '(participation_required|403|404|not found|nicht gefunden)'
+             AND terminal_cache_failure.payload ->> 'tender_id' = ${tenders.id}::text
+             AND ${currentPipelineVersionSql("terminal_cache_failure")}
+             AND NOT EXISTS (
+               SELECT 1 FROM jobs newer_cache_stage
+               WHERE newer_cache_stage.type = terminal_cache_failure.type
+                 AND newer_cache_stage.payload ->> 'tender_id' = terminal_cache_failure.payload ->> 'tender_id'
+                 AND newer_cache_stage.id > terminal_cache_failure.id
+                 AND ${currentPipelineVersionSql("newer_cache_stage")}
+             )
+         )
+         AND (
         ${structuredData.tenderId} IS NULL
         AND (
           ${tenders.rawText} IS NOT NULL
@@ -930,27 +1218,42 @@ export const recoverIncompleteTenderPipelines = async (limit = 50): Promise<numb
             WHERE parse_job.type = 'parse_documents'
               AND parse_job.status = 'done'
               AND parse_job.payload ->> 'tender_id' = ${tenders.id}::text
+              AND ${currentPipelineVersionSql("parse_job")}
           )
         )
         OR (
-          ${structuredData.tenderId} IS NOT NULL
-          AND
-          ${tenders.qualityStatus} = 'qualified'
-          AND (
-            (
-              ${tenders.readinessStatus} = 'ready'
-              AND NOT EXISTS (
-                SELECT 1 FROM jobs score_job
-                WHERE score_job.type = 'score_tender'
-                  AND score_job.status = 'done'
-                  AND score_job.payload ->> 'tender_id' = ${tenders.id}::text
+         ${structuredData.tenderId} IS NOT NULL
+         AND
+         ${tenders.qualityStatus} = 'qualified'
+         AND ${tenders.rawText} IS NOT NULL
+         AND BTRIM(${tenders.rawText}) <> ''
+         AND (
+             (
+              ${tenders.readinessStatus} IN ('ready', 'partial')
+              AND (
+                NOT EXISTS (
+                  SELECT 1 FROM jobs score_job
+                  WHERE score_job.type = 'score_tender'
+                    AND score_job.status = 'done'
+                    AND score_job.payload ->> 'tender_id' = ${tenders.id}::text
+                    AND ${currentPipelineVersionSql("score_job")}
+                )
+                OR EXISTS (
+                  SELECT 1 FROM company_profiles missing_company
+                  WHERE NOT EXISTS (
+                    SELECT 1 FROM scores missing_score
+                    WHERE missing_score.tender_id = ${tenders.id}
+                      AND missing_score.company_id = missing_company.id
+                  )
+                )
               )
-            )
+             )
             OR NOT EXISTS (
               SELECT 1 FROM jobs cache_job
               WHERE cache_job.type = 'cache_detail'
                 AND cache_job.status = 'done'
                 AND cache_job.payload ->> 'tender_id' = ${tenders.id}::text
+                AND ${currentPipelineVersionSql("cache_job")}
             )
           )
         )
@@ -964,14 +1267,39 @@ export const recoverIncompleteTenderPipelines = async (limit = 50): Promise<numb
                 AND BTRIM(${tenders.rawText}) <> ''
               )
               OR (
-                ${structuredData.tenderId} IS NOT NULL
-                AND
-                ${tenders.qualityStatus} = 'qualified'
-                AND failed_stage.type IN ('score_tender', 'cache_detail')
+                 ${structuredData.tenderId} IS NOT NULL
+                 AND
+                 ${tenders.qualityStatus} = 'qualified'
+                 AND ${tenders.rawText} IS NOT NULL
+                 AND BTRIM(${tenders.rawText}) <> ''
+                 AND failed_stage.type IN ('score_tender', 'cache_detail')
               )
             )
             AND failed_stage.status = 'failed'
+            AND failed_stage.finished_at IS NOT NULL
+            AND failed_stage.finished_at <= NOW() - INTERVAL '1 hour'
             AND failed_stage.payload ->> 'tender_id' = ${tenders.id}::text
+            AND ${currentPipelineVersionSql("failed_stage")}
+            AND NOT EXISTS (
+              SELECT 1 FROM jobs newer_stage
+              WHERE newer_stage.type = failed_stage.type
+                AND newer_stage.payload ->> 'tender_id' = failed_stage.payload ->> 'tender_id'
+                AND newer_stage.id > failed_stage.id
+                AND ${currentPipelineVersionSql("newer_stage")}
+            )
+        )
+        OR (
+          -- A refresh can leave an older ready/partial readiness state
+          -- behind when the new pipeline version has no usable content.
+          ${tenders.readinessStatus} IN ('pending', 'partial', 'ready')
+          AND (${tenders.rawText} IS NULL OR BTRIM(${tenders.rawText}) = '')
+          AND EXISTS (
+            SELECT 1 FROM jobs parse_job
+            WHERE parse_job.type = 'parse_documents'
+              AND parse_job.status = 'done'
+              AND parse_job.payload ->> 'tender_id' = ${tenders.id}::text
+              AND ${currentPipelineVersionSql("parse_job")}
+          )
         )
         )
       )`,
@@ -1366,7 +1694,7 @@ export const isFetchableResourceCandidate = (candidate: ResourceCandidateRecord)
 };
 
 export const isPermanentResourceFailure = (message: string): boolean =>
-  /\b(?:401|403|404)\b|not found|nicht gefunden|zugriffsblockierte seite|participation_required/iu.test(message);
+  /\b(?:401|403|404)\b|not found|nicht gefunden|zugriffsblockierte seite|participation_required|dokument zu gr(?:oß|oss)/iu.test(message);
 
 export const shouldUseRenderedResourceDiscovery = (
   candidates: ReadonlyArray<ResourceCandidateRecord>,
@@ -1549,58 +1877,98 @@ const parseStructured = (value: string | Record<string, unknown>, fallbackTitle 
   return normalizeStructured(parsed, fallbackTitle);
 };
 
-const clearTenderScoring = async (tenderId: number): Promise<void> => {
-  await db.delete(insights).where(eq(insights.tenderId, tenderId));
-  await db.delete(scores).where(eq(scores.tenderId, tenderId));
-};
-
-const refreshTenderReadiness = async (tenderId: number, accessBlocked = false) => {
-  const tender = await getTender(tenderId);
-  const structuredRows = await db
-    .select({ jsonBlob: structuredData.jsonBlob, confidence: structuredData.confidence })
-    .from(structuredData)
-    .where(eq(structuredData.tenderId, tenderId))
-    .limit(1);
-  const documentRows = await db
-    .select({
-      id: documents.id,
-      url: documents.url,
-      role: documents.role,
-      roles: documents.roles,
-      parseStatus: documents.parseStatus,
-      downloadStatus: documents.downloadStatus,
-      errorMessage: documents.errorMessage,
-      extractedText: documents.extractedText,
-      pageCount: documents.pageCount,
-      roleConfidence: documents.roleConfidence,
-    })
-    .from(documents)
-    .where(eq(documents.tenderId, tenderId));
-  const analysis = buildDocumentAnalysis(documentRows.filter((document) => !isPortalActionUrl(document.url)) as AnalyzedDocument[]);
-  const readiness = evaluateTenderReadiness({
-    qualityStatus: tender.qualityStatus,
-    rawText: tender.rawText,
-    structuredExists: structuredRows.length > 0,
-    structuredConfidence: structuredRows[0]?.confidence ?? null,
-    documentAnalysis: analysis,
-    accessBlocked,
+const refreshTenderReadiness = async (
+  tenderId: number,
+  payload: Record<string, JsonValue>,
+  accessBlocked = false,
+) => {
+  return withCurrentPipelineVersion(tenderId, payload, async (tx) => {
+    const tenderRows = await tx
+      .select({ qualityStatus: tenders.qualityStatus, rawText: tenders.rawText })
+      .from(tenders)
+      .where(eq(tenders.id, tenderId))
+      .limit(1);
+    const structuredRows = await tx
+      .select({ confidence: structuredData.confidence })
+      .from(structuredData)
+      .where(eq(structuredData.tenderId, tenderId))
+      .limit(1);
+    const documentRows = await tx
+      .select({
+        id: documents.id,
+        url: documents.url,
+        contentType: documents.contentType,
+        role: documents.role,
+        roles: documents.roles,
+        parseStatus: documents.parseStatus,
+        downloadStatus: documents.downloadStatus,
+        errorMessage: documents.errorMessage,
+        extractedText: documents.extractedText,
+        pageCount: documents.pageCount,
+        roleConfidence: documents.roleConfidence,
+      })
+      .from(documents)
+      .where(eq(documents.tenderId, tenderId));
+    const analysis = buildDocumentAnalysis(documentRows.filter((document) =>
+      !isPortalActionUrl(document.url) && !isHtmlContentType(document.contentType)) as AnalyzedDocument[]);
+    const readiness = evaluateTenderReadiness({
+      qualityStatus: tenderRows[0]?.qualityStatus ?? "candidate",
+      rawText: tenderRows[0]?.rawText,
+      structuredExists: structuredRows.length > 0,
+      structuredConfidence: structuredRows[0]?.confidence ?? null,
+      documentAnalysis: analysis,
+      accessBlocked,
+    });
+    await tx.update(tenders).set({
+      readinessStatus: readiness.status,
+      readinessReason: readiness.reason,
+      readinessUpdatedAt: new Date(),
+      updatedAt: new Date(),
+    }).where(eq(tenders.id, tenderId));
+    if (!isScorableReadiness(readiness.status)) {
+      await tx.delete(insights).where(eq(insights.tenderId, tenderId));
+      await tx.delete(scores).where(eq(scores.tenderId, tenderId));
+    }
+    return { readiness, analysis };
   });
-  await db.update(tenders).set({
-    readinessStatus: readiness.status,
-    readinessReason: readiness.reason,
-    readinessUpdatedAt: new Date(),
-    updatedAt: new Date(),
-  }).where(eq(tenders.id, tenderId));
-  if (readiness.status !== "ready") await clearTenderScoring(tenderId);
-  return { readiness, analysis };
 };
 
-const rejectBlockedTender = async (tenderId: number, detection: AccessPageDetection): Promise<void> => {
-  await db.delete(structuredData).where(eq(structuredData.tenderId, tenderId));
-  await clearTenderScoring(tenderId);
-  await db
-    .update(tenders)
-    .set({
+const markTenderWithoutUsableContent = async (
+  tenderId: number,
+  payload: Record<string, JsonValue>,
+): Promise<void> => {
+  const persisted = await withCurrentPipelineVersion(tenderId, payload, async (tx) => {
+    await tx.delete(structuredData).where(eq(structuredData.tenderId, tenderId));
+    await tx.delete(insights).where(eq(insights.tenderId, tenderId));
+    await tx.delete(scores).where(eq(scores.tenderId, tenderId));
+    await tx.update(tenders).set({
+      qualityStatus: "candidate",
+      qualityReason: "Keine verwertbaren Ausschreibungsdokumente oder Beschreibung vorhanden.",
+      contentFingerprint: null,
+      duplicateOfTenderId: null,
+      contractValueMin: null,
+      contractValueMax: null,
+      contractDurationMonths: null,
+      procedureType: null,
+      readinessStatus: "manual_review",
+      readinessReason: "Keine verwertbaren Ausschreibungsdokumente oder Beschreibung vorhanden.",
+      readinessUpdatedAt: new Date(),
+      updatedAt: new Date(),
+    }).where(eq(tenders.id, tenderId));
+  });
+  if (persisted.current) await markCatalogDirty();
+};
+
+const rejectBlockedTender = async (
+  tenderId: number,
+  detection: AccessPageDetection,
+  payload: Record<string, JsonValue>,
+): Promise<boolean> => {
+  const persisted = await withCurrentPipelineVersion(tenderId, payload, async (tx) => {
+    await tx.delete(structuredData).where(eq(structuredData.tenderId, tenderId));
+    await tx.delete(insights).where(eq(insights.tenderId, tenderId));
+    await tx.delete(scores).where(eq(scores.tenderId, tenderId));
+    await tx.update(tenders).set({
       qualityStatus: "rejected",
       qualityReason: `Zugriffsschutz erkannt: ${detection.reason ?? "unbekannt"}`,
       readinessStatus: "blocked",
@@ -1610,37 +1978,54 @@ const rejectBlockedTender = async (tenderId: number, detection: AccessPageDetect
       contentFingerprint: null,
       duplicateOfTenderId: null,
       updatedAt: new Date(),
-    })
-    .where(eq(tenders.id, tenderId));
-  await markCatalogDirty();
+    }).where(eq(tenders.id, tenderId));
+  });
+  if (persisted.current) await markCatalogDirty();
+  return persisted.current;
 };
 
-const retryBlockedDetail = async (tender: Tender, detection: AccessPageDetection): Promise<never> => {
+const retryBlockedDetail = async (
+  tender: Tender,
+  detection: AccessPageDetection,
+  payload: Record<string, JsonValue>,
+): Promise<boolean> => {
   if (!tender.deadlineAt || tender.deadlineAt.getTime() > Date.now()) {
     throw new Error(`Detailseite vorübergehend nicht verfügbar (${detection.reason ?? "unbekannt"})`);
   }
-  await rejectBlockedTender(tender.id, detection);
+  if (!await rejectBlockedTender(tender.id, detection, payload)) return false;
   throw new Error(`Detailseite abgelaufen oder entfernt (${detection.reason ?? "unbekannt"})`);
 };
 
-const getAccessLimitedCacheResult = (
-  tender: Tender,
+export const getAccessLimitedCacheResult = (
+  tender: Pick<Tender, "title" | "metadataJson" | "rawText">,
   detection: AccessPageDetection,
+  structuredSource?: unknown,
 ): Record<string, JsonValue> | null => {
-  const metadata = typeof tender.metadataJson === "object" && tender.metadataJson !== null
-    ? tender.metadataJson as Record<string, unknown>
-    : {};
-  const description = pickPublicDescription(metadata.description, tender.rawText);
+  const metadata = parseRecord(tender.metadataJson as string);
+  const metadataDescription = pickPublicDescription(metadata.summary, metadata.description);
+  const normalized = structuredSource
+    ? normalizeStructured(structuredSource, tender.title ?? "", {
+      summary: metadataDescription || null,
+    })
+    : null;
+  const description = pickPublicDescription(
+    normalized?.summary,
+    metadata.summary,
+    metadata.description,
+  );
 
   const accessLimited = metadata.access_limited === true || detection.reason === "participation_required";
   if (!accessLimited) return null;
   if (!metadata.access_limited && description.length < 80) return null;
 
-  const portalFacts = extractPublicPortalFacts([
-    tender.rawText,
-    metadata.description,
-  ].filter((value): value is string => typeof value === "string" && value.length > 0).join(" "));
+  const portalFacts = extractPublicPortalFacts(typeof metadata.description === "string" ? metadata.description : "");
+  const accessDescription = buildPublicAccessLimitedDescription(tender.title ?? "", portalFacts);
   const descriptionMarkdown = buildPublicAccessLimitedDescriptionMarkdown(tender.title ?? "", portalFacts);
+  const publicDescription = pickValidatedPublicCandidate(
+    normalized?.summary,
+    metadata.summary,
+    metadata.description,
+  ) || accessDescription;
 
   return {
     cached: true,
@@ -1648,6 +2033,8 @@ const getAccessLimitedCacheResult = (
     access_limited: true,
     blocked: true,
     blocked_reason: detection.reason ?? "participation_required",
+    summary: publicDescription,
+    description: publicDescription,
     descriptionMarkdown,
   };
 };
@@ -1655,15 +2042,18 @@ const getAccessLimitedCacheResult = (
 const persistAccessLimitedCacheResult = async (
   tenderId: number,
   result: Record<string, JsonValue>,
-): Promise<void> => {
+  payload: Record<string, JsonValue>,
+): Promise<boolean> => {
   const descriptionMarkdown = typeof result.descriptionMarkdown === "string"
     ? result.descriptionMarkdown
     : "";
-  if (!isCanonicalPublicDescriptionMarkdown(descriptionMarkdown)) return;
+  if (!isCanonicalPublicDescriptionMarkdown(descriptionMarkdown)) return true;
+  const summary = pickValidatedPublicCandidate(result.summary, result.description) || "";
 
   const jsonBlob = {
     title: result.title ?? "",
-    summary: "",
+    summary,
+    description: summary,
     descriptionMarkdown,
     access_limited: true,
     accessLimited: true,
@@ -1671,45 +2061,22 @@ const persistAccessLimitedCacheResult = async (
     decision_relevant: {},
     procurement: {},
   };
-  await db
-    .insert(structuredData)
-    .values({ tenderId, jsonBlob, confidence: 0.2 })
-    .onConflictDoUpdate({
-      target: structuredData.tenderId,
-      set: { jsonBlob, confidence: 0.2, updatedAt: new Date() },
+  const persisted = await withCurrentPipelineVersion(tenderId, payload, async (tx) => {
+    await tx
+      .insert(structuredData)
+      .values({ tenderId, jsonBlob, confidence: 0.2 })
+      .onConflictDoUpdate({
+        target: structuredData.tenderId,
+        set: { jsonBlob, confidence: 0.2, updatedAt: new Date() },
+      });
     });
+  return persisted.current;
 };
 
 const evaluateTenderQuality = async (tender: Tender, structured: StructuredData) => {
   const assessment = assessTenderQuality(tender.title ?? "", tender.url, tender.rawText ?? "", structured);
   if (assessment.status === "rejected") {
     return { ...assessment, duplicateOfTenderId: null as number | null };
-  }
-
-  // Check for exact title duplicates in the database
-  const normalizedTitle = (tender.title ?? "").trim();
-  if (normalizedTitle.length > 10) {
-    const titleDuplicates = await db
-      .select({ id: tenders.id })
-      .from(tenders)
-      .where(
-        and(
-          eq(tenders.title, normalizedTitle),
-          ne(tenders.id, tender.id),
-          ne(tenders.qualityStatus, "duplicate"),
-        ),
-      )
-      .orderBy(asc(tenders.id))
-      .limit(1);
-
-    if (titleDuplicates.length > 0) {
-      return {
-        status: "duplicate" as const,
-        reason: `Duplikat: Gleicher Titel wie Ausschreibung #${titleDuplicates[0].id}.`,
-        fingerprint: assessment.fingerprint,
-        duplicateOfTenderId: titleDuplicates[0].id,
-      };
-    }
   }
 
   if (!assessment.fingerprint) {
@@ -1764,29 +2131,47 @@ const runCrawl = async (payload: Record<string, JsonValue>): Promise<Record<stri
   let discovered = 0;
   let changed = 0;
   let unchanged = 0;
+  const errors: string[] = [];
   for (const src of sources) {
-    const items = await discoverTendersFromSource(src);
+    let items: Awaited<ReturnType<typeof discoverTendersFromSource>>;
+    try {
+      items = await discoverTendersFromSource(src);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "unbekannter Quellenfehler";
+      errors.push(`${src.name ?? src.url}: ${message}`);
+      console.error(`[pipeline] Crawl-Quelle fehlgeschlagen (${src.url}): ${message}`);
+      continue;
+    }
     for (const tender of items) {
-      const upserted = await upsertTender({
-        source: tender.source,
-        sourceKey: tender.sourceKey,
-        url: tender.url,
-        title: tender.title,
-        externalId: tender.externalId,
-        metadata: { discovered_at: new Date().toISOString() },
-      });
-      if (upserted.changed) {
-        await queueTenderProcessing(upserted.id);
-        changed += 1;
-      } else {
-        await recoverTenderProcessing(upserted.id);
-        unchanged += 1;
+      try {
+        const upserted = await upsertTender({
+          source: tender.source,
+          sourceKey: tender.sourceKey,
+          url: tender.url,
+          title: tender.title,
+          externalId: tender.externalId,
+          metadata: { discovered_at: new Date().toISOString() },
+        });
+        if (upserted.changed) {
+          await queueTenderProcessing(upserted.id);
+          changed += 1;
+        } else {
+          await recoverTenderProcessing(upserted.id);
+          unchanged += 1;
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "unbekannter Tenderfehler";
+        errors.push(`${tender.url}: ${message}`);
+        console.error(`[pipeline] Tender konnte nicht verarbeitet werden (${tender.url}): ${message}`);
       }
       discovered += 1;
     }
   }
 
-  return { discovered, changed, unchanged };
+  if (errors.length > 0) {
+    throw new Error(`Crawl teilweise fehlgeschlagen: ${errors.slice(0, 10).join("; ")}`);
+  }
+  return { discovered, changed, unchanged, errors };
 };
 
 interface ClassifiedResourceCandidate {
@@ -1853,6 +2238,18 @@ const documentMatchesCandidate = (document: PipelineDocumentRow, candidate: Reso
   document.url === candidate.url
   || (Boolean(document.url) && sanitizeResourceUrl(document.url) === candidate.canonicalUrl);
 
+export const findHtmlResponseDocument = <T extends PipelineDocumentRow>(
+  documents: readonly T[],
+  candidateUrl: string,
+  contentType: string | null,
+): T | undefined => {
+  const candidateIdentity = documentIdentityKey({ url: candidateUrl, contentType });
+  return documents.find((document) => documentIdentityKey({
+    url: document.url,
+    contentType: document.contentType,
+  }) === candidateIdentity);
+};
+
 const documentFilename = (candidate: ResourceCandidateRecord, storedFilename: string | null | undefined, contentType: string): string => {
   const safeStored = boundedResourceText(storedFilename, 255);
   const safeCandidate = boundedResourceText(candidate.filename, 255);
@@ -1873,6 +2270,7 @@ const upsertDownloadedDocument = async (
   classification: ClassifiedResourceCandidate,
   documentsByTender: PipelineDocumentRow[],
   storagePath: string,
+  database: TenderPipelineDatabase = db,
 ): Promise<{ id: number | null; saved: boolean }> => {
   const existingByUrl = documentsByTender.find((document) => documentMatchesCandidate(document, candidate)) ?? null;
   const existingByHash = documentsByTender.find((document) => document.sha256 === stored.sha256) ?? null;
@@ -1898,14 +2296,14 @@ const upsertDownloadedDocument = async (
 
   if (action === "skip") {
     if (existingByUrl && existingByUrl.sha256 === stored.sha256) {
-      await db.update(documents).set({ updatedAt: new Date(), errorMessage: null }).where(eq(documents.id, existingByUrl.id));
+      await database.update(documents).set({ updatedAt: new Date(), errorMessage: null }).where(eq(documents.id, existingByUrl.id));
       existingByUrl.updatedAt = new Date();
     }
     return { id: existingByHash?.id ?? existingByUrl?.id ?? null, saved: false };
   }
 
   if (action === "update" && existingByUrl) {
-    await db.update(documents).set(values).where(eq(documents.id, existingByUrl.id));
+    await database.update(documents).set(values).where(eq(documents.id, existingByUrl.id));
     existingByUrl.sha256 = stored.sha256;
     existingByUrl.storagePath = storagePath;
     existingByUrl.contentType = stored.contentType;
@@ -1915,7 +2313,7 @@ const upsertDownloadedDocument = async (
     return { id: existingByUrl.id, saved: true };
   }
 
-  const inserted = await db.insert(documents).values(values).onConflictDoNothing().returning({ id: documents.id });
+  const inserted = await database.insert(documents).values(values).onConflictDoNothing().returning({ id: documents.id });
   if (inserted.length > 0) {
     documentsByTender.push({
       id: inserted[0].id,
@@ -1930,7 +2328,7 @@ const upsertDownloadedDocument = async (
     return { id: inserted[0].id, saved: true };
   }
 
-  const existingHashRows = await db
+  const existingHashRows = await database
     .select({ id: documents.id, downloadStatus: documents.downloadStatus })
     .from(documents)
     .where(and(eq(documents.tenderId, tenderId), eq(documents.sha256, stored.sha256)))
@@ -1944,6 +2342,7 @@ const upsertFailedDocument = async (
   classification: ClassifiedResourceCandidate,
   message: string,
   documentsByTender: PipelineDocumentRow[],
+  database: TenderPipelineDatabase = db,
 ): Promise<void> => {
   const existing = documentsByTender.find((document) => documentMatchesCandidate(document, candidate));
   if (existing?.downloadStatus === "downloaded") return;
@@ -1966,13 +2365,13 @@ const upsertFailedDocument = async (
   };
 
   if (existing) {
-    await db.update(documents).set(values).where(eq(documents.id, existing.id));
+    await database.update(documents).set(values).where(eq(documents.id, existing.id));
     existing.sha256 = values.sha256;
     existing.downloadStatus = "failed";
     return;
   }
 
-  const inserted = await db.insert(documents).values(values).onConflictDoNothing().returning({ id: documents.id });
+  const inserted = await database.insert(documents).values(values).onConflictDoNothing().returning({ id: documents.id });
   if (inserted.length > 0) {
     documentsByTender.push({
       id: inserted[0].id,
@@ -1987,8 +2386,12 @@ const upsertFailedDocument = async (
   }
 };
 
-const upsertTenderResource = async (tenderId: number, candidate: ResourceCandidateRecord): Promise<{ id: number; status: string }> => {
-  const rows = await db
+const upsertTenderResource = async (
+  tenderId: number,
+  candidate: ResourceCandidateRecord,
+  database: TenderPipelineDatabase = db,
+): Promise<{ id: number; status: string }> => {
+  const rows = await database
     .insert(tenderResources)
     .values({
       tenderId,
@@ -2026,28 +2429,71 @@ const upsertTenderResource = async (tenderId: number, candidate: ResourceCandida
   return rows[0];
 };
 
+const discardHtmlDocumentResponse = async (
+  resourceId: number,
+  candidateUrl: string,
+  stored: Awaited<ReturnType<typeof fetchAndStore>>,
+  existingDocuments: PipelineDocumentRow[] = [],
+  database: TenderPipelineDatabase = db,
+): Promise<void> => {
+  const message = "HTML-/Portalantwort statt Dokument";
+  await database.update(tenderResources).set({
+    url: sanitizeResourceUrl(stored.finalUrl) ?? candidateUrl,
+    filename: stored.filename,
+    contentType: stored.contentType,
+    contentDisposition: stored.contentDisposition,
+    status: "skipped",
+    errorMessage: message,
+     updatedAt: new Date(),
+  }).where(eq(tenderResources.id, resourceId));
+  const existingDocument = findHtmlResponseDocument(existingDocuments, candidateUrl, stored.contentType);
+  if (existingDocument) {
+    await database.update(documents).set({
+      downloadStatus: "skipped",
+      parseStatus: "empty",
+      extractedText: null,
+      errorMessage: message,
+      updatedAt: new Date(),
+    }).where(eq(documents.id, existingDocument.id));
+    existingDocument.downloadStatus = "skipped";
+  }
+  await fs.promises.rm(objectAbsolutePath(stored.storagePath), { force: true });
+};
+
 const runFetchDocuments = async (payload: Record<string, JsonValue>): Promise<Record<string, JsonValue>> => {
   const tenderId = Number(payload.tender_id ?? 0);
   if (!Number.isFinite(tenderId) || tenderId <= 0) {
     throw new Error("ungueltige tender_id");
   }
+  if (!await ensureCurrentPipelineVersion(tenderId, payload)) return { skipped: true, reason: "veraltete Tender-Version" };
 
   const tender = await getTender(tenderId);
 
   const metadata = parseRecord(tender.metadataJson as string);
   const candidates = await discoverTenderResources(tender, metadata);
+  if (!await ensureCurrentPipelineVersion(tenderId, payload)) {
+    return { skipped: true, reason: "veraltete Tender-Version" };
+  }
   const resourceRows = new Map<string, { id: number; status: string }>();
   for (const candidate of candidates) {
-    const row = await upsertTenderResource(tenderId, candidate);
-    resourceRows.set(candidate.canonicalUrl, row);
-    if (candidate.method !== "GET") {
-      await db.update(tenderResources).set({
-        status: "skipped",
-        errorMessage: "Nur sichere GET-Ressourcen werden automatisch geladen.",
-        updatedAt: new Date(),
-      }).where(eq(tenderResources.id, row.id));
-      row.status = "skipped";
+    if (!await ensureCurrentPipelineVersion(tenderId, payload)) {
+      return { skipped: true, reason: "veraltete Tender-Version" };
     }
+    const persistedResource = await withCurrentPipelineVersion(tenderId, payload, async (tx) => {
+      const row = await upsertTenderResource(tenderId, candidate, tx);
+      if (candidate.method !== "GET") {
+        await tx.update(tenderResources).set({
+          status: "skipped",
+          errorMessage: "Nur sichere GET-Ressourcen werden automatisch geladen.",
+          updatedAt: new Date(),
+        }).where(eq(tenderResources.id, row.id));
+        row.status = "skipped";
+      }
+      return row;
+    });
+    if (!persistedResource.current) return { skipped: true, reason: "veraltete Tender-Version" };
+    const row = persistedResource.value;
+    resourceRows.set(candidate.canonicalUrl, row);
   }
 
   const fetchable = candidates.filter(isFetchableResourceCandidate);
@@ -2084,19 +2530,29 @@ const runFetchDocuments = async (payload: Record<string, JsonValue>): Promise<Re
     if (resource.status === "downloaded" && existingByUrl?.downloadStatus === "downloaded" && !isDocumentRefreshDue(existingByUrl)) continue;
     if (resource.status === "skipped") continue;
     if (existingByUrl?.downloadStatus === "downloaded" && !isDocumentRefreshDue(existingByUrl)) {
-      await db.update(tenderResources).set({ status: "downloaded", errorMessage: null, updatedAt: new Date() }).where(eq(tenderResources.id, resource.id));
+      const persisted = await withCurrentPipelineVersion(tenderId, payload, async (tx) => {
+        await tx.update(tenderResources).set({ status: "downloaded", errorMessage: null, updatedAt: new Date() })
+          .where(eq(tenderResources.id, resource.id));
+      });
+      if (!persisted.current) return { skipped: true, reason: "veraltete Tender-Version" };
       resource.status = "downloaded";
       continue;
     }
 
+    if (!await ensureCurrentPipelineVersion(tenderId, payload)) {
+      return { skipped: true, reason: "veraltete Tender-Version" };
+    }
     attemptedResources += 1;
-    await db.update(tenderResources).set({
-      status: "downloading",
-      attempts: sql`${tenderResources.attempts} + 1`,
-      lastAttemptAt: new Date(),
-      errorMessage: null,
-      updatedAt: new Date(),
-    }).where(eq(tenderResources.id, resource.id));
+    const markedDownloading = await withCurrentPipelineVersion(tenderId, payload, async (tx) => {
+      await tx.update(tenderResources).set({
+        status: "downloading",
+        attempts: sql`${tenderResources.attempts} + 1`,
+        lastAttemptAt: new Date(),
+        errorMessage: null,
+        updatedAt: new Date(),
+      }).where(eq(tenderResources.id, resource.id));
+    });
+    if (!markedDownloading.current) return { skipped: true, reason: "veraltete Tender-Version" };
 
     const baseName = suggestedFilename(candidate.url, `tender-${tenderId}-${attemptedResources}`);
     const relative = `tenders/${tenderId}/${baseName}`;
@@ -2107,6 +2563,26 @@ const runFetchDocuments = async (payload: Record<string, JsonValue>): Promise<Re
         userAgent: REALISTIC_USER_AGENT,
         headers: { Accept: RESOURCE_FETCH_ACCEPT },
       });
+      if (!await ensureCurrentPipelineVersion(tenderId, payload)) {
+        await fs.promises.rm(objectAbsolutePath(stored.storagePath), { force: true });
+        await db.update(tenderResources).set({
+          status: "discovered",
+          errorMessage: null,
+          updatedAt: new Date(),
+        }).where(and(eq(tenderResources.id, resource.id), eq(tenderResources.status, "downloading")));
+        return { skipped: true, reason: "veraltete Tender-Version" };
+      }
+      if (isHtmlContentType(stored.contentType)) {
+        const discarded = await withCurrentPipelineVersion(tenderId, payload, async (tx) => {
+          await discardHtmlDocumentResponse(resource.id, candidate.url, stored, existingDocuments, tx);
+        });
+        if (!discarded.current) {
+          await fs.promises.rm(objectAbsolutePath(stored.storagePath), { force: true });
+          return { skipped: true, reason: "veraltete Tender-Version" };
+        }
+        resource.status = "skipped";
+        continue;
+      }
       const normalizedPath = ensureExtension(stored.storagePath, stored.contentType);
       if (normalizedPath !== stored.storagePath) {
         const original = objectAbsolutePath(stored.storagePath);
@@ -2116,42 +2592,59 @@ const runFetchDocuments = async (payload: Record<string, JsonValue>): Promise<Re
         fs.unlinkSync(original);
       }
 
-      const persisted = await upsertDownloadedDocument(
-        tenderId,
-        candidate,
-        stored,
-        classified,
-        existingDocuments,
-        normalizedPath,
-      );
-      if (persisted.saved) saved += 1;
-      await db.update(tenderResources).set({
-        url: sanitizeResourceUrl(stored.finalUrl) ?? candidate.url,
-        filename: stored.filename ?? candidate.filename,
-        contentType: stored.contentType,
-        contentDisposition: stored.contentDisposition ?? candidate.contentDisposition,
-        status: "downloaded",
-        errorMessage: null,
-        updatedAt: new Date(),
-      }).where(eq(tenderResources.id, resource.id));
+      const persistedDocument = await withCurrentPipelineVersion(tenderId, payload, async (tx) => {
+        const persisted = await upsertDownloadedDocument(
+          tenderId,
+          candidate,
+          stored,
+          classified,
+          existingDocuments,
+          normalizedPath,
+          tx,
+        );
+        await tx.update(tenderResources).set({
+          url: sanitizeResourceUrl(stored.finalUrl) ?? candidate.url,
+          filename: stored.filename ?? candidate.filename,
+          contentType: stored.contentType,
+          contentDisposition: stored.contentDisposition ?? candidate.contentDisposition,
+          status: "downloaded",
+          errorMessage: null,
+          updatedAt: new Date(),
+        }).where(eq(tenderResources.id, resource.id));
+        return persisted;
+      });
+      if (!persistedDocument.current) {
+        await fs.promises.rm(objectAbsolutePath(normalizedPath), { force: true });
+        return { skipped: true, reason: "veraltete Tender-Version" };
+      }
+      if (persistedDocument.value.saved) saved += 1;
       resource.status = "downloaded";
     } catch (error) {
       const message = error instanceof Error ? error.message : "unbekannter Downloadfehler";
       const permanentUnavailable = isPermanentResourceFailure(message);
       if (!permanentUnavailable) failedResources += 1;
-      await upsertFailedDocument(tenderId, candidate, classified, message, existingDocuments);
-      await db.update(tenderResources).set({
-        status: permanentUnavailable ? "skipped" : "failed",
-        errorMessage: message.slice(0, 500),
-        updatedAt: new Date(),
-      }).where(eq(tenderResources.id, resource.id));
+      const persistedFailure = await withCurrentPipelineVersion(tenderId, payload, async (tx) => {
+        await upsertFailedDocument(tenderId, candidate, classified, message, existingDocuments, tx);
+        await tx.update(tenderResources).set({
+          status: permanentUnavailable ? "skipped" : "failed",
+          errorMessage: message.slice(0, 500),
+          updatedAt: new Date(),
+        }).where(eq(tenderResources.id, resource.id));
+      });
+      if (!persistedFailure.current) return { skipped: true, reason: "veraltete Tender-Version" };
       resource.status = permanentUnavailable ? "skipped" : "failed";
       console.warn(`[pipeline] Ressourcen-Download fehlgeschlagen: ${candidate.url}`, error);
     }
   }
 
-  await refreshTenderReadiness(tenderId);
-  await queueTenderStage(JOB_PARSE, tenderId);
+  if (!await ensureCurrentPipelineVersion(tenderId, payload)) {
+    return { skipped: true, reason: "veraltete Tender-Version" };
+  }
+  const refreshed = await refreshTenderReadiness(tenderId, payload);
+  if (!refreshed.current) {
+    return { skipped: true, reason: "veraltete Tender-Version" };
+  }
+  await queueTenderStage(JOB_PARSE, tenderId, pipelineVersionPayload(payload));
   if (failedResources > 0) {
     throw new Error(`${failedResources} Ressourcen konnten nicht geladen werden`);
   }
@@ -2169,9 +2662,10 @@ const runParseDocuments = async (payload: Record<string, JsonValue>): Promise<Re
   if (!Number.isFinite(tenderId) || tenderId <= 0) {
     throw new Error("ungueltige tender_id");
   }
+  if (!await ensureCurrentPipelineVersion(tenderId, payload)) return { skipped: true, reason: "veraltete Tender-Version" };
 
   const tender = await getTender(tenderId);
-  const docs = (await db
+  const allDocs = await db
     .select({
       id: documents.id,
       storagePath: documents.storagePath,
@@ -2187,17 +2681,62 @@ const runParseDocuments = async (payload: Record<string, JsonValue>): Promise<Re
     })
     .from(documents)
     .where(eq(documents.tenderId, tenderId))
-    .orderBy(documents.id))
-    .filter((document) => document.downloadStatus === "downloaded" && !isPortalActionUrl(document.url));
+    .orderBy(documents.id);
+  const htmlDocuments = allDocs.filter((document) =>
+    document.downloadStatus === "downloaded" && isHtmlContentType(document.contentType));
+  if (htmlDocuments.length > 0) {
+    const htmlDocumentIds = htmlDocuments.map((document) => document.id);
+    const cleanedRawText = removeParsedDocumentSections(tender.rawText, htmlDocumentIds);
+    const persisted = await withCurrentPipelineVersion(tenderId, payload, async (tx) => {
+      await tx.update(documents).set({
+        downloadStatus: "skipped",
+        parseStatus: "empty",
+        extractedText: null,
+        errorMessage: "HTML-/Portalantwort statt Dokument",
+        updatedAt: new Date(),
+      }).where(inArray(documents.id, htmlDocumentIds));
+      if (cleanedRawText !== (tender.rawText ?? "").trim()) {
+        await tx.update(tenders).set({ rawText: cleanedRawText || null, updatedAt: new Date() })
+          .where(eq(tenders.id, tenderId));
+      }
+      return cleanedRawText || null;
+    });
+    if (!persisted.current) return { skipped: true, reason: "veraltete Tender-Version" };
+    tender.rawText = persisted.value;
+  }
+
+  const docs = allDocs.filter((document) =>
+    document.downloadStatus === "downloaded"
+    && !isPortalActionUrl(document.url)
+    && !isHtmlContentType(document.contentType));
+  const formBoilerplateDocumentIds = new Set(
+    allDocs
+      .filter((document) => isPdfFormBoilerplate(document.extractedText ?? ""))
+      .map((document) => document.id),
+  );
+  const cleanedFormRawText = removeParsedDocumentSections(
+    tender.rawText,
+    [...formBoilerplateDocumentIds],
+  );
+  if (cleanedFormRawText !== (tender.rawText ?? "").trim()) {
+    const persisted = await withCurrentPipelineVersion(tenderId, payload, async (tx) => {
+      await tx.update(tenders).set({ rawText: cleanedFormRawText || null, updatedAt: new Date() })
+        .where(eq(tenders.id, tenderId));
+    });
+    if (!persisted.current) return { skipped: true, reason: "veraltete Tender-Version" };
+    tender.rawText = cleanedFormRawText || null;
+  }
 
   if (docs.length === 0) {
     // No documents to parse. Only continue when the listing itself supplied
     // usable text; otherwise structure_tender can only fail deterministically.
-    await refreshTenderReadiness(tenderId);
     if (tender.rawText?.trim()) {
-      await queueTenderStage(JOB_STRUCTURE, tenderId);
+      const refreshed = await refreshTenderReadiness(tenderId, payload);
+      if (!refreshed.current) return { skipped: true, reason: "veraltete Tender-Version" };
+      await queueTenderStage(JOB_STRUCTURE, tenderId, pipelineVersionPayload(payload));
       return { chunks: 0, skipped: "keine Dokumente, raw_text bereits vorhanden" };
     }
+    await markTenderWithoutUsableContent(tenderId, payload);
     return { chunks: 0, skipped: "keine Dokumente und kein verwertbarer raw_text" };
   }
 
@@ -2208,14 +2747,11 @@ const runParseDocuments = async (payload: Record<string, JsonValue>): Promise<Re
   let failedDocuments = 0;
 
   for (const doc of docs) {
-    const absPath = objectAbsolutePath(doc.storagePath);
+    let absPath: string;
     try {
+      absPath = await ensureLocalStored(doc.storagePath);
       const extracted = await extractTextFromFile(absPath, doc.contentType);
-      const pageText = (extracted.pages.length > 0
-        ? extracted.pages
-          .map((page, index) => `[Seite ${index + 1}]\n${page}`)
-          .join("\n\n")
-        : extracted.text).replace(/\u0000/g, "");
+      const pageText = formatExtractedDocumentText(extracted).replace(/\u0000/g, "");
       const bounded = pageText.length > MAX_DOCUMENT_TEXT_CHARS
         ? `${pageText.slice(0, MAX_DOCUMENT_TEXT_CHARS)}\n[Text wegen Größenlimit gekürzt]`
         : pageText;
@@ -2239,16 +2775,17 @@ const runParseDocuments = async (payload: Record<string, JsonValue>): Promise<Re
         }
       }
       effectiveRole = primaryDocumentRole(effectiveRoles);
+      const isFormBoilerplate = isPdfFormBoilerplate(bounded);
+      if (isFormBoilerplate) formBoilerplateDocumentIds.add(doc.id);
 
-      if (bounded.trim().length >= 20) {
+      if (shouldIncludeParsedDocumentText(bounded)) {
         parsedDocumentCandidates.push({ id: doc.id, role: effectiveRole, roles: effectiveRoles, text: bounded });
-      } else {
+      } else if (!isFormBoilerplate) {
         partial = true;
       }
 
-      await db
-        .update(documents)
-        .set({
+      const persisted = await withCurrentPipelineVersion(tenderId, payload, async (tx) => {
+        await tx.update(documents).set({
           extractedText: bounded.trim().length >= 20 ? bounded : doc.extractedText,
           parseStatus: bounded.trim().length >= 20 ? "parsed" : "empty",
           errorMessage: null,
@@ -2260,6 +2797,8 @@ const runParseDocuments = async (payload: Record<string, JsonValue>): Promise<Re
           updatedAt: new Date(),
         })
         .where(eq(documents.id, doc.id));
+      });
+      if (!persisted.current) return { skipped: true, reason: "veraltete Tender-Version" };
     } catch (error) {
       partial = true;
       failedDocuments += 1;
@@ -2267,13 +2806,19 @@ const runParseDocuments = async (payload: Record<string, JsonValue>): Promise<Re
       // Store the error on the document row for debugging, but do NOT pollute
       // the tender's analytical rawText with error markers. A failed parse is a
       // document-level failure, not tender content.
-      await db
-        .update(documents)
-        .set({ extractedText: doc.extractedText, parseStatus: "failed", errorMessage: message, updatedAt: new Date() })
-        .where(eq(documents.id, doc.id));
+      const persisted = await withCurrentPipelineVersion(tenderId, payload, async (tx) => {
+        await tx.update(documents)
+          .set({ extractedText: doc.extractedText, parseStatus: "failed", errorMessage: message, updatedAt: new Date() })
+          .where(eq(documents.id, doc.id));
+      });
+      if (!persisted.current) return { skipped: true, reason: "veraltete Tender-Version" };
     }
   }
 
+  const corpusRawText = removeParsedDocumentSections(
+    tender.rawText,
+    [...formBoilerplateDocumentIds],
+  );
   // Sort by role priority (Leistungsbeschreibung first) and tag sections so the
   // structurer knows which document type each text block comes from.
   const parsedDocs = deduplicateParsedDocuments(parsedDocumentCandidates);
@@ -2291,19 +2836,26 @@ const runParseDocuments = async (payload: Record<string, JsonValue>): Promise<Re
   // Only overwrite rawText when we actually extracted content. An all-failed
   // parse must not erase the listing-page description that was already stored.
   const merged = mergedParts.join("\n\n").slice(0, MAX_TENDER_TEXT_CHARS).trim();
-  const mergedTenderText = mergeParsedTenderText(tender.rawText, merged, partial);
+  const mergedTenderText = mergeParsedTenderText(
+    corpusRawText,
+    merged,
+    partial || formBoilerplateDocumentIds.size > 0,
+  );
+  if (!await ensureCurrentPipelineVersion(tenderId, payload)) return { skipped: true, reason: "veraltete Tender-Version" };
   if (mergedTenderText !== (tender.rawText ?? "").trim()) {
-    await db
-      .update(tenders)
-      .set({ rawText: mergedTenderText, updatedAt: new Date() })
-      .where(eq(tenders.id, tenderId));
+    const persisted = await withCurrentPipelineVersion(tenderId, payload, async (tx) => {
+      await tx.update(tenders)
+        .set({ rawText: mergedTenderText, updatedAt: new Date() })
+        .where(eq(tenders.id, tenderId));
+    });
+    if (!persisted.current) return { skipped: true, reason: "veraltete Tender-Version" };
   }
   await markCatalogDirty();
   // Do not enqueue a deterministic structure failure when every document is
   // empty/failed and the listing supplied no usable text. Recovery can retry
   // the parser when a failed document becomes available later.
   if (mergedTenderText) {
-    await queueTenderStage(JOB_STRUCTURE, tenderId);
+    await queueTenderStage(JOB_STRUCTURE, tenderId, pipelineVersionPayload(payload));
   }
   if (failedDocuments > 0) {
     throw new Error(`${failedDocuments} Dokumente konnten nicht geparst werden`);
@@ -2312,6 +2864,7 @@ const runParseDocuments = async (payload: Record<string, JsonValue>): Promise<Re
     .select({
       id: documents.id,
       url: documents.url,
+      contentType: documents.contentType,
       role: documents.role,
       roles: documents.roles,
       parseStatus: documents.parseStatus,
@@ -2323,7 +2876,8 @@ const runParseDocuments = async (payload: Record<string, JsonValue>): Promise<Re
     })
     .from(documents)
     .where(eq(documents.tenderId, tenderId));
-  const analysis = buildDocumentAnalysis(refreshedDocs.filter((document) => !isPortalActionUrl(document.url)) as AnalyzedDocument[]);
+  const analysis = buildDocumentAnalysis(refreshedDocs.filter((document) =>
+    !isPortalActionUrl(document.url) && !isHtmlContentType(document.contentType)) as AnalyzedDocument[]);
   return {
     parsed_documents: docs.length,
     parsed_successfully: parsedDocs.length,
@@ -2338,6 +2892,7 @@ const runStructureTender = async (payload: Record<string, JsonValue>): Promise<R
   if (!Number.isFinite(tenderId) || tenderId <= 0) {
     throw new Error("ungueltige tender_id");
   }
+  if (!await ensureCurrentPipelineVersion(tenderId, payload)) return { skipped: true, reason: "veraltete Tender-Version" };
 
   const tender = await getTender(tenderId);
   if (!tender.rawText || tender.rawText.trim().length === 0) {
@@ -2347,7 +2902,9 @@ const runStructureTender = async (payload: Record<string, JsonValue>): Promise<R
   const accessPage = detectAccessPage(tender.rawText, { title: tender.title ?? undefined, url: tender.url });
   if (accessPage.blocked) {
     console.warn(`[pipeline] Tender ${tenderId} blockierte Zugriffsseite (${accessPage.reason})`);
-    await rejectBlockedTender(tenderId, accessPage);
+    if (!await rejectBlockedTender(tenderId, accessPage, payload)) {
+      return { skipped: true, reason: "veraltete Tender-Version" };
+    }
     return { blocked: true, blocked_reason: accessPage.reason ?? "unknown" };
   }
 
@@ -2358,14 +2915,25 @@ const runStructureTender = async (payload: Record<string, JsonValue>): Promise<R
       ? tenderMetadata.referenceNumber
       : null;
   const extractedStructured = await extractStructuredData(tender.title ?? "Unbenannte Ausschreibung", tender.rawText, { reference });
-  const structured = normalizeStructured(extractedStructured, tender.title ?? "", {
-    summary: pickPublicDescription(tenderMetadata.description, tender.rawText) || null,
+  const publicMeta = readPublicTenderMeta(tender.metadataJson, {
+    title: tender.title,
+    source: tender.source,
+    sourceUrl: tender.url,
   });
+  const structured = normalizeStructured(extractedStructured, tender.title ?? "", {
+    buyer: publicMeta.client || null,
+    procedure: publicMeta.procedure || pickValidatedPublicProcedure(tender.procedureType) || null,
+    location: publicMeta.location || null,
+    summary: publicMeta.description || null,
+    scope: publicMeta.subject || null,
+  });
+  if (!await ensureCurrentPipelineVersion(tenderId, payload)) return { skipped: true, reason: "veraltete Tender-Version" };
 
   const documentRows = await db
     .select({
       id: documents.id,
       url: documents.url,
+      contentType: documents.contentType,
       role: documents.role,
       roles: documents.roles,
       parseStatus: documents.parseStatus,
@@ -2377,7 +2945,8 @@ const runStructureTender = async (payload: Record<string, JsonValue>): Promise<R
     })
     .from(documents)
     .where(eq(documents.tenderId, tenderId));
-  const baseDocumentAnalysis = buildDocumentAnalysis(documentRows.filter((document) => !isPortalActionUrl(document.url)) as AnalyzedDocument[]);
+  const baseDocumentAnalysis = buildDocumentAnalysis(documentRows.filter((document) =>
+    !isPortalActionUrl(document.url) && !isHtmlContentType(document.contentType)) as AnalyzedDocument[]);
   structured.document_analysis = withEvidenceValues(baseDocumentAnalysis, {
     deadline: structured.hard_facts.deadline,
     scope: structured.decision_relevant.scope.join(" ") || structured.summary,
@@ -2395,36 +2964,10 @@ const runStructureTender = async (payload: Record<string, JsonValue>): Promise<R
     const mi = String(d.getMinutes()).padStart(2, "0");
     structured.hard_facts.deadline = `${dd}.${mm}.${yyyy}, ${hh}:${mi} Uhr`;
   }
-  structured.descriptionMarkdown = buildStructuredDescriptionMarkdown(structured, reference);
-
-  await db
-    .insert(structuredData)
-    .values({
-      tenderId,
-      jsonBlob: structured,
-      confidence: structured.confidence,
-    })
-    .onConflictDoUpdate({
-      target: structuredData.tenderId,
-      set: {
-        jsonBlob: structured,
-        confidence: structured.confidence,
-        updatedAt: new Date(),
-      },
-    });
-
-  // Store procurement data in tenders table
-  const procurement = structured.procurement;
-  await db
-    .update(tenders)
-    .set({
-      contractValueMin: procurement?.contract_value?.min ?? null,
-      contractValueMax: procurement?.contract_value?.max ?? null,
-      contractDurationMonths: procurement?.contract_duration?.months ?? null,
-      procedureType: procurement?.procedure_type ?? null,
-      updatedAt: new Date(),
-    })
-    .where(eq(tenders.id, tenderId));
+  const structuredDescriptionMarkdown = buildStructuredDescriptionMarkdown(structured, reference);
+  structured.descriptionMarkdown = isCanonicalPublicDescriptionMarkdown(structuredDescriptionMarkdown)
+    ? structuredDescriptionMarkdown
+    : "";
 
   const quality = await evaluateTenderQuality(tender, structured);
   const qualityUpdate: Record<string, unknown> = {
@@ -2442,16 +2985,71 @@ const runStructureTender = async (payload: Record<string, JsonValue>): Promise<R
       typeof location === "string" ? location : undefined,
     );
   }
-  await db
-    .update(tenders)
-    .set(qualityUpdate)
-    .where(eq(tenders.id, tenderId));
-  const readiness = await refreshTenderReadiness(tenderId);
+  const procurement = structured.procurement;
+  const persistence = await withCurrentPipelineVersion(tenderId, payload, async (tx) => {
+    await tx
+      .insert(structuredData)
+      .values({ tenderId, jsonBlob: structured, confidence: structured.confidence })
+      .onConflictDoUpdate({
+        target: structuredData.tenderId,
+        set: { jsonBlob: structured, confidence: structured.confidence, updatedAt: new Date() },
+      });
+
+    const currentTender = await tx
+      .select({ rawText: tenders.rawText })
+      .from(tenders)
+      .where(eq(tenders.id, tenderId))
+      .limit(1);
+    const latestDocumentRows = await tx
+      .select({
+        id: documents.id,
+        url: documents.url,
+        contentType: documents.contentType,
+        role: documents.role,
+        roles: documents.roles,
+        parseStatus: documents.parseStatus,
+        downloadStatus: documents.downloadStatus,
+        errorMessage: documents.errorMessage,
+        extractedText: documents.extractedText,
+        pageCount: documents.pageCount,
+        roleConfidence: documents.roleConfidence,
+      })
+      .from(documents)
+      .where(eq(documents.tenderId, tenderId));
+    const documentAnalysis = buildDocumentAnalysis(latestDocumentRows.filter((document) =>
+      !isPortalActionUrl(document.url) && !isHtmlContentType(document.contentType)) as AnalyzedDocument[]);
+    const readiness = evaluateTenderReadiness({
+      qualityStatus: quality.status,
+      rawText: currentTender[0]?.rawText,
+      structuredExists: true,
+      structuredConfidence: structured.confidence,
+      documentAnalysis,
+    });
+
+    await tx.update(tenders).set({
+      ...qualityUpdate,
+      contractValueMin: procurement?.contract_value?.min ?? null,
+      contractValueMax: procurement?.contract_value?.max ?? null,
+      contractDurationMonths: procurement?.contract_duration?.months ?? null,
+      procedureType: procurement?.procedure_type ?? null,
+      readinessStatus: readiness.status,
+      readinessReason: readiness.reason,
+      readinessUpdatedAt: new Date(),
+      updatedAt: new Date(),
+    }).where(eq(tenders.id, tenderId));
+
+    if (quality.status !== "qualified" || !isScorableReadiness(readiness.status)) {
+      await tx.delete(insights).where(eq(insights.tenderId, tenderId));
+      await tx.delete(scores).where(eq(scores.tenderId, tenderId));
+    }
+    return readiness;
+  });
+  if (!persistence.current) return { skipped: true, reason: "veraltete Tender-Version" };
+  const readiness = persistence.value;
   await markCatalogDirty();
   await enqueueJob(JOB_SYNC_MEILI, {}, { jobKey: JOB_SYNC_MEILI, dedupeCompleted: false });
 
   if (quality.status !== "qualified") {
-    await clearTenderScoring(tenderId);
     return {
       confidence: structured.confidence,
       quality_status: quality.status,
@@ -2460,27 +3058,28 @@ const runStructureTender = async (payload: Record<string, JsonValue>): Promise<R
     };
   }
 
-  if (readiness.readiness.status === "ready") {
-    await queueTenderStage(JOB_SCORE, tenderId);
+  if (isScorableReadiness(readiness.status)) {
+    await queueTenderStage(JOB_SCORE, tenderId, pipelineVersionPayload(payload));
   }
-  await queueTenderStage(JOB_CACHE_DETAIL, tenderId);
+  await queueTenderStage(JOB_CACHE_DETAIL, tenderId, pipelineVersionPayload(payload));
   return {
     confidence: structured.confidence,
     quality_status: quality.status,
     quality_reason: quality.reason,
-    readiness_status: readiness.readiness.status,
+    readiness_status: readiness.status,
   };
 };
 
 const DETAIL_CACHE_PROMPT = `Du bist ein Experte fuer oeffentliche Ausschreibungen in Deutschland.
-Analysiere den folgenden Inhalt und extrahiere ALLE Details.
+Extrahiere aus dem folgenden Inhalt nur explizit belegte Fakten.
 
 WICHTIG:
-- Der Inhalt kann auf Deutsch ODER Englisch sein. Antworte IMMER auf Deutsch.
-- Extrahiere NUR Informationen die EXPLIZIT auf der Seite stehen. NIEMALS erfinden!
+- Der Inhalt kann auf Deutsch ODER Englisch sein. Quellauszuege muessen in der Originalsprache bleiben.
+- Erfinde keine Fakten und leite Auftraggeber niemals aus URL, Impressum oder Kontext ab.
+- Beschreibung, Leistungsumfang und Anforderungen duerfen nur woertliche, zusammenhaengende Quellauszuege sein. Nicht paraphrasieren oder zusammenfassen; bei fehlendem Beleg leer/null.
+- Eine Frist darf nur aus einem konkreten, auf der Seite genannten Datum uebernommen werden. Relative Angaben nicht berechnen.
 - Bei Zuschlagskriterien: Lies die Zahlen EXAKT ab. "Zuschlagskriterium — Zahl: 100" = 100%.
-- "description" MUSS eine ausfuehrliche Zusammenfassung der Ausschreibung sein (mindestens 200 Zeichen).
-- "scope" MUSS den Leistungsumfang beschreiben.
+- Gib fuer jeden fehlenden oder nicht eindeutig belegten Wert null, eine leere Zeichenkette oder ein leeres Array aus.
 
 KRITISCH - Ignoriere diese Inhalte VOLLSTAENDIG:
 - VHB-Formblätter (Eigenerklärung, Eignungserklärung, Formblatt 124, etc.)
@@ -2493,11 +3092,11 @@ KRITISCH - Ignoriere diese Inhalte VOLLSTAENDIG:
 Antworte NUR mit validem JSON:
 {
   "title": "Titel",
-  "client": "Auftraggeber",
+  "client": "Woertlich belegter Auftraggeber" oder null,
   "deadline": "2026-06-15" oder null,
-  "description": "Ausfuehrliche Beschreibung mit allen Details (min. 200 Zeichen)",
+  "description": "Quellverbatim-Auszug oder leer",
   "requirements": ["Anforderung 1"],
-  "scope": "Leistungsumfang",
+  "scope": "Quellverbatim-Auszug oder leer",
   "contact": "Kontaktdaten",
   "procedure": "Verfahrensart",
   "awardCriteria": ["Preis (100%)"],
@@ -2513,6 +3112,7 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
   if (!Number.isFinite(tenderId) || tenderId <= 0) {
     throw new Error("ungueltige tender_id");
   }
+  if (!await ensureCurrentPipelineVersion(tenderId, payload)) return { skipped: true, reason: "veraltete Tender-Version" };
 
   const rows = await db.select().from(tenders).where(eq(tenders.id, tenderId)).limit(1);
   if (rows.length === 0 || !rows[0].url) {
@@ -2529,14 +3129,21 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
     const cachedAccessPage = detectAccessPage(JSON.stringify(blob), { title: tender.title ?? undefined, url: sourceUrl });
     if (cachedAccessPage.blocked) {
       console.warn(`[cache-detail] Entferne blockierten Cache fuer Tender ${tenderId} (${cachedAccessPage.reason})`);
-      const accessLimitedResult = getAccessLimitedCacheResult(tender, cachedAccessPage);
+      const accessLimitedResult = getAccessLimitedCacheResult(tender, cachedAccessPage, blob);
       if (accessLimitedResult) {
         console.info(`[cache-detail] Nutze vorhandene Zugangsbeschraenkungs-Zusammenfassung fuer Tender ${tenderId}`);
-        await persistAccessLimitedCacheResult(tenderId, accessLimitedResult);
+        if (!await persistAccessLimitedCacheResult(tenderId, accessLimitedResult, payload)) {
+          return { skipped: true, reason: "veraltete Tender-Version" };
+        }
         return accessLimitedResult;
       }
-      await db.delete(structuredData).where(eq(structuredData.tenderId, tenderId));
-      await retryBlockedDetail(tender, cachedAccessPage);
+      const removed = await withCurrentPipelineVersion(tenderId, payload, async (tx) => {
+        await tx.delete(structuredData).where(eq(structuredData.tenderId, tenderId));
+      });
+      if (!removed.current) return { skipped: true, reason: "veraltete Tender-Version" };
+      if (!await retryBlockedDetail(tender, cachedAccessPage, payload)) {
+        return { skipped: true, reason: "veraltete Tender-Version" };
+      }
     }
 
     // Check flat format (from cache_detail)
@@ -2553,11 +3160,14 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
     if ((hasFlatDescription && hasKeyFields) || (hasNestedDeadline && hasNestedScope)) {
       const cachedMetadata = parseRecord(tender.metadataJson as string);
       const normalizedCached = normalizeStructured(blob, tender.title ?? "", {
-        summary: pickPublicDescription(cachedMetadata.description, tender.rawText) || null,
+        summary: pickPublicTenderDescription({ metadata: cachedMetadata }) || null,
       });
-      await db.update(structuredData)
-        .set({ jsonBlob: normalizedCached, updatedAt: new Date() })
-        .where(eq(structuredData.tenderId, tenderId));
+      const persisted = await withCurrentPipelineVersion(tenderId, payload, async (tx) => {
+        await tx.update(structuredData)
+          .set({ jsonBlob: normalizedCached, updatedAt: new Date() })
+          .where(eq(structuredData.tenderId, tenderId));
+      });
+      if (!persisted.current) return { skipped: true, reason: "veraltete Tender-Version" };
       return { cached: true, detail_cached: true };
     }
   }
@@ -2567,12 +3177,11 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
     .filter((value): value is string => typeof value === "string" && value.startsWith("http"));
 
   // Build detail from existing metadata (instant, no API calls)
-  const description = pickPublicDescription(meta.description, tender.rawText);
-  const client = normalizePublicClient(
-    meta.client,
-    getPublicClientFallback(tender.source, tender.url),
-  ) || "Unbekannt";
-  const location = pickValidatedPublicLocationForTender(tender.title, client, meta.location);
+  // raw_text remains an analysis corpus; only persisted/public fallback prose
+  // comes from already extracted metadata.
+  let description = pickPublicTenderDescription({ metadata: meta });
+  let client = normalizePublicClient(meta.client);
+  let location = pickValidatedPublicLocationForTender(tender.title, client, meta.location);
 
   // Only use LLM if we have substantial page content to extract from
   const openrouterKey = process.env.OPENROUTER_API_KEY ?? "";
@@ -2594,13 +3203,18 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
 
   // Scrape the full page for best content unless raw_text is already richer.
   let fullContent = description;
-  if (preferRawText) fullContent = rawText.slice(0, 30_000);
+  let sourceEvidence = "";
+  if (preferRawText) {
+    fullContent = rawText.slice(0, 30_000);
+    sourceEvidence = fullContent;
+  }
   const isSPA = /meinauftrag\.rib\.de/.test(sourceUrl);
   if (openrouterKey && !preferRawText) {
     try {
       // SPA pages need networkidle + extra wait to render content + body text extraction
       const page = await scrapeWebsite(sourceUrl, isSPA ? { waitUntil: "networkidle", waitMs: 5000, onlyMainContent: false, useBodyText: true } : undefined);
       const markdown = page.markdown ?? "";
+      if (markdown) sourceEvidence = markdown.slice(0, 30_000);
       console.log(`[cache-detail] Scrape: ${markdown.length} Zeichen (description: ${description.length}, isSPA: ${isSPA})`);
       if (markdown.length > description.length) {
         // Find actual tender content (skip navigation/sidebar)
@@ -2614,6 +3228,7 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
         }
         const startPos = contentStart > 500 ? contentStart - 500 : 0;
         fullContent = markdown.substring(startPos, startPos + 30000);
+        sourceEvidence = fullContent;
       }
     } catch (e) {
       console.log(`[cache-detail] Scrape fehlgeschlagen, nutze Metadaten: ${e}`);
@@ -2647,8 +3262,40 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
     } else {
       console.log(`[cache-detail] Nutze raw_text (${rawText.length} Zeichen) statt gescrapter Seite (${fullContent.length} Zeichen)`);
       fullContent = rawText.slice(0, 30000);
+      sourceEvidence = fullContent;
     }
   }
+
+  // Metadata can itself contain older LLM prose, so it is never evidence for
+  // the current extraction. Keep it as a fallback only when source-verbatim.
+  description = pickSourceBackedPublicCandidate(sourceEvidence, meta.summary, meta.description);
+  client = isSourceBackedPublicValue(meta.client, sourceEvidence, "buyer")
+    ? normalizePublicClient(meta.client)
+    : "";
+  location = isSourceBackedPublicValue(meta.location, sourceEvidence, "location")
+    ? pickValidatedPublicLocationForTender(tender.title, client, meta.location)
+    : "";
+  const groundedMetadataPdfUrls = metadataPdfUrls.filter((url) => isSourceBackedPublicValue(url, sourceEvidence));
+  const storedDeadline = tender.deadlineAt
+    ? new Date(tender.deadlineAt).toISOString().split("T")[0]
+    : null;
+  const groundedStoredDeadline = isSourceBackedPublicValue(storedDeadline, sourceEvidence, "deadline")
+    ? storedDeadline
+    : null;
+  const groundedProcedure = isSourceBackedPublicValue(tender.procedureType, sourceEvidence)
+    ? tender.procedureType
+    : "";
+  const groundedDuration = tender.contractDurationMonths !== null && tender.contractDurationMonths !== undefined
+    ? `${tender.contractDurationMonths} Monate`
+    : "";
+  const groundedStoredDuration = isSourceBackedPublicValue(groundedDuration, sourceEvidence) ? groundedDuration : "";
+  const groundedValue = tender.contractValueMax !== null && tender.contractValueMax !== undefined
+    ? `${tender.contractValueMax} EUR`
+    : "";
+  const groundedStoredValue = isSourceBackedPublicValue(groundedValue, sourceEvidence) ? groundedValue : null;
+  const groundedReferenceNumber = isSourceBackedPublicValue(meta.reference_number, sourceEvidence)
+    ? String(meta.reference_number)
+    : null;
 
   const scrapedAccessPage = detectAccessPage(fullContent, { title: tender.title ?? undefined, url: sourceUrl });
   if (scrapedAccessPage.blocked) {
@@ -2656,10 +3303,14 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
     const accessLimitedResult = getAccessLimitedCacheResult(tender, scrapedAccessPage);
     if (accessLimitedResult) {
       console.info(`[cache-detail] Nutze vorhandene Zugangsbeschraenkungs-Zusammenfassung fuer Tender ${tenderId}`);
-      await persistAccessLimitedCacheResult(tenderId, accessLimitedResult);
-      return accessLimitedResult;
-    }
-    await retryBlockedDetail(tender, scrapedAccessPage);
+        if (!await persistAccessLimitedCacheResult(tenderId, accessLimitedResult, payload)) {
+          return { skipped: true, reason: "veraltete Tender-Version" };
+        }
+        return accessLimitedResult;
+      }
+      if (!await retryBlockedDetail(tender, scrapedAccessPage, payload)) {
+        return { skipped: true, reason: "veraltete Tender-Version" };
+      }
   }
 
   if (fullContent.length > 200 && openrouterKey) {
@@ -2678,22 +3329,25 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
       if (jsonMatch) {
         try {
           const extracted = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+          const grounded = groundPublicTenderFields(extracted, sourceEvidence);
           console.log(`[cache-detail] LLM: desc=${String(extracted.description ?? "").length} proc=${extracted.procedure ?? "nein"} scope=${String(extracted.scope ?? "").length}`);
           result = {
-          title: String(extracted.title ?? tender.title ?? ""),
-          client: String(extracted.client ?? client),
-          deadline: extracted.deadline ? String(extracted.deadline) : (tender.deadlineAt ? new Date(tender.deadlineAt).toISOString().split("T")[0] : null),
-           description: pickPublicDescription(extracted.description, description),
-          requirements: Array.isArray(extracted.requirements) ? extracted.requirements : [],
-          scope: String(extracted.scope ?? ""),
-          contact: String(extracted.contact ?? ""),
-          procedure: String(extracted.procedure ?? ""),
-          awardCriteria: Array.isArray(extracted.awardCriteria) ? extracted.awardCriteria : [],
-          duration: String(extracted.duration ?? ""),
-          location: String(extracted.location ?? ""),
-          referenceNumber: extracted.referenceNumber ? String(extracted.referenceNumber) : (meta.reference_number ? String(meta.reference_number) : null),
-           pdfUrls: Array.isArray(extracted.pdfUrls) ? extracted.pdfUrls.filter((u: unknown) => typeof u === "string" && (u as string).startsWith("http")) : metadataPdfUrls,
-          estimatedValue: extracted.estimatedValue ? String(extracted.estimatedValue) : null,
+          title: String(tender.title ?? ""),
+          client: typeof grounded.client === "string" && grounded.client ? grounded.client : client,
+          deadline: typeof grounded.deadline === "string" ? grounded.deadline : groundedStoredDeadline,
+           description: typeof grounded.description === "string" && grounded.description
+             ? pickPublicDescription(grounded.description)
+             : description,
+          requirements: Array.isArray(grounded.requirements) ? grounded.requirements : [],
+          scope: typeof grounded.scope === "string" ? grounded.scope : "",
+          contact: typeof grounded.contact === "string" && isSourceBackedPublicValue(grounded.contact, sourceEvidence) ? grounded.contact : "",
+          procedure: typeof grounded.procedure === "string" ? grounded.procedure : groundedProcedure,
+          awardCriteria: Array.isArray(grounded.awardCriteria) ? grounded.awardCriteria : [],
+          duration: typeof grounded.duration === "string" ? grounded.duration : groundedStoredDuration,
+          location: typeof grounded.location === "string" ? grounded.location : location,
+          referenceNumber: typeof grounded.referenceNumber === "string" ? grounded.referenceNumber : groundedReferenceNumber,
+           pdfUrls: Array.isArray(grounded.pdfUrls) ? grounded.pdfUrls.filter((u): u is string => typeof u === "string" && u.startsWith("http")) : groundedMetadataPdfUrls,
+          estimatedValue: typeof grounded.estimatedValue === "string" ? grounded.estimatedValue : groundedStoredValue,
           sourceUrl,
           cached: false,
           scrapedAt: new Date().toISOString(),
@@ -2712,7 +3366,6 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
     !result.procedure ||
     !result.duration
   );
-
   if ((hasLimitedData || hasThinDescription) && tender.title && tender.title.length >= 10) {
     try {
       console.log(`[cache-detail] Versuche oeffentlichevergabe.de Anreicherung fuer: ${tender.title.slice(0, 60)}...`);
@@ -2726,7 +3379,7 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
           result = {
             title: String(tender.title ?? ""),
             client: oeffDetails.buyer ?? client,
-            deadline: tender.deadlineAt ? new Date(tender.deadlineAt).toISOString().split("T")[0] : null,
+            deadline: groundedStoredDeadline,
              description: pickPublicDescription(oeffDetails.description, description),
             requirements: [],
             scope: oeffDetails.lotDescription ?? "",
@@ -2735,8 +3388,8 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
             awardCriteria: [],
             duration: oeffDetails.duration ?? "",
             location,
-            referenceNumber: meta.reference_number ? String(meta.reference_number) : null,
-             pdfUrls: oeffDetails.evergabeDocumentUrls.length > 0 ? oeffDetails.evergabeDocumentUrls : metadataPdfUrls,
+            referenceNumber: groundedReferenceNumber,
+             pdfUrls: oeffDetails.evergabeDocumentUrls.length > 0 ? oeffDetails.evergabeDocumentUrls : groundedMetadataPdfUrls,
             estimatedValue: oeffDetails.estimatedValue,
             sourceUrl: oeffDetails.portalUrl ?? sourceUrl,
             cached: false,
@@ -2775,11 +3428,16 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
         }
 
         // If enrichment found a public portal URL, update the tender's source URL
-        if (oeffDetails.portalUrl) {
-          console.log(`[cache-detail] Oeffentl. Portal-URL: ${oeffDetails.portalUrl.slice(0, 80)}`);
-          result.sourceUrl = oeffDetails.portalUrl;
+        const portalUrl = oeffDetails.portalUrl;
+        if (portalUrl) {
+          console.log(`[cache-detail] Oeffentl. Portal-URL: ${portalUrl.slice(0, 80)}`);
+          result.sourceUrl = portalUrl;
           try {
-            await db.update(tenders).set({ url: oeffDetails.portalUrl, updatedAt: new Date() }).where(eq(tenders.id, tenderId));
+            const updated = await withCurrentPipelineVersion(tenderId, payload, async (tx) => {
+              await tx.update(tenders).set({ url: portalUrl, updatedAt: new Date() })
+                .where(eq(tenders.id, tenderId));
+            });
+            if (!updated.current) return { skipped: true, reason: "veraltete Tender-Version" };
           } catch (e) {
             console.warn("[cache-detail] Portal-URL Update fehlgeschlagen:", e);
           }
@@ -2814,6 +3472,9 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
     let docIndex = 0;
 
     for (const docUrl of evergabeUrls) {
+      if (!await ensureCurrentPipelineVersion(tenderId, payload)) {
+        return { skipped: true, reason: "veraltete Tender-Version" };
+      }
       const resourceCandidate = resourceCandidateFromUrl(docUrl, sourceUrl, "", "cache_detail", "document");
       if (!resourceCandidate) continue;
       const baseName = suggestedFilename(docUrl, `tender-${tenderId}-evergabe-${docIndex + 1}`);
@@ -2822,18 +3483,28 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
       const resourceClassification = classifyResourceCandidate(resourceCandidate);
       let resourceRow: { id: number; status: string } | null = null;
       try {
-        resourceRow = await upsertTenderResource(tenderId, resourceCandidate);
+        const resource = await withCurrentPipelineVersion(tenderId, payload, async (tx) =>
+          upsertTenderResource(tenderId, resourceCandidate, tx));
+        if (!resource.current) return { skipped: true, reason: "veraltete Tender-Version" };
+        resourceRow = resource.value;
         if (existingUrls.has(docUrl)) {
-          await db.update(tenderResources).set({ status: "downloaded", errorMessage: null, updatedAt: new Date() }).where(eq(tenderResources.id, resourceRow.id));
+          const marked = await withCurrentPipelineVersion(tenderId, payload, async (tx) => {
+            await tx.update(tenderResources).set({ status: "downloaded", errorMessage: null, updatedAt: new Date() })
+              .where(eq(tenderResources.id, resourceRow!.id));
+          });
+          if (!marked.current) return { skipped: true, reason: "veraltete Tender-Version" };
           continue;
         }
-        await db.update(tenderResources).set({
-          status: "downloading",
-          attempts: sql`${tenderResources.attempts} + 1`,
-          lastAttemptAt: new Date(),
-          errorMessage: null,
-          updatedAt: new Date(),
-        }).where(eq(tenderResources.id, resourceRow.id));
+        const downloading = await withCurrentPipelineVersion(tenderId, payload, async (tx) => {
+          await tx.update(tenderResources).set({
+            status: "downloading",
+            attempts: sql`${tenderResources.attempts} + 1`,
+            lastAttemptAt: new Date(),
+            errorMessage: null,
+            updatedAt: new Date(),
+          }).where(eq(tenderResources.id, resourceRow!.id));
+        });
+        if (!downloading.current) return { skipped: true, reason: "veraltete Tender-Version" };
         docIndex += 1;
         const relative = `tenders/${tenderId}/${baseName}`;
         const stored = await fetchAndStore(docUrl, relative, {
@@ -2842,6 +3513,19 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
           userAgent: REALISTIC_USER_AGENT,
           headers: { Accept: RESOURCE_FETCH_ACCEPT },
         });
+        if (!await ensureCurrentPipelineVersion(tenderId, payload)) {
+          await fs.promises.rm(objectAbsolutePath(stored.storagePath), { force: true });
+          return { skipped: true, reason: "veraltete Tender-Version" };
+        }
+        if (isHtmlContentType(stored.contentType) && resourceRow) {
+          const discarded = await withCurrentPipelineVersion(tenderId, payload, async (tx) =>
+            discardHtmlDocumentResponse(resourceRow!.id, docUrl, stored, existingDocs, tx));
+          if (!discarded.current) {
+            await fs.promises.rm(objectAbsolutePath(stored.storagePath), { force: true });
+            return { skipped: true, reason: "veraltete Tender-Version" };
+          }
+          continue;
+        }
         const normalizedPath = ensureExtension(stored.storagePath, stored.contentType);
 
         if (normalizedPath !== stored.storagePath) {
@@ -2852,33 +3536,40 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
           fs.unlinkSync(original);
         }
 
-        const persisted = await upsertDownloadedDocument(
-          tenderId,
-          resourceCandidate,
-          stored,
-          resourceClassification,
-          existingDocs,
-          normalizedPath,
-        );
+        const persistedDocument = await withCurrentPipelineVersion(tenderId, payload, async (tx) => {
+          const persisted = await upsertDownloadedDocument(
+            tenderId,
+            resourceCandidate,
+            stored,
+            resourceClassification,
+            existingDocs,
+            normalizedPath,
+            tx,
+          );
+          await tx.update(tenderResources).set({
+            url: sanitizeResourceUrl(stored.finalUrl) ?? resourceCandidate.url,
+            filename: stored.filename ?? resourceCandidate.filename,
+            contentType: stored.contentType,
+            contentDisposition: stored.contentDisposition ?? resourceCandidate.contentDisposition,
+            status: "downloaded",
+            errorMessage: null,
+            updatedAt: new Date(),
+          }).where(eq(tenderResources.id, resourceRow!.id));
+          return persisted;
+        });
+        if (!persistedDocument.current) {
+          await fs.promises.rm(objectAbsolutePath(normalizedPath), { force: true });
+          return { skipped: true, reason: "veraltete Tender-Version" };
+        }
+        const persisted = persistedDocument.value;
         const documentId = persisted.id;
-        await db.update(tenderResources).set({
-          url: sanitizeResourceUrl(stored.finalUrl) ?? resourceCandidate.url,
-          filename: stored.filename ?? resourceCandidate.filename,
-          contentType: stored.contentType,
-          contentDisposition: stored.contentDisposition ?? resourceCandidate.contentDisposition,
-          status: "downloaded",
-          errorMessage: null,
-          updatedAt: new Date(),
-        }).where(eq(tenderResources.id, resourceRow.id));
 
         // Parse XLSX/PDF and append to rawText
         try {
           const absPath = objectAbsolutePath(normalizedPath);
           const extracted = await extractTextFromFile(absPath, stored.contentType);
-          const documentText = extracted.pages.length > 0
-            ? extracted.pages.map((page, index) => `[Seite ${index + 1}]\n${page}`).join("\n\n")
-            : extracted.text;
-          if (documentText.trim().length > 20) {
+          const documentText = formatExtractedDocumentText(extracted);
+          if (shouldIncludeParsedDocumentText(documentText)) {
             const contentRole = classifyDocumentRole({
               filename: cleanFilename,
               url: docUrl,
@@ -2889,8 +3580,8 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
               ? contentRole
               : initialRole;
             const effectiveScalarRole = primaryDocumentRole(effectiveRoles);
-            if (documentId) {
-              await db.update(documents).set({
+            const parsed = await withCurrentPipelineVersion(tenderId, payload, async (tx) => {
+              if (documentId) await tx.update(documents).set({
                 extractedText: documentText,
                 parseStatus: "parsed",
                 errorMessage: null,
@@ -2901,35 +3592,47 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
                 roleConfidence: effectiveRole.confidence,
                 updatedAt: new Date(),
               }).where(eq(documents.id, documentId));
-            }
-            // Re-fetch rawText to avoid lost-update when multiple docs are processed
-            const freshTender = await getTender(tenderId);
-            const currentRaw = freshTender.rawText ?? "";
-            await db.update(tenders).set({
-              rawText: appendBoundedTenderText(currentRaw, `[ROLLEN: ${effectiveRoles.join(", ")}] [ROLLE: ${effectiveScalarRole}] [DOKUMENT-ID: ${documentId ?? "unbekannt"}]\n${documentText.slice(0, MAX_DOCUMENT_TEXT_CHARS)}`),
-              updatedAt: new Date(),
-            }).where(eq(tenders.id, tenderId));
+              const freshTender = await tx.select({ rawText: tenders.rawText })
+                .from(tenders)
+                .where(eq(tenders.id, tenderId))
+                .limit(1);
+              const currentRaw = freshTender[0]?.rawText ?? "";
+              await tx.update(tenders).set({
+                rawText: appendBoundedTenderText(currentRaw, `[ROLLEN: ${effectiveRoles.join(", ")}] [ROLLE: ${effectiveScalarRole}] [DOKUMENT-ID: ${documentId ?? "unbekannt"}]\n${documentText.slice(0, MAX_DOCUMENT_TEXT_CHARS)}`),
+                updatedAt: new Date(),
+              }).where(eq(tenders.id, tenderId));
+            });
+            if (!parsed.current) return { skipped: true, reason: "veraltete Tender-Version" };
             console.log(`[cache-detail] evergabe Dokument geparst: ${normalizedPath} (${documentText.length} Zeichen)`);
           } else if (documentId) {
-            await db.update(documents).set({ parseStatus: "empty", pageCount: extracted.pageCount, updatedAt: new Date() }).where(eq(documents.id, documentId));
+            const empty = await withCurrentPipelineVersion(tenderId, payload, async (tx) => {
+              await tx.update(documents).set({ parseStatus: "empty", pageCount: extracted.pageCount, updatedAt: new Date() })
+                .where(eq(documents.id, documentId));
+            });
+            if (!empty.current) return { skipped: true, reason: "veraltete Tender-Version" };
           }
         } catch (parseError) {
           const parseMsg = parseError instanceof Error ? parseError.message : "unbekannter Parserfehler";
           if (documentId) {
-            await db.update(documents).set({ parseStatus: "failed", errorMessage: parseMsg, updatedAt: new Date() }).where(eq(documents.id, documentId));
+            const failed = await withCurrentPipelineVersion(tenderId, payload, async (tx) => {
+              await tx.update(documents).set({ parseStatus: "failed", errorMessage: parseMsg, updatedAt: new Date() })
+                .where(eq(documents.id, documentId));
+            });
+            if (!failed.current) return { skipped: true, reason: "veraltete Tender-Version" };
           }
           console.warn(`[cache-detail] evergabe Dokument Parsing fehlgeschlagen:`, parseError);
         }
       } catch (fetchError) {
         const message = fetchError instanceof Error ? fetchError.message : "unbekannter Downloadfehler";
-        await upsertFailedDocument(tenderId, resourceCandidate, resourceClassification, message, existingDocs);
-        if (resourceRow) {
-          await db.update(tenderResources).set({
+        const failed = await withCurrentPipelineVersion(tenderId, payload, async (tx) => {
+          await upsertFailedDocument(tenderId, resourceCandidate, resourceClassification, message, existingDocs, tx);
+          if (resourceRow) await tx.update(tenderResources).set({
             status: "failed",
             errorMessage: message.slice(0, 500),
             updatedAt: new Date(),
           }).where(eq(tenderResources.id, resourceRow.id));
-        }
+        });
+        if (!failed.current) return { skipped: true, reason: "veraltete Tender-Version" };
         console.warn(`[cache-detail] evergabe Dokument Download fehlgeschlagen: ${docUrl}`, fetchError);
       }
     }
@@ -2938,17 +3641,18 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
     const updatedTender = await getTender(tenderId);
     if (updatedTender.rawText && updatedTender.rawText.length > (tender.rawText?.length ?? 0) + 50) {
       console.log(`[cache-detail] Neuer Text von evergabe-Dokumenten, re-strukturiere...`);
-      await queueTenderStage(JOB_STRUCTURE, tenderId);
+      await queueTenderStage(JOB_STRUCTURE, tenderId, pipelineVersionPayload(payload));
     }
   }
 
   // Fallback: check if evergabe documents exist in DB with extracted_text but weren't appended to rawText
   const allDocs = await db
-    .select({ url: documents.url, extractedText: documents.extractedText })
+    .select({ url: documents.url, contentType: documents.contentType, extractedText: documents.extractedText })
     .from(documents)
     .where(eq(documents.tenderId, tenderId))
     .limit(settings.maxPdfLinksPerTender);
-  const evergabeDocTexts = allDocs.filter(d => d.url && d.url.includes("evergabe.de") && d.url.includes("download") && d.extractedText && d.extractedText.length > 20);
+  const evergabeDocTexts = allDocs.filter(d => d.url && d.url.includes("evergabe.de") && d.url.includes("download")
+    && !isHtmlContentType(d.contentType) && shouldIncludeParsedDocumentText(d.extractedText ?? ""));
   if (evergabeDocTexts.length > 0) {
     const freshTender = await getTender(tenderId);
     const currentRaw = freshTender.rawText ?? "";
@@ -2958,12 +3662,19 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
         .slice(0, settings.maxPdfLinksPerTender)
         .map(d => d.extractedText!.slice(0, MAX_DOCUMENT_TEXT_CHARS))
         .join("\n\n[Evergabe-Dokument]\n");
-      await db.update(tenders).set({
-        rawText: appendBoundedTenderText(currentRaw, appended),
-        updatedAt: new Date(),
-      }).where(eq(tenders.id, tenderId));
+      const persisted = await withCurrentPipelineVersion(tenderId, payload, async (tx) => {
+        const rows = await tx.select({ rawText: tenders.rawText })
+          .from(tenders)
+          .where(eq(tenders.id, tenderId))
+          .limit(1);
+        await tx.update(tenders).set({
+          rawText: appendBoundedTenderText(rows[0]?.rawText ?? "", appended),
+          updatedAt: new Date(),
+        }).where(eq(tenders.id, tenderId));
+      });
+      if (!persisted.current) return { skipped: true, reason: "veraltete Tender-Version" };
       console.log(`[cache-detail] ${textsToAppend.length} Evergabe-Dokumente nachgetragen (${appended.length} Zeichen)`);
-      await queueTenderStage(JOB_STRUCTURE, tenderId);
+      await queueTenderStage(JOB_STRUCTURE, tenderId, pipelineVersionPayload(payload));
     }
   }
 
@@ -2972,18 +3683,18 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
     result = {
       title: String(tender.title ?? ""),
       client,
-      deadline: tender.deadlineAt ? new Date(tender.deadlineAt).toISOString().split("T")[0] : null,
+      deadline: groundedStoredDeadline,
        description,
       requirements: [],
       scope: "",
       contact: "",
-      procedure: tender.procedureType ?? "",
+      procedure: groundedProcedure,
       awardCriteria: [],
-      duration: tender.contractDurationMonths ? `${tender.contractDurationMonths} Monate` : "",
+      duration: groundedStoredDuration,
        location,
-      referenceNumber: meta.reference_number ? String(meta.reference_number) : null,
-      pdfUrls: metadataPdfUrls,
-      estimatedValue: tender.contractValueMax ? `${tender.contractValueMax} EUR` : null,
+      referenceNumber: groundedReferenceNumber,
+      pdfUrls: groundedMetadataPdfUrls,
+      estimatedValue: groundedStoredValue,
       sourceUrl,
       cached: false,
       scrapedAt: new Date().toISOString(),
@@ -3021,7 +3732,9 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
   );
   if (resultAccessPage.blocked) {
     console.warn(`[cache-detail] Blockiertes Ergebnis fuer Tender ${tenderId} (${resultAccessPage.reason})`);
-    await retryBlockedDetail(tender, resultAccessPage);
+    if (!await retryBlockedDetail(tender, resultAccessPage, payload)) {
+      return { skipped: true, reason: "veraltete Tender-Version" };
+    }
   }
 
   // Merge cache_detail result into existing structured_data instead of overwriting.
@@ -3129,7 +3842,7 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
         award_criteria_detailed: [],
         participation_requirements: [],
         cpv_codes: [],
-        procedure_type: result.procedure ?? "offen",
+        procedure_type: result.procedure ?? "",
       },
        descriptionMarkdown: isCanonicalPublicDescriptionMarkdown(result.descriptionMarkdown)
          ? result.descriptionMarkdown
@@ -3142,6 +3855,7 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
     .select({
       id: documents.id,
       url: documents.url,
+      contentType: documents.contentType,
       role: documents.role,
       roles: documents.roles,
       parseStatus: documents.parseStatus,
@@ -3154,7 +3868,8 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
     .from(documents)
     .where(eq(documents.tenderId, tenderId));
   mergedBlob.document_analysis = withEvidenceValues(
-    buildDocumentAnalysis(latestDocumentRows.filter((document) => !isPortalActionUrl(document.url)) as AnalyzedDocument[]),
+    buildDocumentAnalysis(latestDocumentRows.filter((document) =>
+      !isPortalActionUrl(document.url) && !isHtmlContentType(document.contentType)) as AnalyzedDocument[]),
     {
       deadline: typeof result.deadline === "string" ? result.deadline : null,
       scope: typeof result.scope === "string" ? result.scope : null,
@@ -3169,20 +3884,64 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
   const persistedBlob = normalizeStructured(mergedBlob, tender.title ?? "", {
     summary: description || null,
   });
+  if (!await ensureCurrentPipelineVersion(tenderId, payload)) return { skipped: true, reason: "veraltete Tender-Version" };
 
-  await db
-    .insert(structuredData)
-    .values({ tenderId, jsonBlob: persistedBlob, confidence: mergedConfidence })
-    .onConflictDoUpdate({ target: structuredData.tenderId, set: { jsonBlob: persistedBlob, confidence: mergedConfidence, updatedAt: new Date() } });
-
-  const readiness = await refreshTenderReadiness(tenderId);
+  const persistence = await withCurrentPipelineVersion(tenderId, payload, async (tx) => {
+    await tx
+      .insert(structuredData)
+      .values({ tenderId, jsonBlob: persistedBlob, confidence: mergedConfidence })
+      .onConflictDoUpdate({ target: structuredData.tenderId, set: { jsonBlob: persistedBlob, confidence: mergedConfidence, updatedAt: new Date() } });
+    const currentTender = await tx
+      .select({ rawText: tenders.rawText, qualityStatus: tenders.qualityStatus })
+      .from(tenders)
+      .where(eq(tenders.id, tenderId))
+      .limit(1);
+    const currentDocumentRows = await tx
+      .select({
+        id: documents.id,
+        url: documents.url,
+        contentType: documents.contentType,
+        role: documents.role,
+        roles: documents.roles,
+        parseStatus: documents.parseStatus,
+        downloadStatus: documents.downloadStatus,
+        errorMessage: documents.errorMessage,
+        extractedText: documents.extractedText,
+        pageCount: documents.pageCount,
+        roleConfidence: documents.roleConfidence,
+      })
+      .from(documents)
+      .where(eq(documents.tenderId, tenderId));
+    const documentAnalysis = buildDocumentAnalysis(currentDocumentRows.filter((document) =>
+      !isPortalActionUrl(document.url) && !isHtmlContentType(document.contentType)) as AnalyzedDocument[]);
+    const readiness = evaluateTenderReadiness({
+      qualityStatus: currentTender[0]?.qualityStatus ?? "candidate",
+      rawText: currentTender[0]?.rawText,
+      structuredExists: true,
+      structuredConfidence: mergedConfidence,
+      documentAnalysis,
+    });
+    await tx.update(tenders).set({
+      readinessStatus: readiness.status,
+      readinessReason: readiness.reason,
+      readinessUpdatedAt: new Date(),
+      updatedAt: new Date(),
+    }).where(eq(tenders.id, tenderId));
+    if (!isScorableReadiness(readiness.status)) {
+      await tx.delete(insights).where(eq(insights.tenderId, tenderId));
+      await tx.delete(scores).where(eq(scores.tenderId, tenderId));
+    }
+    return readiness;
+  });
+  if (!persistence.current) return { skipped: true, reason: "veraltete Tender-Version" };
+  const readiness = persistence.value;
   // cache_detail can change indexed structured fields even when structure_tender
   // already completed, so make the catalog sync observe this write.
   await markCatalogDirty();
   await enqueueJob(JOB_SYNC_MEILI, {}, { jobKey: JOB_SYNC_MEILI, dedupeCompleted: false });
-  if (scoringInputChanged && readiness.readiness.status === "ready") {
+  if (scoringInputChanged && isScorableReadiness(readiness.status)) {
     // This distinct key queues a second score even if the initial score job is still running.
-    await queueTenderStage(JOB_SCORE, tenderId, {}, "cache-detail");
+    await queueTenderStage(JOB_SCORE, tenderId, pipelineVersionPayload(payload), "cache-detail");
   }
 
   console.log(`[cache-detail] Tender ${tenderId} details cached`);
@@ -3232,46 +3991,12 @@ const recordShownAttribution = async (
   });
 };
 
-const persistInsight = async (
-  tenderId: number,
-  companyId: number,
-  score: ScoreResult,
-  structured: StructuredData,
-): Promise<void> => {
-  const insight = generateInsight(score, structured);
-  await db
-    .insert(insights)
-    .values({
-      tenderId,
-      companyId,
-      explanation: insight.explanation,
-      actionsJson: insight.actions,
-      missingItemsJson: insight.missing_items,
-    })
-    .onConflictDoUpdate({
-      target: [insights.tenderId, insights.companyId],
-      set: {
-        explanation: insight.explanation,
-        actionsJson: insight.actions,
-        missingItemsJson: insight.missing_items,
-        updatedAt: new Date(),
-      },
-    });
-  await recordShownAttribution(tenderId, companyId, {
-    fit: score.fit,
-    winProbability: score.win_probability,
-    effort: score.effort,
-    requirementCoverage: score.requirement_coverage,
-    killSwitch: score.kill_switch,
-    details: score.details,
-  });
-};
-
 const runScoreTender = async (payload: Record<string, JsonValue>): Promise<Record<string, JsonValue>> => {
   const tenderId = Number(payload.tender_id ?? 0);
   if (!Number.isFinite(tenderId) || tenderId <= 0) {
     throw new Error("ungueltige tender_id");
   }
+  if (!await ensureCurrentPipelineVersion(tenderId, payload)) return { skipped: true, reason: "veraltete Tender-Version" };
 
   const tender = await getTender(tenderId);
   if (tender.qualityStatus !== "qualified") {
@@ -3281,7 +4006,7 @@ const runScoreTender = async (payload: Record<string, JsonValue>): Promise<Recor
       quality_reason: tender.qualityReason ?? "Ausschreibung ist nicht fuer das Scoring freigegeben.",
     };
   }
-  if (tender.readinessStatus !== "ready") {
+  if (!isScorableReadiness(tender.readinessStatus)) {
     return {
       skipped: true,
       readiness_status: tender.readinessStatus,
@@ -3328,6 +4053,7 @@ const runScoreTender = async (payload: Record<string, JsonValue>): Promise<Recor
 
   let scored = 0;
   for (const company of companies) {
+    if (!await ensureCurrentPipelineVersion(tenderId, payload)) return { skipped: true, reason: "veraltete Tender-Version" };
     const companyRow: CompanyRow & { id: number } = {
       id: company.id,
       capabilities_json: JSON.stringify(company.capabilitiesJson),
@@ -3349,32 +4075,81 @@ const runScoreTender = async (payload: Record<string, JsonValue>): Promise<Recor
     const llmDomainScore = llmScores.get(tenderId);
 
     const result = computeScores(tender.title ?? "", structured, companyRow, llmDomainScore, tenderLocation);
-    await db
-      .insert(scores)
-      .values({
-        tenderId,
-        companyId: company.id,
-        fit: result.fit,
-        winProbability: result.win_probability,
-        effort: result.effort,
-        requirementCoverage: result.requirement_coverage,
-        killSwitch: result.kill_switch,
-        detailsJson: result.details,
-      })
-      .onConflictDoUpdate({
-        target: [scores.tenderId, scores.companyId],
-        set: {
+    const persistence = await withCurrentPipelineVersion(tenderId, payload, async (tx) => {
+      await tx
+        .insert(scores)
+        .values({
+          tenderId,
+          companyId: company.id,
           fit: result.fit,
           winProbability: result.win_probability,
           effort: result.effort,
           requirementCoverage: result.requirement_coverage,
           killSwitch: result.kill_switch,
           detailsJson: result.details,
-          updatedAt: new Date(),
-        },
-      });
+        })
+        .onConflictDoUpdate({
+          target: [scores.tenderId, scores.companyId],
+          set: {
+            fit: result.fit,
+            winProbability: result.win_probability,
+            effort: result.effort,
+            requirementCoverage: result.requirement_coverage,
+            killSwitch: result.kill_switch,
+            detailsJson: result.details,
+            updatedAt: new Date(),
+          },
+        });
 
-    await persistInsight(tenderId, company.id, result, structured);
+      const insight = generateInsight(result, structured);
+      await tx
+        .insert(insights)
+        .values({
+          tenderId,
+          companyId: company.id,
+          explanation: insight.explanation,
+          actionsJson: insight.actions,
+          missingItemsJson: insight.missing_items,
+        })
+        .onConflictDoUpdate({
+          target: [insights.tenderId, insights.companyId],
+          set: {
+            explanation: insight.explanation,
+            actionsJson: insight.actions,
+            missingItemsJson: insight.missing_items,
+            updatedAt: new Date(),
+          },
+        });
+
+      if (!result.kill_switch) {
+        const existingAttribution = await tx
+          .select({ id: attributionEvents.id })
+          .from(attributionEvents)
+          .where(and(
+            eq(attributionEvents.tenderId, tenderId),
+            eq(attributionEvents.companyId, company.id),
+            eq(attributionEvents.eventType, "shown"),
+          ))
+          .limit(1);
+        if (existingAttribution.length === 0) {
+          await tx.insert(attributionEvents).values({
+            tenderId,
+            companyId: company.id,
+            eventType: "shown",
+            metadataJson: { stage: "notify_company", created_at: new Date().toISOString() },
+            scoreSnapshotJson: {
+              fit: result.fit,
+              win_probability: result.win_probability,
+              effort: result.effort,
+              requirement_coverage: result.requirement_coverage,
+              kill_switch: result.kill_switch,
+              details: result.details,
+            },
+          });
+        }
+      }
+    });
+    if (!persistence.current) return { skipped: true, reason: "veraltete Tender-Version" };
     scored += 1;
   }
 
@@ -3589,6 +4364,7 @@ const runScrapePublicTenders = async (payload: Record<string, JsonValue>): Promi
   let updated = 0;
   let skipped = 0;
   let upsertPersistenceError: string | null = null;
+  const persistenceErrorsBySource = new Map<string, string>();
   const changesBySource = new Map<string, { accepted: number; inserted: number; updated: number }>();
 
   try {
@@ -3617,43 +4393,50 @@ const runScrapePublicTenders = async (payload: Record<string, JsonValue>): Promi
       }
 
       try {
-        const title = pickValidatedPublicCandidate(tender.title);
-        if (!title) {
+         const title = projectPublicDisplayFields({ title: tender.title }).title;
+         if (!title) {
           skipped += 1;
           console.warn(`[public-scraper] Ueberspringe Ausschreibung ohne verwertbaren Titel (${tender.sourceUrl})`);
           continue;
         }
-        const client = normalizePublicClient(
-          tender.client,
-          getPublicClientFallback(tender.source, tender.sourceUrl),
-        ) || "Unbekannt";
-        const location = pickValidatedPublicLocationForTender(title, client, tender.location);
-        const description = tender.accessLimited
-          ? buildPublicAccessLimitedDescription(title, extractPublicPortalFacts(tender.description))
-          : pickPublicDescription(tender.description);
-        const procedure = normalizePublicDisplayCandidate(tender.procedure) ?? null;
+         const baseDisplay = projectPublicDisplayFields({
+           title,
+            client: tender.client,
+          });
+          const client = baseDisplay.client || "";
+         const display = projectPublicDisplayFields({
+           title,
+           client,
+           location: tender.location,
+           summary: [tender.description, tender.scope],
+         });
+         const location = display.location || null;
+         const description = tender.accessLimited
+           ? buildPublicAccessLimitedDescription(title, extractPublicPortalFacts(tender.description))
+           : display.description || "";
+         const procedure = pickValidatedPublicProcedure(tender.procedure) || null;
         const referenceNumber = normalizePublicDisplayCandidate(tender.referenceNumber) ?? null;
         const scope = normalizePublicDisplayCandidate(tender.scope);
-        const descriptionMarkdown = isCanonicalPublicDescriptionMarkdown(tender.descriptionMarkdown)
-          ? tender.descriptionMarkdown
-          : buildTenderDescriptionMarkdown({
-            client,
-            procedure: tender.procedure,
-            deadline: tender.deadline,
-            location,
-            value: tender.estimatedValue,
-            duration: tender.duration,
-            reference: referenceNumber,
-            summary: description,
-            scope,
-            requirements: tender.requirements,
-            awardCriteria: tender.awardCriteria,
-            cpv: tender.cpvCodes,
-          });
+         const descriptionMarkdown = tender.accessLimited
+           ? buildPublicAccessLimitedDescriptionMarkdown(title, extractPublicPortalFacts(tender.description))
+           : buildTenderDescriptionMarkdown({
+               client,
+               procedure: tender.procedure,
+               deadline: tender.deadline,
+               location,
+               value: tender.estimatedValue,
+               duration: tender.duration,
+               reference: referenceNumber,
+               summary: description,
+               scope,
+               requirements: tender.requirements,
+               awardCriteria: tender.awardCriteria,
+               cpv: tender.cpvCodes,
+             });
         const tenderMetadata: Record<string, JsonValue> = {
           client,
           description,
-          ...(descriptionMarkdown ? { descriptionMarkdown } : {}),
+           ...(isCanonicalPublicDescriptionMarkdown(descriptionMarkdown) ? { descriptionMarkdown } : {}),
           ...(tender.accessLimited ? { access_limited: true } : {}),
           reference_number: referenceNumber,
           location,
@@ -3678,7 +4461,7 @@ const runScrapePublicTenders = async (payload: Record<string, JsonValue>): Promi
           externalId: tender.externalId ?? undefined,
           deadlineAt: deadline,
           category: tender.category,
-          rawText: description || undefined,
+          rawText: description,
         });
         if (upserted.changed) {
           await queueTenderProcessing(upserted.id);
@@ -3696,6 +4479,7 @@ const runScrapePublicTenders = async (payload: Record<string, JsonValue>): Promi
       } catch (error) {
         const message = error instanceof Error ? error.message : "unbekannt";
         upsertPersistenceError ??= message;
+        persistenceErrorsBySource.set(sourceKey, persistenceErrorsBySource.get(sourceKey) ?? message);
         console.error(`[public-scraper] Upsert fehlgeschlagen fuer "${tender.title}": ${message}`);
       }
     }
@@ -3703,11 +4487,23 @@ const runScrapePublicTenders = async (payload: Record<string, JsonValue>): Promi
     }, sourceFilter, sourceCursors);
 
     const persistenceFailure = result.persistenceError ?? upsertPersistenceError;
+    const globalPersistenceErrorAttributed = Boolean(
+      result.persistenceError
+      && result.sourceRuns.some((sourceRun) => sourceRun.errorMessage === result.persistenceError),
+    );
     const continuationSources: string[] = [];
     await db.transaction(async (tx) => {
       for (const sourceRun of result.sourceRuns) {
         const expectedVersion = cursorVersions.get(sourceRun.sourceKey) ?? 0;
-        const shouldCommit = !persistenceFailure && sourceRun.cursorCommit === "commit" && sourceRun.cursorAdvanced;
+        // A callback failure can be reported globally without a source entry.
+        // Never advance a cursor when persistence failed but its source is unknown.
+        const sourcePersistenceError = resolvePublicSourcePersistenceError({
+          sourceError: sourceRun.errorMessage,
+          mappedSourceError: persistenceErrorsBySource.get(sourceRun.sourceKey),
+          globalError: result.persistenceError,
+          globalErrorAttributed: globalPersistenceErrorAttributed,
+        });
+        const shouldCommit = shouldCommitPublicCursor(sourceRun, sourcePersistenceError);
         const candidateCursor = clearSourceFailureRetry(sourceRun.cursorAfter ?? {});
         let versionAfter = expectedVersion;
 
@@ -3758,8 +4554,8 @@ const runScrapePublicTenders = async (payload: Record<string, JsonValue>): Promi
             continuationSources.push(sourceRun.sourceKey);
           }
         } else {
-          const errorMessage = persistenceFailure ?? sourceRun.errorMessage;
-          const persistenceRetry = Boolean(persistenceFailure);
+          const errorMessage = sourcePersistenceError ?? sourceRun.errorMessage;
+          const persistenceRetry = Boolean(sourcePersistenceError || sourceRun.errorMessage);
           const previousCursor = sourceRun.cursorBefore ?? {};
           const failureAttempts = cursorNumber(previousCursor, "sourceFailureAttempts", 0) + 1;
           const retryDelay = Math.min(6 * 60 * 60 * 1000, 5 * 60 * 1000 * 2 ** Math.min(failureAttempts - 1, 6));
@@ -3790,7 +4586,7 @@ const runScrapePublicTenders = async (payload: Record<string, JsonValue>): Promi
               updatedAt: new Date(),
             }).onConflictDoNothing();
           } else {
-            await tx.update(publicSourceCursors).set({
+            const updatedCursor = await tx.update(publicSourceCursors).set({
               cursorJson: failureCursor,
               lastRunId: runId,
               lastStatus: persistenceRetry ? "failed" : sourceRun.status,
@@ -3798,13 +4594,28 @@ const runScrapePublicTenders = async (payload: Record<string, JsonValue>): Promi
               exhausted: persistenceRetry ? false : sourceRun.exhausted,
               continuationRequired: sourceRun.continuationRequired || persistenceRetry,
               updatedAt: new Date(),
-            }).where(eq(publicSourceCursors.sourceKey, sourceRun.sourceKey));
+            }).where(and(
+              eq(publicSourceCursors.sourceKey, sourceRun.sourceKey),
+              eq(publicSourceCursors.cursorVersion, expectedVersion),
+            )).returning({ cursorVersion: publicSourceCursors.cursorVersion });
+            if (updatedCursor.length === 0) {
+              sourceRun.status = "partial";
+              sourceRun.errorMessage = "Cursor-Konflikt: Quelle wurde parallel fortgeschrieben.";
+              sourceRun.cursorAfter = sourceRun.cursorBefore;
+              sourceRun.cursorAdvanced = false;
+              sourceRun.cursorCommit = "hold";
+              sourceRun.exhausted = false;
+              sourceRun.continuationRequired = true;
+              continuationSources.push(sourceRun.sourceKey);
+            } else {
+              versionAfter = updatedCursor[0].cursorVersion;
+            }
           }
         }
 
         if (
           sourceRun.continuationRequired
-          && !persistenceFailure
+          && !sourcePersistenceError
           && !continuationSources.includes(sourceRun.sourceKey)
           && shouldSchedulePublicContinuation(
             sourceRun.cursorAfter ?? sourceRun.cursorBefore ?? null,
@@ -3821,7 +4632,8 @@ const runScrapePublicTenders = async (payload: Record<string, JsonValue>): Promi
       }
 
       await tx.insert(publicSourceRuns).values(result.sourceRuns.map((sourceRun) => {
-        const changes = changesBySource.get(sourceRun.sourceKey) ?? { accepted: sourceRun.acceptedCount, inserted: 0, updated: 0 };
+        const changes = changesBySource.get(sourceRun.sourceKey) ?? { accepted: 0, inserted: 0, updated: 0 };
+        sourceRun.acceptedCount = changes.accepted;
         return {
           runId,
           sourceKey: sourceRun.sourceKey,
@@ -3832,7 +4644,7 @@ const runScrapePublicTenders = async (payload: Record<string, JsonValue>): Promi
           detailFailed: sourceRun.detailFailed,
           pendingCount: sourceRun.pendingCount,
           continuationScheduled: false,
-          acceptedCount: changes.accepted || sourceRun.acceptedCount,
+          acceptedCount: changes.accepted,
           insertedCount: changes.inserted,
           updatedCount: changes.updated,
           errorMessage: sourceRun.errorMessage,
@@ -3867,7 +4679,10 @@ const runScrapePublicTenders = async (payload: Record<string, JsonValue>): Promi
     for (const sourceKey of continuationSources) {
       try {
           await enqueueJob(JOB_SCRAPE_PUBLIC, { source: sourceKey }, {
-            jobKey: `public-continuation:${sourceKey}`,
+            // The current continuation is still running here. A source-only
+            // key would dedupe this enqueue back to the current job and lose
+            // the next page/detail batch when no scheduler is running.
+            jobKey: buildPublicContinuationJobKey(sourceKey, runId),
             groupKey: "public-scrape",
             priority: PUBLIC_CONTINUATION_PRIORITY,
             runAfter: new Date(Date.now() + 30_000),
@@ -4270,6 +5085,16 @@ const runApiAnalyze = async (payload: Record<string, JsonValue>): Promise<Record
   return { api_job_id: apiJobId, mode };
 };
 
+const runSmallVendorDeepDive = async (payload: Record<string, JsonValue>): Promise<Record<string, JsonValue>> => {
+  const tenderId = Number(payload.tender_id ?? 0);
+  const force = payload.force === true;
+  if (!Number.isFinite(tenderId) || tenderId <= 0) {
+    throw new Error("ungueltige small_vendor_deep_dive Nutzdaten");
+  }
+  await runDeepDiveAnalysis(tenderId, force);
+  return { tender_id: tenderId, force };
+};
+
 const handlers: Record<JobType, (payload: Record<string, JsonValue>) => Promise<Record<string, JsonValue>>> = {
   [JOB_CRAWL]: runCrawl,
   [JOB_SCRAPE_PUBLIC]: runScrapePublicTenders,
@@ -4286,6 +5111,7 @@ const handlers: Record<JobType, (payload: Record<string, JsonValue>) => Promise<
   [JOB_SCRAPE_US]: runScrapeUsTenders,
   [JOB_PREVIEW_COMPANY_URL]: runPreviewCompanyUrl,
   [JOB_API_ANALYZE]: runApiAnalyze,
+  [JOB_SMALL_VENDOR_DEEP_DIVE]: runSmallVendorDeepDive,
 };
 
 export const processJobById = async (jobId: number): Promise<JobProcessResult> => {
@@ -4319,7 +5145,10 @@ export const processNextJob = async (workerId: string, options: ProcessJobOption
   // Make the lock identity unique per attempt. This prevents a timed-out
   // handler from closing a later retry when callers reuse a worker label.
   const attemptWorkerId = `${workerId}:${randomUUID()}`;
-  const job = await claimNextJob(attemptWorkerId, options);
+  const job = await claimNextJob(attemptWorkerId, {
+    lane: options.lane,
+    enforceRuntimeTimeout: options.terminateOnTimeout ?? false,
+  });
   if (!job) {
     return null;
   }
@@ -4342,27 +5171,39 @@ export const processNextJob = async (workerId: string, options: ProcessJobOption
     }
 
     const payload = { ...parseRecord(job.payload as string), __job_id: job.id };
-    const timeout = new Promise<never>((_, reject) => {
-      watchdog = setTimeout(() => {
-        timedOut = true;
-        reject(new Error(`Job #${job.id} (${jobType}) überschritt die maximale Laufzeit von ${Math.round(maxRuntimeMs / 60_000)} Minuten.`));
-      }, maxRuntimeMs);
-      watchdog.unref();
-    });
-    const result = await Promise.race([handler(payload), timeout]);
+    const handlerPromise = handler(payload);
+    // A Promise.race cannot cancel the handler. Only use the watchdog when the
+    // caller will terminate the process after a timeout; otherwise requeueing
+    // here could run a second attempt while the first handler still mutates DB.
+    const timeout = options.terminateOnTimeout
+      ? new Promise<never>((_, reject) => {
+          watchdog = setTimeout(() => {
+            timedOut = true;
+            reject(new Error(`Job #${job.id} (${jobType}) überschritt die maximale Laufzeit von ${Math.round(maxRuntimeMs / 60_000)} Minuten.`));
+          }, maxRuntimeMs);
+          watchdog.unref();
+        })
+      : null;
+    const result = timeout
+      ? await Promise.race([handlerPromise, timeout])
+      : await handlerPromise;
     if (watchdog) clearTimeout(watchdog);
     clearInterval(heartbeat);
     await markDone(job.id, attemptWorkerId);
     if (jobType === JOB_SYNC_MEILI) {
-      const catalog = await getCatalogState();
-      if (catalog && catalog.revision > catalog.syncedRevision) {
-        await enqueueJob(JOB_SYNC_MEILI, {}, {
-          jobKey: JOB_SYNC_MEILI,
-          runAfter: new Date(Date.now() + 30_000),
-          dedupeCompleted: false,
-        }).catch((error: unknown) => {
-          console.warn("[pipeline] Folge-Sync für geänderten Katalog konnte nicht eingereiht werden:", error);
-        });
+      try {
+        const catalog = await getCatalogState();
+        if (catalog && catalog.revision > catalog.syncedRevision) {
+          await enqueueJob(JOB_SYNC_MEILI, {}, {
+            jobKey: JOB_SYNC_MEILI,
+            runAfter: new Date(Date.now() + 30_000),
+            dedupeCompleted: false,
+          }).catch((error: unknown) => {
+            console.warn("[pipeline] Folge-Sync für geänderten Katalog konnte nicht eingereiht werden:", error);
+          });
+        }
+      } catch (error) {
+        console.warn("[pipeline] Katalogstatus nach erfolgreichem Sync konnte nicht geprüft werden:", error);
       }
     }
     return {

@@ -2,11 +2,12 @@ import "dotenv/config";
 import assert from "node:assert/strict";
 import { eq, inArray } from "drizzle-orm";
 import { db } from "../lib/db";
-import { jobs } from "../lib/schema";
-import { enqueueJob } from "../lib/queue";
+import { jobAttempts, jobs, publicScrapeRuns } from "../lib/schema";
+import { claimNextJob, enqueueJob, markFailed, reapStaleJobs } from "../lib/queue";
 
 const key = `test:queue:${Date.now()}`;
 const createdIds: number[] = [];
+const createdRunIds: number[] = [];
 
 const markDone = async (id: number): Promise<void> => {
   await db.update(jobs).set({ status: "done", finishedAt: new Date(), updatedAt: new Date() }).where(eq(jobs.id, id));
@@ -42,8 +43,56 @@ const main = async (): Promise<void> => {
     assert.equal(concurrentIds.length, 1, "concurrent periodic enqueues must leave one active row");
     createdIds.push(...concurrentIds);
 
+    const publicJob = await enqueueJob("scrape_public_tenders", {}, {
+      jobKey: `${key}:public`,
+      groupKey: "public-scrape",
+      maxRetries: 2,
+      priority: 150,
+      dedupeCompleted: false,
+    });
+    createdIds.push(publicJob);
+    const publicWorker = `${key}:public-worker`;
+    const claimedPublic = await claimNextJob(publicWorker, { lane: "critical" });
+    assert.equal(claimedPublic?.id, publicJob, "public scrape job should be claimable for run bookkeeping");
+    const publicRun = await db.insert(publicScrapeRuns).values({
+      jobId: publicJob,
+      isFullRun: true,
+      status: "running",
+    }).returning({ id: publicScrapeRuns.id });
+    createdRunIds.push(publicRun[0].id);
+
+    await markFailed(publicJob, claimedPublic!.lockedBy!, "transient public scrape error");
+    const closedRun = await db.select({ status: publicScrapeRuns.status, finishedAt: publicScrapeRuns.finishedAt })
+      .from(publicScrapeRuns)
+      .where(eq(publicScrapeRuns.id, publicRun[0].id));
+    assert.equal(closedRun[0]?.status, "failed", "retryable public scrape failure must close its run row");
+    assert.ok(closedRun[0]?.finishedAt, "failed public scrape run must have finishedAt");
+
+    const orphanJob = await enqueueJob("cache_detail", { tender_id: 2 }, {
+      jobKey: `${key}:orphan`,
+      dedupeCompleted: false,
+    });
+    createdIds.push(orphanJob);
+    const orphanAttempt = await db.insert(jobAttempts).values({
+      jobId: orphanJob,
+      attemptNumber: 1,
+      workerId: `${key}:orphan-worker`,
+      status: "running",
+    }).returning({ id: jobAttempts.id });
+    await db.update(jobs).set({ status: "failed", finishedAt: new Date(), updatedAt: new Date() }).where(eq(jobs.id, orphanJob));
+
+    await reapStaleJobs();
+    const closedAttempt = await db.select({ status: jobAttempts.status, finishedAt: jobAttempts.finishedAt })
+      .from(jobAttempts)
+      .where(eq(jobAttempts.id, orphanAttempt[0].id));
+    assert.equal(closedAttempt[0]?.status, "failed", "orphaned attempts of failed jobs must be closed");
+    assert.ok(closedAttempt[0]?.finishedAt, "orphaned attempts must receive finishedAt");
+
     console.log("Queue database tests passed.");
   } finally {
+    if (createdRunIds.length > 0) {
+      await db.delete(publicScrapeRuns).where(inArray(publicScrapeRuns.id, [...new Set(createdRunIds)]));
+    }
     if (createdIds.length > 0) {
       await db.delete(jobs).where(inArray(jobs.id, [...new Set(createdIds)]));
     }

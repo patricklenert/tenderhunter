@@ -3,7 +3,7 @@ import { settings } from "@/lib/config";
 import { processNextJob, cleanupExpiredTenders, cleanupExpiredUsTenders, recoverIncompleteTenderPipelines } from "@/lib/pipeline";
 import { enqueueJob, isCriticalJobType, PUBLIC_CONTINUATION_PRIORITY, reapStaleJobs, sanitizeErrorMessage, type JobLane } from "@/lib/queue";
 import { serializeSourceItems } from "@/lib/tender-sources";
-import { shouldSchedulePublicContinuation } from "@/lib/public-pagination";
+import { buildPublicContinuationJobKey, shouldRetryFailedPublicFullRun, shouldSchedulePublicContinuation } from "@/lib/public-pagination";
 import { JOB_CRAWL, JOB_SCRAPE_PUBLIC, JOB_SCRAPE_US, type JsonValue } from "@/lib/types";
 import { db } from "@/lib/db";
 import { jobs, publicScrapeRuns, publicSourceCursors } from "@/lib/schema";
@@ -84,6 +84,10 @@ const shouldEnqueuePublicScrape = async (): Promise<boolean> => {
 
   if (lastRun[0].status === "failed") {
     const continuation = await loadPublicContinuationCursors();
+    if (continuation.length === 0 && !shouldRetryFailedPublicFullRun(lastRun[0].finishedAt)) {
+      console.log("[scheduler] Öffentliche Ausschreibungen: Full-Run fehlgeschlagen, Retry-Cooldown aktiv.");
+      return false;
+    }
     const canRetry = continuation.length === 0 || continuation.some((row) => shouldSchedulePublicContinuation(
       row.cursorJson as Record<string, JsonValue>,
       row.exhausted,
@@ -140,18 +144,30 @@ const enqueuePublicContinuationsIfNeeded = async (): Promise<void> => {
       .limit(1);
     if (activeFullRuns.length > 0) return;
 
+    const activeContinuationRows = await db
+      .select({ sourceKey: sql<string>`${jobs.payload} ->> 'source'` })
+      .from(jobs)
+      .where(and(
+        eq(jobs.type, JOB_SCRAPE_PUBLIC),
+        or(eq(jobs.status, "pending"), eq(jobs.status, "running")),
+        sql`${jobs.payload} ->> 'source' IS NOT NULL`,
+      ));
+    const activeContinuationSources = new Set(activeContinuationRows.map((row) => row.sourceKey));
+
     const cursors = await loadPublicContinuationCursors();
 
-    for (const cursor of cursors.filter((row) => shouldSchedulePublicContinuation(
-      row.cursorJson as Record<string, JsonValue>,
-      row.exhausted,
-      row.continuationRequired,
-      row.lastStatus,
-      row.lastError,
+    for (const cursor of cursors.filter((row) => (
+      shouldSchedulePublicContinuation(
+        row.cursorJson as Record<string, JsonValue>,
+        row.exhausted,
+        row.continuationRequired,
+        row.lastStatus,
+        row.lastError,
+      ) && !activeContinuationSources.has(row.sourceKey)
     ))) {
       try {
         await enqueueJob(JOB_SCRAPE_PUBLIC, { source: cursor.sourceKey }, {
-          jobKey: `public-continuation:${cursor.sourceKey}`,
+          jobKey: buildPublicContinuationJobKey(cursor.sourceKey),
           groupKey: "public-scrape",
           // Older document-fetch jobs must be allowed to drain between source
           // continuations; queue aging still lets this work make progress.

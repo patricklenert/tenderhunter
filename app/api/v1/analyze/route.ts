@@ -7,15 +7,16 @@ import { extractCompanyProfile } from "@/lib/perplexity";
 import { buildTenderMatchDocument, computeScores, getDomainEligibility, getLocationEligibility, llmBatchDomainMatch, type CompanyRow } from "@/lib/scoring";
 import { findPublicProfileMatches } from "@/lib/discovery";
 import { generateInsight } from "@/lib/insights";
-import { eq, and, or, desc } from "drizzle-orm";
+import { eq, and, or, desc, sql } from "drizzle-orm";
 import { normalizeStructured, type StructuredData as StructuredTenderData } from "@/lib/structurer";
 import { enqueueJob } from "@/lib/queue";
 import { JOB_API_ANALYZE } from "@/lib/types";
+import { getSiteUrl } from "@/lib/site-config";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
-const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? process.env.BETTER_AUTH_URL ?? "https://tenderhunter.palemadigital.com";
+const BASE_URL = getSiteUrl();
 
 interface AnalyzeBody {
   url: string;
@@ -300,7 +301,11 @@ async function scoreAllTenders(companyId: number, companyRow: CompanyRow) {
       readinessStatus: tenders.readinessStatus,
     })
     .from(tenders)
-    .where(and(eq(tenders.qualityStatus, "qualified"), eq(tenders.readinessStatus, "ready")))
+    .where(and(
+      eq(tenders.qualityStatus, "qualified"),
+      eq(tenders.readinessStatus, "ready"),
+      sql`${tenders.rawText} IS NOT NULL AND BTRIM(${tenders.rawText}) <> ''`,
+    ))
     .orderBy(desc(tenders.createdAt))
     .limit(200);
 
@@ -409,6 +414,7 @@ async function getTopTenders(companyId: number, companyRow?: CompanyRow): Promis
       eq(scores.killSwitch, false),
       eq(tenders.qualityStatus, "qualified"),
       eq(tenders.readinessStatus, "ready"),
+      sql`${tenders.rawText} IS NOT NULL AND BTRIM(${tenders.rawText}) <> ''`,
     ))
     .orderBy(desc(scores.winProbability), desc(scores.fit))
     .limit(10);
@@ -571,8 +577,13 @@ export async function POST(request: Request): Promise<Response> {
         companyUrl: normalizedUrl, status: "processing", companyId: existing.id,
       }).returning({ id: apiJobs.id });
 
-      const jobId = jobResult[0].id;
-      await enqueueApiAnalysis({ apiJobId: jobId, url: normalizedUrl });
+       const jobId = jobResult[0].id;
+       try {
+         await enqueueApiAnalysis({ apiJobId: jobId, url: normalizedUrl });
+       } catch (error) {
+         await db.update(apiJobs).set({ status: "failed", error: error instanceof Error ? error.message : "Analyse konnte nicht eingeplant werden.", updatedAt: new Date() }).where(eq(apiJobs.id, jobId));
+         throw error;
+       }
       return Response.json({ jobId, status: "processing" });
     }
 
@@ -587,13 +598,18 @@ export async function POST(request: Request): Promise<Response> {
       }).returning({ id: apiJobs.id });
 
       const jobId = jobResult[0].id;
-      await enqueueApiAnalysis({
-        apiJobId: jobId,
-        url: normalizedUrl,
-        mode: "rescore",
-        companyId: existing.id,
-        profileSlug: slug,
-      });
+       try {
+         await enqueueApiAnalysis({
+           apiJobId: jobId,
+           url: normalizedUrl,
+           mode: "rescore",
+           companyId: existing.id,
+           profileSlug: slug,
+         });
+       } catch (error) {
+         await db.update(apiJobs).set({ status: "failed", error: error instanceof Error ? error.message : "Analyse konnte nicht eingeplant werden.", updatedAt: new Date() }).where(eq(apiJobs.id, jobId));
+         throw error;
+       }
 
       return Response.json({ jobId, status: "processing" });
     }
@@ -618,8 +634,13 @@ export async function POST(request: Request): Promise<Response> {
     companyUrl: normalizedUrl, status: "processing",
   }).returning({ id: apiJobs.id });
 
-  const jobId = jobResult[0].id;
-  await enqueueApiAnalysis({ apiJobId: jobId, url: normalizedUrl });
+   const jobId = jobResult[0].id;
+   try {
+     await enqueueApiAnalysis({ apiJobId: jobId, url: normalizedUrl });
+   } catch (error) {
+     await db.update(apiJobs).set({ status: "failed", error: error instanceof Error ? error.message : "Analyse konnte nicht eingeplant werden.", updatedAt: new Date() }).where(eq(apiJobs.id, jobId));
+     throw error;
+   }
 
   return Response.json({ jobId, status: "processing" });
 }

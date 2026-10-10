@@ -1,8 +1,8 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { documents, jobs } from "@/lib/schema";
+import { documents, jobs, tenders } from "@/lib/schema";
 import { requireApiKey } from "@/lib/api-auth";
-import { enqueueJob } from "@/lib/queue";
+import { buildTenderPipelineGroupKey, enqueueJob } from "@/lib/queue";
 import { resolvePublicSourceKey } from "@/lib/public-source-registry";
 import {
   JOB_CACHE_DETAIL,
@@ -46,6 +46,9 @@ export async function POST(request: Request): Promise<Response> {
     if (body.jobId !== undefined) {
       const job = await db.select({ id: jobs.id, status: jobs.status }).from(jobs).where(eq(jobs.id, body.jobId)).limit(1);
       if (job.length === 0) return Response.json({ error: "Job nicht gefunden." }, { status: 404 });
+      if (job[0].status === "running") {
+        return Response.json({ error: "Laufende Jobs koennen nicht erneut eingeplant werden." }, { status: 409 });
+      }
       await db.update(jobs).set({
         status: "pending",
         retries: 0,
@@ -54,6 +57,7 @@ export async function POST(request: Request): Promise<Response> {
         lockedAt: null,
         lockedBy: null,
         heartbeatAt: null,
+        runtimeTimeoutEnforced: false,
         startedAt: null,
         finishedAt: null,
         updatedAt: new Date(),
@@ -64,14 +68,30 @@ export async function POST(request: Request): Promise<Response> {
     if (body.tenderId !== undefined) {
       const type = TENDER_STAGES[body.stage ?? "fetch_documents"];
       if (!type) return Response.json({ error: "Unbekannte Tender-Stufe." }, { status: 400 });
-      const jobId = await enqueueJob(type, { tender_id: body.tenderId }, { jobKey: `reprocess:${type}:${body.tenderId}:${Date.now()}` });
+      const tender = await db.select({ version: tenders.version }).from(tenders).where(eq(tenders.id, body.tenderId)).limit(1);
+      if (tender.length === 0) return Response.json({ error: "Tender nicht gefunden." }, { status: 404 });
+      const jobId = await enqueueJob(type, {
+        tender_id: body.tenderId,
+        pipeline_version: tender[0].version,
+      }, {
+        jobKey: `reprocess:${type}:${body.tenderId}:${Date.now()}`,
+        groupKey: buildTenderPipelineGroupKey(body.tenderId),
+      });
       return Response.json({ requeued: true, jobId, tenderId: body.tenderId, stage: type });
     }
 
     if (body.documentId !== undefined) {
       const document = await db.select({ tenderId: documents.tenderId }).from(documents).where(eq(documents.id, body.documentId)).limit(1);
       if (document.length === 0) return Response.json({ error: "Dokument nicht gefunden." }, { status: 404 });
-      const jobId = await enqueueJob(JOB_PARSE, { tender_id: document[0].tenderId }, { jobKey: `reprocess:${JOB_PARSE}:document:${body.documentId}:${Date.now()}` });
+      const tender = await db.select({ version: tenders.version }).from(tenders).where(eq(tenders.id, document[0].tenderId)).limit(1);
+      if (tender.length === 0) return Response.json({ error: "Tender nicht gefunden." }, { status: 404 });
+      const jobId = await enqueueJob(JOB_PARSE, {
+        tender_id: document[0].tenderId,
+        pipeline_version: tender[0].version,
+      }, {
+        jobKey: `reprocess:${JOB_PARSE}:document:${body.documentId}:${Date.now()}`,
+        groupKey: buildTenderPipelineGroupKey(document[0].tenderId),
+      });
       return Response.json({ requeued: true, jobId, documentId: body.documentId, tenderId: document[0].tenderId });
     }
 

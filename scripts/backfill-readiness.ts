@@ -4,7 +4,7 @@ import { buildDocumentAnalysis, type AnalyzedDocument } from "../lib/document-an
 import { evaluateTenderReadiness } from "../lib/tender-readiness";
 import { eq } from "drizzle-orm";
 import { markCatalogDirty } from "../lib/catalog";
-import { enqueueJob } from "../lib/queue";
+import { buildTenderPipelineGroupKey, enqueueJob } from "../lib/queue";
 import { JOB_SCORE, JOB_SYNC_MEILI } from "../lib/types";
 
 const apply = process.argv.includes("--apply");
@@ -13,6 +13,7 @@ const run = async () => {
   const tenderRows = await db
     .select({
       id: tenders.id,
+      version: tenders.version,
       qualityStatus: tenders.qualityStatus,
       rawText: tenders.rawText,
       structuredConfidence: structuredData.confidence,
@@ -64,8 +65,12 @@ const run = async () => {
     } else if (tender.qualityStatus === "qualified" && tender.structuredExists !== null) {
       await enqueueJob(
         JOB_SCORE,
-        { tender_id: tender.id },
-        { jobKey: `${JOB_SCORE}:${tender.id}` },
+        { tender_id: tender.id, pipeline_version: tender.version },
+        {
+          jobKey: `${JOB_SCORE}:${tender.id}`,
+          groupKey: buildTenderPipelineGroupKey(tender.id),
+          dedupeCompleted: false,
+        },
       );
     }
   }

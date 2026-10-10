@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { buildJobKey, getEffectiveQueuePriority, getJobMaxRuntimeMs, isCriticalJobType, isJobRuntimeStale, JOB_PRIORITIES, PUBLIC_CONTINUATION_PRIORITY, shouldReuseCompletedJob } from "../lib/queue";
+import { buildJobKey, getEffectiveQueuePriority, getJobMaxRuntimeMs, isCriticalJobType, isJobRuntimeStale, JOB_PRIORITIES, PUBLIC_CONTINUATION_PRIORITY, shouldReapJobForRuntimeTimeout, shouldReuseCompletedJob } from "../lib/queue";
 
 assert.equal(buildJobKey("parse_documents", 42), "parse_documents:42");
 assert.equal(buildJobKey("parse_documents", 42, "refresh"), "parse_documents:42:refresh");
@@ -24,7 +24,11 @@ assert.equal(isCriticalJobType("generate_insight"), false);
 assert.equal(isCriticalJobType("notify_company"), false);
 
 assert.equal(getJobMaxRuntimeMs("fetch_documents"), 20 * 60 * 1_000);
+assert.equal(getJobMaxRuntimeMs("scrape_public_tenders"), 300 * 60 * 1_000);
 assert.equal(isJobRuntimeStale(new Date(Date.now() - 21 * 60 * 1_000), "fetch_documents"), true);
 assert.equal(isJobRuntimeStale(new Date(Date.now() - 19 * 60 * 1_000), "fetch_documents"), false);
+const staleRuntime = new Date(Date.now() - 21 * 60 * 1_000);
+assert.equal(shouldReapJobForRuntimeTimeout(staleRuntime, "fetch_documents", false), false);
+assert.equal(shouldReapJobForRuntimeTimeout(staleRuntime, "fetch_documents", true), true);
 
 console.log("Queue policy tests passed.");

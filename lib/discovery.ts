@@ -1,9 +1,10 @@
-import { and, desc, eq, gt, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { insights, scores, structuredData, tenders } from "@/lib/schema";
 import { computeScores, type CompanyRow } from "@/lib/scoring";
 import { generateInsight } from "@/lib/insights";
 import { normalizeStructured, type StructuredData as StructuredTenderData } from "@/lib/structurer";
+import { isScorableReadiness, SCORABLE_READINESS_STATUSES } from "@/lib/tender-readiness";
 
 export interface PublicProfileMatch {
   tenderId: number;
@@ -22,6 +23,7 @@ export interface PublicProfileMatch {
 
 export interface PublicProfileMatchOptions {
   qualifiedOnly?: boolean;
+  candidateLimit?: number;
 }
 
 const fallbackStructured = (title: string): StructuredTenderData => ({
@@ -68,8 +70,9 @@ export async function scoreKnownTenders(companyId: number, companyRow: CompanyRo
     .leftJoin(structuredData, eq(structuredData.tenderId, tenders.id))
     .where(and(
       eq(tenders.qualityStatus, "qualified"),
-      eq(tenders.readinessStatus, "ready"),
+      inArray(tenders.readinessStatus, [...SCORABLE_READINESS_STATUSES]),
       isNotNull(structuredData.jsonBlob),
+      sql`${tenders.rawText} IS NOT NULL AND BTRIM(${tenders.rawText}) <> ''`,
     ))
     .orderBy(desc(tenders.createdAt));
 
@@ -92,7 +95,7 @@ export async function scoreKnownTenders(companyId: number, companyRow: CompanyRo
   }>;
 
   for (const row of rows) {
-    if (!row.structuredJson || row.readinessStatus !== "ready") continue;
+    if (!row.structuredJson || !isScorableReadiness(row.readinessStatus)) continue;
     const structured = parseStructured(row.structuredJson, row.title ?? "");
     const metadata = typeof row.metadataJson === "object" && row.metadataJson !== null
       ? row.metadataJson as Record<string, unknown>
@@ -162,6 +165,7 @@ export async function findPublicProfileMatches(
   limit = 10,
   options: PublicProfileMatchOptions = {},
 ): Promise<PublicProfileMatch[]> {
+  const candidateLimit = Math.max(1, Math.min(options.candidateLimit ?? 2_000, 2_000));
   const rows = await db
     .select({
       tenderId: tenders.id,
@@ -182,9 +186,10 @@ export async function findPublicProfileMatches(
         : eq(tenders.qualityStatus, "qualified"),
       or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, new Date())),
       isNotNull(structuredData.jsonBlob),
+      sql`${tenders.rawText} IS NOT NULL AND BTRIM(${tenders.rawText}) <> ''`,
     ))
     .orderBy(desc(tenders.createdAt))
-    .limit(2_000);
+    .limit(candidateLimit);
 
   return rows
     .filter((row) => !excludeTenderIds.has(row.tenderId) && row.jsonBlob !== null)

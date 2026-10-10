@@ -48,7 +48,13 @@ export async function POST(request: Request): Promise<Response> {
     }
     await db.update(companyUrlCache).set({ canonicalUrl, status: "pending", updatedAt: new Date() }).where(eq(companyUrlCache.id, cache.id));
     await db.insert(companyMatchPreviews).values({ id: previewId, userId, cacheId: cache.id, status: "queued", idempotencyKey: urlHash, expiresAt: new Date(Date.now() + PREVIEW_EXPIRY_MS) });
-    const jobId = await enqueueJob(JOB_PREVIEW_COMPANY_URL, { cache_id: cache.id }, { jobKey: `${JOB_PREVIEW_COMPANY_URL}:${urlHash}`, priority: 200, dedupeCompleted: false });
+     let jobId: number;
+     try {
+       jobId = await enqueueJob(JOB_PREVIEW_COMPANY_URL, { cache_id: cache.id }, { jobKey: `${JOB_PREVIEW_COMPANY_URL}:${urlHash}`, priority: 200, dedupeCompleted: false });
+     } catch (error) {
+       await db.update(companyMatchPreviews).set({ status: "failed", errorCode: "PREVIEW_ENQUEUE_FAILED", updatedAt: new Date() }).where(eq(companyMatchPreviews.id, previewId));
+       throw error;
+     }
     await db.update(companyMatchPreviews).set({ jobId, updatedAt: new Date() }).where(eq(companyMatchPreviews.id, previewId));
     return json({ previewId, status: "queued", cached: false }, { status: 202, headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return handleError(error); }

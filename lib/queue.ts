@@ -17,6 +17,7 @@ import {
   JOB_SCORE,
   JOB_SCRAPE_PUBLIC,
   JOB_SCRAPE_US,
+  JOB_SMALL_VENDOR_DEEP_DIVE,
   JOB_STRUCTURE,
   JOB_SYNC_MEILI,
   type JobType,
@@ -48,7 +49,9 @@ export const getEffectiveQueuePriority = (
 /** Hard ceilings prevent one hung portal, browser, or model call from occupying a worker forever. */
 const JOB_MAX_RUNTIME_MS: Partial<Record<JobType, number>> = {
   [JOB_CRAWL]: minutes(120),
-  [JOB_SCRAPE_PUBLIC]: minutes(240),
+  // Full public runs are sequential; aggregate portal timeouts alone can take
+  // nearly four hours, before tender persistence and continuation scheduling.
+  [JOB_SCRAPE_PUBLIC]: minutes(300),
   [JOB_SCRAPE_US]: minutes(120),
   [JOB_FETCH_DOCUMENTS]: minutes(20),
   [JOB_FETCH_US_DOCUMENTS]: minutes(30),
@@ -62,6 +65,7 @@ const JOB_MAX_RUNTIME_MS: Partial<Record<JobType, number>> = {
   [JOB_DISCOVER_COMPANY]: minutes(30),
   [JOB_PREVIEW_COMPANY_URL]: minutes(20),
   [JOB_API_ANALYZE]: minutes(30),
+  [JOB_SMALL_VENDOR_DEEP_DIVE]: minutes(15),
 };
 
 export const getJobMaxRuntimeMs = (jobType: string): number =>
@@ -75,6 +79,14 @@ export const isJobRuntimeStale = (
 ): boolean => Boolean(
   startedAt && now - startedAt.getTime() > getJobMaxRuntimeMs(jobType) + graceMs,
 );
+
+export const shouldReapJobForRuntimeTimeout = (
+  startedAt: Date | null | undefined,
+  jobType: string,
+  runtimeTimeoutEnforced: boolean,
+  now = Date.now(),
+  graceMs = 0,
+): boolean => runtimeTimeoutEnforced && isJobRuntimeStale(startedAt, jobType, now, graceMs);
 
 export const sanitizeErrorMessage = (message: string): string =>
   message.replace(/\u0000/g, "").slice(0, MAX_ERROR_MESSAGE_LENGTH);
@@ -98,6 +110,8 @@ export type JobLane = "critical" | "background" | "all";
 
 export type ClaimJobOptions = {
   lane?: JobLane;
+  /** Set only when the claiming process will terminate if the runtime is exceeded. */
+  enforceRuntimeTimeout?: boolean;
 };
 
 export const isCriticalJobType = (jobType: string): boolean =>
@@ -110,6 +124,8 @@ export const shouldReuseCompletedJob = (
 
 export const buildJobKey = (jobType: string, scope: string | number, suffix?: string): string =>
   `${jobType}:${scope}${suffix ? `:${suffix}` : ""}`;
+
+export const buildTenderPipelineGroupKey = (tenderId: number): string => `tender-pipeline:${tenderId}`;
 
 type EnqueueOptions = {
   maxRetries?: number;
@@ -137,6 +153,8 @@ export const JOB_PRIORITIES: Partial<Record<JobType, number>> = {
   [JOB_FETCH_DOCUMENTS]: 115,
   [JOB_FETCH_US_DOCUMENTS]: 95,
   [JOB_SYNC_MEILI]: 135,
+  // Manual premium feature: run promptly, ahead of background ingestion.
+  [JOB_SMALL_VENDOR_DEEP_DIVE]: 60,
 };
 
 // Continuations must drain, but they must not indefinitely starve the older
@@ -240,6 +258,7 @@ export async function enqueueJob(
           lockedAt: null,
           lockedBy: null,
           heartbeatAt: null,
+          runtimeTimeoutEnforced: false,
           finishedAt: null,
           durationMs: null,
           updatedAt: new Date(),
@@ -336,6 +355,7 @@ export async function claimNextJob(workerId: string, options: ClaimJobOptions = 
         lockedBy: workerId,
         startedAt: new Date(),
         heartbeatAt: new Date(),
+        runtimeTimeoutEnforced: options.enforceRuntimeTimeout ?? false,
         finishedAt: null,
         durationMs: null,
         queueLatencyMs: sql`GREATEST(0, EXTRACT(EPOCH FROM (NOW() - ${jobs.createdAt})) * 1000)::integer`,
@@ -384,6 +404,7 @@ export async function markDone(jobId: number, workerId: string): Promise<void> {
         lockedAt: null,
         lockedBy: null,
         heartbeatAt: null,
+        runtimeTimeoutEnforced: false,
         finishedAt,
         durationMs: sql`GREATEST(0, EXTRACT(EPOCH FROM (NOW() - ${jobs.startedAt})) * 1000)::integer`,
       })
@@ -408,7 +429,7 @@ export async function markDone(jobId: number, workerId: string): Promise<void> {
 export async function markFailed(jobId: number, workerId: string, errorMessage: string): Promise<void> {
   await db.transaction(async (tx) => {
     const row = await tx
-      .select({ retries: jobs.retries, maxRetries: jobs.maxRetries, startedAt: jobs.startedAt })
+      .select({ retries: jobs.retries, maxRetries: jobs.maxRetries, startedAt: jobs.startedAt, type: jobs.type })
       .from(jobs)
       .where(and(eq(jobs.id, jobId), eq(jobs.status, "running"), eq(jobs.lockedBy, workerId)))
       .limit(1)
@@ -419,6 +440,18 @@ export async function markFailed(jobId: number, workerId: string, errorMessage: 
     const { retries, maxRetries } = row[0];
     const newRetries = retries + 1;
     const safeErrorMessage = sanitizeErrorMessage(errorMessage);
+
+    // A public scrape creates one run row per handler attempt. Close the
+    // current attempt on every failure, including retryable failures; the
+    // next handler attempt will create a fresh running row.
+    if (row[0].type === JOB_SCRAPE_PUBLIC) {
+      await tx.update(publicScrapeRuns).set({
+        status: "failed",
+        errorMessage: safeErrorMessage,
+        finishedAt: new Date(),
+        updatedAt: new Date(),
+      }).where(and(eq(publicScrapeRuns.jobId, jobId), eq(publicScrapeRuns.status, "running")));
+    }
 
     if (newRetries > maxRetries) {
       await tx
@@ -431,6 +464,7 @@ export async function markFailed(jobId: number, workerId: string, errorMessage: 
            lockedAt: null,
            lockedBy: null,
            heartbeatAt: null,
+           runtimeTimeoutEnforced: false,
            finishedAt: new Date(),
            durationMs: sql`GREATEST(0, EXTRACT(EPOCH FROM (NOW() - ${jobs.startedAt})) * 1000)::integer`,
          })
@@ -438,9 +472,9 @@ export async function markFailed(jobId: number, workerId: string, errorMessage: 
         await tx.update(jobAttempts).set({ status: "failed", errorMessage: safeErrorMessage, finishedAt: new Date() }).where(and(
           eq(jobAttempts.jobId, jobId),
           eq(jobAttempts.status, "running"),
-          eq(jobAttempts.workerId, workerId),
-        ));
-      return;
+           eq(jobAttempts.workerId, workerId),
+         ));
+        return;
     }
 
     const backoffSeconds = Math.min(300, 30 * 2 ** (newRetries - 1));
@@ -457,6 +491,7 @@ export async function markFailed(jobId: number, workerId: string, errorMessage: 
          lockedAt: null,
          lockedBy: null,
          heartbeatAt: null,
+         runtimeTimeoutEnforced: false,
          finishedAt: null,
          durationMs: null,
        })
@@ -479,8 +514,8 @@ export async function reapStaleJobs(): Promise<number> {
   const now = Date.now();
   const staleThreshold = new Date(now - STALE_JOB_THRESHOLD_MS);
 
-  // Heartbeats detect dead processes. Runtime ceilings detect handlers that are
-  // alive enough to heartbeat but no longer making progress.
+  // Heartbeats detect dead processes. Runtime ceilings apply only to claims
+  // whose caller will terminate the process after its local watchdog fires.
   const runningJobs = await db
     .select({
       id: jobs.id,
@@ -491,13 +526,20 @@ export async function reapStaleJobs(): Promise<number> {
       heartbeatAt: jobs.heartbeatAt,
       lockedAt: jobs.lockedAt,
       lockedBy: jobs.lockedBy,
+      runtimeTimeoutEnforced: jobs.runtimeTimeoutEnforced,
     })
     .from(jobs)
     .where(eq(jobs.status, "running"));
 
   const staleJobs = runningJobs.filter((job) => {
     const lastHeartbeat = job.heartbeatAt ?? job.lockedAt;
-    return isJobRuntimeStale(job.startedAt, job.type, now, STALE_RUNTIME_GRACE_MS)
+    return shouldReapJobForRuntimeTimeout(
+      job.startedAt,
+      job.type,
+      job.runtimeTimeoutEnforced,
+      now,
+      STALE_RUNTIME_GRACE_MS,
+    )
       || !lastHeartbeat
       || lastHeartbeat.getTime() <= staleThreshold.getTime();
   });
@@ -506,14 +548,20 @@ export async function reapStaleJobs(): Promise<number> {
 
   for (const job of staleJobs) {
     const newRetries = job.retries + 1;
-    const runtimeStale = isJobRuntimeStale(job.startedAt, job.type, now, STALE_RUNTIME_GRACE_MS);
+    const runtimeStale = shouldReapJobForRuntimeTimeout(
+      job.startedAt,
+      job.type,
+      job.runtimeTimeoutEnforced,
+      now,
+      STALE_RUNTIME_GRACE_MS,
+    );
     const staleCondition = and(
       eq(jobs.id, job.id),
       eq(jobs.status, "running"),
       or(
         sql`COALESCE(${jobs.heartbeatAt}, ${jobs.lockedAt}) IS NULL`,
         sql`COALESCE(${jobs.heartbeatAt}, ${jobs.lockedAt}) <= ${staleThreshold.toISOString()}::timestamptz`,
-        job.startedAt
+        job.runtimeTimeoutEnforced && job.startedAt
           ? lte(jobs.startedAt, new Date(now - getJobMaxRuntimeMs(job.type) - STALE_RUNTIME_GRACE_MS))
           : sql`false`,
       ),
@@ -537,6 +585,7 @@ export async function reapStaleJobs(): Promise<number> {
             lockedAt: null,
             lockedBy: null,
             heartbeatAt: null,
+            runtimeTimeoutEnforced: false,
             finishedAt: new Date(),
             durationMs: sql`GREATEST(0, EXTRACT(EPOCH FROM (NOW() - ${jobs.startedAt})) * 1000)::integer`,
           })
@@ -556,6 +605,7 @@ export async function reapStaleJobs(): Promise<number> {
             lockedAt: null,
             lockedBy: null,
             heartbeatAt: null,
+            runtimeTimeoutEnforced: false,
             startedAt: null,
             finishedAt: null,
             durationMs: null,
@@ -589,6 +639,32 @@ export async function reapStaleJobs(): Promise<number> {
       return true;
     });
     if (reapedJob) reaped++;
+  }
+
+  // A worker crash or an older queue implementation can leave an attempt in
+  // "running" after its job has already transitioned to another state. Such
+  // attempts must not stay open forever in monitoring or attempt history.
+  const orphanedAttempts = await db.execute(sql`
+    UPDATE job_attempts AS attempt
+    SET
+      status = CASE
+        WHEN job.status = 'done' THEN 'done'
+        WHEN job.status = 'pending' THEN 'retrying'
+        ELSE 'failed'
+      END,
+      error_message = CASE
+        WHEN job.status = 'done' THEN NULL
+        ELSE COALESCE(attempt.error_message, 'Job ist nicht mehr aktiv; verwaister Versuch geschlossen.')
+      END,
+      finished_at = NOW()
+    FROM jobs AS job
+    WHERE attempt.job_id = job.id
+      AND attempt.status = 'running'
+      AND job.status <> 'running'
+    RETURNING attempt.id
+  `);
+  if (orphanedAttempts.length > 0) {
+    console.warn(`[reaper] ${orphanedAttempts.length} verwaiste Job-Versuch(e) geschlossen.`);
   }
 
   const releasedOrphanedCatalogSync = await releaseOrphanedCatalogSync();

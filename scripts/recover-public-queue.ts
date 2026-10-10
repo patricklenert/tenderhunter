@@ -1,9 +1,9 @@
 import "dotenv/config";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../lib/db";
 import { jobs, publicSourceCursors } from "../lib/schema";
 import { enqueueJob, PUBLIC_CONTINUATION_PRIORITY } from "../lib/queue";
-import { cursorPendingDetails, shouldSchedulePublicContinuation, type PublicSourceCursor } from "../lib/public-pagination";
+import { buildPublicContinuationJobKey, cursorPendingDetails, shouldSchedulePublicContinuation, type PublicSourceCursor } from "../lib/public-pagination";
 import { JOB_SCRAPE_PUBLIC } from "../lib/types";
 
 const args = new Set(process.argv.slice(2));
@@ -48,26 +48,30 @@ const loadCursors = async (): Promise<CursorRow[]> => {
 const main = async (): Promise<void> => {
   const cursors = await loadCursors();
   const activeRows = await db
-    .select({ jobKey: jobs.jobKey })
+    .select({
+      jobKey: jobs.jobKey,
+      sourceKey: sql<string | null>`${jobs.payload} ->> 'source'`,
+    })
     .from(jobs)
     .where(and(
       eq(jobs.type, JOB_SCRAPE_PUBLIC),
       inArray(jobs.status, ["pending", "running"]),
     ));
   const activeKeys = new Set(activeRows.flatMap((row) => row.jobKey ? [row.jobKey] : []));
+  const activeSources = new Set(activeRows.flatMap((row) => row.sourceKey ? [row.sourceKey] : []));
 
   const candidates: RecoveryCandidate[] = cursors.flatMap((cursor) => {
     if (!cursor.continuationRequired) return [];
     const pending = cursorPendingDetails((cursor.cursorJson ?? {}) as PublicSourceCursor);
     const retryable = pending.filter((reference) => reference.blocked !== true);
-    const jobKey = `public-continuation:${cursor.sourceKey}`;
+    const jobKey = buildPublicContinuationJobKey(cursor.sourceKey);
     if (!shouldSchedulePublicContinuation(
       cursor.cursorJson as PublicSourceCursor,
       cursor.exhausted,
       cursor.continuationRequired,
       cursor.lastStatus,
       cursor.lastError,
-    ) || activeKeys.has(jobKey)) return [];
+    ) || activeKeys.has(jobKey) || activeSources.has(cursor.sourceKey)) return [];
 
     return [{
       ...cursor,
@@ -86,7 +90,7 @@ const main = async (): Promise<void> => {
   if (apply) {
     for (const candidate of candidates) {
       const jobId = await enqueueJob(JOB_SCRAPE_PUBLIC, { source: candidate.sourceKey }, {
-        jobKey: `public-continuation:${candidate.sourceKey}`,
+        jobKey: buildPublicContinuationJobKey(candidate.sourceKey),
         groupKey: "public-scrape",
         priority: PUBLIC_CONTINUATION_PRIORITY,
         dedupeCompleted: false,
