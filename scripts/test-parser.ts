@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { jsPDF } from "jspdf";
-import { extractTextFromFile, type ExtractedDocument } from "@/lib/parser";
+import { extractTextFromFile, formatExtractedDocumentText, type ExtractedDocument } from "@/lib/parser";
 
 function makeTextPdf(pages: string[]): string {
   const doc = new jsPDF();
@@ -42,6 +42,25 @@ function makeDocx(documentXml: string | null = `<?xml version="1.0" encoding="UT
   zip.writeZip(tmpPath);
   return tmpPath;
 }
+
+assert.equal(
+  formatExtractedDocumentText({
+    text: "Complete OCR corpus with the tender scope, deadlines, and eligibility criteria.",
+    pages: ["Partial native text"],
+    method: "ocr",
+  }),
+  "Complete OCR corpus with the tender scope, deadlines, and eligibility criteria.",
+  "OCR text takes precedence over partial native pages",
+);
+assert.equal(
+  formatExtractedDocumentText({
+    text: "Flattened native text",
+    pages: ["Native page one", "Native page two"],
+    method: "native",
+  }),
+  "[Seite 1]\nNative page one\n\n[Seite 2]\nNative page two",
+  "native pages retain their page-based formatting",
+);
 
 async function main(): Promise<void> {
   // Test 1: Text-PDF with 2 pages

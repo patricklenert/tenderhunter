@@ -115,4 +115,20 @@ const hintedOnly = buildDocumentAnalysis([
 assert.equal(hintedOnly.coverage.byRole.leistungsbeschreibung?.parsed, 1);
 assert.ok(hintedOnly.coverage.missingRoles.includes("bekanntmachung"));
 
+const htmlOnly = buildDocumentAnalysis([
+  {
+    id: 7,
+    role: "bekanntmachung",
+    parseStatus: "parsed",
+    downloadStatus: "downloaded",
+    errorMessage: null,
+    extractedText: "Portal-Login statt Ausschreibungsdokument mit ausreichendem Text.",
+    pageCount: 1,
+    roleConfidence: 0.85,
+    contentType: "text/html; charset=utf-8",
+  },
+]);
+assert.equal(htmlOnly.coverage.discovered, 0);
+assert.equal(htmlOnly.evidence.length, 0);
+
 console.log("Document analysis tests passed.");

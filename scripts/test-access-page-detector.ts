@@ -49,6 +49,13 @@ const cases = [
     reason: "login_required",
   },
   {
+    name: "access-limited tender placeholder title",
+    text: "",
+    title: "Nicht zugänglich – Anmeldung erforderlich",
+    blocked: true,
+    reason: "login_required",
+  },
+  {
     name: "Keycloak id host realm page",
     text: "Sign in to your account",
     url: "https://id.service-bw.de/realms/baustin/",

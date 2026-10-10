@@ -1,6 +1,6 @@
 import type { DocumentRole } from "./schema";
 import type { RoleHint } from "./document-classifier";
-import { deduplicateDocumentRows } from "./document-identity";
+import { deduplicateDocumentRows, isHtmlContentType } from "./document-identity";
 import { isPdfFormBoilerplate } from "./public-content-quality";
 
 export type DocumentCoverageStatus = "complete" | "partial" | "unknown" | "blocked";
@@ -189,7 +189,8 @@ const EVIDENCE_PATTERNS: Array<{
 ];
 
 export const buildDocumentAnalysis = (documents: AnalyzedDocument[]): DocumentAnalysis => {
-  const uniqueDocuments = deduplicateDocumentRows(documents);
+  const uniqueDocuments = deduplicateDocumentRows(documents)
+    .filter((document) => !isHtmlContentType(document.contentType));
   const coverage: DocumentRoleCoverage = {
     discovered: uniqueDocuments.length,
     downloaded: uniqueDocuments.filter((document) => document.downloadStatus === "downloaded").length,

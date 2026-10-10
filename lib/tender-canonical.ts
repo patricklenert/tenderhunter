@@ -1,6 +1,10 @@
 import { generateTenderSlug } from "@/lib/tender-slug";
 import { pickValidatedPublicLocationForTender } from "@/lib/public-content-quality";
 
+export function isCanonicalTenderId(id: string, numericId: number): boolean {
+  return Number.isSafeInteger(numericId) && id === String(numericId);
+}
+
 export function getCanonicalTenderSlug(
   slug: string | null,
   title: string | null,

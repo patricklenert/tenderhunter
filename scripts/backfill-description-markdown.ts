@@ -1,19 +1,25 @@
 import "dotenv/config";
 import postgres from "postgres";
 import {
+  buildPublicAccessLimitedDescription,
   buildPublicAccessLimitedDescriptionMarkdown,
-  cleanPublicDescription,
   extractPublicPortalFacts,
 } from "../lib/public-tender-scraper";
 import { isParticipationWallText } from "../lib/access-page-detector";
 import { buildTenderDescriptionMarkdown, type TenderDescriptionFacts } from "../lib/tender-description";
+import { normalizeStructured } from "../lib/structurer";
 import { syncTendersToMeili } from "../lib/meilisearch";
 import { markCatalogDirty } from "../lib/catalog";
 import {
-  isCanonicalPublicDescriptionMarkdown,
+  repairPublicDescriptionFields,
+  selectPublicDescriptionMarkdown,
+  shouldSyncPublicDescriptionBackfillMeili,
+} from "../lib/public-description-backfill";
+import {
   pickValidatedPublicCandidate,
   pickValidatedPublicClient,
   pickValidatedPublicLocationForTender,
+  projectPublicTenderRecord,
 } from "../lib/public-content-quality";
 
 const connectionString = process.env.DATABASE_URL ?? "postgresql://tenderhunter:tenderhunter@localhost:5432/tenderhunter";
@@ -80,21 +86,23 @@ const formatDateValue = (value: Date | string | null): string => {
   return text(value);
 };
 
-const cleanFactText = (value: unknown): string => {
-  const candidate = text(value);
-  return candidate ? cleanPublicDescription(candidate) : "";
-};
-
 const structuredFacts = (
   row: TenderRow,
   metadata: JsonRecord,
   blob: JsonRecord,
 ): TenderDescriptionFacts => {
-  const hardFacts = parseRecord(blob.hard_facts).value;
-  const decisionRelevant = parseRecord(blob.decision_relevant).value;
-  const procurement = parseRecord(blob.procurement).value;
-  const contractValue = parseRecord(procurement.contract_value).value;
-  const contractDuration = parseRecord(procurement.contract_duration).value;
+  const normalized = normalizeStructured(blob, row.title ?? "", {
+    buyer: pickValidatedPublicClient(metadata.client, metadata.buyer),
+    deadline: pickValidatedPublicCandidate(metadata.deadline, formatDateValue(row.deadline_at)),
+    location: typeof metadata.location === "string" ? metadata.location : null,
+    procedure: pickValidatedPublicCandidate(metadata.procedure, row.procedure_type),
+    summary: pickValidatedPublicCandidate(metadata.summary, metadata.description),
+  });
+  const hardFacts = normalized.hard_facts;
+  const decisionRelevant = normalized.decision_relevant;
+  const procurement = normalized.procurement;
+  const contractValue = procurement.contract_value;
+  const contractDuration = procurement.contract_duration;
 
   const requirements = [
     ...list(decisionRelevant.requirements),
@@ -144,7 +152,7 @@ const structuredFacts = (
     value: firstValue(metadata.estimatedValue, metadata.estimated_value, blob.estimatedValue, blob.estimated_value, hardFacts.budget, contractValue, databaseValue),
     duration: firstValue(metadata.duration, blob.duration, contractDuration, databaseDuration),
     reference: pickValidatedPublicCandidate(metadata.referenceNumber, metadata.reference_number, blob.referenceNumber, blob.reference_number),
-    summary: pickValidatedPublicCandidate(blob.summary, blob.description, metadata.description),
+    summary: pickValidatedPublicCandidate(normalized.summary, blob.summary, blob.description, metadata.summary, metadata.description),
     subject: pickValidatedPublicCandidate(blob.subject, metadata.subject),
     scope: pickValidatedPublicCandidate(
       blob.scope,
@@ -175,17 +183,19 @@ const buildRowDescriptionMarkdown = (row: TenderRow, metadata: JsonRecord, blob:
   }
 
   const facts = structuredFacts(row, metadata, blob);
-  facts.summary = facts.summary || cleanFactText(row.raw_text);
   return buildTenderDescriptionMarkdown(facts);
 };
 
-const canonicalMarkdown = (record: JsonRecord, markdown: string): JsonRecord => {
+const buildAccessDescriptionFallback = (row: TenderRow, metadata: JsonRecord): string => {
+  const description = text(metadata.description);
+  const portalText = [row.raw_text, description].filter((value): value is string => Boolean(value && value.trim())).join(" ");
+  if (!isAccessLimited(metadata, row.raw_text ?? "", description)) return "";
+  return buildPublicAccessLimitedDescription(row.title ?? "", extractPublicPortalFacts(portalText));
+};
+
+const canonicalMarkdown = (record: JsonRecord, markdown: string, publicFieldsChanged: boolean): JsonRecord => {
   const next: JsonRecord = { ...record };
-  const existing = [record.descriptionMarkdown, record.description_markdown]
-    .find((value): value is string => isCanonicalPublicDescriptionMarkdown(value)) ?? "";
-  const canonical = isCanonicalPublicDescriptionMarkdown(markdown)
-    ? markdown
-    : isCanonicalPublicDescriptionMarkdown(existing) ? existing : "";
+  const canonical = selectPublicDescriptionMarkdown(record, markdown, publicFieldsChanged);
   if (canonical) next.descriptionMarkdown = canonical;
   else delete next.descriptionMarkdown;
   delete next.description_markdown;
@@ -205,6 +215,7 @@ const batchSize = batchArgument ? Number(batchArgument.slice("--batch-size=".len
 const afterArgument = process.argv.find((arg) => arg.startsWith("--after-id="));
 const afterId = afterArgument ? Number(afterArgument.slice("--after-id=".length)) : 0;
 const syncMeili = args.has("--sync-meili");
+// --sync-meili requests the existing post-update sync; --dry-run never triggers it.
 
 async function main(): Promise<void> {
   if (targetId !== null && (!Number.isInteger(targetId) || targetId <= 0)) {
@@ -257,6 +268,10 @@ async function main(): Promise<void> {
     const candidates = rows;
     let metadataChanged = 0;
     let structuredChanged = 0;
+    let metadataDescriptionRepaired = 0;
+    let metadataSummaryRepaired = 0;
+    let structuredDescriptionRepaired = 0;
+    let structuredSummaryRepaired = 0;
     let skippedMalformed = 0;
     let failed = 0;
 
@@ -264,20 +279,50 @@ async function main(): Promise<void> {
       try {
         const parsedMetadata = parseRecord(row.metadata_json);
         const parsedStructured = parseRecord(row.json_blob);
-        const generatedMarkdown = buildRowDescriptionMarkdown(row, parsedMetadata.value, parsedStructured.value);
-        const markdown = generatedMarkdown;
-
-        const nextMetadata = canonicalMarkdown(parsedMetadata.value, markdown);
-        const nextStructured = canonicalMarkdown(parsedStructured.value, markdown);
+        const publicDescription = projectPublicTenderRecord({
+          title: row.title,
+          metadata: parsedMetadata.value,
+          structured: parsedStructured.value,
+        }).description;
+        const accessDescription = buildAccessDescriptionFallback(row, parsedMetadata.value);
+        const publicFallbacks = [publicDescription, accessDescription]
+          .filter((value): value is string => Boolean(value));
+        const repairedMetadata = repairPublicDescriptionFields(parsedMetadata.value, publicFallbacks);
+        const repairedStructured = repairPublicDescriptionFields(parsedStructured.value, publicFallbacks);
+        const generatedMarkdown = buildRowDescriptionMarkdown(
+          row,
+          repairedMetadata.record,
+          repairedStructured.record,
+        );
+        const nextMetadata = canonicalMarkdown(
+          repairedMetadata.record,
+          generatedMarkdown,
+          repairedMetadata.descriptionChanged || repairedMetadata.summaryChanged,
+        );
+        const nextStructured = canonicalMarkdown(
+          repairedStructured.record,
+          generatedMarkdown,
+          repairedStructured.descriptionChanged || repairedStructured.summaryChanged,
+        );
         const shouldUpdateMetadata = parsedMetadata.valid && !sameJson(parsedMetadata.value, nextMetadata);
         const shouldUpdateStructured = row.json_blob !== null && parsedStructured.valid && !sameJson(parsedStructured.value, nextStructured);
 
         if (!parsedMetadata.valid || (row.json_blob !== null && !parsedStructured.valid)) skippedMalformed += 1;
         if (shouldUpdateMetadata) metadataChanged += 1;
         if (shouldUpdateStructured) structuredChanged += 1;
+        if (shouldUpdateMetadata && repairedMetadata.descriptionChanged) metadataDescriptionRepaired += 1;
+        if (shouldUpdateMetadata && repairedMetadata.summaryChanged) metadataSummaryRepaired += 1;
+        if (shouldUpdateStructured && repairedStructured.descriptionChanged) structuredDescriptionRepaired += 1;
+        if (shouldUpdateStructured && repairedStructured.summaryChanged) structuredSummaryRepaired += 1;
 
         if (dryRun) {
-          console.log(`#${row.id} ${row.title ?? "(ohne Titel)"}: metadata=${shouldUpdateMetadata ? "update" : "ok"}, structured=${shouldUpdateStructured ? "update" : "skip"}`);
+          const repairedFields = [
+            repairedMetadata.descriptionChanged && shouldUpdateMetadata ? "metadata.description" : "",
+            repairedMetadata.summaryChanged && shouldUpdateMetadata ? "metadata.summary" : "",
+            repairedStructured.descriptionChanged && shouldUpdateStructured ? "structured.description" : "",
+            repairedStructured.summaryChanged && shouldUpdateStructured ? "structured.summary" : "",
+          ].filter(Boolean);
+          console.log(`#${row.id} ${row.title ?? "(ohne Titel)"}: metadata=${shouldUpdateMetadata ? "update" : "ok"}, structured=${shouldUpdateStructured ? "update" : "skip"}${repairedFields.length > 0 ? `, repaired=${repairedFields.join(",")}` : ""}`);
           continue;
         }
 
@@ -306,13 +351,17 @@ async function main(): Promise<void> {
       scanned: candidates.length,
       metadataChanged,
       structuredChanged,
+      metadataDescriptionRepaired,
+      metadataSummaryRepaired,
+      structuredDescriptionRepaired,
+      structuredSummaryRepaired,
       skippedMalformed,
       failed,
     }));
     if (!dryRun && (metadataChanged > 0 || structuredChanged > 0)) {
       await markCatalogDirty();
     }
-    if (!dryRun && syncMeili && (metadataChanged > 0 || structuredChanged > 0)) {
+    if (shouldSyncPublicDescriptionBackfillMeili(dryRun, syncMeili)) {
       await syncTendersToMeili();
     }
     if (failed > 0) process.exitCode = 1;

@@ -1,4 +1,4 @@
-import { chromium, type Browser, type BrowserContext, type Page, type Response } from "playwright";
+import { chromium, type Browser, type BrowserContext, type Page, type Response as PlaywrightResponse } from "playwright";
 import { Readability } from "@mozilla/readability";
 import { JSDOM } from "jsdom";
 import { decodeHtmlEntities } from "@/lib/text-normalization";
@@ -22,6 +22,8 @@ const OBSCURA_CDP_URL = process.env.OBSCURA_CDP_URL ?? "ws://127.0.0.1:9222";
 const BROWSER_IDLE_TIMEOUT_MS = 60_000;
 const MAX_CAPTURED_NETWORK_RESPONSES = 200;
 const MAX_DISCOVERED_RESOURCES = 500;
+const DEFAULT_MAX_BROWSER_RESOURCE_BYTES = 50 * 1024 * 1024;
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
 let browserInstance: Browser | null = null;
 let browserPromise: Promise<Browser> | null = null;
@@ -67,25 +69,72 @@ const closeWithTimeout = async (close: () => Promise<void>, timeoutMs = 5_000): 
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
-const readStablePageContent = async (page: Page): Promise<string> => {
+export const readStablePageContent = async (
+  page: Page,
+  navigationResponse?: Pick<PlaywrightResponse, "text"> | null,
+): Promise<string> => {
   let lastError: unknown = null;
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
       await page.waitForLoadState("load", { timeout: 10_000 }).catch(() => {});
       await page.waitForTimeout(250);
-      return await page.content();
+      const content: unknown = await page.content();
+      if (typeof content === "string") return content;
+      lastError = new Error("Browser page.content returned a non-string value");
+      break;
     } catch (error) {
       lastError = error;
+      if (/expected string, got object/iu.test(String(error))) break;
       if (attempt < 2) await page.waitForTimeout(250).catch(() => {});
     }
   }
   try {
-    const fallbackHtml = await page.evaluate(() => document.documentElement?.outerHTML ?? "");
-    if (fallbackHtml.trim()) return fallbackHtml;
-  } catch {
+    const fallbackHtml: unknown = await page.evaluate(() => document.documentElement?.outerHTML ?? "");
+    if (typeof fallbackHtml === "string" && fallbackHtml.trim()) return fallbackHtml;
+    if (typeof fallbackHtml !== "string") {
+      lastError ??= new Error("Browser DOM evaluation returned non-string HTML");
+    }
+  } catch (error) {
     // Preserve the original navigation error below when the page has closed.
+    lastError ??= error;
+  }
+  if (navigationResponse) {
+    try {
+      const responseHtml: unknown = await navigationResponse.text();
+      if (typeof responseHtml === "string" && responseHtml.trim()) return responseHtml;
+    } catch {
+      // Preserve the page-content error if the main response is also unavailable.
+    }
+  }
+  try {
+    const bodyText: unknown = await page.locator("body").innerText({ timeout: 2_000 });
+    if (typeof bodyText === "string" && bodyText.trim()) {
+      const escapedText = bodyText
+        .replace(/&/gu, "&amp;")
+        .replace(/</gu, "&lt;")
+        .replace(/>/gu, "&gt;");
+      return `<html><body><pre>${escapedText}</pre></body></html>`;
+    }
+  } catch {
+    // Preserve the original page-content error if visible text is unavailable.
   }
   throw lastError ?? new Error("Page content unavailable");
+};
+
+export const readStablePageTitle = async (page: Page): Promise<string> => {
+  try {
+    const title: unknown = await page.title();
+    if (typeof title === "string") return title;
+  } catch {
+    // Fall back to the DOM if Obscura cannot serialize page.title().
+  }
+  try {
+    const title: unknown = await page.evaluate(() => document.title ?? "");
+    if (typeof title === "string") return title;
+  } catch {
+    // A missing title must not discard otherwise usable page content.
+  }
+  return "";
 };
 
 /**
@@ -170,6 +219,35 @@ export interface BrowserResourceFetch {
   contentDisposition: string | null;
 }
 
+export async function readResponseBodyBounded(response: Response, maxBytes: number): Promise<Buffer> {
+  const declaredLength = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+    await response.body?.cancel().catch(() => undefined);
+    throw new Error(`Dokument zu groß: ${declaredLength} Bytes (Limit: ${maxBytes})`);
+  }
+
+  if (!response.body) return Buffer.alloc(0);
+
+  const reader = response.body.getReader();
+  const chunks: Buffer[] = [];
+  let size = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > maxBytes) {
+        await reader.cancel().catch(() => undefined);
+        throw new Error(`Dokument zu groß: ${size} Bytes (Limit: ${maxBytes})`);
+      }
+      chunks.push(Buffer.from(value));
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return Buffer.concat(chunks, size);
+}
+
 function extractWithReadability(html: string, url: string): string {
   try {
     const dom = new JSDOM(html, { url });
@@ -216,15 +294,17 @@ export function htmlToBasicMarkdown(html: string): string {
 }
 
 /**
- * Fetch a public resource after opening its source page in the same browser
- * context. Several procurement portals set a short-lived session cookie before
- * serving otherwise-public downloads.
+ * Fetch a public resource with cookies from its source page's browser context.
+ * Stream the response in the worker so the size limit is enforced before an
+ * oversized download is fully buffered.
  */
 export async function fetchResourceWithBrowserSession(
   sourcePageUrl: string,
   resourceUrl: string,
-  options?: { accept?: string; userAgent?: string; timeoutMs?: number },
+  options?: { accept?: string; userAgent?: string; timeoutMs?: number; maxBodyBytes?: number },
 ): Promise<BrowserResourceFetch> {
+  const timeoutMs = options?.timeoutMs ?? 30_000;
+  const maxBodyBytes = options?.maxBodyBytes ?? DEFAULT_MAX_BROWSER_RESOURCE_BYTES;
   const browser = await getBrowser();
   const context = await browser.newContext({
     userAgent: options?.userAgent
@@ -237,31 +317,55 @@ export async function fetchResourceWithBrowserSession(
     const page = await context.newPage();
     await page.goto(sourcePageUrl, {
       waitUntil: "domcontentloaded",
-      timeout: options?.timeoutMs ?? 30_000,
+      timeout: timeoutMs,
     });
 
-    const response = await context.request.get(resourceUrl, {
-      headers: {
-        Accept: options?.accept ?? "application/pdf,application/octet-stream,*/*;q=0.5",
-        Referer: sourcePageUrl,
-        "User-Agent": options?.userAgent
-          ?? "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36",
-      },
-      maxRedirects: 5,
-      timeout: options?.timeoutMs ?? 30_000,
-    });
-    if (!response.ok()) {
-      throw new Error(`Browser-Download fehlgeschlagen: HTTP ${response.status()}`);
+    const requestStartedAt = Date.now();
+    let currentUrl = new URL(resourceUrl).toString();
+    for (let redirectCount = 0; ; redirectCount += 1) {
+      const remainingTimeoutMs = timeoutMs - (Date.now() - requestStartedAt);
+      if (remainingTimeoutMs <= 0) throw new Error("Browser-Download timeout");
+
+      const cookies = await context.cookies(currentUrl);
+      const cookieHeader = cookies.map(({ name, value }) => `${name}=${value}`).join("; ");
+      const response = await fetch(currentUrl, {
+        redirect: "manual",
+        signal: AbortSignal.timeout(remainingTimeoutMs),
+        headers: {
+          Accept: options?.accept ?? "application/pdf,application/octet-stream,*/*;q=0.5",
+          Referer: sourcePageUrl,
+          "User-Agent": options?.userAgent
+            ?? "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36",
+          ...(cookieHeader ? { Cookie: cookieHeader } : {}),
+        },
+      });
+
+      if (REDIRECT_STATUSES.has(response.status)) {
+        const location = response.headers.get("location");
+        await response.body?.cancel().catch(() => undefined);
+        if (!location || redirectCount >= 5) {
+          throw new Error("Browser-Download fehlgeschlagen: zu viele oder ungültige Weiterleitungen");
+        }
+        const nextUrl = new URL(location, currentUrl);
+        if (nextUrl.protocol !== "http:" && nextUrl.protocol !== "https:") {
+          throw new Error("Browser-Download fehlgeschlagen: ungültiges Weiterleitungsziel");
+        }
+        currentUrl = nextUrl.toString();
+        continue;
+      }
+      if (!response.ok) {
+        await response.body?.cancel().catch(() => undefined);
+        throw new Error(`Browser-Download fehlgeschlagen: HTTP ${response.status}`);
+      }
+
+      return {
+        body: await readResponseBodyBounded(response, maxBodyBytes),
+        status: response.status,
+        url: response.url || currentUrl,
+        contentType: response.headers.get("content-type"),
+        contentDisposition: response.headers.get("content-disposition"),
+      };
     }
-
-    const headers = response.headers();
-    return {
-      body: await response.body(),
-      status: response.status(),
-      url: response.url(),
-      contentType: headers["content-type"] ?? null,
-      contentDisposition: headers["content-disposition"] ?? null,
-    };
   } finally {
     await closeWithTimeout(() => context.close());
     activeContexts = Math.max(0, activeContexts - 1);
@@ -309,7 +413,7 @@ export async function scrapeWebsite(
           });
         }
         const capturedNetworkResponses = new Map<string, NetworkResponseMetadata>();
-        const captureNetworkResponse = (response: Response): void => {
+        const captureNetworkResponse = (response: PlaywrightResponse): void => {
           if (capturedNetworkResponses.size >= MAX_CAPTURED_NETWORK_RESPONSES) return;
 
           const headers = response.headers();
@@ -328,7 +432,7 @@ export async function scrapeWebsite(
         };
         page.on("response", captureNetworkResponse);
 
-        await page.goto(url, { waitUntil: options?.waitUntil ?? "domcontentloaded", timeout: 30000 });
+        const navigationResponse = await page.goto(url, { waitUntil: options?.waitUntil ?? "domcontentloaded", timeout: 30000 });
 
         if (options?.waitForSelector) {
           await page.waitForSelector(options.waitForSelector, { timeout: 15000 }).catch(() => {});
@@ -337,22 +441,28 @@ export async function scrapeWebsite(
           await page.waitForTimeout(options.waitMs);
         }
 
-        const title = await page.title();
+        const title = await readStablePageTitle(page);
         let html = "";
         let markdown: string;
 
         if (options?.useBodyText) {
           // SPA detail pages can contain several megabytes of markup. Keep only
           // visible text when the caller does not need DOM/resource discovery.
-          const visibleText = await page.evaluate(() => document.body?.innerText ?? "");
+          let visibleText = "";
+          try {
+            const result: unknown = await page.evaluate(() => document.body?.innerText ?? "");
+            if (typeof result === "string") visibleText = result;
+          } catch {
+            // Fall back to the main document response below.
+          }
           if (visibleText.length > 200) {
             markdown = visibleText;
           } else {
-            html = await readStablePageContent(page);
+            html = await readStablePageContent(page, navigationResponse);
             markdown = htmlToBasicMarkdown(html);
           }
         } else {
-          html = await readStablePageContent(page);
+          html = await readStablePageContent(page, navigationResponse);
           if (options?.onlyMainContent !== false) {
             const cleanContent = extractWithReadability(html, url);
             if (cleanContent.length > 500) {

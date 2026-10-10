@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readTenderMeta } from "../lib/tender-meta";
+import { pickPublicTenderDescription, readPublicTenderIndexMeta, readPublicTenderMeta, readTenderMeta } from "../lib/tender-meta";
 import { getCanonicalTenderSlug } from "../lib/tender-canonical";
 
 const meta = readTenderMeta({
@@ -32,12 +32,88 @@ assert.equal(structuredMeta.description, "Strukturierte Leistungsbeschreibung");
 assert.equal(structuredMeta.client, "Stadt Mainz");
 assert.equal(structuredMeta.location, "55116 Mainz");
 assert.equal(structuredMeta.procedure, "Offenes Verfahren");
+assert.deepEqual(
+  readPublicTenderIndexMeta({
+    hard_facts: { buyer: "Stadt Mainz", location: "55116 Mainz" },
+  }, { title: "Sanierung Turnhalle", source: "Beispielportal" }),
+  { client: "Stadt Mainz", location: "55116 Mainz" },
+  "the sitemap's lightweight public metadata reader must preserve normalized buyer and location",
+);
+assert.deepEqual(
+  readPublicTenderIndexMeta({ city: "55116 Mainz", hardFacts: { buyer: "Stadt Mainz" } }, { title: "Sanierung Turnhalle" }),
+  { client: readPublicTenderMeta({ city: "55116 Mainz", hardFacts: { buyer: "Stadt Mainz" } }, { title: "Sanierung Turnhalle" }).client, location: "55116 Mainz" },
+  "the sitemap metadata reader must preserve legacy camelCase aliases",
+);
+
+const portalProcedureMeta = readTenderMeta({
+  procedure: "(Losangaben)",
+  procedureType: "Offenes Verfahren (sangaben)",
+});
+assert.equal(portalProcedureMeta.procedure, "Offenes Verfahren");
+
+const invalidProcedureMeta = readTenderMeta({ procedure: "(Losangaben)" });
+assert.equal(invalidProcedureMeta.procedure, "");
 
 const structuredSummaryFallback = readTenderMeta({
   description: "Bekanntmachung",
   summary: "Sanierung der Turnhalle in Mainz",
 });
 assert.equal(structuredSummaryFallback.description, "Sanierung der Turnhalle in Mainz");
+
+const emptyMetadataDescription = readTenderMeta({
+  description: "",
+  summary: "Strukturiertes Summary ohne Metadatenbeschreibung",
+});
+assert.equal(emptyMetadataDescription.description, "Strukturiertes Summary ohne Metadatenbeschreibung");
+
+for (const invalidDescription of [undefined, "   ", "## Bekanntmachung"]) {
+  assert.equal(
+    readTenderMeta({
+      description: invalidDescription,
+      summary: "Gültiger Metadaten-Summary-Fallback",
+    }).description,
+    "Gültiger Metadaten-Summary-Fallback",
+    "absent, empty, or invalid metadata descriptions must fall through to a valid summary",
+  );
+}
+
+const aliasMeta = readTenderMeta({
+  description: "## Bekanntmachung",
+  summary: "Dokumentierte Leistungsbeschreibung",
+  city: "55116 Mainz",
+  hardFacts: { buyer: "Stadt Mainz", location: "" },
+  procurement: { procedureType: "Offenes Verfahren" },
+  pdf_urls: [],
+  pdfUrls: ["https://example.test/camel.pdf"],
+});
+assert.equal(aliasMeta.description, "Dokumentierte Leistungsbeschreibung");
+assert.equal(aliasMeta.client, "Stadt Mainz");
+assert.equal(aliasMeta.location, "55116 Mainz");
+assert.equal(aliasMeta.procedure, "Offenes Verfahren");
+assert.deepEqual(aliasMeta.pdfUrls, ["https://example.test/camel.pdf"]);
+
+assert.equal(
+  pickPublicTenderDescription({
+    structured: {
+      summary: "## Bekanntmachung",
+      decision_relevant: { scope: ["Dokumentierter Leistungsumfang"] },
+    },
+    metadata: { description: "## location", summary: "Metadaten-Fallback" },
+  }),
+  "Dokumentierter Leistungsumfang",
+  "the shared description picker must skip invalid candidates before later fallbacks",
+);
+assert.equal(
+  pickPublicTenderDescription({
+    structured: {
+      summary: "## Bekanntmachung",
+      description: "Strukturierter Beschaffungsgegenstand",
+    },
+    metadata: { description: "" },
+  }),
+  "Strukturierter Beschaffungsgegenstand",
+  "an invalid structured summary must not block its valid description alias",
+);
 
 const markdownFallback = readTenderMeta({
   descriptionMarkdown: "## Ungeprüft",

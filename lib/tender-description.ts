@@ -1,4 +1,7 @@
-import { normalizePublicDisplayCandidate } from "@/lib/public-content-quality";
+import {
+  normalizePublicDisplayCandidateForMarkdownEscaping,
+  pickValidatedPublicProcedure,
+} from "@/lib/public-content-quality";
 
 export interface TenderDescriptionFacts {
   client?: unknown;
@@ -43,7 +46,7 @@ export const escapeMarkdownText = (value: string): string => {
 };
 
 const directText = (value: unknown): string => {
-  if (typeof value === "string") return normalizePublicDisplayCandidate(value) ?? "";
+  if (typeof value === "string") return normalizePublicDisplayCandidateForMarkdownEscaping(value) ?? "";
   if (typeof value === "number" && Number.isFinite(value)) return String(value);
   return "";
 };
@@ -135,7 +138,7 @@ export const buildTenderDescriptionMarkdown = (facts: TenderDescriptionFacts): s
   const lines: string[] = [];
 
   addBullet(lines, "Auftraggeber", facts.client);
-  addBullet(lines, "Verfahren", facts.procedure);
+  addBullet(lines, "Verfahren", pickValidatedPublicProcedure(facts.procedure));
   addBullet(lines, "Angebotsfrist", facts.deadline);
   addBullet(lines, "Leistungsort", facts.location);
   addBullet(lines, "Auftragswert", formatValue(facts.value));

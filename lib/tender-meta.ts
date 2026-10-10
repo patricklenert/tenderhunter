@@ -1,4 +1,3 @@
-import { getPublicClientFallback, pickPublicDescription } from "@/lib/public-tender-scraper";
 import {
   isCanonicalPublicDescriptionMarkdown,
   normalizePublicClient,
@@ -6,6 +5,8 @@ import {
   pickValidatedPublicClient,
   pickValidatedPublicLocation,
   pickValidatedPublicLocationForTender,
+  pickValidatedPublicProcedure,
+  projectPublicDisplayFields,
 } from "@/lib/public-content-quality";
 
 // The public scraper stores metadata in snake_case (lib/pipeline.ts:1745-1753).
@@ -19,6 +20,7 @@ export interface TenderMeta {
   client: string;
   location: string;
   procedure: string;
+  accessLimited: boolean;
   referenceNumber: string | null;
   pdfUrls: string[];
   resources: TenderResourceMeta[];
@@ -49,6 +51,92 @@ const asString = (value: unknown): string => (typeof value === "string" ? value 
 
 const asStringArray = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((u): u is string => typeof u === "string") : [];
+
+const hasValue = (value: unknown): boolean => {
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "string") return value.trim().length > 0;
+  if (value && typeof value === "object") return Object.keys(value).length > 0;
+  return value !== null && value !== undefined;
+};
+
+const firstValue = (record: Record<string, unknown>, keys: string[]): unknown => {
+  let fallback: unknown;
+  for (const key of keys) {
+    const value = record[key];
+    if (fallback === undefined) fallback = value;
+    if (hasValue(value)) return value;
+  }
+  return fallback;
+};
+
+const stringArrayFromKeys = (record: Record<string, unknown>, keys: string[]): string[] =>
+  keys.flatMap((key) => asStringArray(record[key]))
+    .filter((value, index, values) => values.indexOf(value) === index);
+
+const recordFromValue = (value: unknown): Record<string, unknown> => {
+  if (value && typeof value === "object" && !Array.isArray(value)) return value as Record<string, unknown>;
+  if (typeof value !== "string") return {};
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : {};
+  } catch {
+    return {};
+  }
+};
+
+const mergeRecords = (...values: unknown[]): Record<string, unknown> => {
+  const merged: Record<string, unknown> = {};
+  for (const value of values) {
+    for (const [key, candidate] of Object.entries(recordFromValue(value))) {
+      const current = merged[key];
+      const currentRecord = recordFromValue(current);
+      const candidateRecord = recordFromValue(candidate);
+      if (Object.keys(currentRecord).length > 0 && Object.keys(candidateRecord).length > 0) {
+        merged[key] = mergeRecords(current, candidate);
+      } else if (!(key in merged) || !hasValue(current)) {
+        merged[key] = candidate;
+      }
+    }
+  }
+  return merged;
+};
+
+const metadataRecord = (metadataJson: unknown): Record<string, unknown> => {
+  if (typeof metadataJson === "string") {
+    try {
+      const parsed = JSON.parse(metadataJson);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? parsed as Record<string, unknown>
+        : {};
+    } catch {
+      return {};
+    }
+  }
+  return typeof metadataJson === "object" && metadataJson !== null && !Array.isArray(metadataJson)
+    ? metadataJson as Record<string, unknown>
+    : {};
+};
+
+/** Select public prose consistently from structured data and metadata. */
+export const pickPublicTenderDescription = (sources: {
+  structured?: unknown;
+  metadata?: unknown | unknown[];
+  fallbacks?: unknown[];
+  /** Kept for call-site compatibility; raw analysis text is never public prose. */
+  rawText?: unknown;
+}): string => {
+  return projectPublicDisplayFields({
+    summary: [
+      sources.structured,
+      ...(sources.metadata === undefined
+        ? []
+        : Array.isArray(sources.metadata) ? sources.metadata : [sources.metadata]),
+      ...(sources.fallbacks ?? []),
+    ],
+  }).description ?? "";
+};
 
 const optionalString = (value: unknown): string | null => {
   const result = asString(value).trim();
@@ -138,20 +226,7 @@ export const readTenderMeta = (
   metadataJson: unknown,
   rawText?: string | null,
 ): TenderMeta => {
-  const meta = typeof metadataJson === "string"
-    ? (() => {
-      try {
-        const parsed = JSON.parse(metadataJson);
-        return parsed && typeof parsed === "object" && !Array.isArray(parsed)
-          ? parsed as Record<string, unknown>
-          : {};
-      } catch {
-        return {};
-      }
-    })()
-    : (typeof metadataJson === "object" && metadataJson !== null && !Array.isArray(metadataJson)
-      ? metadataJson
-      : {}) as Record<string, unknown>;
+  const meta = metadataRecord(metadataJson);
   const refNum = meta.reference_number ?? meta.referenceNumber;
   const refTrimmed = typeof refNum === "string" ? refNum.trim() : "";
   const resources = readResourceArray(meta, ["resources"]);
@@ -162,26 +237,31 @@ export const readTenderMeta = (
     "subpage_candidates",
     "subpageCandidates",
   ]);
-  const hardFacts = meta.hard_facts && typeof meta.hard_facts === "object" && !Array.isArray(meta.hard_facts)
-    ? meta.hard_facts as Record<string, unknown>
-    : {};
-  const procurement = meta.procurement && typeof meta.procurement === "object" && !Array.isArray(meta.procurement)
-    ? meta.procurement as Record<string, unknown>
-    : {};
+  const hardFacts = mergeRecords(meta.hard_facts, meta.hardFacts);
+  const procurement = recordFromValue(firstValue(meta, ["procurement"]));
   const descriptionMarkdownCandidate = [meta.descriptionMarkdown, meta.description_markdown]
     .find((value): value is string => isCanonicalPublicDescriptionMarkdown(value)) ?? "";
   return {
-    description: pickPublicDescription(meta.description, meta.summary, rawText),
+    description: pickPublicTenderDescription({ metadata: meta, rawText }),
     descriptionMarkdown: descriptionMarkdownCandidate,
     subject: pickValidatedPublicCandidate(meta.subject, meta.scope),
-    client: normalizePublicClient(pickValidatedPublicClient(meta.client, meta.buyer, hardFacts.buyer)),
-    location: pickValidatedPublicLocation(meta.location, meta.city, hardFacts.location),
-    procedure: pickValidatedPublicCandidate(meta.procedure, meta.procedure_type, hardFacts.contract_type, procurement.procedure_type),
+    client: normalizePublicClient(pickValidatedPublicClient(meta.client, meta.buyer, hardFacts.buyer, hardFacts.client)),
+    location: pickValidatedPublicLocation(meta.location, meta.city, hardFacts.location, hardFacts.city),
+    procedure: pickValidatedPublicProcedure(
+      meta.procedure,
+      meta.procedure_type,
+      meta.procedureType,
+      hardFacts.contract_type,
+      hardFacts.contractType,
+      procurement.procedure_type,
+      procurement.procedureType,
+    ),
+    accessLimited: meta.access_limited === true || meta.accessLimited === true,
     referenceNumber: refTrimmed ? refTrimmed : null,
-    pdfUrls: asStringArray(meta.pdf_urls ?? meta.pdfUrls),
+    pdfUrls: stringArrayFromKeys(meta, ["pdf_urls", "pdfUrls"]),
     resources,
     resourceCandidates,
-    sourceUrl: asString(meta.sourceUrl ?? meta.source_url),
+    sourceUrl: asString(firstValue(meta, ["sourceUrl", "source_url"])),
   };
 };
 
@@ -190,13 +270,40 @@ export const readPublicTenderMeta = (
   options: { title?: unknown; source?: string; sourceUrl?: string | null; rawText?: string | null } = {},
 ): TenderMeta => {
   const meta = readTenderMeta(metadataJson, options.rawText);
-  const client = normalizePublicClient(
-    meta.client,
-    getPublicClientFallback(options.source ?? "", options.sourceUrl ?? ""),
-  );
+  const client = normalizePublicClient(meta.client);
+  const display = projectPublicDisplayFields({
+    title: options.title,
+    client: [client, meta.client],
+    location: [meta.location],
+    summary: [meta.description],
+    descriptionMarkdown: [meta.descriptionMarkdown],
+  });
   return {
     ...meta,
-    client,
-    location: pickValidatedPublicLocationForTender(options.title, client, meta.location),
+    client: display.client ?? "",
+    description: display.description ?? "",
+    descriptionMarkdown: display.descriptionMarkdown ?? "",
+    location: display.location ?? "",
+  };
+};
+
+/** Read only the public client/location fields needed for sitemap taxonomy. */
+export const readPublicTenderIndexMeta = (
+  metadataJson: unknown,
+  options: { title?: unknown; source?: string; sourceUrl?: string | null } = {},
+): Pick<TenderMeta, "client" | "location"> => {
+  const meta = metadataRecord(metadataJson);
+  const hardFacts = mergeRecords(meta.hard_facts, meta.hardFacts);
+  const client = normalizePublicClient(
+    pickValidatedPublicClient(meta.client, meta.buyer, hardFacts.buyer, hardFacts.client),
+  );
+  const location = pickValidatedPublicLocation(meta.location, meta.city, hardFacts.location, hardFacts.city);
+  const publicClient = normalizePublicClient(client);
+  const displayTitle = pickValidatedPublicCandidate(options.title);
+  const displayClient = pickValidatedPublicClient(publicClient, client);
+  const displayLocation = pickValidatedPublicLocationForTender(displayTitle, displayClient, location);
+  return {
+    client: displayClient,
+    location: displayLocation,
   };
 };

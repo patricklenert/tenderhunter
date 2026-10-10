@@ -1,6 +1,17 @@
 const DOCUMENT_EXTENSION_PATTERN = /\.(?:pdf|doc|docx|odt|rtf|xls|xlsx|ods|csv|zip|rar|7z|txt)(?:$|[?#])/i;
 const HTML_CONTENT_TYPE_PATTERN = /^(?:text\/html|application\/xhtml\+xml)\b/i;
 
+export const isHtmlContentType = (value: unknown): boolean =>
+  typeof value === "string" && HTML_CONTENT_TYPE_PATTERN.test(value.trim());
+
+export const isHtmlDocumentResource = (input: {
+  contentType?: unknown;
+  resourceType?: unknown;
+}): boolean => {
+  const resourceType = typeof input.resourceType === "string" ? input.resourceType.trim().toLowerCase() : "";
+  return ["document", "download"].includes(resourceType) && isHtmlContentType(input.contentType);
+};
+
 export interface DocumentIdentityInput {
   url?: string | null;
   filename?: string | null;
@@ -10,7 +21,7 @@ export interface DocumentIdentityInput {
 
 const isPageLike = (input: DocumentIdentityInput, pathname: string): boolean => {
   const contentType = input.contentType ?? "";
-  if (HTML_CONTENT_TYPE_PATTERN.test(contentType)) return true;
+  if (isHtmlContentType(contentType)) return true;
   if (["page", "api"].includes((input.resourceType ?? "").toLowerCase())) return true;
   if (["document", "download"].includes((input.resourceType ?? "").toLowerCase())) return false;
   if (DOCUMENT_EXTENSION_PATTERN.test(pathname)) return false;

@@ -22,7 +22,7 @@ export const PROCEDURE_TYPES: Record<string, ProcedureTypeEntry> = {
     intro:
       "Das offene Verfahren ist das häufigste Vergabeverfahren in Deutschland. Jedes interessierte Unternehmen kann ohne vorherige Teilnahmebeschränkung ein Angebot abgeben. Der Auftraggeber veröffentlicht die Ausschreibung öffentlich, und alle Bieter werden gleich behandelt.",
     details:
-      "Beim offenen Verfahren gibt der Auftraggeber eine öffentliche Bekanntmachung heraus. Interessierte Unternehmen reichen innerhalb der festgelegten Frist (mindestens35 Tage bei EU-Schwellenwert, mindestens20 Tage unterhalb) ihre Angebote ein. Es gibt keine vorherige Auswahl der Bieter — das Verfahren ist für alle Unternehmen offen. Die Vergabe erfolgt nach den festgelegten Zuschlagskriterien (niedrigster Preis oder wirtschaftlichstes Angebot).",
+      "Beim offenen Verfahren gibt der Auftraggeber eine öffentliche Bekanntmachung heraus. Interessierte Unternehmen reichen innerhalb der festgelegten Frist ihre Angebote ein. Die konkrete Mindestfrist richtet sich nach dem anwendbaren Regelwerk, dem Auftraggeber und dem Verfahren. Es gibt keine vorherige Auswahl der Bieter — das Verfahren ist für alle Unternehmen offen. Die Vergabe erfolgt nach den festgelegten Zuschlagskriterien.",
     faq: [
       {
         question: "Was ist ein offenes Verfahren?",
@@ -37,7 +37,7 @@ export const PROCEDURE_TYPES: Record<string, ProcedureTypeEntry> = {
       {
         question: "Für welche Aufträge eignet sich das offene Verfahren?",
         answer:
-          "Das offene Verfahren eignet sich besonders für standardisierte Leistungen mit klar definierten Anforderungen, bei denen ein breiter Bieterkreis erwünscht ist. Es ist das Standardverfahren für Bau-, Liefer- und Dienstleistungsaufträge.",
+          "Das offene Verfahren eignet sich besonders für Leistungen mit klar definierten Anforderungen, bei denen ein breiter Bieterkreis erwünscht ist. Ob es im konkreten Fall als Standardverfahren gilt, richtet sich nach der Auftragsart und dem anwendbaren Regelwerk.",
       },
       {
         question: "Welche Vorteile hat das offene Verfahren für Bieter?",

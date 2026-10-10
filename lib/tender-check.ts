@@ -4,6 +4,7 @@ import {
   type AnalyzedDocument,
   type DocumentAnalysis,
 } from "@/lib/document-analysis";
+import { isHtmlContentType } from "@/lib/document-identity";
 
 export type TenderCheckStatus = "complete" | "partial" | "unknown" | "blocked";
 export type ChecklistCategory = "submit" | "proof" | "review";
@@ -121,6 +122,7 @@ const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\
 
 const isUsableDocument = (document: TenderCheckDocument): boolean =>
   document.parseStatus === "parsed" &&
+  !isHtmlContentType(document.contentType) &&
   typeof document.extractedText === "string" &&
   document.extractedText.trim().length >= 20;
 

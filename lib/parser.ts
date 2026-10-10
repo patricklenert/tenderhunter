@@ -44,6 +44,12 @@ export interface ExtractedDocument {
   truncated: boolean;
 }
 
+export const formatExtractedDocumentText = (
+  extracted: Pick<ExtractedDocument, "text" | "pages" | "method">,
+): string => extracted.method === "ocr" || extracted.pages.length === 0
+  ? extracted.text
+  : extracted.pages.map((page, index) => `[Seite ${index + 1}]\n${page}`).join("\n\n");
+
 function parseIntEnv(name: string, fallback: number): number {
   const raw = process.env[name];
   if (!raw) return fallback;
@@ -309,9 +315,9 @@ function parseDocxToText(filePath: string): { text: string; truncated: boolean }
   return { text: bounded.text, truncated: truncated || bounded.truncated };
 }
 
-function runOptionalTextCommand(command: string, args: readonly string[], filePath: string): string {
+function runOptionalCommand(command: string, args: readonly string[]): string {
   try {
-    const output = execFileSync(command, [...args, filePath], {
+    const output = execFileSync(command, args, {
       encoding: "utf8",
       timeout: 15_000,
       maxBuffer: MAX_DOCUMENT_TEXT_CHARS * 4,
@@ -321,6 +327,46 @@ function runOptionalTextCommand(command: string, args: readonly string[], filePa
   } catch {
     return "";
   }
+}
+
+function runOptionalTextCommand(command: string, args: readonly string[], filePath: string): string {
+  return runOptionalCommand(command, [...args, filePath]);
+}
+
+function parsePdfWithOptionalCommands(filePath: string): {
+  text: string;
+  pages: string[];
+  pageCount: number | null;
+} {
+  const info = runOptionalCommand("pdfinfo", [filePath]);
+  const pageMatch = info.match(/^Pages:\s*(\d+)\s*$/mu);
+  const pageCount = pageMatch ? Number.parseInt(pageMatch[1], 10) : null;
+  const textOutput = runOptionalCommand("pdftotext", [
+    "-layout",
+    "-f",
+    "1",
+    "-l",
+    String(MAX_NATIVE_PAGES),
+    filePath,
+    "-",
+  ]);
+  const normalized = textOutput.replace(/\r\n?/g, "\n");
+  const rawPages = normalized.split("\f");
+  while (rawPages.length > 1 && !rawPages[rawPages.length - 1].trim()) rawPages.pop();
+  const pages = normalized.trim()
+    ? rawPages.map((page) => page.trim())
+    : [];
+  const pageLimit = pageCount === null ? null : Math.min(pageCount, MAX_NATIVE_PAGES);
+  if (pageLimit !== null) {
+    while (pages.length < pageLimit) pages.push("");
+    if (pages.length > pageLimit) pages.length = pageLimit;
+  }
+
+  return {
+    text: normalized.trim(),
+    pages,
+    pageCount: Number.isFinite(pageCount) && pageCount !== null ? pageCount : pages.length || null,
+  };
 }
 
 function parseDocToText(filePath: string): { text: string; truncated: boolean } {
@@ -346,6 +392,7 @@ export const extractTextFromFile = async (filePath: string, contentType?: string
     let nativePageCount: number | null = null;
     let nativeText = "";
     const nativePages: string[] = [];
+    let nativeParseFailed = false;
 
     // 1. Versuch: pdf-parse (kostenlos, schnell, für textbasierte PDFs)
     try {
@@ -377,8 +424,28 @@ export const extractTextFromFile = async (filePath: string, contentType?: string
       }
       console.log(`[parser] pdf-parse: nur ${nativeText.length} Zeichen bei ${nativePageCount ?? "?"} Seiten, versuche OCR...`);
     } catch (pdfErr) {
+      nativeParseFailed = true;
       console.warn("[parser] pdf-parse fehlgeschlagen:", pdfErr);
     }
+
+    // 1b. Optionaler lokaler Fallback für PDFs, die pdf-parse wegen
+    // fehlerhafter XRef-Tabellen nicht lesen kann. Beide Befehle erhalten den
+    // Dateipfad als Argument (kein Shell-Aufruf/keine String-Interpolation).
+    const commandFallback = parsePdfWithOptionalCommands(filePath);
+    if (commandFallback.pageCount !== null) nativePageCount = commandFallback.pageCount;
+    if (commandFallback.pages.length > nativePages.length) {
+      nativePages.splice(0, nativePages.length, ...commandFallback.pages);
+    }
+    if (commandFallback.text.length >= MIN_NATIVE_TEXT_CHARS || (nativeParseFailed && commandFallback.text.length > 0)) {
+      return {
+        text: commandFallback.text,
+        pages: commandFallback.pages,
+        pageCount: commandFallback.pageCount,
+        method: "native",
+        truncated: commandFallback.pageCount !== null && commandFallback.pageCount > MAX_NATIVE_PAGES,
+      };
+    }
+    if (commandFallback.text.length > nativeText.length) nativeText = commandFallback.text;
 
     // 2. Versuch: OCR — aber nur wenn die Datei nicht zu groß ist (base64-Upload-Limit)
     const fileSize = safeFileSize(filePath);

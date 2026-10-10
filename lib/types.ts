@@ -17,6 +17,7 @@ export const JOB_DISCOVER_COMPANY = "discover_company";
 export const JOB_SCRAPE_US = "scrape_us_tenders";
 export const JOB_PREVIEW_COMPANY_URL = "preview_company_url";
 export const JOB_API_ANALYZE = "api_analyze_company";
+export const JOB_SMALL_VENDOR_DEEP_DIVE = "small_vendor_deep_dive";
 
 export type JobType =
   | typeof JOB_CRAWL
@@ -33,7 +34,8 @@ export type JobType =
   | typeof JOB_DISCOVER_COMPANY
   | typeof JOB_SCRAPE_US
   | typeof JOB_PREVIEW_COMPANY_URL
-  | typeof JOB_API_ANALYZE;
+  | typeof JOB_API_ANALYZE
+  | typeof JOB_SMALL_VENDOR_DEEP_DIVE;
 
 
 export type JsonValue =

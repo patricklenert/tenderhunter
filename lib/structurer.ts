@@ -5,11 +5,15 @@ import { buildTenderDescriptionMarkdown } from "@/lib/tender-description";
 import { decodeHtmlEntities } from "@/lib/text-normalization";
 import {
   isPublicNavigationSummary,
+  isPublicDocumentArtifact,
   normalizePublicClient,
   normalizePublicDisplayCandidate,
+  normalizePublicTextList,
   pickValidatedPublicCandidate,
+  pickValidatedPublicProcedure,
   pickValidatedPublicLocation,
   pickValidatedPublicLocationForTender,
+  isSourceBackedPublicValue,
 } from "@/lib/public-content-quality";
 import {
   createCommercialBriefFallback,
@@ -49,12 +53,82 @@ const uniqueTextValues = (values: string[]): string[] => {
   });
 };
 
-const recordValue = (value: unknown): Record<string, unknown> =>
-  value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+const recordValue = (value: unknown): Record<string, unknown> => {
+  if (value && typeof value === "object" && !Array.isArray(value)) return value as Record<string, unknown>;
+  if (typeof value !== "string") return {};
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : {};
+  } catch {
+    return {};
+  }
+};
 
-const normalizedTextList = (value: unknown): string[] => {
-  const values = Array.isArray(value) ? value : value === null || value === undefined ? [] : [value];
-  return uniqueTextValues(values.map(sanitizeTenderText).filter(Boolean));
+const normalizedTextList = (value: unknown): string[] => uniqueTextValues(normalizePublicTextList(value));
+
+const hasStructuredValue = (value: unknown): boolean => {
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "string") return value.trim().length > 0;
+  if (value && typeof value === "object") return Object.keys(value).length > 0;
+  return value !== null && value !== undefined;
+};
+
+const firstStructuredValue = (record: Record<string, unknown>, keys: string[]): unknown => {
+  let fallback: unknown;
+  for (const key of keys) {
+    const value = record[key];
+    if (fallback === undefined) fallback = value;
+    if (hasStructuredValue(value)) return value;
+  }
+  return fallback;
+};
+
+const structuredAliasValues = (records: unknown[], keys: string[]): unknown[] => records.flatMap((recordValueInput) => {
+  const record = recordValue(recordValueInput);
+  return keys.map((key) => record[key]);
+});
+
+/**
+ * Select aliases only after normalizing each value. A non-empty but unusable
+ * first alias (for example portal boilerplate) must not hide a valid later
+ * alias from the same payload.
+ */
+const firstValidStructuredValue = <T>(
+  records: unknown[],
+  keys: string[],
+  normalize: (value: unknown) => T,
+): T | undefined => {
+  for (const candidate of structuredAliasValues(records, keys)) {
+    const normalized = normalize(candidate);
+    if (hasStructuredValue(normalized)) return normalized;
+  }
+  return undefined;
+};
+
+const firstValidTextList = (records: unknown[], keys: string[]): string[] =>
+  firstValidStructuredValue(records, keys, (value) => {
+    const normalized = normalizedTextList(value);
+    return normalized.length > 0 ? normalized : null;
+  }) ?? [];
+
+const mergeStructuredRecords = (...values: unknown[]): Record<string, unknown> => {
+  const merged: Record<string, unknown> = {};
+  for (const value of values) {
+    const record = recordValue(value);
+    for (const [key, candidate] of Object.entries(record)) {
+      const current = merged[key];
+      const currentRecord = recordValue(current);
+      const candidateRecord = recordValue(candidate);
+      if (Object.keys(currentRecord).length > 0 && Object.keys(candidateRecord).length > 0) {
+        merged[key] = mergeStructuredRecords(current, candidate);
+      } else if (!(key in merged) || !hasStructuredValue(current)) {
+        merged[key] = candidate;
+      }
+    }
+  }
+  return merged;
 };
 
 const normalizedAwardCriteria = (value: unknown): AwardCriterion[] => {
@@ -294,7 +368,7 @@ const detectProcedureType = (text: string): string => {
   if (lower.includes("verhandlungsverfahren") || lower.includes("verhandelt")) return "verhandelt";
   if (lower.includes("wettbewerblicher dialog")) return "dialog";
   if (lower.includes("innovationspartnerschaft")) return "innovation";
-  return "offen";
+  return "";
 };
 
 const extractContractValue = (text: string): { min: number | null; max: number | null; currency: string } => {
@@ -458,62 +532,124 @@ export const sanitizeTenderText = (value: unknown): string => {
 export function normalizeStructured(raw: unknown, fallbackTitle: string, fallbackFacts: StructuredFallbackFacts = {}): StructuredData {
   const obj = recordValue(raw);
   const safeFallbackTitle = sanitizeTenderText(fallbackTitle);
-  if (obj && typeof obj === "object" && obj.decision_relevant) {
-    const structured = raw as unknown as StructuredData;
-    const hardFacts = recordValue(structured.hard_facts);
-    const decisionRelevant = recordValue(structured.decision_relevant);
-    const procurement = recordValue(structured.procurement);
+  if (obj && typeof obj === "object" && (obj.decision_relevant || obj.decisionRelevant)) {
+    const structured = obj as unknown as StructuredData;
+    const decisionRelevant = mergeStructuredRecords(obj.decision_relevant, obj.decisionRelevant);
+    const procurement = recordValue(firstStructuredValue(obj, ["procurement"]));
+    const rawScope = firstStructuredValue(decisionRelevant, ["scope", "subject"]);
+    const rawScopeText = Array.isArray(rawScope)
+      ? rawScope.filter((value): value is string | number => typeof value === "string" || typeof value === "number").map(String).join(" ")
+      : typeof rawScope === "string" || typeof rawScope === "number" ? String(rawScope) : "";
+    const normalizedScope = firstValidStructuredValue(
+      [obj.decision_relevant, obj.decisionRelevant],
+      ["scope", "subject"],
+      (value) => {
+        const normalized = normalizedTextList(value);
+        return normalized.length > 0 ? normalized : null;
+      },
+    ) ?? [];
+    const scopeIsDocumentArtifact = normalizedScope.length === 0
+      && Boolean(rawScopeText && isPublicDocumentArtifact(rawScopeText));
+    const structuredBuyer = firstValidStructuredValue(
+      [obj.hard_facts, obj.hardFacts],
+      ["buyer", "client", "authority", "contractingAuthority"],
+      (value) => normalizePublicClient(value) || null,
+    ) ?? "";
+    const structuredLocation = firstValidStructuredValue(
+      [obj.hard_facts, obj.hardFacts],
+      ["location", "city", "address"],
+      (value) => pickValidatedPublicLocationForTender(
+        safeFallbackTitle,
+        fallbackFacts.buyer || structuredBuyer,
+        value,
+      ) || null,
+    ) ?? "";
+    const structuredDeadline = firstValidStructuredValue(
+      [obj.hard_facts, obj.hardFacts],
+      ["deadline", "deadlineAt", "submissionDeadline", "submission_deadline", "offerDeadline", "offer_deadline"],
+      (value) => sanitizeTenderText(value) || null,
+    ) ?? "";
+    const structuredBudget = firstValidStructuredValue(
+      [obj.hard_facts, obj.hardFacts],
+      ["budget", "estimatedValue", "estimated_value"],
+      (value) => sanitizeTenderText(value) || null,
+    ) ?? "";
+    const structuredContractType = firstValidStructuredValue(
+      [obj.hard_facts, obj.hardFacts],
+      ["contract_type", "contractType"],
+      (value) => pickValidatedPublicProcedure(value) || null,
+    ) ?? "";
+    const structuredSummaryCandidates = structuredAliasValues([obj], ["summary", "description"]);
+    const structuredProcedure = firstValidStructuredValue(
+      [procurement, obj.hard_facts, obj.hardFacts],
+      ["procedure", "procedure_type", "procedureType", "contract_type", "contractType"],
+      (value) => pickValidatedPublicProcedure(value) || null,
+    ) ?? "";
+    const fallbackProcedure = pickValidatedPublicProcedure(fallbackFacts.procedure);
+    const contractValue = recordValue(firstStructuredValue(procurement, ["contract_value", "contractValue"]));
+    const contractDuration = recordValue(firstStructuredValue(procurement, ["contract_duration", "contractDuration"]));
     const normalized = {
       ...structured,
       title: sanitizeTenderText(structured.title) || safeFallbackTitle,
       summary: pickValidatedPublicCandidate(
-        structured.summary,
-        obj.description,
+        ...structuredSummaryCandidates,
         fallbackFacts.summary,
-         fallbackFacts.scope,
-       ),
-       hard_facts: {
+        fallbackFacts.scope,
+        normalizedScope,
+      ),
+      hard_facts: {
         // Parsed portal labels are more reliable than legacy cache fragments
         // such as "## Kurzinfo" or a lone postal code.
-          buyer: normalizePublicClient(fallbackFacts.buyer) || normalizePublicClient(hardFacts.buyer) || null,
-          deadline: sanitizeTenderText(fallbackFacts.deadline) || sanitizeTenderText(hardFacts.deadline) || null,
-          budget: sanitizeTenderText(hardFacts.budget) || null,
-          contract_type: sanitizeTenderText(hardFacts.contract_type) || null,
-          location: pickValidatedPublicLocationForTender(
-            safeFallbackTitle,
-             fallbackFacts.buyer || hardFacts.buyer,
-            fallbackFacts.location,
-             hardFacts.location,
-          ) || null,
+        buyer: normalizePublicClient(fallbackFacts.buyer) || structuredBuyer || null,
+        deadline: sanitizeTenderText(fallbackFacts.deadline) || structuredDeadline || null,
+        budget: structuredBudget || null,
+        contract_type: structuredContractType || null,
+        location: pickValidatedPublicLocationForTender(
+          safeFallbackTitle,
+          fallbackFacts.buyer || structuredBuyer,
+          fallbackFacts.location,
+          structuredLocation,
+        ) || null,
       },
-       decision_relevant: {
-         scope: normalizedTextList(decisionRelevant.scope),
-         requirements: normalizedTextList(decisionRelevant.requirements),
-         mandatory_documents: normalizedTextList(decisionRelevant.mandatory_documents),
-         award_criteria: normalizedTextList(decisionRelevant.award_criteria),
+      decision_relevant: {
+        scope: normalizedScope,
+        requirements: scopeIsDocumentArtifact
+          ? []
+          : firstValidTextList([obj.decision_relevant, obj.decisionRelevant], ["requirements"]),
+        mandatory_documents: scopeIsDocumentArtifact
+          ? []
+          : firstValidTextList([obj.decision_relevant, obj.decisionRelevant], ["mandatory_documents", "mandatoryDocuments"]),
+        award_criteria: firstValidTextList([obj.decision_relevant, obj.decisionRelevant], ["award_criteria", "awardCriteria"]),
       },
-       procurement: {
-          contract_value: {
-            min: typeof recordValue(procurement.contract_value).min === "number" ? recordValue(procurement.contract_value).min as number : null,
-            max: typeof recordValue(procurement.contract_value).max === "number" ? recordValue(procurement.contract_value).max as number : null,
-            currency: sanitizeTenderText(recordValue(procurement.contract_value).currency) || "EUR",
+      procurement: {
+        contract_value: {
+          min: typeof contractValue.min === "number" ? contractValue.min : null,
+          max: typeof contractValue.max === "number" ? contractValue.max : null,
+          currency: sanitizeTenderText(contractValue.currency) || "EUR",
+        },
+        contract_duration: {
+          months: typeof contractDuration.months === "number" ? contractDuration.months : null,
+          renewal: contractDuration.renewal === true,
+        },
+        procedure_type: fallbackProcedure
+          || structuredProcedure
+          || "",
+        participation_requirements: firstValidTextList([procurement], ["participation_requirements", "participationRequirements"]),
+        award_criteria_detailed: firstValidStructuredValue(
+          [procurement],
+          ["award_criteria_detailed", "awardCriteriaDetailed"],
+          (value) => {
+            const normalized = normalizedAwardCriteria(value);
+            return normalized.length > 0 ? normalized : null;
           },
-          contract_duration: {
-            months: typeof recordValue(procurement.contract_duration).months === "number" ? recordValue(procurement.contract_duration).months as number : null,
-            renewal: recordValue(procurement.contract_duration).renewal === true,
-          },
-          procedure_type: sanitizeTenderText(fallbackFacts.procedure)
-           || sanitizeTenderText(procurement.procedure_type)
-           || "",
-         participation_requirements: normalizedTextList(procurement.participation_requirements),
-         award_criteria_detailed: normalizedAwardCriteria(procurement.award_criteria_detailed),
-         cpv_codes: normalizedTextList(procurement.cpv_codes),
+        ) ?? [],
+        cpv_codes: firstValidTextList([procurement], ["cpv_codes", "cpvCodes"]),
       },
     };
     const canonical = {
       ...normalized,
-      ...(Object.prototype.hasOwnProperty.call(obj, "description")
-        ? { description: pickValidatedPublicCandidate(obj.description) }
+      ...(Object.prototype.hasOwnProperty.call(obj, "description") || Object.prototype.hasOwnProperty.call(obj, "summary")
+        ? { description: pickValidatedPublicCandidate(...structuredSummaryCandidates) }
         : {}),
       descriptionMarkdown: buildStructuredDescriptionMarkdown(normalized, obj.referenceNumber ?? obj.reference_number),
       commercialBrief: normalized.commercialBrief
@@ -524,12 +660,27 @@ export function normalizeStructured(raw: unknown, fallbackTitle: string, fallbac
     return canonical;
   }
   const flat = obj as Record<string, unknown>;
-  const scopeStr = sanitizeTenderText(flat.scope);
-  const descStr = sanitizeTenderText(flat.description);
-  const reqArr = normalizedTextList(flat.requirements);
-  const awardArr = normalizedTextList(flat.awardCriteria ?? flat.award_criteria);
+  const scopeCandidates = structuredAliasValues([flat], ["scope", "subject"]);
+  const descriptionCandidates = structuredAliasValues([flat], ["description", "summary"]);
+  const scopeStr = firstValidStructuredValue([flat], ["scope", "subject"], (value) => sanitizeTenderText(value) || null) ?? "";
+  const reqArr = firstValidTextList([flat], ["requirements", "participation_requirements", "participationRequirements"]);
+  const awardArr = firstValidTextList([flat], ["awardCriteria", "award_criteria"]);
   const titleStr = sanitizeTenderText(flat.title) || safeFallbackTitle;
-  const buyerStr = normalizePublicClient(flat.client) || normalizePublicClient(fallbackFacts.buyer) || null;
+  const buyerStr = firstValidStructuredValue([flat], ["client", "buyer"], (value) => normalizePublicClient(value) || null)
+    || normalizePublicClient(fallbackFacts.buyer)
+    || null;
+  const locationStr = firstValidStructuredValue(
+    [flat],
+    ["location", "city"],
+    (value) => pickValidatedPublicLocationForTender(titleStr, buyerStr, value) || null,
+  ) ?? "";
+  const deadlineStr = firstValidStructuredValue([flat], ["deadline", "deadlineAt"], (value) => sanitizeTenderText(value) || null) ?? "";
+  const procedureStr = firstValidStructuredValue(
+    [flat],
+    ["procedure", "procedureType", "procedure_type"],
+    (value) => pickValidatedPublicProcedure(value) || null,
+  ) ?? "";
+  const fallbackProcedure = pickValidatedPublicProcedure(fallbackFacts.procedure);
   const scopeWords = scopeStr && scopeStr.toLocaleLowerCase("de-DE") !== titleStr.toLocaleLowerCase("de-DE")
     ? scopeStr.split(/\s+/).filter((word) => word.length > 3)
     : [];
@@ -537,18 +688,18 @@ export function normalizeStructured(raw: unknown, fallbackTitle: string, fallbac
   const normalized = {
     title: titleStr,
     summary: pickValidatedPublicCandidate(
-      descStr,
-      scopeStr,
-         fallbackFacts.summary,
-         fallbackFacts.scope,
-       ),
+      ...descriptionCandidates,
+      ...scopeCandidates,
+      fallbackFacts.summary,
+      fallbackFacts.scope,
+    ),
     confidence: 0.5,
     hard_facts: {
-      location: pickValidatedPublicLocationForTender(titleStr, buyerStr, flat.location, fallbackFacts.location) || null,
-      deadline: sanitizeTenderText(flat.deadline) || sanitizeTenderText(fallbackFacts.deadline) || null,
-      budget: sanitizeTenderText(flat.estimatedValue ?? flat.value) || null,
+      location: locationStr || pickValidatedPublicLocationForTender(titleStr, buyerStr, fallbackFacts.location) || null,
+      deadline: deadlineStr || sanitizeTenderText(fallbackFacts.deadline) || null,
+      budget: sanitizeTenderText(firstStructuredValue(flat, ["estimatedValue", "estimated_value", "value"])) || null,
       buyer: buyerStr,
-      contract_type: sanitizeTenderText(flat.procedure) || sanitizeTenderText(fallbackFacts.procedure) || null,
+      contract_type: procedureStr || fallbackProcedure || null,
     },
     decision_relevant: {
       scope: scopeWords,
@@ -561,8 +712,8 @@ export function normalizeStructured(raw: unknown, fallbackTitle: string, fallbac
       contract_duration: { months: null, renewal: false },
       award_criteria_detailed: [],
       participation_requirements: [],
-      cpv_codes: [],
-      procedure_type: sanitizeTenderText(fallbackFacts.procedure) || sanitizeTenderText(flat.procedure),
+      cpv_codes: firstValidTextList([flat], ["cpvCodes", "cpv_codes"]),
+      procedure_type: fallbackProcedure || procedureStr,
     },
   };
   return {
@@ -572,14 +723,14 @@ export function normalizeStructured(raw: unknown, fallbackTitle: string, fallbac
       procedure: normalized.procurement.procedure_type,
       deadline: normalized.hard_facts.deadline,
       location: normalized.hard_facts.location,
-      value: flat.estimatedValue ?? flat.value,
-      duration: flat.duration,
-      reference: flat.referenceNumber ?? flat.reference_number,
+      value: firstStructuredValue(flat, ["estimatedValue", "estimated_value", "value"]),
+      duration: firstStructuredValue(flat, ["duration", "contractDuration", "contract_duration"]),
+      reference: firstStructuredValue(flat, ["referenceNumber", "reference_number"]),
       summary: normalized.summary,
       scope: scopeStr,
       requirements: reqArr,
       awardCriteria: awardArr,
-     cpv: normalizedTextList(flat.cpvCodes ?? flat.cpv_codes),
+      cpv: firstValidTextList([flat], ["cpvCodes", "cpv_codes"]),
     }),
     commercialBrief: createCommercialBriefFallback(commercialBriefFacts(normalized)),
   };
@@ -595,6 +746,156 @@ interface LLMExtractionResult {
   procedure_type: string;
   commercial_brief: unknown;
 }
+
+const SOURCE_AMOUNT_NUMBER = String.raw`(?:\d{1,3}(?:[.\s]\d{3})+(?:,\d+)?|\d+(?:[,.]\d+)?)`;
+const SOURCE_CURRENCY_AMOUNT = new RegExp(
+  `(?:€|\\bEUR\\b|\\bEURO\\b)\\s*(${SOURCE_AMOUNT_NUMBER})|(${SOURCE_AMOUNT_NUMBER})(?:\\s*(?:bis|[-–])\\s*(${SOURCE_AMOUNT_NUMBER}))?\\s*(?:€|\\bEUR\\b|\\bEURO\\b)`,
+  "giu",
+);
+
+const parseSourceAmount = (value: string): number | null => {
+  const compact = value.replace(/\s/gu, "");
+  let normalized = compact;
+  if (compact.includes(",") && compact.includes(".")) {
+    normalized = compact.lastIndexOf(",") > compact.lastIndexOf(".")
+      ? compact.replace(/\./gu, "").replace(",", ".")
+      : compact.replace(/,/gu, "");
+  } else if (compact.includes(",")) {
+    normalized = /,\d{3}$/u.test(compact) ? compact.replace(/,/gu, "") : compact.replace(",", ".");
+  } else if (/^\d{1,3}(?:\.\d{3})+$/u.test(compact)) {
+    normalized = compact.replace(/\./gu, "");
+  }
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+};
+
+const sourceEuroAmounts = (rawText: string): number[] => {
+  const amounts: number[] = [];
+  SOURCE_CURRENCY_AMOUNT.lastIndex = 0;
+  for (const match of rawText.matchAll(SOURCE_CURRENCY_AMOUNT)) {
+    const before = rawText.slice(Math.max(0, (match.index ?? 0) - 220), match.index ?? 0);
+    if (!/(?:auftragswert|auftragsvolumen|gesamtwert|vertragswert|estimated\s+(?:(?:contract|total)\s+)?value|contract\s+value|budget|höchstwert|hoechstwert|schätzwert|schaetzwert)/iu.test(before)) continue;
+    for (const candidate of [match[1], match[2], match[3]]) {
+      if (!candidate) continue;
+      const value = parseSourceAmount(candidate);
+      if (value !== null) amounts.push(value);
+    }
+  }
+  SOURCE_CURRENCY_AMOUNT.lastIndex = 0;
+  return amounts;
+};
+
+const sourceDurationMonths = (rawText: string): number[] => {
+  const values: number[] = [];
+  const pattern = /(\d{1,4})\s*(monat(?:e|en)?|month(?:s)?|jahr(?:e|en)?|year(?:s)?|tag(?:e|en)?|day(?:s)?)/giu;
+  for (const match of rawText.matchAll(pattern)) {
+    const before = rawText.slice(Math.max(0, (match.index ?? 0) - 160), match.index ?? 0);
+    if (!/(?:laufzeit|vertragslaufzeit|dauer\s+des\s+vertrags|vertrag(?:s)?\s+(?:läuft|laeuft|beträgt|betraegt|für|fuer)|zeitraum|contract\s+(?:duration|term)|duration|term)/iu.test(before)) continue;
+    const amount = Number(match[1]);
+    const unit = match[2].toLocaleLowerCase("de-DE");
+    if (unit.startsWith("jahr") || unit.startsWith("year")) values.push(amount * 12);
+    else if (unit.startsWith("tag") || unit.startsWith("day")) values.push(Math.ceil(amount / 30));
+    else values.push(amount);
+  }
+  return values;
+};
+
+const sourceBackedAwardCriterion = (criterion: string, rawText: string): boolean => {
+  if (!isSourceBackedPublicValue(criterion, rawText)) return false;
+  const source = compactSpaces(decodeHtmlEntities(rawText)).toLocaleLowerCase("de-DE");
+  const candidate = compactSpaces(decodeHtmlEntities(criterion)).toLocaleLowerCase("de-DE");
+  let position = source.indexOf(candidate);
+  while (position >= 0) {
+    const before = source.slice(Math.max(0, position - 300), position);
+    if (/(?:zuschlagskriter|award criteria|wertung|gewichtung)/iu.test(before)) return true;
+    position = source.indexOf(candidate, position + 1);
+  }
+  return false;
+};
+
+const sourceBackedAwardWeight = (criterion: string, weight: number, rawText: string): boolean => {
+  if (!Number.isFinite(weight) || weight < 0 || weight > 100) return false;
+  const source = compactSpaces(decodeHtmlEntities(rawText)).toLocaleLowerCase("de-DE");
+  const candidate = compactSpaces(decodeHtmlEntities(criterion)).toLocaleLowerCase("de-DE");
+  const numericWeight = String(weight).replace(".", "[.,]");
+  const percentOrPoints = new RegExp(`(?:^|[^\\d])${numericWeight}(?:[.,]0+)?\\s*(?:%|prozent|punkte)`, "iu");
+  const labelledWeight = new RegExp(`(?:zahl|weight)\\s*[:\\-]?\\s*${numericWeight}(?:[.,]0+)?\\b`, "iu");
+  let position = source.indexOf(candidate);
+  while (position >= 0) {
+    const before = source.slice(Math.max(0, position - 300), position);
+    if (/(?:zuschlagskriter|award criteria|wertung|gewichtung)/iu.test(before)) {
+      const window = source.slice(Math.max(0, position - 80), position + candidate.length + 100);
+      if (percentOrPoints.test(window) || labelledWeight.test(window)) return true;
+    }
+    position = source.indexOf(candidate, position + 1);
+  }
+  return false;
+};
+
+const sourceBackedCpvCode = (code: string, rawText: string): boolean => {
+  if (!/^\d{8}(?:-\d)?$/u.test(code) || !isSourceBackedPublicValue(code, rawText)) return false;
+  const source = compactSpaces(decodeHtmlEntities(rawText)).toLocaleLowerCase("de-DE");
+  let position = source.indexOf(code.toLocaleLowerCase("de-DE"));
+  while (position >= 0) {
+    if (/\b(?:cpv(?:-code)?|common procurement vocabulary)\b/iu.test(source.slice(Math.max(0, position - 300), position))) return true;
+    position = source.indexOf(code.toLocaleLowerCase("de-DE"), position + 1);
+  }
+  return false;
+};
+
+const sourceBackedProcedure = (procedure: string, rawText: string): boolean => {
+  const evidence: Record<string, RegExp> = {
+    offen: /\b(?:offenes verfahren|öffentliche ausschreibung|open procedure)\b/iu,
+    beschränkt: /\b(?:beschränktes verfahren|beschränkte ausschreibung|restricted procedure)\b/iu,
+    verhandelt: /\b(?:verhandlungsverfahren|verhandelte ausschreibung|negotiated procedure)\b/iu,
+    dialog: /\b(?:wettbewerblicher dialog|competitive dialogue)\b/iu,
+    innovation: /\b(?:innovationspartnerschaft|innovation partnership)\b/iu,
+  };
+  const value = procedure.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const labelled = new RegExp(`(?:verfahrensart|vergabeart|procedure type)\\s*[:\\-]?\\s*${value}\\b`, "iu");
+  return Boolean(evidence[procedure]?.test(rawText) || labelled.test(rawText));
+};
+
+/** Keep LLM procurement values only when raw source text explicitly supports them. */
+export const groundLLMExtractionAgainstSource = (
+  extraction: LLMExtractionResult,
+  rawText: string,
+): LLMExtractionResult => {
+  const source = decodeHtmlEntities(rawText);
+  const amounts = sourceEuroAmounts(source);
+  const durations = sourceDurationMonths(source);
+  const awardCriteria = extraction.award_criteria
+    .filter((item) => sourceBackedAwardCriterion(item.criterion, rawText))
+    .map((item) => ({
+      ...item,
+      weight: item.weight !== null && sourceBackedAwardWeight(item.criterion, item.weight, rawText)
+        ? item.weight
+        : null,
+    }));
+  return {
+    ...extraction,
+    contract_value: {
+      min: extraction.contract_value.min !== null && amounts.some((value) => Math.abs(value - extraction.contract_value.min!) < 0.005)
+        ? extraction.contract_value.min
+        : null,
+      max: extraction.contract_value.max !== null && amounts.some((value) => Math.abs(value - extraction.contract_value.max!) < 0.005)
+        ? extraction.contract_value.max
+        : null,
+      currency: "EUR",
+    },
+    contract_duration_months: extraction.contract_duration_months !== null
+      && durations.includes(extraction.contract_duration_months)
+      ? extraction.contract_duration_months
+      : null,
+    contract_duration_renewal: extraction.contract_duration_renewal
+      && /(?:verlängerungsoption|verlängerbar|optionszeitraum|option\s+(?:zur\s+)?verlängerung|renewable|renewal\s+option|option\s+to\s+extend)/iu.test(source),
+    award_criteria: awardCriteria,
+    participation_requirements: extraction.participation_requirements
+      .filter((requirement) => isSourceBackedPublicValue(requirement, rawText)),
+    cpv_codes: extraction.cpv_codes.filter((code) => sourceBackedCpvCode(code, rawText)),
+    procedure_type: sourceBackedProcedure(extraction.procedure_type, source) ? extraction.procedure_type : "",
+  };
+};
 
 const LLM_STRUCTURE_PROMPT = `Du bist ein Experte für öffentliche Ausschreibungen in Deutschland.
 Analysiere den folgenden Text einer Ausschreibung und extrahiere die Vergabedaten.
@@ -656,7 +957,7 @@ async function extractWithLLM(title: string, rawText: string): Promise<LLMExtrac
     const parsed = JSON.parse(content);
     
     // Validate and sanitize
-    return {
+    const sanitized: LLMExtractionResult = {
       contract_value: {
         min: typeof parsed.contract_value?.min === "number" ? parsed.contract_value.min : null,
         max: typeof parsed.contract_value?.max === "number" ? parsed.contract_value.max : null,
@@ -678,9 +979,10 @@ async function extractWithLLM(title: string, rawText: string): Promise<LLMExtrac
         : [],
       procedure_type: ["offen", "beschränkt", "verhandelt", "dialog", "innovation"].includes(parsed.procedure_type)
         ? parsed.procedure_type
-        : "offen",
+        : "",
       commercial_brief: parsed.commercial_brief,
     };
+    return groundLLMExtractionAgainstSource(sanitized, rawText);
   } catch (error) {
     console.error("[structurer] LLM-Extraktion fehlgeschlagen:", error);
     return null;

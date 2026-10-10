@@ -2,12 +2,13 @@ import "dotenv/config";
 import fs from "node:fs";
 import { and, eq, like } from "drizzle-orm";
 import { db } from "../lib/db";
-import { documents, tenderResources } from "../lib/schema";
+import { documents, tenderResources, tenders } from "../lib/schema";
 import { extractTextFromFile } from "../lib/parser";
 import { objectAbsolutePath } from "../lib/storage";
+import { ensureLocalStored } from "../lib/object-store-cold";
 import { repairKnownGermanEncoding } from "../lib/text-normalization";
 import { markCatalogDirty } from "../lib/catalog";
-import { enqueueJob } from "../lib/queue";
+import { buildTenderPipelineGroupKey, enqueueJob } from "../lib/queue";
 import { JOB_STRUCTURE, JOB_SYNC_MEILI } from "../lib/types";
 
 const replacementCharacter = "\uFFFD";
@@ -27,19 +28,27 @@ async function main(): Promise<void> {
       storagePath: documents.storagePath,
       contentType: documents.contentType,
       extractedText: documents.extractedText,
+      tenderVersion: tenders.version,
     })
     .from(documents)
+    .innerJoin(tenders, eq(tenders.id, documents.tenderId))
     .where(and(
       like(documents.extractedText, `%${replacementCharacter}%`),
       eq(documents.contentType, "text/html"),
     ));
 
   const changedTenderIds = new Set<number>();
+  const changedTenderVersions = new Map<number, number>();
   let repairedDocuments = 0;
   for (const row of rows) {
     const current = repairKnownGermanEncoding(row.extractedText ?? "");
     let repaired = current;
-    const absolutePath = objectAbsolutePath(row.storagePath);
+    let absolutePath: string;
+    try {
+      absolutePath = await ensureLocalStored(row.storagePath);
+    } catch {
+      absolutePath = objectAbsolutePath(row.storagePath);
+    }
     if (fs.existsSync(absolutePath)) {
       try {
         repaired = repairKnownGermanEncoding(parseText(await extractTextFromFile(absolutePath, row.contentType)));
@@ -56,6 +65,7 @@ async function main(): Promise<void> {
     }).where(eq(documents.id, row.id));
     repairedDocuments += 1;
     changedTenderIds.add(row.tenderId);
+    changedTenderVersions.set(row.tenderId, row.tenderVersion);
   }
 
   const resourceRows = await db
@@ -73,8 +83,11 @@ async function main(): Promise<void> {
   if (repairedDocuments > 0 || repairedResources > 0) {
     await markCatalogDirty();
     for (const tenderId of changedTenderIds) {
-      await enqueueJob(JOB_STRUCTURE, { tender_id: tenderId }, {
+      const tenderVersion = changedTenderVersions.get(tenderId);
+      if (!tenderVersion) continue;
+      await enqueueJob(JOB_STRUCTURE, { tender_id: tenderId, pipeline_version: tenderVersion }, {
         jobKey: `structure:encoding-backfill:${tenderId}`,
+        groupKey: buildTenderPipelineGroupKey(tenderId),
         dedupeCompleted: false,
       });
     }

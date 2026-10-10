@@ -7,6 +7,7 @@ import * as cheerio from "cheerio";
 import { tenders, documents } from "../lib/schema.js";
 import { eq, and, sql } from "drizzle-orm";
 import { objectAbsolutePath } from "../lib/storage.js";
+import { ensureLocalStored } from "../lib/object-store-cold.js";
 
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 const db = drizzle(pool);
@@ -80,7 +81,13 @@ async function main() {
         continue;
       }
 
-      const absPath = objectAbsolutePath(htmlDoc.storagePath);
+      let absPath: string;
+      try {
+        absPath = await ensureLocalStored(htmlDoc.storagePath);
+      } catch {
+        skipped++;
+        continue;
+      }
       if (!fs.existsSync(absPath)) {
         skipped++;
         continue;

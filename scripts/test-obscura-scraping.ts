@@ -1,7 +1,7 @@
 /**
  * Verification: real tender scraping through Obscura (CDP) instead of local Chromium.
  * Exercises scrapeWebsite (route guard, networkidle, evaluate, content) and
- * fetchResourceWithBrowserSession (context.request with session cookies).
+ * fetchResourceWithBrowserSession (streamed request with session cookies).
  */
 import { scrapeWebsite, fetchResourceWithBrowserSession } from "@/lib/firecrawl";
 

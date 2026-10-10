@@ -162,3 +162,8 @@ export function detectAccessPage(
   const confidence = Math.min(1, 0.7 + Math.max(0, signals.length - 1) * 0.1);
   return { blocked: true, reason, confidence, signals };
 }
+
+/** Positive evidence for a public "access-limited" summary, not generic navigation/error pages. */
+export const hasPositiveAccessLimitedEvidence = (explicitlyLimited: unknown, text: unknown): boolean =>
+  explicitlyLimited === true
+  || (typeof text === "string" && detectAccessPage(text).reason === "participation_required");

@@ -28,7 +28,12 @@ export function detectTextEncoding(raw: Uint8Array, contentType?: string | null)
 /** Decode HTML/XML bytes conservatively, recovering legacy single-byte pages. */
 export function decodeTextBuffer(raw: Uint8Array, contentType?: string | null): string {
   const preferredEncoding = detectTextEncoding(raw, contentType);
-  const preferred = new TextDecoder(preferredEncoding).decode(raw);
+  let preferred: string;
+  try {
+    preferred = new TextDecoder(preferredEncoding).decode(raw);
+  } catch {
+    preferred = new TextDecoder("utf-8").decode(raw);
+  }
   if (replacementCount(preferred) === 0) return preferred;
 
   const alternatives = ["windows-1252", "iso-8859-1", "utf-8"];
