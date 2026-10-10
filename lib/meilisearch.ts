@@ -2,11 +2,20 @@ import { Meilisearch, type SearchResponse } from "meilisearch";
 import { db } from "@/lib/db";
 import { structuredData, tenders } from "@/lib/schema";
 import { and, eq, gt, inArray, isNull, or } from "drizzle-orm";
-import { getPublicClientFallback, normalizePublicClient, pickPublicDescription } from "@/lib/public-tender-scraper";
+import { getPublicAccessLimitedFallback } from "@/lib/public-tender-scraper";
 import { deriveBundesland, deriveCity } from "@/lib/bundesland";
 import { getPublicSourceBundesland } from "@/lib/public-source-registry";
-import { pickValidatedPublicCandidate, pickValidatedPublicClient, pickValidatedPublicLocationForTender } from "@/lib/public-content-quality";
+import {
+  pickValidatedPublicProcedure,
+  projectPublicTenderRecord,
+  projectPublicDisplayFields,
+} from "@/lib/public-content-quality";
 import { acquireCatalogSync, finishCatalogSync, getCatalogState, releaseCatalogSync, touchCatalogSync } from "@/lib/catalog";
+import { analyzeTenderForSmallVendor, toCompact } from "@/lib/small-vendor";
+import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
+import { normalizeStructured } from "@/lib/structurer";
+import { readPublicTenderMeta } from "@/lib/tender-meta";
+import { formatDeadlineDE } from "@/lib/date-utils";
 
 const MEILI_HOST = process.env.MEILI_HOST ?? "http://localhost:7700";
 const MEILI_KEY = process.env.MEILI_MASTER_KEY ?? "";
@@ -31,6 +40,7 @@ interface TenderDocument {
   title: string;
   description: string;
   client: string;
+  procedureType: string | null;
   category: string;
   bundesland: string | null;
   city: string | null;
@@ -44,6 +54,12 @@ interface TenderDocument {
   readinessStatus: string;
   contractValueMax: number | null;
   slug: string | null;
+  smallVendorFit: number | null;
+  priceWeightPct: number | null;
+  lowEntryBarrier: boolean;
+  remoteFriendly: boolean;
+  isItDomain: boolean;
+  isLot: boolean;
 }
 
 export interface TenderIndexInput {
@@ -57,6 +73,7 @@ export interface TenderIndexInput {
   category: string | null;
   metadataJson: unknown;
   structuredJson: unknown;
+  procedureType?: string | null;
   rawText: string | null;
   contractValueMax: number | null;
   slug: string | null;
@@ -76,39 +93,67 @@ const parseRecord = (value: unknown): Record<string, unknown> => {
   }
 };
 
+export const getStaleIds = (existingIds: Iterable<number>, desiredIds: ReadonlySet<number>): number[] =>
+  [...existingIds].filter((id) => !desiredIds.has(id));
+
 /** Build the public document used by both indexing and search result cleanup. */
 export const buildTenderIndexDocument = (item: TenderIndexInput): TenderDocument => {
   const meta = parseRecord(item.metadataJson);
   const structured = parseRecord(item.structuredJson);
-  const hardFacts = structured.hard_facts && typeof structured.hard_facts === "object"
-    ? structured.hard_facts as Record<string, unknown>
-    : {};
-  const title = pickValidatedPublicCandidate(item.title) || `Ausschreibung #${item.id}`;
-  const client = pickValidatedPublicClient(
-    meta.client,
-    meta.buyer,
-    hardFacts.buyer,
-    getPublicClientFallback(item.source, item.url),
-  ) || "Unbekannt";
-  const location = pickValidatedPublicLocationForTender(title, client, meta.location, hardFacts.location);
+  const publicMeta = readPublicTenderMeta(meta, {
+    title: item.title,
+    source: item.source,
+    sourceUrl: item.url,
+  });
+  const accessFallback = getPublicAccessLimitedFallback({
+    title: item.title ?? "",
+    factsText: publicMeta.description,
+    evidenceText: item.rawText,
+    explicitlyAccessLimited: publicMeta.accessLimited,
+  });
+  const fallbackFacts = {
+    buyer: publicMeta.client,
+    procedure: publicMeta.procedure || (item.rawText?.trim() ? pickValidatedPublicProcedure(item.procedureType) : null),
+    deadline: item.deadlineAt ? formatDeadlineDE(item.deadlineAt) : null,
+    location: publicMeta.location,
+    summary: publicMeta.description,
+    scope: publicMeta.subject,
+  };
+  const normalizedStructured = normalizeStructured(structured, item.title ?? "", fallbackFacts);
+  const baseDisplay = projectPublicTenderRecord({
+    title: item.title,
+    metadata: meta,
+    structured: normalizedStructured,
+    clientFallbacks: [publicMeta.client],
+    locationFallbacks: [publicMeta.location],
+    summaryFallbacks: [accessFallback?.description, publicMeta.description],
+  });
+  const title = baseDisplay.title || `Ausschreibung #${item.id}`;
+  const client = baseDisplay.client || "Unbekannt";
+  const display = baseDisplay;
+  const location = display.location || "";
+  const canonicalSlug = getCanonicalTenderSlug(
+    item.slug,
+    item.title,
+    item.metadataJson,
+    item.rawText?.trim() ? item.structuredJson : null,
+  );
   const bundesland = deriveBundesland(location)
     ?? getPublicSourceBundesland(item.sourceKey ?? item.source, item.url);
-  const pdfUrls = Array.isArray(meta.pdf_urls)
-    ? meta.pdf_urls
-    : Array.isArray(meta.pdfUrls) ? meta.pdfUrls : [];
+  const pdfUrls = [
+    ...(Array.isArray(meta.pdf_urls) ? meta.pdf_urls : []),
+    ...(Array.isArray(meta.pdfUrls) ? meta.pdfUrls : []),
+  ].filter((value): value is string => typeof value === "string")
+    .filter((value, index, values) => values.indexOf(value) === index);
+  const smallVendor = toCompact(analyzeTenderForSmallVendor(title, structured));
 
   return {
     id: item.id,
     title,
-    description: pickPublicDescription(
-      structured.summary,
-      structured.description,
-      structured.scope,
-      meta.description,
-      meta.summary,
-      item.rawText,
-    ).slice(0, 5_000),
+    description: (display.description || "").slice(0, 5_000),
     client,
+    procedureType: normalizedStructured.procurement.procedure_type
+      || (item.rawText?.trim() ? pickValidatedPublicProcedure(item.procedureType) : null),
     category: item.category ?? "Sonstiges",
     bundesland,
     city: deriveCity(location),
@@ -121,7 +166,13 @@ export const buildTenderIndexDocument = (item: TenderIndexInput): TenderDocument
     pdfCount: pdfUrls.length,
     readinessStatus: item.readinessStatus,
     contractValueMax: item.contractValueMax,
-    slug: item.slug ?? null,
+    slug: canonicalSlug,
+    smallVendorFit: smallVendor.fit,
+    priceWeightPct: smallVendor.priceWeightPct,
+    lowEntryBarrier: smallVendor.lowEntryBarrier,
+    remoteFriendly: smallVendor.remoteFriendly,
+    isItDomain: smallVendor.isItDomain,
+    isLot: smallVendor.isLot,
   };
 };
 
@@ -144,11 +195,11 @@ const configureIndex = async (
   ]);
 
   await index.updateFilterableAttributes([
-    "bundesland", "city", "category", "source", "hasDeadline", "deadlineAt", "firstSeenAt", "readinessStatus",
+    "bundesland", "city", "category", "source", "hasDeadline", "deadlineAt", "firstSeenAt", "readinessStatus", "smallVendorFit",
   ]);
 
   await index.updateSortableAttributes([
-    "deadlineAt", "firstSeenAt", "hasDeadline", "contractValueMax",
+    "deadlineAt", "firstSeenAt", "hasDeadline", "contractValueMax", "smallVendorFit",
   ]);
 
   await index.updateLocalizedAttributes([
@@ -236,14 +287,14 @@ export async function syncTendersToMeili(): Promise<{ indexed: number; skipped: 
     const batchSize = 50;
     let targetRevision = syncRevision;
     let lastProcessed = 0;
+    const desiredIds = new Set<number>();
     for (let attempt = 0; attempt < 4; attempt += 1) {
       // Keep the live index in place so Meilisearch can reuse cached embeddings
       // for documents whose embedded content did not change.
+      desiredIds.clear();
       const now = new Date();
       let lastId = 0;
       let indexed = 0;
-    const desiredIds = new Set<number>();
-
       while (true) {
         const items = await db
           .select({
@@ -254,7 +305,8 @@ export async function syncTendersToMeili(): Promise<{ indexed: number; skipped: 
             url: tenders.url,
             deadlineAt: tenders.deadlineAt,
             firstSeenAt: tenders.firstSeenAt,
-             category: tenders.category,
+            category: tenders.category,
+             procedureType: tenders.procedureType,
              metadataJson: tenders.metadataJson,
              structuredJson: structuredData.jsonBlob,
              rawText: tenders.rawText,
@@ -303,7 +355,7 @@ export async function syncTendersToMeili(): Promise<{ indexed: number; skipped: 
           offset += page.results.length;
         }
 
-        const staleIds = [...existingIds].filter((id) => !desiredIds.has(id));
+        const staleIds = getStaleIds(existingIds, desiredIds);
         for (let offset = 0; offset < staleIds.length; offset += 1_000) {
           const batch = staleIds.slice(offset, offset + 1_000);
           await waitForMeiliTask(await index.deleteDocuments(batch), `Löschen veralteter Tender ab ${batch[0]}`);
@@ -315,9 +367,25 @@ export async function syncTendersToMeili(): Promise<{ indexed: number; skipped: 
       targetRevision = currentRevision;
       console.log(`[meilisearch] Katalog während des Syncs geändert (Revision ${currentRevision}), wiederhole.`);
     }
+    const existingIds = new Set<number>();
+    let offset = 0;
+    while (true) {
+      const page = await index.getDocuments<{ id: number }>({ limit: 1_000, offset, fields: ["id"] });
+      for (const document of page.results) {
+        const id = Number(document.id);
+        if (Number.isInteger(id)) existingIds.add(id);
+      }
+      if (page.results.length < 1_000) break;
+      offset += page.results.length;
+    }
+    const staleIds = getStaleIds(existingIds, desiredIds);
+    for (let offset = 0; offset < staleIds.length; offset += 1_000) {
+      const batch = staleIds.slice(offset, offset + 1_000);
+      await waitForMeiliTask(await index.deleteDocuments(batch), `Löschen veralteter Tender ab ${batch[0]}`);
+    }
     await finishCatalogSync(targetRevision);
     console.warn(`[meilisearch] Sync abgeschlossen, obwohl der Katalog weiter geändert wurde (Revision ${targetRevision}).`);
-    return { indexed: lastProcessed, skipped: 0 };
+    return { indexed: lastProcessed, skipped: staleIds.length };
   } catch (error) {
     await releaseCatalogSync().catch(() => undefined);
     throw error;
@@ -334,12 +402,68 @@ export interface MeilisearchParams {
   hasDeadline?: boolean;
   deadlineAtFrom?: number;
   deadlineAtTo?: number;
-  sort?: "deadline" | "newest";
+  sort?: "deadline" | "newest" | "smallVendorFit";
+  smallVendorFitMin?: number;
   // SEO: source filter for portal landing pages (supports OR via array)
   source?: string | string[] | null;
   limit?: number;
   page?: number;
 }
+
+export const projectTenderSearchHit = (
+  hit: TenderDocument,
+  current: {
+    title: string | null;
+    source: string;
+    url: string;
+    metadataJson: unknown;
+    structuredJson: unknown;
+    rawText?: string | null;
+  },
+): TenderDocument => {
+  const publicMeta = readPublicTenderMeta(current.metadataJson, {
+    title: current.title,
+    source: current.source,
+    sourceUrl: current.url,
+  });
+  const accessFallback = getPublicAccessLimitedFallback({
+    title: current.title ?? "",
+    factsText: publicMeta.description,
+    evidenceText: current.rawText,
+    explicitlyAccessLimited: publicMeta.accessLimited,
+  });
+  const normalizedStructured = normalizeStructured(current.structuredJson, current.title ?? "", {
+    buyer: publicMeta.client,
+    procedure: publicMeta.procedure,
+    location: publicMeta.location,
+    summary: publicMeta.description,
+    scope: publicMeta.subject,
+  });
+  const currentDisplay = projectPublicTenderRecord({
+    title: current.title,
+    metadata: current.metadataJson,
+    structured: normalizedStructured,
+    summaryFallbacks: [accessFallback?.description, publicMeta.description],
+    clientFallbacks: [publicMeta.client],
+    locationFallbacks: [publicMeta.location],
+  });
+  const display = projectPublicDisplayFields({
+    title: [currentDisplay.title, hit.title],
+    client: [currentDisplay.client, hit.client],
+    location: [currentDisplay.location, hit.location, hit.city],
+    summary: [currentDisplay.description],
+  });
+
+  return {
+    ...hit,
+    title: display.title || `Ausschreibung #${hit.id}`,
+    client: display.client || "Unbekannt",
+    location: display.location || "",
+    city: display.location ? deriveCity(display.location) : null,
+    description: display.description || "",
+    procedureType: pickValidatedPublicProcedure(hit.procedureType) || null,
+  };
+};
 
 export async function searchTenders(
   params: MeilisearchParams,
@@ -384,6 +508,10 @@ export async function searchTenders(
     }
   }
 
+  if (params.smallVendorFitMin !== undefined) {
+    filters.push(`smallVendorFit >= ${params.smallVendorFitMin}`);
+  }
+
   // Keep stale index entries from reaching the UI between full syncs.
   const nowUnix = Math.floor(Date.now() / 1000);
   filters.push(`(deadlineAt IS NULL OR deadlineAt > ${nowUnix})`);
@@ -408,9 +536,11 @@ export async function searchTenders(
     searchParams.hybrid = { embedder: "default", semanticRatio: 0.5 };
   }
 
-  searchParams.sort = params.sort === "newest"
-    ? ["firstSeenAt:desc"]
-    : ["hasDeadline:desc", "deadlineAt:asc"];
+  searchParams.sort = params.sort === "smallVendorFit"
+    ? ["smallVendorFit:desc", "hasDeadline:desc", "deadlineAt:asc"]
+    : params.sort === "newest"
+      ? ["firstSeenAt:desc"]
+      : ["hasDeadline:desc", "deadlineAt:asc"];
 
   const response: SearchResponse<TenderDocument> = await index.search(
     params.query ?? "",
@@ -418,29 +548,27 @@ export async function searchTenders(
   );
 
   const hits = response.hits ?? [];
-  const qualifiedIds = hits.length > 0
-    ? new Set((await db
-      .select({ id: tenders.id })
+  const currentTenders = hits.length > 0
+    ? await db
+      .select({
+        id: tenders.id,
+        title: tenders.title,
+        source: tenders.source,
+        url: tenders.url,
+        metadataJson: tenders.metadataJson,
+        structuredJson: structuredData.jsonBlob,
+        rawText: tenders.rawText,
+      })
       .from(tenders)
-      .where(and(inArray(tenders.id, hits.map((hit) => hit.id)), eq(tenders.qualityStatus, "qualified"))))
-      .map((row) => row.id))
-    : new Set<number>();
+      .leftJoin(structuredData, eq(structuredData.tenderId, tenders.id))
+      .where(and(inArray(tenders.id, hits.map((hit) => hit.id)), eq(tenders.qualityStatus, "qualified")))
+    : [];
+  const currentTendersById = new Map(currentTenders.map((row) => [row.id, row]));
   const visibleHits = hits
-    .filter((hit) => qualifiedIds.has(hit.id))
+    .filter((hit) => currentTendersById.has(hit.id))
     .map((hit) => {
-      const title = pickValidatedPublicCandidate(hit.title) || `Ausschreibung #${hit.id}`;
-      const client = normalizePublicClient(
-        hit.client,
-        getPublicClientFallback(hit.source, hit.sourceUrl),
-      ) || "Unbekannt";
-      return {
-        ...hit,
-        title,
-        client,
-        location: pickValidatedPublicLocationForTender(title, client, hit.location),
-        city: pickValidatedPublicLocationForTender(title, client, hit.city) || null,
-        description: pickPublicDescription(hit.description),
-      };
+      const current = currentTendersById.get(hit.id)!;
+      return projectTenderSearchHit(hit, current);
     });
 
   return {

@@ -10,14 +10,17 @@ import {
 import { db } from "@/lib/db";
 import { tenders } from "@/lib/schema";
 import { gte, lt, and, eq, gt, isNull, or, sql } from "drizzle-orm";
-import { pickPublicDescription } from "@/lib/public-tender-scraper";
-import { normalizePublicClient, pickValidatedPublicCandidate, pickValidatedPublicLocationForTender } from "@/lib/public-content-quality";
+import { projectPublicDisplayFields } from "@/lib/public-content-quality";
+import { auth } from "@/lib/auth";
+import { isSmallVendorTenderModeEnabled, SMALL_VENDOR_HIGHLIGHT_THRESHOLD, deriveCompactBadges } from "@/lib/small-vendor";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request): Promise<Response> {
   try {
+    const session = await auth.api.getSession({ headers: request.headers }).catch(() => null);
+    const smallVendorMode = isSmallVendorTenderModeEnabled(session?.user ?? null);
     const url = new URL(request.url);
     const query = url.searchParams.get("q") ?? "";
     const bundesland = url.searchParams.get("bundesland");
@@ -36,7 +39,19 @@ export async function GET(request: Request): Promise<Response> {
       url.searchParams.get("deadlineTo"),
       now,
     );
-    const sort: "deadline" | "newest" = url.searchParams.get("sort") === "newest" ? "newest" : "deadline";
+    const sort: "deadline" | "newest" | "smallVendorFit" = url.searchParams.get("sort") === "newest" ? "newest" : url.searchParams.get("sort") === "smallVendorFit" && smallVendorMode ? "smallVendorFit" : "deadline";
+    const smallVendorFitMinRaw = url.searchParams.get("smallVendorFitMin");
+    let smallVendorFitMin: number | undefined;
+    if (smallVendorMode && smallVendorFitMinRaw !== null) {
+      if (["1", "true"].includes(smallVendorFitMinRaw)) {
+        smallVendorFitMin = SMALL_VENDOR_HIGHLIGHT_THRESHOLD;
+      } else {
+        const parsed = Number.parseInt(smallVendorFitMinRaw, 10);
+        if (Number.isFinite(parsed) && parsed >= 0 && parsed <= 100) {
+          smallVendorFitMin = parsed;
+        }
+      }
+    }
     const lastThreeDaysRange = getGermanLastThreeDaysUnixRange();
     const baseSearchParams = {
       query,
@@ -53,6 +68,7 @@ export async function GET(request: Request): Promise<Response> {
       ...(todayNew
         ? { firstSeenAtFrom: lastThreeDaysRange.from, firstSeenAtTo: lastThreeDaysRange.to }
         : {}),
+      ...(smallVendorFitMin !== undefined ? { smallVendorFitMin } : {}),
     });
 
     const fromTimestamp = new Date(lastThreeDaysRange.from * 1000);
@@ -80,17 +96,42 @@ export async function GET(request: Request): Promise<Response> {
     const todayNewCount = count;
 
     const items = result.hits.map((hit) => {
-      const title = pickValidatedPublicCandidate(hit.title) || `Ausschreibung #${hit.id}`;
-      const client = normalizePublicClient(hit.client) || "Unbekannt";
+      const baseDisplay = projectPublicDisplayFields({
+        title: hit.title,
+        client: hit.client,
+      });
+      const title = baseDisplay.title || `Ausschreibung #${hit.id}`;
+      const client = baseDisplay.client || "Unbekannt";
+      const display = projectPublicDisplayFields({
+        title,
+        client,
+        location: [hit.location, hit.city],
+        summary: hit.description,
+      });
+      const city = projectPublicDisplayFields({
+        title,
+        client,
+        location: hit.city,
+      }).location;
+      const compact = smallVendorMode
+        ? {
+            fit: hit.smallVendorFit ?? 0,
+            priceWeightPct: hit.priceWeightPct,
+            lowEntryBarrier: hit.lowEntryBarrier,
+            remoteFriendly: hit.remoteFriendly,
+            isItDomain: hit.isItDomain,
+            isLot: hit.isLot,
+          }
+        : null;
       return {
         id: hit.id,
         title,
         client,
-        location: pickValidatedPublicLocationForTender(title, client, hit.location),
+        location: display.location || "",
         bundesland: hit.bundesland,
-         city: pickValidatedPublicLocationForTender(title, client, hit.city) || null,
+        city,
         category: hit.category,
-         description: pickPublicDescription(hit.description),
+         description: display.description || "",
         deadline: hit.deadlineAt ? formatDeadlineDE(new Date(hit.deadlineAt * 1000)) : null,
         deadlineISO: hit.deadlineAt ? new Date(hit.deadlineAt * 1000).toISOString() : null,
         source: hit.source,
@@ -99,6 +140,9 @@ export async function GET(request: Request): Promise<Response> {
         pdfCount: hit.pdfCount,
         readinessStatus: hit.readinessStatus,
         contractValueMax: hit.contractValueMax,
+        ...(compact
+          ? { smallVendor: { fit: compact.fit, priceWeightPct: compact.priceWeightPct, badges: deriveCompactBadges(compact) } }
+          : {}),
       };
     });
 
@@ -107,6 +151,7 @@ export async function GET(request: Request): Promise<Response> {
       total: result.estimatedTotalHits,
       todayNewCount,
       processingTimeMs: result.processingTimeMs,
+      ...(smallVendorMode ? { smallVendorMode: true } : {}),
     });
   } catch (error) {
     return errorResponse(error);
