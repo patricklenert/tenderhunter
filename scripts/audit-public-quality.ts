@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { getMeiliClient } from "@/lib/meilisearch";
 import { getPublicCatalogQualitySummary, getPublicScrapeMonitoring } from "@/lib/public-monitoring";
 

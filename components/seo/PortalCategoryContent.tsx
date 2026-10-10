@@ -19,6 +19,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
+import { getPaginationHref } from "@/lib/seo-indexability";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 
 interface PortalCatTender {
@@ -177,7 +178,7 @@ export function PortalCategoryContent({
           {totalPages > 1 && (
             <Stack direction="row" spacing={1} justifyContent="center" alignItems="center" sx={{ mb: 5 }} component="nav" aria-label="Seitennavigation">
               {currentPage > 1 && (
-                <Link href={`${canonicalPath}?page=${currentPage - 1}`} style={{ textDecoration: "none", color: "#e9644d", fontWeight: 600, padding: "8px 12px" }}>
+                <Link href={getPaginationHref(canonicalPath, currentPage - 1)} style={{ textDecoration: "none", color: "#e9644d", fontWeight: 600, padding: "8px 12px" }}>
                   ← Zurück
                 </Link>
               )}
@@ -192,13 +193,13 @@ export function PortalCategoryContent({
                       {p === currentPage ? (
                         <span style={{ fontWeight: 700, color: "#e9644d", padding: "8px 12px" }}>{p}</span>
                       ) : (
-                        <Link href={`${canonicalPath}?page=${p}`} style={{ textDecoration: "none", color: "#667288", fontWeight: 500, padding: "8px 12px" }}>{p}</Link>
+                        <Link href={getPaginationHref(canonicalPath, p)} style={{ textDecoration: "none", color: "#667288", fontWeight: 500, padding: "8px 12px" }}>{p}</Link>
                       )}
                     </span>
                   );
                 })}
               {currentPage < totalPages && (
-                <Link href={`${canonicalPath}?page=${currentPage + 1}`} style={{ textDecoration: "none", color: "#e9644d", fontWeight: 600, padding: "8px 12px" }}>
+                <Link href={getPaginationHref(canonicalPath, currentPage + 1)} style={{ textDecoration: "none", color: "#e9644d", fontWeight: 600, padding: "8px 12px" }}>
                   Weiter →
                 </Link>
               )}
@@ -220,20 +221,6 @@ export function PortalCategoryContent({
                 </Typography>
               </Box>
             ))}
-          </Box>
-
-          {/* Other categories for this portal */}
-          <Box sx={{ mb: 5 }}>
-            <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
-              {portal.label} nach Kategorie
-            </Typography>
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              {Object.entries(CATEGORY_SLUGS).filter(([, s]) => s !== catSlug).map(([key, s]) => (
-                <Link key={s} href={`/ausschreibungen/${portal.slug}/${s}`} style={{ textDecoration: "none" }}>
-                  <Chip clickable label={CATEGORY_LABELS[key] ?? key} variant="outlined" sx={{ fontWeight: 500 }} />
-                </Link>
-              ))}
-            </Stack>
           </Box>
 
           <Box sx={{ p: { xs: 3, md: 4 }, textAlign: "center", bgcolor: "primary.light", borderRadius: 2 }}>

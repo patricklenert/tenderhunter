@@ -1,6 +1,8 @@
 import { ImageResponse } from "next/og";
 import { CATEGORY_LABELS, SLUG_TO_CATEGORY } from "@/lib/categories";
-import { BrandMark } from "@/components/BrandMark";
+import { BrandLockup } from "@/components/BrandLockup";
+import { BRAND_COLORS } from "@/lib/brand-tokens";
+import { getSiteHost } from "@/lib/site-config";
 
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
@@ -25,37 +27,19 @@ export default async function CategoryOgImage({
           display: "flex",
           flexDirection: "column",
           justifyContent: "space-between",
-          background: "#ffffff",
+           background: BRAND_COLORS.surfaceElevated,
           padding: 60,
           fontFamily: "sans-serif",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <div
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: 10,
-                background: "#1e3a5f",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#e9644d",
-              }}
-            >
-              <BrandMark size={28} color="#e9644d" />
-            </div>
-            <div style={{ fontSize: 26, fontWeight: 700, color: "#1a1a2e" }}>Tenderhunter</div>
-          </div>
-        </div>
+        <BrandLockup />
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div
             style={{
-              display: "inline-flex",
-              background: "#fef0ed",
-              color: "#e9644d",
+               display: "flex",
+               background: BRAND_COLORS.brandSignalSoft,
+               color: BRAND_COLORS.brandSignalDark,
               padding: "8px 20px",
               borderRadius: 20,
               fontSize: 22,
@@ -67,9 +51,10 @@ export default async function CategoryOgImage({
           </div>
           <div
             style={{
-              fontSize: 52,
+               display: "flex",
+               fontSize: 52,
               fontWeight: 800,
-              color: "#1a1a2e",
+               color: BRAND_COLORS.textPrimary,
               lineHeight: 1.15,
               letterSpacing: "-0.01em",
               maxWidth: 1000,
@@ -77,13 +62,13 @@ export default async function CategoryOgImage({
           >
             {label} – Aktuelle Ausschreibungen
           </div>
-          <div style={{ fontSize: 24, color: "#667288", maxWidth: 800, lineHeight: 1.5 }}>
+          <div style={{ display: "flex", fontSize: 24, color: BRAND_COLORS.textSecondary, maxWidth: 800, lineHeight: 1.5 }}>
             Öffentliche Vergabeverfahren für {label.toLowerCase()} in Deutschland
           </div>
         </div>
 
-        <div style={{ fontSize: 22, color: "#667288" }}>
-          tenderhunter.palemadigital.com
+        <div style={{ display: "flex", fontSize: 22, color: BRAND_COLORS.textSecondary }}>
+          {getSiteHost()}
         </div>
       </div>
     ),

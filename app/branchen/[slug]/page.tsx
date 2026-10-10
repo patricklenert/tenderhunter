@@ -6,10 +6,14 @@ import { Home as HomeIcon, ArrowRight, Factory, FileText, Scale, AlertTriangle, 
 import { BRANCHE_MAP, ALL_BRANCHE_SLUGS, BRANCHEN } from "@/lib/branchen";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 import { SiteFooter } from "@/components/seo/SiteFooter";
+import { decodeRouteParam } from "@/lib/route-params";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://palemaz.com";
+import { getSiteUrl } from "@/lib/site-config";
+
+const siteUrl = getSiteUrl();
 
 export const revalidate = 3600;
+export const dynamicParams = false;
 export const runtime = "nodejs";
 
 export async function generateStaticParams() {
@@ -17,7 +21,8 @@ export async function generateStaticParams() {
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
-  const { slug } = await params;
+  const { slug: rawSlug } = await params;
+  const slug = decodeRouteParam(rawSlug);
   const entry = BRANCHE_MAP[slug];
   if (!entry) return { title: "Branche nicht gefunden", robots: { index: false, follow: true } };
 
@@ -37,7 +42,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 }
 
 export default async function BrancheEntryPage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
+  const { slug: rawSlug } = await params;
+  const slug = decodeRouteParam(rawSlug);
   const entry = BRANCHE_MAP[slug];
   if (!entry) notFound();
 

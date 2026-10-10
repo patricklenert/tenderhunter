@@ -8,10 +8,14 @@ import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 import InteractiveChecklist from "@/components/seo/InteractiveChecklist";
 import CopyButton from "@/components/seo/CopyButton";
+import { decodeRouteParam } from "@/lib/route-params";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+import { getSiteUrl } from "@/lib/site-config";
+
+const siteUrl = getSiteUrl();
 
 export const revalidate = 3600;
+export const dynamicParams = false;
 export const runtime = "nodejs";
 
 export async function generateStaticParams() {
@@ -19,7 +23,8 @@ export async function generateStaticParams() {
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
-  const { slug } = await params;
+  const { slug: rawSlug } = await params;
+  const slug = decodeRouteParam(rawSlug);
   const entry = TEMPLATE_MAP[slug];
   if (!entry) return { title: "Vorlage nicht gefunden", robots: { index: false, follow: true } };
 
@@ -39,7 +44,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 }
 
 export default async function TemplateEntryPage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
+  const { slug: rawSlug } = await params;
+  const slug = decodeRouteParam(rawSlug);
   const entry = TEMPLATE_MAP[slug];
   if (!entry) notFound();
 

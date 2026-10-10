@@ -23,7 +23,8 @@ import {
 import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
 import { PROCEDURE_TYPES, ALL_PROCEDURE_TYPE_SLUGS, getProcedureDatabaseValues } from "@/lib/procedure-types";
 import { SiteFooter } from "@/components/seo/SiteFooter";
-import { getListingRobots, getPageNumber, type SeoSearchParams } from "@/lib/seo-indexability";
+import { getListingRobots, getPageNumber, getPaginationHref, type SeoSearchParams } from "@/lib/seo-indexability";
+import { pickValidatedPublicCandidate } from "@/lib/public-content-quality";
 import { readPublicTenderMeta } from "@/lib/tender-meta";
 
 const PAGE_SIZE = 20;
@@ -31,7 +32,9 @@ const PAGE_SIZE = 20;
 export const revalidate = 3600;
 export const runtime = "nodejs";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+import { getSiteUrl } from "@/lib/site-config";
+
+const siteUrl = getSiteUrl();
 
 // SEO: Procedure type pages — pre-render all Vergabeverfahren types
 export async function generateStaticParams() {
@@ -131,7 +134,7 @@ export default async function ProcedureTypePage({ params, searchParams }: PagePr
       const location = meta.location ? meta.location.split(",")[0].trim().slice(0, 60) : null;
       return {
         id: row.id,
-        title: row.title ?? `Ausschreibung #${row.id}`,
+        title: pickValidatedPublicCandidate(row.title) || `Ausschreibung #${row.id}`,
         source: row.source,
         deadline: row.deadlineAt
           ? new Date(row.deadlineAt).toLocaleDateString("de-DE", { day: "2-digit", month: "short", year: "numeric" })
@@ -258,7 +261,7 @@ export default async function ProcedureTypePage({ params, searchParams }: PagePr
           {totalPages > 1 && (
             <Stack direction="row" spacing={1} justifyContent="center" alignItems="center" sx={{ mb: 5 }} component="nav" aria-label="Seitennavigation">
               {currentPage > 1 && (
-                <Link href={`/ausschreibungen/verfahren/${type}?page=${currentPage - 1}`} style={{ textDecoration: "none", color: "#e9644d", fontWeight: 600, padding: "8px 12px" }}>
+                <Link href={getPaginationHref(`/ausschreibungen/verfahren/${type}`, currentPage - 1)} style={{ textDecoration: "none", color: "#e9644d", fontWeight: 600, padding: "8px 12px" }}>
                   ← Zurück
                 </Link>
               )}
@@ -273,13 +276,13 @@ export default async function ProcedureTypePage({ params, searchParams }: PagePr
                       {p === currentPage ? (
                         <span style={{ fontWeight: 700, color: "#e9644d", padding: "8px 12px" }}>{p}</span>
                       ) : (
-                        <Link href={`/ausschreibungen/verfahren/${type}?page=${p}`} style={{ textDecoration: "none", color: "#667288", fontWeight: 500, padding: "8px 12px" }}>{p}</Link>
+                        <Link href={getPaginationHref(`/ausschreibungen/verfahren/${type}`, p)} style={{ textDecoration: "none", color: "#667288", fontWeight: 500, padding: "8px 12px" }}>{p}</Link>
                       )}
                     </span>
                   );
                 })}
               {currentPage < totalPages && (
-                <Link href={`/ausschreibungen/verfahren/${type}?page=${currentPage + 1}`} style={{ textDecoration: "none", color: "#e9644d", fontWeight: 600, padding: "8px 12px" }}>
+                <Link href={getPaginationHref(`/ausschreibungen/verfahren/${type}`, currentPage + 1)} style={{ textDecoration: "none", color: "#e9644d", fontWeight: 600, padding: "8px 12px" }}>
                   Weiter →
                 </Link>
               )}

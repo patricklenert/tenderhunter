@@ -8,7 +8,9 @@ import { readPublicTenderMeta } from "@/lib/tender-meta";
 export const dynamic = "force-dynamic";
 export const revalidate = 3600;
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://palemaz.com";
+import { getSiteUrl } from "@/lib/site-config";
+
+const SITE_URL = getSiteUrl();
 
 function escapeXml(str: string): string {
   return str

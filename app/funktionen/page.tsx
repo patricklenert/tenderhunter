@@ -4,7 +4,7 @@ import { Box, Container, Typography, Stack, Divider } from "@mui/material";
 import {
   Search,
   Brain,
-  Target,
+  Radar,
   ArrowRight,
   FileText,
   Bell,
@@ -13,8 +13,9 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { SiteFooter } from "@/components/seo/SiteFooter";
+import { getSiteUrl } from "@/lib/site-config";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+const siteUrl = getSiteUrl();
 
 export const metadata: Metadata = {
   title: "Funktionen – KI-Ausschreibungssoftware für deutsche Unternehmen",
@@ -54,7 +55,7 @@ const features = [
     ],
   },
   {
-    icon: Target,
+    icon: Radar,
     title: "Intelligentes Matching mit Fit-Score",
     description:
       "Scannen Sie Ihre Unternehmenswebsite – Tenderhunter analysiert Ihre Leistungen und vergleicht sie mit allen offenen Ausschreibungen. Der Fit-Score zeigt Ihnen sofort, welche Projekte am besten zu Ihnen passen.",

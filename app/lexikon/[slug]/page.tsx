@@ -7,10 +7,14 @@ import { GLOSSARY_MAP, ALL_GLOSSARY_SLUGS, GLOSSARY } from "@/lib/glossary";
 import { ARTICLES } from "@/lib/articles";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 import { SiteFooter } from "@/components/seo/SiteFooter";
+import { decodeRouteParam } from "@/lib/route-params";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+import { getSiteUrl } from "@/lib/site-config";
+
+const siteUrl = getSiteUrl();
 
 export const revalidate = 3600;
+export const dynamicParams = false;
 export const runtime = "nodejs";
 
 export async function generateStaticParams() {
@@ -18,7 +22,8 @@ export async function generateStaticParams() {
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
-  const { slug } = await params;
+  const { slug: rawSlug } = await params;
+  const slug = decodeRouteParam(rawSlug);
   const entry = GLOSSARY_MAP[slug];
   if (!entry) return { title: "Begriff nicht gefunden", robots: { index: false, follow: true } };
 
@@ -40,7 +45,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 }
 
 export default async function GlossaryEntryPage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
+  const { slug: rawSlug } = await params;
+  const slug = decodeRouteParam(rawSlug);
   const entry = GLOSSARY_MAP[slug];
   if (!entry) notFound();
 
@@ -223,13 +229,13 @@ export default async function GlossaryEntryPage({ params }: { params: Promise<{ 
             </Box>
           )}
 
-          {entry.relatedArticles && entry.relatedArticles.length > 0 && (
+          {entry.relatedArticles && entry.relatedArticles.some((slug) => ARTICLES[slug]) && (
             <Box sx={{ mb: 4 }}>
               <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
                 Weiterführende Artikel
               </Typography>
               <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                {entry.relatedArticles.map((articleSlug) => (
+                {entry.relatedArticles.filter((slug) => ARTICLES[slug]).map((articleSlug) => (
                   <Link key={articleSlug} href={`/wissen/${articleSlug}`} style={{ textDecoration: "none" }}>
                     <Chip clickable label={ARTICLES[articleSlug]?.title ?? articleSlug} variant="outlined" sx={{ fontWeight: 500 }} />
                   </Link>

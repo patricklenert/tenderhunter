@@ -108,9 +108,12 @@ const previousAudit = findPreviousAudit();
 const previousCounts = readPreviousCounts(previousAudit);
 const exportDate = exportPath.match(/\d{4}-\d{2}-\d{2}/)?.[0];
 const previousAuditDate = previousAudit?.match(/\d{4}-\d{2}-\d{2}/)?.[0];
+const refreshRequired = Boolean(exportDate && previousAuditDate && exportDate < previousAuditDate);
 
-if (exportDate && previousAuditDate && exportDate < previousAuditDate) {
-  throw new Error(`refresh required for: ${requiredFiles.join(", ")} (export ${exportDate} is older than audit ${previousAuditDate})`);
+if (refreshRequired) {
+  process.stderr.write(
+    `GSC export is stale compared with the latest local audit: export ${exportDate} < audit ${previousAuditDate}.\n`,
+  );
 }
 
 if (!Number.isFinite(chartNotIndexed) || reasonTotal !== chartNotIndexed) {
@@ -153,6 +156,10 @@ console.log(JSON.stringify({
   export: exportPath,
   files: requiredFiles,
   previousAudit,
+  refreshRequired,
+  refreshReason: refreshRequired
+    ? `No newer complete four-file export is present under ${exportRoot}`
+    : null,
   metadata: metadataRows,
   nonCriticalFindings: nonCriticalRows.length,
   reasonTotal,

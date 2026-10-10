@@ -4,14 +4,13 @@ import { Box, Container, Typography, Stack, Chip, Breadcrumbs } from "@mui/mater
 import { Home as HomeIcon, MapPin, Calendar } from "lucide-react";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 import { CATEGORY_CONTENT } from "@/lib/category-content";
-import { BUNDESLAND_SLUGS, SLUG_TO_BUNDESLAND } from "@/lib/bundesland";
-import { CITY_SLUG_MAP, ALL_CITY_SLUGS, CITY_LABEL_MAP } from "@/lib/cities";
 import { getLatestTenders } from "@/components/seo/HomeTenderList";
 import { PORTALS, ALL_PORTAL_SLUGS } from "@/lib/portal-content";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 import { getListingRobots, type SeoSearchParams } from "@/lib/seo-indexability";
+import { getSiteUrl } from "@/lib/site-config";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+const siteUrl = getSiteUrl();
 
 export const dynamic = "force-dynamic";
 
@@ -265,34 +264,6 @@ export default async function AusschreibungenPage() {
               </Stack>
             </Box>
           )}
-
-          {/* SEO: Region links for internal link equity to region landing pages */}
-          <Box sx={{ mt: 5, mb: 5 }}>
-            <Typography variant="h5" component="h2" fontWeight={700} sx={{ mb: 2 }}>
-              Ausschreibungen nach Region
-            </Typography>
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              {Object.entries(BUNDESLAND_SLUGS).map(([bundesland, slug]) => (
-                <Link key={slug} href={`/ausschreibungen/region/${slug}`} style={{ textDecoration: "none" }}>
-                  <Chip clickable label={bundesland} variant="outlined" sx={{ fontWeight: 500 }} />
-                </Link>
-              ))}
-            </Stack>
-          </Box>
-
-          {/* SEO: City links for internal link equity to city landing pages */}
-          <Box sx={{ mb: 5 }}>
-            <Typography variant="h5" component="h2" fontWeight={700} sx={{ mb: 2 }}>
-              Ausschreibungen nach Stadt
-            </Typography>
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              {ALL_CITY_SLUGS.slice(0, 25).map((slug) => (
-                <Link key={slug} href={`/ausschreibungen/stadt/${slug}`} style={{ textDecoration: "none" }}>
-                  <Chip clickable label={CITY_LABEL_MAP[slug]} variant="outlined" sx={{ fontWeight: 500 }} />
-                </Link>
-              ))}
-            </Stack>
-          </Box>
 
           {/* SEO: Portal source links for internal link equity to portal landing pages */}
           <Box sx={{ mb: 5 }}>

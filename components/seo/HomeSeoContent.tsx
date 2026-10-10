@@ -12,7 +12,8 @@ import { readPublicTenderMeta } from "@/lib/tender-meta";
 
 // SEO: Server-rendered content for homepage so crawlers see h1, body text, and internal links.
 // The existing InteractiveApp is a client component — invisible to Googlebot in initial HTML.
-// This component renders ABOVE the interactive shell to provide SSR content for indexing.
+// Keep this as a sibling after the complete interactive shell. It must not be passed through
+// the client component, otherwise hydration can replace the SSR-only content on tab changes.
 
 const TOP_BUNDESLAENDER = [
   "Nordrhein-Westfalen",
@@ -86,7 +87,11 @@ export async function HomeSeoContent() {
   });
 
   return (
-    <Box component="section" sx={{ py: { xs: 4, md: 6 }, bgcolor: "background.default" }}>
+    <Box
+      component="section"
+      data-layout-slot="homepage-seo"
+      sx={{ py: { xs: 4, md: 6 }, bgcolor: "background.default" }}
+    >
       <Container maxWidth="lg">
         {/* SEO: H1 for crawlers — the interactive app has no SSR heading */}
         <Typography

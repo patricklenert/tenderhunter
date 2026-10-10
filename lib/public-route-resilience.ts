@@ -7,3 +7,12 @@ export function dependencyUnavailableResponse(): Response {
     },
   });
 }
+
+/** Optional detail-page data must not turn an otherwise renderable tender into a 5xx. */
+export async function optionalPublicRows<T>(query: () => PromiseLike<T[]>): Promise<T[]> {
+  try {
+    return await query();
+  } catch {
+    return [];
+  }
+}

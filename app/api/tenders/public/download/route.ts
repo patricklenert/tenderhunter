@@ -6,6 +6,8 @@ import { db } from "@/lib/db";
 import { documents, tenderResources, tenders } from "@/lib/schema";
 import { settings } from "@/lib/config";
 import { normalizeResourceUrl } from "@/lib/resource-discovery";
+import { isHtmlContentType } from "@/lib/document-identity";
+import { ColdStorageError, ensureLocalStored } from "@/lib/object-store-cold";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -121,9 +123,24 @@ const storedDocumentResponse = async (document: {
   if (document.downloadStatus !== "downloaded") {
     return NextResponse.json({ error: "document is not available" }, { status: 404 });
   }
+  if (isHtmlContentType(document.contentType)) {
+    return NextResponse.json({ error: "document is not available" }, { status: 404 });
+  }
 
-  const filePath = resolveSafeStoredDocumentPath(settings.objectStorePath, document.storagePath);
-  if (!filePath) return NextResponse.json({ error: "invalid document path" }, { status: 403 });
+  const resolved = resolveSafeStoredDocumentPath(settings.objectStorePath, document.storagePath);
+  if (!resolved) return NextResponse.json({ error: "invalid document path" }, { status: 403 });
+
+  let filePath: string;
+  try {
+    filePath = await ensureLocalStored(document.storagePath);
+  } catch (error) {
+    const cold = error instanceof ColdStorageError;
+    console.error("cold hydration failed", { storagePath: document.storagePath, message: error instanceof Error ? error.message : String(error) });
+    return NextResponse.json({ error: cold ? "cold storage unavailable" : "document not found" }, { status: cold ? 503 : 404 });
+  }
+  if (filePath !== resolved && !isPathInside(settings.objectStorePath, filePath)) {
+    return NextResponse.json({ error: "invalid document path" }, { status: 403 });
+  }
 
   let stat: fs.Stats;
   try {
@@ -157,17 +174,19 @@ const storedDocumentResponse = async (document: {
 
 const allowedLegacyUrls = async (tenderId: number, tenderUrl: string): Promise<Set<string>> => {
   const [documentRows, resourceRows] = await Promise.all([
-    db.select({ url: documents.url }).from(documents).where(eq(documents.tenderId, tenderId)),
-    db.select({ url: tenderResources.url, canonicalUrl: tenderResources.canonicalUrl, resourceType: tenderResources.resourceType })
+    db.select({ url: documents.url, contentType: documents.contentType }).from(documents).where(eq(documents.tenderId, tenderId)),
+    db.select({ url: tenderResources.url, canonicalUrl: tenderResources.canonicalUrl, resourceType: tenderResources.resourceType, contentType: tenderResources.contentType })
       .from(tenderResources)
       .where(eq(tenderResources.tenderId, tenderId)),
   ]);
   const allowed = new Set<string>();
   for (const row of documentRows) {
+    if (isHtmlContentType(row.contentType)) continue;
     const value = canonicalDownloadUrl(row.url, tenderUrl);
     if (value) allowed.add(value);
   }
   for (const row of resourceRows) {
+    if (isHtmlContentType(row.contentType)) continue;
     const candidate = canonicalDownloadUrl(row.url, tenderUrl) ?? canonicalDownloadUrl(row.canonicalUrl, tenderUrl);
     if (candidate && isDocumentLikeResource(row.resourceType, candidate)) allowed.add(candidate);
     const canonical = canonicalDownloadUrl(row.canonicalUrl, tenderUrl);
@@ -199,6 +218,9 @@ const legacyShareResponse = async (url: string, allowedUrls: Set<string>): Promi
   }
 
   const contentType = response.headers.get("content-type") ?? "application/octet-stream";
+  if (isHtmlContentType(contentType)) {
+    return NextResponse.json({ error: "upstream response is HTML, not a document" }, { status: 502 });
+  }
   const contentLength = Number(response.headers.get("content-length") ?? 0);
   if (Number.isFinite(contentLength) && contentLength > MAX_SIZE) {
     return NextResponse.json({ error: "file too large (max 50MB)" }, { status: 413 });

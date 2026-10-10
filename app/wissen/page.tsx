@@ -6,7 +6,9 @@ import { ARTICLES, ALL_ARTICLE_SLUGS } from "@/lib/articles";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+import { getSiteUrl } from "@/lib/site-config";
+
+const siteUrl = getSiteUrl();
 
 export const revalidate = 3600;
 

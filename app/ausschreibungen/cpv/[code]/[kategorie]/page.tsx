@@ -3,27 +3,41 @@ import { tenders, structuredData } from "@/lib/schema";
 import { eq, and, or, gt, isNull, desc, sql } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { CPV_CODES, ALL_CPV_CODES } from "@/lib/cpv-codes";
-import { CATEGORY_LABELS, SLUG_TO_CATEGORY, ALL_CATEGORY_SLUGS } from "@/lib/categories";
+import { CPV_CODES, getCpvCodePrefix } from "@/lib/cpv-codes";
+import { CATEGORY_LABELS, CATEGORY_SLUGS, SLUG_TO_CATEGORY } from "@/lib/categories";
 import { TaxonomyCategoryContent } from "@/components/seo/TaxonomyCategoryContent";
 import { getListingRobots, getPageNumber, type SeoSearchParams } from "@/lib/seo-indexability";
+import { pickValidatedPublicCandidate } from "@/lib/public-content-quality";
 import { readPublicTenderMeta } from "@/lib/tender-meta";
 
 const PAGE_SIZE = 20;
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+import { getSiteUrl } from "@/lib/site-config";
+
+const siteUrl = getSiteUrl();
 
 export const revalidate = 3600;
 export const runtime = "nodejs";
 
-// SEO: Pre-render all CPV×Kategorie combinations (25×13 = 325 pages)
-export async function generateStaticParams() {
-  const params: Array<{ code: string; kategorie: string }> = [];
-  for (const code of ALL_CPV_CODES) {
-    for (const kategorie of ALL_CATEGORY_SLUGS) {
-      params.push({ code, kategorie });
-    }
-  }
-  return params;
+function cpvMatchSql(prefix: string) {
+  return sql`EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements_text(
+      CASE
+        WHEN jsonb_typeof(COALESCE(
+          ${structuredData.jsonBlob}->'procurement'->'cpv_codes',
+          ${structuredData.jsonBlob}->'procurement'->'cpvCodes',
+          '[]'::jsonb
+        )) = 'array'
+        THEN COALESCE(
+          ${structuredData.jsonBlob}->'procurement'->'cpv_codes',
+          ${structuredData.jsonBlob}->'procurement'->'cpvCodes',
+          '[]'::jsonb
+        )
+        ELSE '[]'::jsonb
+      END
+    ) AS cpv(value)
+    WHERE left(regexp_replace(cpv.value, '[^0-9]', '', 'g'), 8) LIKE ${`${prefix}%`}
+  )`;
 }
 
 interface PageProps {
@@ -42,7 +56,7 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
   const title = `${label} – CPV ${code} ${cpvEntry.label} Ausschreibungen`;
   const description = `Aktuelle ${label}-Ausschreibungen nach CPV ${code} (${cpvEntry.label}). Öffentliche Vergaben — täglich aktualisiert.`;
   const canonicalPath = `/ausschreibungen/cpv/${code}/${kategorie}`;
-  const divisionPrefix = code.slice(0, 2);
+  const cpvPrefix = getCpvCodePrefix(code);
   let count = 0;
   try {
     const countRow = await db
@@ -51,9 +65,10 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
       .innerJoin(structuredData, eq(structuredData.tenderId, tenders.id))
       .where(and(
         eq(tenders.category, categoryKey),
-        eq(tenders.qualityStatus, "qualified"),
-        or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, new Date())),
-        sql`(${structuredData.jsonBlob}->'procurement'->'cpv_codes')::jsonb ?| array[${code}, ${divisionPrefix + "000000"}]`,
+         eq(tenders.qualityStatus, "qualified"),
+         or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, new Date())),
+         sql`${tenders.rawText} IS NOT NULL AND BTRIM(${tenders.rawText}) <> ''`,
+         cpvMatchSql(cpvPrefix),
       ));
     count = countRow[0]?.count ?? 0;
   } catch {
@@ -83,7 +98,7 @@ export default async function CpvCategoryPage({ params, searchParams }: PageProp
   if (!cpvEntry || !categoryKey) notFound();
 
   const now = new Date();
-  const divisionPrefix = code.slice(0, 2);
+  const cpvPrefix = getCpvCodePrefix(code);
 
   let cpvTenders: Array<{
     id: number;
@@ -94,6 +109,7 @@ export default async function CpvCategoryPage({ params, searchParams }: PageProp
     source: string;
     slug?: string | null;
   }> = [];
+  let availableCategorySlugs: string[] = [];
   let totalCount = 0;
   let totalPages = 1;
 
@@ -105,9 +121,10 @@ export default async function CpvCategoryPage({ params, searchParams }: PageProp
       .where(
         and(
           eq(tenders.category, categoryKey),
-          eq(tenders.qualityStatus, "qualified"),
-          or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
-          sql`(${structuredData.jsonBlob}->'procurement'->'cpv_codes')::jsonb ?| array[${code}, ${divisionPrefix + "000000"}]`,
+           eq(tenders.qualityStatus, "qualified"),
+           or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
+           sql`${tenders.rawText} IS NOT NULL AND BTRIM(${tenders.rawText}) <> ''`,
+           cpvMatchSql(cpvPrefix),
         ),
       );
     totalCount = countRow[0]?.count ?? 0;
@@ -131,9 +148,10 @@ export default async function CpvCategoryPage({ params, searchParams }: PageProp
       .where(
         and(
           eq(tenders.category, categoryKey),
-          eq(tenders.qualityStatus, "qualified"),
-          or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
-          sql`(${structuredData.jsonBlob}->'procurement'->'cpv_codes')::jsonb ?| array[${code}, ${divisionPrefix + "000000"}]`,
+           eq(tenders.qualityStatus, "qualified"),
+           or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
+           sql`${tenders.rawText} IS NOT NULL AND BTRIM(${tenders.rawText}) <> ''`,
+           cpvMatchSql(cpvPrefix),
         ),
       )
       .orderBy(desc(tenders.createdAt))
@@ -148,7 +166,7 @@ export default async function CpvCategoryPage({ params, searchParams }: PageProp
       const location = meta.location ? meta.location.split(",")[0].trim().slice(0, 60) : null;
       return {
         id: row.id,
-        title: row.title ?? `Ausschreibung #${row.id}`,
+        title: pickValidatedPublicCandidate(row.title) || `Ausschreibung #${row.id}`,
         source: row.source,
         deadline: row.deadlineAt
           ? new Date(row.deadlineAt).toLocaleDateString("de-DE", { day: "2-digit", month: "short", year: "numeric" })
@@ -158,14 +176,27 @@ export default async function CpvCategoryPage({ params, searchParams }: PageProp
         slug: row.slug,
       };
     });
+
+    const categoryRows = await db
+      .select({ category: tenders.category })
+      .from(tenders)
+      .innerJoin(structuredData, eq(structuredData.tenderId, tenders.id))
+      .where(
+        and(
+           eq(tenders.qualityStatus, "qualified"),
+           or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
+           sql`${tenders.category} IS NOT NULL`,
+           sql`${tenders.rawText} IS NOT NULL AND BTRIM(${tenders.rawText}) <> ''`,
+           cpvMatchSql(cpvPrefix),
+        ),
+      )
+      .groupBy(tenders.category);
+    availableCategorySlugs = categoryRows
+      .map((row) => row.category ? CATEGORY_SLUGS[row.category] : null)
+      .filter((slug): slug is string => Boolean(slug));
   } catch {
     // DB unavailable
   }
-
-  const siblingTaxons = ALL_CPV_CODES.filter((c) => c !== code).slice(0, 12).map((c) => ({
-    slug: c,
-    label: `CPV ${c} ${CPV_CODES[c].label}`,
-  }));
 
   return (
     <TaxonomyCategoryContent
@@ -179,7 +210,7 @@ export default async function CpvCategoryPage({ params, searchParams }: PageProp
       currentPage={currentPage}
       totalPages={totalPages}
       siteUrl={siteUrl}
-      siblingTaxons={siblingTaxons}
+      availableCategorySlugs={availableCategorySlugs}
     />
   );
 }

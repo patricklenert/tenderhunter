@@ -16,6 +16,10 @@ export function getPageNumber(value: string | string[] | undefined): number {
   return Math.max(1, Number.parseInt(raw ?? "1", 10) || 1);
 }
 
+export function getPaginationHref(basePath: string, page: number): string {
+  return page <= 1 ? basePath : `${basePath}?page=${page}`;
+}
+
 /**
  * Listing pages are indexable only in their clean URL form. Empty result pages
  * stay out of the index unless the route contains substantive editorial copy.

@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { extractBasicDetailFromHtml } from "@/lib/public-tender-scraper";
+import type { Page } from "playwright";
+import { readStablePageContent, readStablePageTitle } from "@/lib/firecrawl";
+import { extractBasicDetailFromHtml, extractPublicPortalFacts, searchOeffentlicheVergabeByTitle } from "@/lib/public-tender-scraper";
 
 const item = extractBasicDetailFromHtml(
   "<html><head><title>Vergabe</title></head><body><h1>Softwareentwicklung für die Stadtverwaltung</h1><p>Auftraggeber: Stadt Mainz</p><p>Frist: 31.12.2026</p><p>55116 Mainz</p><a href='/docs/unterlagen.pdf'>PDF</a></body></html>",
@@ -14,6 +16,85 @@ assert.equal(item.deadline, "31.12.2026");
 assert.equal(item.client, "Stadt Mainz");
 assert.equal(item.location, "55116 Mainz");
 assert.deepEqual(item.pdfUrls, ["https://example.vergabe.rlp.de/docs/unterlagen.pdf"]);
+
+const verifyStableBrowserPageReaders = async (): Promise<void> => {
+  const contentFallbackPage = {
+    waitForLoadState: async () => {},
+    waitForTimeout: async () => {},
+    content: async () => ({ unexpected: true }),
+    evaluate: async () => "<html><title>Recovered</title></html>",
+  } as unknown as Page;
+  assert.equal(await readStablePageContent(contentFallbackPage), "<html><title>Recovered</title></html>");
+
+  const contentTypeErrorPage = {
+    waitForLoadState: async () => {},
+    waitForTimeout: async () => {},
+    content: async () => { throw new Error("page.content: value: expected string, got object"); },
+    evaluate: async () => "<html><title>Recovered after RPC error</title></html>",
+  } as unknown as Page;
+  assert.equal(await readStablePageContent(contentTypeErrorPage), "<html><title>Recovered after RPC error</title></html>");
+
+  const invalidFallbackPage = {
+    waitForLoadState: async () => {},
+    waitForTimeout: async () => {},
+    content: async () => { throw new Error("page.content: value: expected string, got object"); },
+    evaluate: async () => ({ unexpected: true }),
+  } as unknown as Page;
+  await assert.rejects(readStablePageContent(invalidFallbackPage), /page\.content: value: expected string, got object/u);
+
+  const responseFallbackPage = {
+    waitForLoadState: async () => {},
+    waitForTimeout: async () => {},
+    content: async () => { throw new Error("page.content: value: expected string, got object"); },
+    evaluate: async () => { throw new Error("page.evaluate unavailable"); },
+  } as unknown as Page;
+  const responseFallback = { text: async () => "<html><body>Response fallback</body></html>" };
+  assert.equal(
+    await readStablePageContent(responseFallbackPage, responseFallback as never),
+    "<html><body>Response fallback</body></html>",
+  );
+
+  const visibleTextFallbackPage = {
+    waitForLoadState: async () => {},
+    waitForTimeout: async () => {},
+    content: async () => { throw new Error("page.content: value: expected string, got object"); },
+    evaluate: async () => { throw new Error("page.evaluate unavailable"); },
+    locator: () => ({ innerText: async () => "Tender <details> & terms" }),
+  } as unknown as Page;
+  const unavailableResponse = { text: async () => { throw new Error("response.text unavailable"); } };
+  assert.equal(
+    await readStablePageContent(visibleTextFallbackPage, unavailableResponse as never),
+    "<html><body><pre>Tender &lt;details&gt; &amp; terms</pre></body></html>",
+  );
+
+  const titleFallbackPage = {
+    title: async () => { throw new Error("page.title: value: expected string, got object"); },
+    evaluate: async () => "Tender detail",
+  } as unknown as Page;
+  assert.equal(await readStablePageTitle(titleFallbackPage), "Tender detail");
+
+  const missingTitlePage = {
+    title: async () => { throw new Error("page.title unavailable"); },
+    evaluate: async () => { throw new Error("page.evaluate unavailable"); },
+  } as unknown as Page;
+  assert.equal(await readStablePageTitle(missingTitlePage), "");
+};
+
+const procedureItem = extractBasicDetailFromHtml(
+  "<html><head><title>Offene Bauarbeiten</title></head><body><h1>Offene Bauarbeiten</h1><p>Vergabeart: Offenes Verfahren (sangaben)</p><p>Auftraggeber: Stadt Mainz</p><p>Frist: 31.12.2026</p><p>55116 Mainz</p></body></html>",
+  "https://example.vergabe.rlp.de/project/124",
+  "rlp",
+  [],
+);
+assert.ok(procedureItem);
+assert.equal(procedureItem.procedure, "Offenes Verfahren");
+assert.doesNotMatch(procedureItem.descriptionMarkdown, /sangaben|Losangaben/i);
+
+const procedureFactsFallback = extractPublicPortalFacts([
+  "Verfahren: (Losangaben)",
+  "Verfahren: Verhandlungsverfahren",
+].join("\n"));
+assert.equal(procedureFactsFallback.procedure, "Verhandlungsverfahren");
 
 const rlpItem = extractBasicDetailFromHtml(
   `<html><head><title>CXCPEYDYYYRM0 | 26F0047 (LBB NL Mainz) Bauendreinigung | www.vergabe.rlp.de</title></head><body>
@@ -53,4 +134,14 @@ assert.equal(participationWallItem.deadline, "03.08.2026 08:00");
 assert.match(participationWallItem.description, /vollständige Leistungsbeschreibung/);
 assert.match(participationWallItem.descriptionMarkdown ?? "", /- \*\*Auftraggeber:\*\* Leibniz-Zentrum für Archäologie/);
 assert.match(participationWallItem.descriptionMarkdown ?? "", /- \*\*Hinweis:\*\*.*vollständige Leistungsbeschreibung/);
-console.log("Public detail fallback tests passed.");
+void Promise.all([
+  searchOeffentlicheVergabeByTitle("Nicht zugänglich – Anmeldung erforderlich"),
+  verifyStableBrowserPageReaders(),
+]).then(([result]) => {
+    assert.equal(result, null);
+    console.log("Public detail fallback tests passed.");
+  })
+  .catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });

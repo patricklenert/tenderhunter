@@ -2,7 +2,8 @@ import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { getCatalogState } from "@/lib/catalog";
 import { jobs, publicScrapeRuns, publicSourceCursors, publicSourceRuns, structuredData, tenders } from "@/lib/schema";
-import { JOB_SCRAPE_PUBLIC, JOB_SYNC_MEILI } from "@/lib/types";
+import { JOB_SCRAPE_PUBLIC, JOB_SYNC_MEILI, type JsonValue } from "@/lib/types";
+import { shouldSchedulePublicContinuation } from "@/lib/public-pagination";
 
 const PUBLIC_SCRAPE_INTERVAL_HOURS = Number(process.env.PUBLIC_SCRAPE_INTERVAL_HOURS ?? 48);
 
@@ -58,10 +59,11 @@ export async function getPublicCatalogQualitySummary(): Promise<PublicCatalogQua
       )`,
       missingDescription: sql<number>`count(*) filter (
         where ${tenders.qualityStatus} = 'qualified'
-          and nullif(trim(coalesce(${tenders.metadataJson}->>'description', '')), '') is null
-          and nullif(trim(coalesce(${structuredData.jsonBlob}->>'summary', '')), '') is null
-          and nullif(trim(coalesce(${tenders.rawText}, '')), '') is null
-      )`,
+           and nullif(trim(coalesce(${tenders.metadataJson}->>'description', '')), '') is null
+           and nullif(trim(coalesce(${tenders.metadataJson}->>'summary', '')), '') is null
+           and nullif(trim(coalesce(${structuredData.jsonBlob}->>'summary', '')), '') is null
+           and nullif(trim(coalesce(${structuredData.jsonBlob}->>'description', '')), '') is null
+       )`,
     })
     .from(tenders)
     .leftJoin(structuredData, eq(structuredData.tenderId, tenders.id));
@@ -152,7 +154,16 @@ export async function getPublicScrapeMonitoring() {
   );
   const nonExhaustedSources = sourceCursors.filter((cursor) => !cursor.exhausted && cursor.continuationRequired).map((cursor) => cursor.sourceKey);
   const blockedSources = sourceCursors.filter((cursor) => !cursor.exhausted && !cursor.continuationRequired).map((cursor) => cursor.sourceKey);
-  const continuationMissingSources = nonExhaustedSources.filter((sourceKey) => !activeContinuationSources.has(sourceKey));
+  const continuationMissingSources = sourceCursors
+    .filter((cursor) => shouldSchedulePublicContinuation(
+      cursor.cursorJson as Record<string, JsonValue>,
+      cursor.exhausted,
+      cursor.continuationRequired,
+      cursor.lastStatus,
+      cursor.lastError,
+    ))
+    .map((cursor) => cursor.sourceKey)
+    .filter((sourceKey) => !activeContinuationSources.has(sourceKey));
   const [lastSyncJob] = await db
     .select({
       id: jobs.id,

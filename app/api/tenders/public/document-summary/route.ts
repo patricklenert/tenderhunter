@@ -4,6 +4,8 @@ import { documents, tenders } from "@/lib/schema";
 import { errorResponse, json, parseJsonBody } from "@/lib/http";
 import { clientIp, consumeRateLimit, RateLimitError } from "@/lib/rate-limit";
 import { generateDocumentSummary } from "@/lib/document-summary";
+import { isHtmlContentType } from "@/lib/document-identity";
+import { normalizePublicDisplayCandidate } from "@/lib/public-content-quality";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,6 +20,11 @@ const handleError = (error: unknown): Response => {
   return errorResponse(error);
 };
 
+const documentNotReadyResponse = (): Response => json(
+  { error: "Dieses Dokument wurde noch nicht erfolgreich analysiert.", code: "DOCUMENT_NOT_READY" },
+  { status: 409 },
+);
+
 export async function POST(request: Request): Promise<Response> {
   try {
     const body = await parseJsonBody<{ documentId?: unknown }>(request);
@@ -30,6 +37,7 @@ export async function POST(request: Request): Promise<Response> {
       .select({
         id: documents.id,
         filename: documents.filename,
+        contentType: documents.contentType,
         role: documents.role,
         downloadStatus: documents.downloadStatus,
         parseStatus: documents.parseStatus,
@@ -46,15 +54,17 @@ export async function POST(request: Request): Promise<Response> {
       return json({ error: "Dokument nicht gefunden", code: "DOCUMENT_NOT_FOUND" }, { status: 404 });
     }
 
-    if (document.aiSummary) {
-      return json({ documentId, summary: document.aiSummary, cached: true });
+    if (isHtmlContentType(document.contentType)) {
+      return documentNotReadyResponse();
+    }
+
+    const cachedSummary = normalizePublicDisplayCandidate(document.aiSummary);
+    if (cachedSummary) {
+      return json({ documentId, summary: cachedSummary, cached: true });
     }
 
     if (document.downloadStatus !== "downloaded" || document.parseStatus !== "parsed" || !document.extractedText?.trim()) {
-      return json(
-        { error: "Dieses Dokument wurde noch nicht erfolgreich analysiert.", code: "DOCUMENT_NOT_READY" },
-        { status: 409 },
-      );
+      return documentNotReadyResponse();
     }
 
     await consumeRateLimit(`document-summary-ip:${clientIp(request)}`, 20, 60 * 60 * 1000);
@@ -73,12 +83,15 @@ export async function POST(request: Request): Promise<Response> {
       );
     }
 
+    const normalizedSummary = normalizePublicDisplayCandidate(summary);
+    if (!normalizedSummary) return documentNotReadyResponse();
+
     await db
       .update(documents)
-      .set({ aiSummary: summary, updatedAt: new Date() })
+      .set({ aiSummary: normalizedSummary, updatedAt: new Date() })
       .where(eq(documents.id, documentId));
 
-    return json({ documentId, summary, cached: false });
+    return json({ documentId, summary: normalizedSummary, cached: false });
   } catch (error) {
     console.error("[document-summary] Fehler:", error);
     return handleError(error);

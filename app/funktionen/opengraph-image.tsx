@@ -1,5 +1,8 @@
 import { ImageResponse } from "next/og";
 import { BrandMark } from "@/components/BrandMark";
+import { BrandLockup } from "@/components/BrandLockup";
+import { BRAND_COLORS } from "@/lib/brand-tokens";
+import { getSiteHost } from "@/lib/site-config";
 
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
@@ -15,37 +18,20 @@ export default function FunktionenOgImage() {
           display: "flex",
           flexDirection: "column",
           justifyContent: "space-between",
-          background: "#ffffff",
+           background: BRAND_COLORS.surfaceElevated,
           padding: 60,
           fontFamily: "sans-serif",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <div
-            style={{
-              width: 48,
-              height: 48,
-              borderRadius: 12,
-              background: "#1e3a5f",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "#e9644d",
-            }}
-          >
-            <BrandMark size={30} color="#e9644d" />
-          </div>
-          <div style={{ fontSize: 28, fontWeight: 700, color: "#1a1a2e" }}>
-            Tenderhunter
-          </div>
-        </div>
+        <BrandLockup />
 
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           <div
             style={{
+              display: "flex",
               fontSize: 56,
               fontWeight: 800,
-              color: "#1a1a2e",
+              color: BRAND_COLORS.textPrimary,
               lineHeight: 1.15,
               letterSpacing: "-0.02em",
             }}
@@ -53,29 +39,19 @@ export default function FunktionenOgImage() {
             So funktioniert Tenderhunter
           </div>
           <div style={{ display: "flex", gap: 32, marginTop: 10 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 10, background: "#fef0ed", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>
-                🔍
+            {["Automatische Suche", "KI-Analyse", "Passung bewerten"].map((label) => (
+              <div key={label} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: BRAND_COLORS.brandSignalSoft, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <BrandMark size={22} color={BRAND_COLORS.brandSignal} />
+                </div>
+                <div style={{ display: "flex", alignItems: "center", fontSize: 24, color: BRAND_COLORS.textPrimary, fontWeight: 600 }}>{label}</div>
               </div>
-              <div style={{ fontSize: 24, color: "#1a1a2e", fontWeight: 600 }}>Automatische Suche</div>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 10, background: "#fef0ed", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>
-                🧠
-              </div>
-              <div style={{ fontSize: 24, color: "#1a1a2e", fontWeight: 600 }}>KI-Analyse</div>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 10, background: "#fef0ed", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>
-                🎯
-              </div>
-              <div style={{ fontSize: 24, color: "#1a1a2e", fontWeight: 600 }}>Intelligentes Matching</div>
-            </div>
+            ))}
           </div>
         </div>
 
-        <div style={{ fontSize: 22, color: "#667288" }}>
-          tenderhunter.palemadigital.com/funktionen
+        <div style={{ display: "flex", fontSize: 22, color: BRAND_COLORS.textSecondary }}>
+          {getSiteHost()}/funktionen
         </div>
       </div>
     ),

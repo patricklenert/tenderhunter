@@ -10,6 +10,25 @@ export interface CpvEntry {
   faq: Array<{ question: string; answer: string }>;
 }
 
+export function normalizeCpvCode(value: unknown): string {
+  if (typeof value !== "string" && typeof value !== "number") return "";
+  const digits = String(value).replace(/\D/g, "");
+  return digits.length >= 8 ? digits.slice(0, 8) : "";
+}
+
+export function getCpvCodePrefix(value: string): string {
+  const normalized = normalizeCpvCode(value);
+  return normalized.replace(/0+$/, "") || normalized;
+}
+
+export function matchesCpvCode(candidate: unknown, requested: string): boolean {
+  const candidateCode = normalizeCpvCode(candidate);
+  const requestedCode = normalizeCpvCode(requested);
+  const prefix = getCpvCodePrefix(requested);
+  return candidateCode.length === 8 && requestedCode.length === 8 && Boolean(prefix)
+    && candidateCode.startsWith(prefix);
+}
+
 export const CPV_CODES: Record<string, CpvEntry> = {
   "45000000": {
     code: "45000000",

@@ -27,6 +27,7 @@ export default function CopyButton({ text, label = "Kopieren" }: CopyButtonProps
       <IconButton
         size="small"
         onClick={handleCopy}
+        aria-label={copied ? `${label}: kopiert` : label}
         sx={{
           bgcolor: copied ? "success.50" : "transparent",
           "&:hover": { bgcolor: "action.hover" },

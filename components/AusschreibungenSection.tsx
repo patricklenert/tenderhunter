@@ -7,19 +7,20 @@ import {
   CardContent,
   Chip,
   CircularProgress,
-  Collapse,
-  IconButton,
+   Collapse,
+   FormControlLabel,
+   IconButton,
   InputAdornment,
   ListSubheader,
   MenuItem,
   Paper,
   Select,
   Skeleton,
-  Stack,
-  Table,
+   Stack,
+   Switch,
+   Table,
   TableBody,
   TableCell,
-  TableContainer,
   TableHead,
   TableRow,
   TextField,
@@ -27,8 +28,6 @@ import {
   ToggleButtonGroup,
   Typography,
   Button,
-  useTheme,
-  useMediaQuery,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -51,7 +50,6 @@ import {
   X,
   RefreshCw,
   Eye,
-  AlertCircle,
   // Crosshair,  // Ursprüngliches Standort-Icon (Lucide) — auskommentiert für Rollback
 } from "lucide-react";
 import { SearchLocationIcon } from "@/components/icons/SidebarIcons";
@@ -70,13 +68,13 @@ import { documentAnalysisFieldLabel } from "@/lib/document-analysis";
 import { documentIdentityKey } from "@/lib/document-identity";
 import { isPortalActionUrl } from "@/lib/resource-url";
 import { SafeMarkdown } from "@/components/SafeMarkdown";
+import { ResourceState } from "@/components/ResourceState";
+import { ResponsiveTableFrame } from "@/components/ResponsiveTableFrame";
 import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
 import {
-  isCanonicalPublicDescriptionMarkdown,
-  normalizePublicClient,
   normalizePublicDisplayCandidate,
   pickValidatedPublicCandidate,
-  pickValidatedPublicLocationForTender,
+  projectPublicDisplayFields,
 } from "@/lib/public-content-quality";
 
 interface ApiTender {
@@ -101,10 +99,18 @@ interface ApiTender {
   procedureType?: string | null;
   createdAt?: string;
   slug?: string | null;
+  smallVendor?: { fit: number; priceWeightPct: number | null; badges: string[] };
 }
 
+const projectTenderDisplay = (tender: ApiTender) => projectPublicDisplayFields({
+  title: tender.title,
+  client: tender.client,
+  location: [tender.location, tender.city, tender.bundesland],
+  summary: tender.description,
+});
+
 const PAGE_SIZE = 30;
-type DeadlineSort = "deadline" | "newest";
+type DeadlineSort = "deadline" | "newest" | "smallVendorFit";
 
 const DEFAULT_DEADLINE_FILTER: TenderDeadlineFilter = "minimum7";
 const DEADLINE_FILTER_LABELS: Record<TenderDeadlineFilter, string> = {
@@ -121,6 +127,7 @@ const DEADLINE_FILTER_LABELS: Record<TenderDeadlineFilter, string> = {
 const DEADLINE_SORT_LABELS: Record<DeadlineSort, string> = {
   deadline: "Früheste Frist",
   newest: "Neueste zuerst",
+  smallVendorFit: "Small Vendor Fit",
 };
 
 interface TenderSearchOptions {
@@ -131,6 +138,7 @@ interface TenderSearchOptions {
   deadlineFrom: string;
   deadlineTo: string;
   sort: DeadlineSort;
+  smallVendorFitMin?: number;
 }
 
 export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: ViewKey) => void }) {
@@ -146,6 +154,8 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
   const [deadlineFrom, setDeadlineFrom] = useState("");
   const [deadlineTo, setDeadlineTo] = useState("");
   const [sortKey, setSortKey] = useState<DeadlineSort>("deadline");
+  const [smallVendorMode, setSmallVendorMode] = useState(false);
+  const [smallVendorOnly, setSmallVendorOnly] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -168,8 +178,21 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
     deadlineFilter,
     deadlineFrom,
     deadlineTo,
-    sort: sortKey,
-  }), [deadlineFilter, deadlineFrom, deadlineTo, searchQuery, selectedLocation, sortKey, todayNewOnly]);
+    sort: smallVendorMode ? sortKey : sortKey === "smallVendorFit" ? "deadline" : sortKey,
+    smallVendorFitMin: smallVendorMode && smallVendorOnly ? 75 : undefined,
+  }), [deadlineFilter, deadlineFrom, deadlineTo, searchQuery, selectedLocation, smallVendorMode, smallVendorOnly, sortKey, todayNewOnly]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/user/features", { cache: "no-store" })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setSmallVendorMode(Boolean(data.smallVendorMode));
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => () => {
     if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current);
@@ -304,6 +327,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
         if (options.deadlineTo) params.set("deadlineTo", options.deadlineTo);
       }
       params.set("sort", options.sort);
+      if (options.smallVendorFitMin) params.set("smallVendorFitMin", String(options.smallVendorFitMin));
       params.set("limit", String(PAGE_SIZE));
       params.set("page", String(page));
 
@@ -492,8 +516,8 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
           sx={{
             mb: 3,
             borderRadius: { xs: 2, sm: 3 },
-            bgcolor: "#1E3A5F",
-            color: "#fff",
+            bgcolor: "secondary.main",
+            color: "secondary.contrastText",
             p: { xs: 2, sm: 3 },
             px: { xs: 2, sm: 4 },
             display: "flex",
@@ -503,25 +527,23 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
           }}
         >
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="h6" component="p" fontWeight={700} sx={{ color: "#fff", fontSize: { xs: "1rem", sm: "1.25rem" } }}>
+            <Typography variant="h6" component="p" fontWeight={700} sx={{ fontSize: { xs: "1rem", sm: "1.25rem" } }}>
               Langfristige Verträge mit Behörden und Landesbaubetrieben
             </Typography>
           </Box>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1, justifyContent: { xs: "space-between", sm: "flex-end" } }}>
             <Button
               variant="contained"
+              color="primary"
               size="large"
               onClick={() => onNavigate?.("discovery")}
               sx={{
                 whiteSpace: "nowrap",
-                bgcolor: "#D4A574",
-                color: "#1E3A5F",
                 fontWeight: 700,
                 fontSize: { xs: "0.85rem", sm: "0.95rem" },
                 px: { xs: 2, sm: 3 },
                 py: { xs: 1, sm: "auto" },
                 flex: { xs: 1, sm: "auto" },
-                "&:hover": { bgcolor: "#c49464" },
               }}
             >
               Kostenlose KI-Analyse starten
@@ -529,7 +551,8 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
             <IconButton
               size="medium"
               onClick={dismissBanner}
-              sx={{ color: "rgba(255,255,255,0.5)", "&:hover": { color: "#fff" } }}
+              aria-label="Hinweis schließen"
+              sx={{ color: "secondary.contrastText", opacity: 0.7, "&:hover": { opacity: 1 } }}
             >
               <X size={18} />
             </IconButton>
@@ -539,10 +562,10 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
 
       {/* Search and Filter Section */}
       <Box sx={{ mb: 3 }}>
-        <Typography variant="h5" component="h2" fontWeight={600} sx={{ mb: 1, color: "#1e293b", fontSize: { xs: "1.25rem", md: "1.375rem" } }}>
+        <Typography variant="h5" component="h2" fontWeight={600} sx={{ mb: 1, fontSize: { xs: "1.25rem", md: "1.375rem" } }}>
           Ausschreibungen durchsuchen
         </Typography>
-        <Typography variant="body2" sx={{ mb: 3, color: "#475569", fontSize: "0.9375rem" }}>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 3, fontSize: "0.9375rem" }}>
           Semantische Suche über alle deutschen Ausschreibungsportale
         </Typography>
 
@@ -554,6 +577,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
         >
           <TextField
             placeholder="Suche nach Titel, Auftraggeber, Leistung..."
+            aria-label="Ausschreibungen durchsuchen"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             size="medium"
@@ -571,6 +595,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                       size="medium"
                       onClick={userLocation ? clearGeolocation : handleGeolocation}
                       disabled={geoLoading}
+                      aria-label={userLocation ? "Standortfilter deaktivieren" : "Nach Standort filtern"}
                       sx={{
                         width: 36,
                         height: 36,
@@ -596,6 +621,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
             size="medium"
             sx={{ minWidth: 200 }}
             displayEmpty
+            inputProps={{ "aria-label": "Standort" }}
           >
             <MenuItem value="">Alle Standorte</MenuItem>
             <ListSubheader>Bundesländer</ListSubheader>
@@ -613,14 +639,17 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
               exclusive
               onChange={(_, v) => v && setViewMode(v)}
               size="medium"
+              aria-label="Darstellung der Ausschreibungen"
             >
-              <ToggleButton value="cards"><LayoutGrid size={22} /></ToggleButton>
-              <ToggleButton value="table"><List size={22} /></ToggleButton>
+              <ToggleButton value="cards" aria-label="Kartenansicht" title="Kartenansicht"><LayoutGrid size={22} /></ToggleButton>
+              <ToggleButton value="table" aria-label="Tabellenansicht" title="Tabellenansicht"><List size={22} /></ToggleButton>
             </ToggleButtonGroup>
             <IconButton
               onClick={() => searchTendersApi(searchOptions, undefined, 1, false)}
               disabled={loading}
               size="medium"
+              aria-label="Ausschreibungen aktualisieren"
+              title="Ausschreibungen aktualisieren"
               sx={{ height: 48, width: 48 }}
             >
               <RefreshCw size={22} className={loading ? "animate-spin" : ""} />
@@ -683,18 +712,33 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
             aria-label="Sortierung"
             sx={{ minWidth: { xs: "100%", sm: 180 } }}
           >
-            {(Object.keys(DEADLINE_SORT_LABELS) as DeadlineSort[]).map((sort) => (
-              <MenuItem key={sort} value={sort}>
-                {DEADLINE_SORT_LABELS[sort]}
-              </MenuItem>
-            ))}
+            {(Object.keys(DEADLINE_SORT_LABELS) as DeadlineSort[])
+              .filter((sort) => sort !== "smallVendorFit" || smallVendorMode)
+              .map((sort) => (
+                <MenuItem key={sort} value={sort}>
+                  {DEADLINE_SORT_LABELS[sort]}
+                </MenuItem>
+              ))}
           </Select>
+          {smallVendorMode && (
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={smallVendorOnly}
+                  onChange={(event) => setSmallVendorOnly(event.target.checked)}
+                  size="small"
+                />
+              }
+              label="Für kleine IT-Anbieter"
+              sx={{ mr: 0 }}
+            />
+          )}
         </Stack>
 
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-          <Typography variant="body2" sx={{ color: "#475569", fontSize: "0.8125rem" }}>
+          <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.8125rem" }}>
             {loading
-              ? "Lade Ausschreibungen..."
+              ? "Ergebnisse werden aktualisiert..."
               : userLocation
               ? `${displayedTenders.length} von ${tenders.length} Ausschreibungen im Umkreis von ${GEO_RADIUS_KM}km`
               : `${totalResults} Ausschreibungen gefunden`}
@@ -710,16 +754,16 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
               px: 0.75,
               py: 0.25,
               border: "1px solid",
-              borderColor: todayNewOnly ? "#166534" : "transparent",
+              borderColor: todayNewOnly ? "success.main" : "transparent",
               borderRadius: 1,
-              color: "#166534",
-              backgroundColor: todayNewOnly ? "rgba(22, 101, 52, 0.1)" : "transparent",
+              color: "success.dark",
+              backgroundColor: todayNewOnly ? "success.light" : "transparent",
               fontSize: "0.8125rem",
               fontWeight: todayNewOnly ? 700 : 500,
               lineHeight: 1.5,
               textTransform: "none",
               "&:hover": {
-                backgroundColor: "rgba(22, 101, 52, 0.1)",
+                backgroundColor: "success.light",
               },
             }}
           >
@@ -735,11 +779,11 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
 
       {/* Loading skeletons */}
       {loading && tenders.length === 0 && (
-        <>
+        <Box role="status" aria-label="Ausschreibungen werden geladen" aria-live="polite">
           {viewMode === "cards" ? (
             <Stack spacing={2}>
               {Array.from({ length: 5 }).map((_, i) => (
-                <Card key={i} variant="outlined">
+                <Card key={i} variant="outlined" sx={{ borderRadius: 2 }}>
                   <CardContent sx={{ p: 3, "&:last-child": { pb: 3 } }}>
                     <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1.5 }}>
                       <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -760,16 +804,16 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
               ))}
             </Stack>
           ) : (
-            <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: "6px" }}>
+            <ResponsiveTableFrame label="Ausschreibungsergebnisse werden geladen">
               <Table size="medium">
                 <TableHead>
                   <TableRow>
-                    <TableCell sx={{ fontWeight: 600, color: "#1e293b", fontSize: "0.8125rem" }}>Ausschreibung</TableCell>
-                    <TableCell sx={{ fontWeight: 600, color: "#1e293b", fontSize: "0.8125rem" }}>Auftraggeber</TableCell>
-                    <TableCell sx={{ fontWeight: 600, color: "#1e293b", fontSize: "0.8125rem" }}>Kategorie</TableCell>
-                    <TableCell sx={{ fontWeight: 600, color: "#1e293b", fontSize: "0.8125rem" }}>Standort</TableCell>
-                    <TableCell sx={{ fontWeight: 600, color: "#1e293b", fontSize: "0.8125rem" }}>Frist</TableCell>
-                    <TableCell sx={{ fontWeight: 600, color: "#1e293b", fontSize: "0.8125rem" }}>Quelle</TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: "text.primary", fontSize: "0.8125rem" }}>Ausschreibung</TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: "text.primary", fontSize: "0.8125rem" }}>Auftraggeber</TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: "text.primary", fontSize: "0.8125rem" }}>Kategorie</TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: "text.primary", fontSize: "0.8125rem" }}>Standort</TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: "text.primary", fontSize: "0.8125rem" }}>Frist</TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: "text.primary", fontSize: "0.8125rem" }}>Quelle</TableCell>
                     <TableCell align="right" sx={{ fontWeight: 600 }}></TableCell>
                   </TableRow>
                 </TableHead>
@@ -790,73 +834,49 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                   ))}
                 </TableBody>
               </Table>
-            </TableContainer>
+            </ResponsiveTableFrame>
           )}
-        </>
+        </Box>
       )}
 
       {/* Error state */}
       {error && (
-        <Paper
-          elevation={0}
-          variant="outlined"
-          sx={{
-            borderRadius: 3,
-            p: 4,
-            textAlign: "center",
-            bgcolor: "error.light",
-            color: "error.contrastText",
-          }}
-        >
-          <AlertCircle size={48} style={{ marginBottom: 16, opacity: 0.5 }} />
-          <Typography variant="h6" component="p" fontWeight={600} sx={{ mb: 1 }}>
-            Fehler beim Laden
-          </Typography>
-          <Typography variant="body2" sx={{ mb: 3, opacity: 0.9 }}>
-            {error}
-          </Typography>
-          <Button
-            variant="contained"
-            startIcon={<RefreshCw size={20} />}
-            onClick={() => searchTendersApi(searchOptions, undefined, 1, false)}
-            sx={{
-              bgcolor: "#1E3A5F",
-              color: "#fff",
-              "&:hover": { bgcolor: "#152a45" },
-            }}
-          >
-            Erneut laden
-          </Button>
-        </Paper>
+        <ResourceState
+          kind="error"
+          title="Ausschreibungen konnten nicht geladen werden"
+          description={error}
+          action={(
+            <Button
+              variant="contained"
+              startIcon={<RefreshCw size={20} />}
+              onClick={() => searchTendersApi(searchOptions, undefined, 1, false)}
+            >
+              Erneut laden
+            </Button>
+          )}
+        />
       )}
 
       {/* Empty state */}
       {!loading && tenders.length === 0 && !error && (
-        <Paper
-          elevation={0}
-          variant="outlined"
-          sx={{ borderRadius: 3, p: 6, textAlign: "center" }}
-        >
-          <FileText size={48} color="currentColor" style={{ opacity: 0.3, marginBottom: 16 }} />
-          <Typography variant="h6" component="p" fontWeight={600} sx={{ mb: 1 }}>
-            {todayNewOnly
-              ? "Keine Ausschreibungen in den letzten 3 Tagen gefunden"
-              : hasDeadlineRestriction
-              ? `Keine Ausschreibungen mit ${DEADLINE_FILTER_LABELS[deadlineFilter].toLowerCase()} gefunden`
-              : hasActiveFilters
-              ? "Keine Ausschreibungen gefunden"
-              : "Noch keine Ausschreibungen vorhanden"}
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3, maxWidth: 500, mx: "auto" }}>
-            {todayNewOnly
-              ? "Versuchen Sie andere Suchbegriffe oder Standortfilter oder setzen Sie den Filter zurück."
-              : hasDeadlineRestriction
-              ? "Erweitern Sie den Fristenfilter, um auch kurzfristige Ausschreibungen anzuzeigen."
-              : hasActiveFilters
-              ? "Versuchen Sie andere Suchbegriffe oder Standortfilter."
-              : "Der Hintergrund-Job sucht automatisch nach neuen Ausschreibungen."}
-          </Typography>
-          {hasDeadlineRestriction && (
+        <ResourceState
+          kind="empty"
+          icon={FileText}
+          title={todayNewOnly
+            ? "Keine Ausschreibungen in den letzten 3 Tagen gefunden"
+            : hasDeadlineRestriction
+            ? `Keine Ausschreibungen mit ${DEADLINE_FILTER_LABELS[deadlineFilter].toLowerCase()} gefunden`
+            : hasActiveFilters
+            ? "Keine Ausschreibungen gefunden"
+            : "Noch keine Ausschreibungen vorhanden"}
+          description={todayNewOnly
+            ? "Versuchen Sie andere Suchbegriffe oder Standortfilter oder setzen Sie den Filter zurück."
+            : hasDeadlineRestriction
+            ? "Erweitern Sie den Fristenfilter, um auch kurzfristige Ausschreibungen anzuzeigen."
+            : hasActiveFilters
+            ? "Versuchen Sie andere Suchbegriffe oder Standortfilter."
+            : "Der Hintergrund-Job sucht automatisch nach neuen Ausschreibungen."}
+          action={hasDeadlineRestriction ? (
             <Button
               variant="outlined"
               startIcon={<RefreshCw size={20} />}
@@ -868,8 +888,8 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
             >
               Alle offenen anzeigen
             </Button>
-          )}
-          {hasActiveFilters && (
+          ) : undefined}
+          secondaryAction={hasActiveFilters ? (
             <Button
               variant="outlined"
               startIcon={<RefreshCw size={20} />}
@@ -881,13 +901,13 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                 setDeadlineFrom("");
                 setDeadlineTo("");
                 setSortKey("deadline");
+                setSmallVendorOnly(false);
                 clearGeolocation();
               }}
             >
               Filter zurücksetzen
             </Button>
-          )}
-          {!hasDeadlineRestriction && !hasActiveFilters && (
+          ) : !hasDeadlineRestriction ? (
             <Button
               variant="outlined"
               startIcon={<RefreshCw size={20} />}
@@ -895,87 +915,114 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
             >
               Jetzt laden
             </Button>
-          )}
-        </Paper>
+          ) : undefined}
+        />
+      )}
+
+      {loading && tenders.length > 0 && (
+        <ResourceState
+          kind="loading"
+          compact
+          title="Ergebnisse werden aktualisiert"
+          description="Ihre Filter werden angewendet."
+        />
       )}
 
       {/* Cards view */}
-      {!loading && displayedTenders.length > 0 && viewMode === "cards" && (
-        <Stack spacing={2}>
-          {displayedTenders.map((tender) => (
-            <TenderCard key={tender.id} tender={tender} onDetailClick={fetchDetail} distance={tenderDistances[tender.id]} />
-          ))}
-        </Stack>
+      {displayedTenders.length > 0 && viewMode === "cards" && (
+        <Box aria-busy={loading}>
+          <Stack spacing={2}>
+            {displayedTenders.map((tender) => (
+              <TenderCard key={tender.id} tender={tender} onDetailClick={fetchDetail} distance={tenderDistances[tender.id]} />
+            ))}
+          </Stack>
+        </Box>
       )}
 
       {/* Table view */}
-      {!loading && displayedTenders.length > 0 && viewMode === "table" && (
-        <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: "6px" }}>
-          <Table size="medium">
-            <TableHead>
-              <TableRow>
-                <TableCell sx={{ fontWeight: 600, color: "#1e293b", fontSize: "0.8125rem" }}>Ausschreibung</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: "#1e293b", fontSize: "0.8125rem" }}>Auftraggeber</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: "#1e293b", fontSize: "0.8125rem" }}>Kategorie</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: "#1e293b", fontSize: "0.8125rem" }}>Standort</TableCell>
-                {userLocation && <TableCell sx={{ fontWeight: 600, color: "#1e293b", fontSize: "0.8125rem" }}>Entfernung</TableCell>}
-                <TableCell sx={{ fontWeight: 600, color: "#1e293b", fontSize: "0.8125rem" }}>Frist</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: "#1e293b", fontSize: "0.8125rem" }}>Quelle</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 600 }}></TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {displayedTenders.map((tender) => (
-                <TableRow key={tender.id} hover>
-                  <TableCell>
-                    <Typography variant="body2" fontWeight={600} sx={{ color: "#1e293b", fontSize: "0.9375rem" }}>
-                      {tender.title}
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: "#475569", fontSize: "0.75rem", display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                      {tender.description || "–"}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" sx={{ color: "#475569", fontSize: "0.8125rem" }}>{tender.client}</Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Chip label={tender.category} size="small" variant="outlined" sx={{ height: 22, borderRadius: "4px", fontSize: "0.6875rem" }} />
-                  </TableCell>
-                  <TableCell>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                      <MapPin size={15} style={{ opacity: 0.55 }} />
-                      <Typography variant="body2" sx={{ color: "#475569", fontSize: "0.8125rem" }}>{tender.location || tender.bundesland || "–"}</Typography>
-                    </Box>
-                  </TableCell>
-                  {userLocation && (
-                    <TableCell>
-                      <Typography variant="body2" sx={{ color: "#475569", fontSize: "0.8125rem" }}>
-                        {tenderDistances[tender.id] !== undefined
-                          ? `${Math.round(tenderDistances[tender.id])}km`
-                          : "–"}
-                      </Typography>
-                    </TableCell>
-                  )}
-                  <TableCell>
-                    <DeadlineDisplay value={tender.deadlineISO ?? tender.deadline} compact />
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="caption" sx={{ color: "#475569", fontSize: "0.75rem" }}>{tender.source}</Typography>
-                  </TableCell>
-                  <TableCell align="right">
-                    <Button
-                      size="medium"
-                      onClick={() => fetchDetail(tender)}
-                      sx={{ minWidth: 0 }}
-                    >
-                      <Eye size={18} />
-                    </Button>
-                  </TableCell>
+      {displayedTenders.length > 0 && viewMode === "table" && (
+        <Box aria-busy={loading}>
+          <ResponsiveTableFrame label="Ausschreibungsergebnisse">
+            <Table size="medium">
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 600, color: "text.primary", fontSize: "0.8125rem" }}>Ausschreibung</TableCell>
+                  <TableCell sx={{ fontWeight: 600, color: "text.primary", fontSize: "0.8125rem" }}>Auftraggeber</TableCell>
+                  <TableCell sx={{ fontWeight: 600, color: "text.primary", fontSize: "0.8125rem" }}>Kategorie</TableCell>
+                  <TableCell sx={{ fontWeight: 600, color: "text.primary", fontSize: "0.8125rem" }}>Standort</TableCell>
+                  {userLocation && <TableCell sx={{ fontWeight: 600, color: "text.primary", fontSize: "0.8125rem" }}>Entfernung</TableCell>}
+                  <TableCell sx={{ fontWeight: 600, color: "text.primary", fontSize: "0.8125rem" }}>Frist</TableCell>
+                  <TableCell sx={{ fontWeight: 600, color: "text.primary", fontSize: "0.8125rem" }}>Quelle</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 600 }}></TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+              </TableHead>
+              <TableBody>
+                {displayedTenders.map((tender) => {
+                  const display = projectTenderDisplay(tender);
+                  const title = display.title ?? "–";
+                  const client = display.client ?? "–";
+                  const description = display.description ?? "–";
+                  const location = display.location ?? "–";
+
+                  return (
+                    <TableRow
+                      key={tender.id}
+                      hover
+                      sx={tender.smallVendor && tender.smallVendor.fit >= 75 ? { bgcolor: "var(--color-smallvendor-soft)" } : undefined}
+                    >
+                      <TableCell>
+                        <Typography variant="body2" fontWeight={600} sx={{ color: "text.primary", fontSize: "0.9375rem" }}>
+                          {title}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.75rem", display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                          {description}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.8125rem" }}>{client}</Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Chip label={tender.category} size="small" variant="outlined" sx={{ height: 22, borderRadius: 1, fontSize: "0.6875rem" }} />
+                      </TableCell>
+                      <TableCell>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                          <MapPin size={15} style={{ opacity: 0.55 }} />
+                          <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.8125rem" }}>{location}</Typography>
+                        </Box>
+                      </TableCell>
+                      {userLocation && (
+                        <TableCell>
+                          <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.8125rem" }}>
+                            {tenderDistances[tender.id] !== undefined
+                              ? `${Math.round(tenderDistances[tender.id])}km`
+                              : "–"}
+                          </Typography>
+                        </TableCell>
+                      )}
+                      <TableCell>
+                        <DeadlineDisplay value={tender.deadlineISO ?? tender.deadline} compact />
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.75rem" }}>{tender.source}</Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Button
+                          size="medium"
+                          onClick={() => fetchDetail(tender)}
+                          aria-label={`${title} prüfen`}
+                          title="Ausschreibung prüfen"
+                          sx={{ minWidth: 0 }}
+                        >
+                          <Eye size={18} />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </ResponsiveTableFrame>
+        </Box>
       )}
 
       {!loading && hasMore && (
@@ -993,26 +1040,21 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
 
       {/* No geo results state */}
       {!loading && displayedTenders.length === 0 && tenders.length > 0 && (
-        <Paper
-          elevation={0}
-          variant="outlined"
-          sx={{ borderRadius: 3, py: 6, textAlign: "center" }}
-        >
-          <Search size={48} color="currentColor" style={{ opacity: 0.3, marginBottom: 16 }} />
-          <Typography variant="h6" component="p" fontWeight={600} sx={{ mb: 1 }}>
-            Keine Ausschreibungen im Umkreis gefunden
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            Erweitern Sie den Suchradius oder entfernen Sie den Standortfilter
-          </Typography>
-          <Button
-            variant="outlined"
-            startIcon={<SearchLocationIcon size={20} />}
-            onClick={clearGeolocation}
-          >
-            Standortfilter entfernen
-          </Button>
-        </Paper>
+        <ResourceState
+          kind="empty"
+          icon={Search}
+          title="Keine Ausschreibungen im Umkreis gefunden"
+          description="Erweitern Sie den Suchradius oder entfernen Sie den Standortfilter."
+          action={(
+            <Button
+              variant="outlined"
+              startIcon={<SearchLocationIcon size={20} />}
+              onClick={clearGeolocation}
+            >
+              Standortfilter entfernen
+            </Button>
+          )}
+        />
       )}
 
       {/* Detail Dialog */}
@@ -1025,7 +1067,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
       >
         <DialogTitle sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, pb: 1 }}>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0, flexWrap: "wrap" }}>
-            <Typography variant="h6" component="p" fontWeight={600} sx={{ color: "#1e293b", fontSize: "1.25rem" }}>
+            <Typography variant="h6" component="p" fontWeight={600} sx={{ color: "text.primary", fontSize: "1.25rem" }}>
               Ausschreibung
             </Typography>
             <Button
@@ -1042,7 +1084,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
               {copyStatus === "copied" ? "Kopiert" : copyStatus === "error" ? "Erneut kopieren" : "Für KI kopieren"}
             </Button>
           </Box>
-          <IconButton onClick={() => setDetailOpen(false)} size="medium">
+          <IconButton onClick={() => setDetailOpen(false)} size="medium" aria-label="Ausschreibung schließen">
             <X size={20} />
           </IconButton>
         </DialogTitle>
@@ -1062,14 +1104,33 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
           {detailData && selectedTender && (() => {
             const d = detailData as Record<string, unknown>;
             const t = selectedTender;
-            const client = normalizePublicClient(d.client, t.client);
-            const location = pickValidatedPublicLocationForTender(t.title, client, d.location, t.location, t.bundesland);
+            const smallVendorDetail = d.smallVendor && typeof d.smallVendor === "object" && !Array.isArray(d.smallVendor)
+              ? d.smallVendor as { fit?: unknown; badges?: unknown; why?: unknown; risks?: unknown }
+              : null;
+            const smallVendorWhy = Array.isArray(smallVendorDetail?.why)
+              ? smallVendorDetail.why.filter((item): item is string => typeof item === "string" && item.length > 0)
+              : [];
+            const smallVendorRisks = Array.isArray(smallVendorDetail?.risks)
+              ? smallVendorDetail.risks.filter((item): item is string => typeof item === "string" && item.length > 0)
+              : [];
+            const smallVendorFitValue = typeof smallVendorDetail?.fit === "number" ? smallVendorDetail.fit : null;
+            const smallVendorBadges = Array.isArray(smallVendorDetail?.badges)
+              ? smallVendorDetail.badges.filter((item): item is string => typeof item === "string" && item.length > 0)
+              : [];
+            const display = projectPublicDisplayFields({
+              title: t.title,
+              client: [d.client, t.client],
+              location: [d.location, t.location, t.city, t.bundesland],
+              summary: [d.summary, d.description, t.description],
+              descriptionMarkdown: d.descriptionMarkdown,
+            });
+            const title = display.title ?? "";
+            const client = display.client ?? "";
+            const location = display.location ?? "";
             const deadline = pickValidatedPublicCandidate(d.deadline, t.deadline);
             const deadlineISO = pickValidatedPublicCandidate(d.deadlineISO, t.deadlineISO);
-            const description = pickValidatedPublicCandidate(d.description, t.description);
-            const descriptionMarkdown = isCanonicalPublicDescriptionMarkdown(d.descriptionMarkdown)
-              ? d.descriptionMarkdown
-              : null;
+            const description = display.description ?? "";
+            const descriptionMarkdown = display.descriptionMarkdown;
             const markdownHasSection = (label: string): boolean => Boolean(descriptionMarkdown?.includes(`- **${label}:**`));
             const markdownHasScope = markdownHasSection("Leistungsumfang");
             const markdownHasRequirements = markdownHasSection("Anforderungen");
@@ -1155,35 +1216,35 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
 
             return (
               <Stack spacing={3}>
-                <Typography variant="h5" component="p" fontWeight={600} sx={{ lineHeight: 1.3, color: "#1e293b", fontSize: { xs: "1.5rem", md: "1.75rem" } }}>
-                  {t.title}
+                <Typography variant="h5" component="p" fontWeight={600} sx={{ lineHeight: 1.3, color: "text.primary", fontSize: { xs: "1.5rem", md: "1.75rem" } }}>
+                  {title || "–"}
                 </Typography>
 
                 {/* Key Facts */}
                 <Stack spacing={3}>
                   {client && (
                     <Box>
-                      <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 0.5, lineHeight: 1.2, color: "#475569", fontSize: "0.75rem" }}>
+                      <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 0.5, lineHeight: 1.2, color: "text.secondary", fontSize: "0.75rem" }}>
                         Auftraggeber
                       </Typography>
-                      <Typography variant="h6" fontWeight={600} sx={{ fontSize: "1rem", lineHeight: 1.3, color: "#1e293b" }}>
+                      <Typography variant="h6" fontWeight={600} sx={{ fontSize: "1rem", lineHeight: 1.3, color: "text.primary" }}>
                         {client}
                       </Typography>
                     </Box>
                   )}
                   {estimatedValue && (
                     <Box>
-                      <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 0.5, lineHeight: 1.2, color: "#475569", fontSize: "0.75rem" }}>
+                      <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 0.5, lineHeight: 1.2, color: "text.secondary", fontSize: "0.75rem" }}>
                         Geschätzter Auftragswert
                       </Typography>
-                      <Typography variant="h6" fontWeight={600} sx={{ fontSize: "1rem", lineHeight: 1.3, color: "#1e293b" }}>
+                      <Typography variant="h6" fontWeight={600} sx={{ fontSize: "1rem", lineHeight: 1.3, color: "text.primary" }}>
                         {estimatedValue}
                       </Typography>
                     </Box>
                   )}
                   {deadline && (
                     <Box>
-                      <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 0.5, lineHeight: 1.2, color: "#475569", fontSize: "0.75rem" }}>
+                      <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 0.5, lineHeight: 1.2, color: "text.secondary", fontSize: "0.75rem" }}>
                         Frist
                       </Typography>
                       <Typography variant="h6" fontWeight={600} sx={{ fontSize: "1rem", lineHeight: 1.3, color: deadlineColor(deadlineISO ?? deadline) }}>
@@ -1193,56 +1254,111 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                   )}
                   {location && (
                     <Box>
-                      <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 0.5, lineHeight: 1.2, color: "#475569", fontSize: "0.75rem" }}>
+                      <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 0.5, lineHeight: 1.2, color: "text.secondary", fontSize: "0.75rem" }}>
                         Standort
                       </Typography>
-                      <Typography variant="h6" fontWeight={600} sx={{ fontSize: "1rem", lineHeight: 1.3, color: "#1e293b" }}>
+                      <Typography variant="h6" fontWeight={600} sx={{ fontSize: "1rem", lineHeight: 1.3, color: "text.primary" }}>
                         {location}
                       </Typography>
                     </Box>
                   )}
                   {procedure && (
                     <Box>
-                      <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 0.5, lineHeight: 1.2, color: "#475569", fontSize: "0.75rem" }}>
+                      <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 0.5, lineHeight: 1.2, color: "text.secondary", fontSize: "0.75rem" }}>
                         Verfahren
                       </Typography>
-                      <Typography variant="body1" fontWeight={500} sx={{ fontSize: "0.9375rem", lineHeight: 1.5, color: "#334155" }}>
+                      <Typography variant="body1" fontWeight={500} sx={{ fontSize: "0.9375rem", lineHeight: 1.5, color: "text.primary" }}>
                         {procedure}
                       </Typography>
                     </Box>
                   )}
                   {duration && (
                     <Box>
-                      <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 0.5, lineHeight: 1.2, color: "#475569", fontSize: "0.75rem" }}>
+                      <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 0.5, lineHeight: 1.2, color: "text.secondary", fontSize: "0.75rem" }}>
                         Laufzeit
                       </Typography>
-                      <Typography variant="body1" fontWeight={500} sx={{ fontSize: "0.9375rem", lineHeight: 1.5, color: "#334155" }}>
+                      <Typography variant="body1" fontWeight={500} sx={{ fontSize: "0.9375rem", lineHeight: 1.5, color: "text.primary" }}>
                         {duration}
                       </Typography>
                     </Box>
                   )}
                   {t.category && (
                     <Box>
-                      <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 0.5, lineHeight: 1.2, color: "#475569", fontSize: "0.75rem" }}>
+                      <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 0.5, lineHeight: 1.2, color: "text.secondary", fontSize: "0.75rem" }}>
                         Kategorie
                       </Typography>
-                      <Typography variant="h6" fontWeight={600} sx={{ fontSize: "1rem", lineHeight: 1.3, color: "#1e293b" }}>
+                      <Typography variant="h6" fontWeight={600} sx={{ fontSize: "1rem", lineHeight: 1.3, color: "text.primary" }}>
                         {t.category}
                       </Typography>
                     </Box>
                   )}
                 </Stack>
 
+                {smallVendorFitValue !== null && (
+                  <Box
+                    sx={{
+                      border: "1px solid var(--color-smallvendor-border)",
+                      bgcolor: smallVendorFitValue >= 75 ? "var(--color-smallvendor-soft)" : "transparent",
+                      borderRadius: 2,
+                      p: 2,
+                    }}
+                  >
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5, flexWrap: "wrap" }}>
+                      <Typography variant="overline" sx={{ fontWeight: 700, letterSpacing: 0.8, lineHeight: 1.2, color: "text.secondary", fontSize: "0.75rem" }}>
+                        Small Vendor Fit
+                      </Typography>
+                      <Typography variant="body2" fontWeight={700} sx={{ color: smallVendorFitValue >= 75 ? "success.dark" : "text.secondary" }}>
+                        {smallVendorFitValue} / 100
+                      </Typography>
+                      {smallVendorBadges.map((badge) => (
+                        <Chip key={badge} label={badge} size="small" variant="outlined" sx={{ height: 22, fontSize: "0.7rem" }} />
+                      ))}
+                    </Box>
+                    {smallVendorWhy.length > 0 && (
+                      <Box sx={{ mb: smallVendorRisks.length > 0 ? 1.5 : 0 }}>
+                        <Typography variant="body2" fontWeight={700} sx={{ mb: 0.5, color: "text.primary" }}>
+                          Warum passt diese Ausschreibung zu einem kleinen Softwareunternehmen?
+                        </Typography>
+                        <ul style={{ margin: 0, paddingLeft: 18 }}>
+                          {smallVendorWhy.map((item) => (
+                            <li key={item}>
+                              <Typography variant="body2" sx={{ lineHeight: 1.5, color: "text.primary", fontSize: "0.875rem" }}>
+                                {item}
+                              </Typography>
+                            </li>
+                          ))}
+                        </ul>
+                      </Box>
+                    )}
+                    {smallVendorRisks.length > 0 && (
+                      <Box>
+                        <Typography variant="body2" fontWeight={700} sx={{ mb: 0.5, color: "text.primary" }}>
+                          Was könnte zum Ausschluss führen?
+                        </Typography>
+                        <ul style={{ margin: 0, paddingLeft: 18 }}>
+                          {smallVendorRisks.map((item) => (
+                            <li key={item}>
+                              <Typography variant="body2" sx={{ lineHeight: 1.5, color: "text.primary", fontSize: "0.875rem" }}>
+                                {item}
+                              </Typography>
+                            </li>
+                          ))}
+                        </ul>
+                      </Box>
+                    )}
+                  </Box>
+                )}
+
                 {/* Description */}
                 <Box>
-                  <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 1, lineHeight: 1.2, color: "#475569", fontSize: "0.75rem" }}>
+                  <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 1, lineHeight: 1.2, color: "text.secondary", fontSize: "0.75rem" }}>
                     Beschreibung
                   </Typography>
                   <SafeMarkdown
                     content={descriptionMarkdown}
-                    sx={{ lineHeight: 1.5, fontSize: "0.9375rem", color: "#334155" }}
+                    sx={{ lineHeight: 1.5, fontSize: "0.9375rem", color: "text.primary" }}
                     fallback={
-                      <Typography variant="body1" sx={{ lineHeight: 1.5, fontSize: "0.9375rem", color: "#334155" }}>
+                      <Typography variant="body1" sx={{ lineHeight: 1.5, fontSize: "0.9375rem", color: "text.primary" }}>
                         {description ? (description.length > 600 ? description.slice(0, 600) + "..." : description) : "–"}
                       </Typography>
                     }
@@ -1252,10 +1368,10 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                 {/* Scope (detailed) */}
                 {scope && scope.length > 0 && scope !== description && !markdownHasScope && (
                   <Box>
-                    <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 1, lineHeight: 1.2, color: "#475569", fontSize: "0.75rem" }}>
+                    <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 1, lineHeight: 1.2, color: "text.secondary", fontSize: "0.75rem" }}>
                       Leistungsumfang
                     </Typography>
-                    <Typography variant="body1" sx={{ lineHeight: 1.5, fontSize: "0.9375rem", whiteSpace: "pre-line", color: "#334155" }}>
+                    <Typography variant="body1" sx={{ lineHeight: 1.5, fontSize: "0.9375rem", whiteSpace: "pre-line", color: "text.primary" }}>
                       {scope}
                     </Typography>
                   </Box>
@@ -1264,12 +1380,12 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                 {/* Requirements */}
                 {requirements.length > 0 && !markdownHasRequirements && (
                   <Box>
-                    <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 1, lineHeight: 1.2, color: "#475569", fontSize: "0.75rem" }}>
+                    <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 1, lineHeight: 1.2, color: "text.secondary", fontSize: "0.75rem" }}>
                       Anforderungen
                     </Typography>
                     <Stack spacing={0.5}>
                       {requirements.map((req, i) => (
-                        <Typography key={i} variant="body1" sx={{ lineHeight: 1.5, fontSize: "0.9375rem", pl: 1.5, color: "#334155", position: "relative", "&::before": { content: '"•"', position: "absolute", left: 0, color: "#475569" } }}>
+                        <Typography key={i} variant="body1" sx={{ lineHeight: 1.5, fontSize: "0.9375rem", pl: 1.5, color: "text.primary", position: "relative", "&::before": { content: '"•"', position: "absolute", left: 0, color: "text.secondary" } }}>
                           {req}
                         </Typography>
                       ))}
@@ -1280,12 +1396,12 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                 {/* Award Criteria */}
                 {awardCriteria.length > 0 && !markdownHasAwards && (
                   <Box>
-                    <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 1, lineHeight: 1.2, color: "#475569", fontSize: "0.75rem" }}>
+                    <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 1, lineHeight: 1.2, color: "text.secondary", fontSize: "0.75rem" }}>
                       Zuschlagskriterien
                     </Typography>
                     <Stack spacing={0.5}>
                       {awardCriteria.map((crit, i) => (
-                        <Typography key={i} variant="body1" sx={{ lineHeight: 1.5, fontSize: "0.9375rem", pl: 1.5, color: "#334155", position: "relative", "&::before": { content: '"•"', position: "absolute", left: 0, color: "#475569" } }}>
+                        <Typography key={i} variant="body1" sx={{ lineHeight: 1.5, fontSize: "0.9375rem", pl: 1.5, color: "text.primary", position: "relative", "&::before": { content: '"•"', position: "absolute", left: 0, color: "text.secondary" } }}>
                           {crit}
                         </Typography>
                       ))}
@@ -1296,10 +1412,10 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                 {/* Contact */}
                 {contact && (
                   <Box>
-                    <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 1, lineHeight: 1.2, color: "#475569", fontSize: "0.75rem" }}>
+                    <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 1, lineHeight: 1.2, color: "text.secondary", fontSize: "0.75rem" }}>
                       Kontakt
                     </Typography>
-                    <Typography variant="body1" sx={{ lineHeight: 1.5, fontSize: "0.9375rem", whiteSpace: "pre-line", color: "#334155" }}>
+                    <Typography variant="body1" sx={{ lineHeight: 1.5, fontSize: "0.9375rem", whiteSpace: "pre-line", color: "text.primary" }}>
                       {contact}
                     </Typography>
                   </Box>
@@ -1308,7 +1424,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                 {/* PDFs */}
                 {documentLinks.length > 0 && (
                   <Box>
-                    <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 1, lineHeight: 1.2, color: "#475569", fontSize: "0.75rem" }}>
+                    <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 1, lineHeight: 1.2, color: "text.secondary", fontSize: "0.75rem" }}>
                       Dokumente
                     </Typography>
                     <Stack spacing={1}>
@@ -1333,14 +1449,14 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
 
                 {documentAnalysis && analysisCoverage && (typeof analysisCoverage.discovered === "number" || analysisEvidence.length > 0) && (
                   <Box>
-                    <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 1, lineHeight: 1.2, color: "#475569", fontSize: "0.75rem" }}>
+                    <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 1, lineHeight: 1.2, color: "text.secondary", fontSize: "0.75rem" }}>
                       Dokumentenanalyse
                     </Typography>
-                    <Typography variant="body2" sx={{ color: "#334155", lineHeight: 1.5 }}>
+                    <Typography variant="body2" sx={{ color: "text.primary", lineHeight: 1.5 }}>
                       {typeof analysisCoverage.parsed === "number" ? analysisCoverage.parsed : 0}/{typeof analysisCoverage.discovered === "number" ? analysisCoverage.discovered : 0} Dokumente analysiert
                     </Typography>
                     {analysisEvidence.slice(0, 4).map((evidence, index) => (
-                      <Typography key={`${String(evidence.field)}-${String(evidence.documentId)}-${index}`} variant="caption" sx={{ display: "block", mt: 0.75, color: "#475569", lineHeight: 1.5 }}>
+                      <Typography key={`${String(evidence.field)}-${String(evidence.documentId)}-${index}`} variant="caption" sx={{ display: "block", mt: 0.75, color: "text.secondary", lineHeight: 1.5 }}>
                         {documentAnalysisFieldLabel(evidence.field) ? `${documentAnalysisFieldLabel(evidence.field)}: ` : ""}{typeof evidence.quote === "string" ? `„${evidence.quote}”` : ""}{typeof evidence.page === "number" ? ` (Seite ${evidence.page})` : ""}
                       </Typography>
                     ))}
@@ -1408,21 +1524,41 @@ function DeadlineDisplay({ value, compact = false }: { value: string | null | un
 }
 
 function TenderCard({ tender, onDetailClick, distance }: { tender: ApiTender; onDetailClick: (tender: ApiTender) => void; distance?: number }) {
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
-  const displayLocation = tender.location || tender.bundesland || "";
+  const display = projectTenderDisplay(tender);
+  const title = display.title ?? "–";
+  const client = display.client ?? "–";
+  const description = display.description ?? "–";
+  const displayLocation = display.location ?? "";
+  const smallVendor = tender.smallVendor;
+  const smallVendorHighlight = Boolean(smallVendor && smallVendor.fit >= 75);
 
   return (
     <Card
       variant="outlined"
       onClick={() => onDetailClick(tender)}
+      role="button"
+      tabIndex={0}
+      aria-label={`${title} prüfen`}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onDetailClick(tender);
+        }
+      }}
       sx={{
         cursor: "pointer",
-        borderRadius: "6px",
-        transition: "border-color 0.2s, box-shadow 0.2s",
+        borderRadius: 2,
+        transition: "border-color 0.2s",
+        ...(smallVendorHighlight
+          ? { bgcolor: "var(--color-smallvendor-soft)", border: "1px solid var(--color-smallvendor-border)" }
+          : {}),
         "&:hover": {
           borderColor: "primary.light",
-          boxShadow: `0 2px 12px rgba(0,0,0,0.06)`,
+        },
+        "&:focus-visible": {
+          outline: "3px solid",
+          outlineColor: "primary.main",
+          outlineOffset: 2,
         },
       }}
     >
@@ -1438,13 +1574,26 @@ function TenderCard({ tender, onDetailClick, distance }: { tender: ApiTender; on
           }}
         >
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 0.5, fontSize: "0.9375rem", color: "#1e293b" }}>
-              {tender.title}
+            {smallVendor && smallVendor.badges.length > 0 && (
+              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mb: 0.75 }}>
+                {smallVendor.badges.map((badge) => (
+                  <Chip
+                    key={badge}
+                    label={badge}
+                    size="small"
+                    variant="outlined"
+                    sx={{ height: 22, fontSize: "0.7rem" }}
+                  />
+                ))}
+              </Box>
+            )}
+            <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 0.5, fontSize: "0.9375rem", color: "text.primary" }}>
+              {title}
             </Typography>
             <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
               <Building2 size={18} style={{ opacity: 0.5 }} />
-              <Typography variant="body2" sx={{ color: "#475569", fontSize: "0.8125rem" }}>
-                {tender.client}
+              <Typography variant="body2" sx={{ color: "text.secondary", fontSize: "0.8125rem" }}>
+                {client}
               </Typography>
             </Box>
           </Box>
@@ -1455,14 +1604,14 @@ function TenderCard({ tender, onDetailClick, distance }: { tender: ApiTender; on
                 size="small"
                 color="primary"
                 variant="outlined"
-                sx={{ fontWeight: 600, height: 22, borderRadius: "4px", fontSize: "0.6875rem" }}
+                sx={{ fontWeight: 600, height: 22, borderRadius: 1, fontSize: "0.6875rem" }}
               />
             )}
             <Chip
               label={tender.category}
               size="small"
               variant="outlined"
-              sx={{ flexShrink: 0, alignSelf: { xs: "flex-start", sm: "flex-start" }, height: 22, borderRadius: "4px", fontSize: "0.6875rem" }}
+              sx={{ flexShrink: 0, alignSelf: { xs: "flex-start", sm: "flex-start" }, height: 22, borderRadius: 1, fontSize: "0.6875rem" }}
             />
           </Box>
         </Box>
@@ -1472,7 +1621,7 @@ function TenderCard({ tender, onDetailClick, distance }: { tender: ApiTender; on
           sx={{
             mb: 2,
             lineHeight: 1.5,
-            color: "#334155",
+            color: "text.primary",
             fontSize: "0.9375rem",
             display: "-webkit-box",
             WebkitLineClamp: { xs: 2, sm: 3 },
@@ -1480,7 +1629,7 @@ function TenderCard({ tender, onDetailClick, distance }: { tender: ApiTender; on
             overflow: "hidden",
           }}
         >
-          {tender.description || "–"}
+          {description}
         </Typography>
 
         <Stack
@@ -1505,7 +1654,7 @@ function TenderCard({ tender, onDetailClick, distance }: { tender: ApiTender; on
           {displayLocation && (
             <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
               <MapPin size={18} style={{ opacity: 0.5 }} />
-              <Typography variant="body2" sx={{ color: "#475569", fontSize: "0.8125rem" }}>{displayLocation}</Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary", fontSize: "0.8125rem" }}>{displayLocation}</Typography>
             </Box>
           )}
           <Box sx={{ ml: { xs: 1, sm: 2 } }}>
@@ -1516,7 +1665,7 @@ function TenderCard({ tender, onDetailClick, distance }: { tender: ApiTender; on
               <FileText size={18} style={{ opacity: 0.5 }} />
               <Typography
                 variant="body2"
-                sx={{ fontFamily: '"IBM Plex Mono", monospace', color: "#475569", fontSize: "0.8125rem" }}
+                sx={{ fontFamily: '"IBM Plex Mono", monospace', color: "text.secondary", fontSize: "0.8125rem" }}
               >
                 {tender.referenceNumber}
               </Typography>
@@ -1534,13 +1683,13 @@ function TenderCard({ tender, onDetailClick, distance }: { tender: ApiTender; on
             borderColor: "divider",
           }}
         >
-          <Typography variant="caption" sx={{ color: "#475569", fontSize: "0.75rem" }}>
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.75rem" }}>
             Quelle: {tender.source}
           </Typography>
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, color: "primary.main" }}>
             <Eye size={18} />
             <Typography variant="caption" fontWeight={500} sx={{ fontSize: "0.75rem" }}>
-              Details
+              Ausschreibung prüfen
             </Typography>
           </Box>
         </Box>

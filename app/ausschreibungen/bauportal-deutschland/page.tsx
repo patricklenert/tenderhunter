@@ -5,7 +5,9 @@ import { CATEGORY_LABELS } from "@/lib/categories";
 import { PortalPageContent } from "@/components/seo/PortalPageContent";
 import { getListingRobots, type SeoSearchParams } from "@/lib/seo-indexability";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+import { getSiteUrl } from "@/lib/site-config";
+
+const siteUrl = getSiteUrl();
 const portal = PORTALS["bauportal-deutschland"];
 
 export const revalidate = 3600;

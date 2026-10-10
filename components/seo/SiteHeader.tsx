@@ -38,7 +38,7 @@ export function SiteHeader() {
             gap: 2,
           }}
         >
-          <Link href="/" style={{ textDecoration: "none", color: "inherit" }}>
+          <Link href="/" tabIndex={-1} style={{ textDecoration: "none", color: "inherit" }}>
             <Typography variant="h6" fontWeight={800} sx={{ letterSpacing: "-0.02em" }}>
               Tenderhunter
             </Typography>
@@ -57,6 +57,7 @@ export function SiteHeader() {
           >
             <Link
               href="/ausschreibungen"
+              tabIndex={-1}
               style={{
                 textDecoration: "none",
                 color: "#374151",
@@ -70,6 +71,7 @@ export function SiteHeader() {
               <Link
                 key={cat.href}
                 href={cat.href}
+                tabIndex={-1}
                 style={{
                   textDecoration: "none",
                   color: "#667288",
@@ -81,6 +83,7 @@ export function SiteHeader() {
             ))}
             <Link
               href="/wissen"
+              tabIndex={-1}
               style={{
                 textDecoration: "none",
                 color: "#667288",
@@ -91,6 +94,7 @@ export function SiteHeader() {
             </Link>
             <Link
               href="/funktionen"
+              tabIndex={-1}
               style={{
                 textDecoration: "none",
                 color: "#667288",

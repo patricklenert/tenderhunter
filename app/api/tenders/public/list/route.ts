@@ -1,12 +1,12 @@
 import { db } from "@/lib/db";
 import { structuredData, tenders } from "@/lib/schema";
 import { json, errorResponse } from "@/lib/http";
-import { desc, and, eq, or, like, gt, isNull, inArray } from "drizzle-orm";
+import { desc, and, eq, or, like, gt, isNull, inArray, sql } from "drizzle-orm";
 import { readPublicTenderMeta } from "@/lib/tender-meta";
-import { pickPublicDescription } from "@/lib/public-tender-scraper";
 import { normalizeStructured } from "@/lib/structurer";
-import { pickValidatedPublicLocationForTender, pickValidatedPublicCandidate } from "@/lib/public-content-quality";
+import { pickValidatedPublicProcedure, projectPublicTenderRecord } from "@/lib/public-content-quality";
 import { formatDeadlineDE, sanitizeTenderUrl } from "@/lib/date-utils";
+import { getPublicAccessLimitedFallback } from "@/lib/public-tender-scraper";
 
 export const runtime = "nodejs";
 
@@ -32,14 +32,14 @@ export async function GET(request: Request): Promise<Response> {
     }
 
     if (location && location !== "Alle Standorte") {
-      conditions.push(like(tenders.metadataJson, `%${location}%`));
+      conditions.push(like(sql`${tenders.metadataJson}::text`, `%${location}%`));
     }
 
     if (search) {
       conditions.push(
         or(
           like(tenders.title, `%${search}%`),
-          like(tenders.metadataJson, `%${search}%`)
+          like(sql`${tenders.metadataJson}::text`, `%${search}%`)
         )
       );
     }
@@ -80,46 +80,62 @@ export async function GET(request: Request): Promise<Response> {
 
     const mapped = items
       .map((item) => {
-         const meta = readPublicTenderMeta(item.metadataJson, {
-          title: item.title,
-          source: item.source,
-          sourceUrl: item.url,
-          rawText: item.rawText,
-        });
-        const fallbackFacts = {
-          buyer: meta.client,
-          procedure: meta.procedure || item.procedureType,
+          const meta = readPublicTenderMeta(item.metadataJson, {
+           title: item.title,
+           source: item.source,
+           sourceUrl: item.url,
+           });
+          const accessFallback = getPublicAccessLimitedFallback({
+            title: item.title ?? "",
+            factsText: meta.description,
+            evidenceText: item.rawText,
+            explicitlyAccessLimited: meta.accessLimited,
+          });
+          const hasUsableRawText = Boolean(item.rawText?.trim());
+         const fallbackFacts = {
+           buyer: meta.client,
+            procedure: meta.procedure || (hasUsableRawText ? pickValidatedPublicProcedure(item.procedureType) : null),
           location: meta.location,
           summary: meta.description,
           scope: meta.subject,
           deadline: item.deadlineAt ? formatDeadlineDE(item.deadlineAt) : null,
-        };
-        const structured = normalizeStructured(item.structuredJson ?? item.metadataJson, item.title ?? "", fallbackFacts);
-        const title = pickValidatedPublicCandidate(structured.title, item.title) || `Ausschreibung #${item.id}`;
-        const client = structured.hard_facts.buyer || "Unbekannt";
-         const description = pickPublicDescription(
-           structured.summary,
-           meta.description,
-         );
+         };
+          const structured = normalizeStructured(
+            item.structuredJson ?? item.metadataJson,
+            item.title ?? "",
+            fallbackFacts,
+          );
+          const display = projectPublicTenderRecord({
+            title: item.title,
+            metadata: item.metadataJson,
+            structured,
+            clientFallbacks: [meta.client],
+            locationFallbacks: [fallbackFacts.location],
+            summaryFallbacks: [accessFallback?.description, meta.description],
+          });
+          const title = display.title || `Ausschreibung #${item.id}`;
+          const client = display.client || "Unbekannt";
 
-        return {
+         return {
           id: item.id,
           title,
           client,
-          location: pickValidatedPublicLocationForTender(title, client, structured.hard_facts.location, meta.location),
+           location: display.location || "",
           deadline: item.deadlineAt ? formatDeadlineDE(item.deadlineAt) : null,
           deadlineISO: item.deadlineAt ? new Date(item.deadlineAt).toISOString() : null,
           category: item.category ?? "Sonstiges",
-          description,
+           description: display.description || "",
           referenceNumber: meta.referenceNumber,
           source: item.source,
           sourceUrl: sanitizeTenderUrl(item.url) ?? "",
-          contractValueMin: item.contractValueMin,
-          contractValueMax: item.contractValueMax,
-          contractDurationMonths: item.contractDurationMonths,
-           procedureType: structured.procurement.procedure_type || item.procedureType,
-           readinessStatus: item.readinessStatus,
-           readinessReason: item.readinessReason,
+           contractValueMin: hasUsableRawText ? item.contractValueMin : null,
+           contractValueMax: hasUsableRawText ? item.contractValueMax : null,
+           contractDurationMonths: hasUsableRawText ? item.contractDurationMonths : null,
+             procedureType: structured.procurement.procedure_type || (hasUsableRawText ? pickValidatedPublicProcedure(item.procedureType) : null),
+            readinessStatus: hasUsableRawText ? item.readinessStatus : "manual_review",
+            readinessReason: hasUsableRawText
+              ? item.readinessReason
+              : "Keine verwertbaren Ausschreibungsdokumente oder Beschreibung vorhanden.",
            createdAt: item.createdAt,
         };
       })

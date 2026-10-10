@@ -20,19 +20,20 @@ import { db } from "@/lib/db";
 import { tenders } from "@/lib/schema";
 import { and, eq, or, isNull, gt, sql, desc } from "drizzle-orm";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
-import { isIndexableAgencyName, normalizeAgencySlug } from "@/lib/agencies";
+import { getIndexableAgency } from "@/lib/agencies";
 import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
 import { SiteFooter } from "@/components/seo/SiteFooter";
-import { getListingRobots, getPageNumber, type SeoSearchParams } from "@/lib/seo-indexability";
+import { getListingRobots, getPageNumber, getPaginationHref, type SeoSearchParams } from "@/lib/seo-indexability";
 import { readPublicTenderMeta } from "@/lib/tender-meta";
-import { normalizePublicClient } from "@/lib/public-content-quality";
 
 // SEO: Agency/Auftraggeber landing pages for long-tail keywords like "Ausschreibungen Stadt München"
 export const revalidate = 3600;
 export const runtime = "nodejs";
 
 const PAGE_SIZE = 20;
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+import { getSiteUrl } from "@/lib/site-config";
+
+const siteUrl = getSiteUrl();
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -61,12 +62,10 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
       )
       .groupBy(sql`(${tenders.metadataJson}::jsonb->>'client')`);
 
-    const matchingRow = rows.find((r) => {
-      const client = normalizePublicClient(r.client);
-      return Boolean(client) && isIndexableAgencyName(client) && normalizeAgencySlug(client) === slug;
-    });
+    const matchingRow = rows.find((r) => getIndexableAgency(r.client)?.slug === slug);
+    const matchingAgency = matchingRow ? getIndexableAgency(matchingRow.client) : null;
     const matchingClientRaw = matchingRow?.client;
-    const matchingClient = normalizePublicClient(matchingClientRaw);
+    const matchingClient = matchingAgency?.name ?? "";
     if (!matchingClientRaw || !matchingClient) return { title: "Auftraggeber nicht gefunden", robots: { index: false, follow: true } };
 
     // Count tenders for this client
@@ -129,12 +128,10 @@ export default async function AuftraggeberPage({ params, searchParams }: PagePro
     )
     .groupBy(sql`(${tenders.metadataJson}::jsonb->>'client')`);
 
-   const matchingRow = clientRows.find((r) => {
-     const client = normalizePublicClient(r.client);
-     return Boolean(client) && isIndexableAgencyName(client) && normalizeAgencySlug(client) === slug;
-   });
+   const matchingRow = clientRows.find((r) => getIndexableAgency(r.client)?.slug === slug);
+   const matchingAgency = matchingRow ? getIndexableAgency(matchingRow.client) : null;
    const matchingClientRaw = matchingRow?.client;
-   const matchingClient = normalizePublicClient(matchingClientRaw);
+   const matchingClient = matchingAgency?.name ?? "";
    if (!matchingClientRaw || !matchingClient) notFound();
 
   // Fetch tenders for this client with pagination, plus category counts for cross-links
@@ -408,7 +405,7 @@ export default async function AuftraggeberPage({ params, searchParams }: PagePro
             >
               {currentPage > 1 && (
                 <Link
-                  href={`/auftraggeber/${slug}?page=${currentPage - 1}`}
+                  href={getPaginationHref(`/auftraggeber/${slug}`, currentPage - 1)}
                   style={{ textDecoration: "none", color: "#e9644d", fontWeight: 600, padding: "8px 12px" }}
                 >
                   ← Zurück
@@ -426,7 +423,7 @@ export default async function AuftraggeberPage({ params, searchParams }: PagePro
                         <span style={{ fontWeight: 700, color: "#e9644d", padding: "8px 12px" }}>{p}</span>
                       ) : (
                         <Link
-                          href={`/auftraggeber/${slug}?page=${p}`}
+                          href={getPaginationHref(`/auftraggeber/${slug}`, p)}
                           style={{ textDecoration: "none", color: "#667288", fontWeight: 500, padding: "8px 12px" }}
                         >
                           {p}
@@ -437,7 +434,7 @@ export default async function AuftraggeberPage({ params, searchParams }: PagePro
                 })}
               {currentPage < totalPages && (
                 <Link
-                  href={`/auftraggeber/${slug}?page=${currentPage + 1}`}
+                  href={getPaginationHref(`/auftraggeber/${slug}`, currentPage + 1)}
                   style={{ textDecoration: "none", color: "#e9644d", fontWeight: 600, padding: "8px 12px" }}
                 >
                   Weiter →

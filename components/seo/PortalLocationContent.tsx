@@ -19,6 +19,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
+import { getPaginationHref } from "@/lib/seo-indexability";
 import { CATEGORY_LABELS, CATEGORY_SLUGS, ALL_CATEGORY_SLUGS } from "@/lib/categories";
 
 interface PortalLocTender {
@@ -28,6 +29,7 @@ interface PortalLocTender {
   location: string | null;
   client: string | null;
   source: string;
+  category?: string | null;
   slug?: string | null;
 }
 
@@ -41,8 +43,6 @@ interface PortalLocationContentProps {
   currentPage: number;
   totalPages: number;
   siteUrl: string;
-  // Optional: sibling locations for cross-links
-  siblingLocations?: Array<{ name: string; slug: string; count?: number }>;
 }
 
 function generateFaq(portalLabel: string, locationName: string, locationType: "region" | "stadt") {
@@ -73,11 +73,15 @@ export function PortalLocationContent({
   currentPage,
   totalPages,
   siteUrl,
-  siblingLocations = [],
 }: PortalLocationContentProps) {
   const basePath = `/ausschreibungen/${portal.slug}/${locationType}/${locationSlug}`;
   const faq = generateFaq(portal.label, locationName, locationType);
   const locPreposition = locationType === "region" ? "im Bundesland" : "in";
+  const availableCategorySlugs = new Set(
+    tenders
+      .map((tender) => tender.category ? CATEGORY_SLUGS[tender.category] : null)
+      .filter((slug): slug is string => Boolean(slug)),
+  );
 
   const breadcrumbJsonLd = {
     "@context": "https://schema.org",
@@ -186,7 +190,7 @@ export function PortalLocationContent({
           {totalPages > 1 && (
             <Stack direction="row" spacing={1} justifyContent="center" alignItems="center" sx={{ mb: 5 }} component="nav" aria-label="Seitennavigation">
               {currentPage > 1 && (
-                <Link href={`${basePath}?page=${currentPage - 1}`} style={{ textDecoration: "none", color: "#e9644d", fontWeight: 600, padding: "8px 12px" }}>
+                <Link href={getPaginationHref(basePath, currentPage - 1)} style={{ textDecoration: "none", color: "#e9644d", fontWeight: 600, padding: "8px 12px" }}>
                   ← Zurück
                 </Link>
               )}
@@ -201,13 +205,13 @@ export function PortalLocationContent({
                       {p === currentPage ? (
                         <span style={{ fontWeight: 700, color: "#e9644d", padding: "8px 12px" }}>{p}</span>
                       ) : (
-                        <Link href={`${basePath}?page=${p}`} style={{ textDecoration: "none", color: "#667288", fontWeight: 500, padding: "8px 12px" }}>{p}</Link>
+                        <Link href={getPaginationHref(basePath, p)} style={{ textDecoration: "none", color: "#667288", fontWeight: 500, padding: "8px 12px" }}>{p}</Link>
                       )}
                     </span>
                   );
                 })}
               {currentPage < totalPages && (
-                <Link href={`${basePath}?page=${currentPage + 1}`} style={{ textDecoration: "none", color: "#e9644d", fontWeight: 600, padding: "8px 12px" }}>
+                <Link href={getPaginationHref(basePath, currentPage + 1)} style={{ textDecoration: "none", color: "#e9644d", fontWeight: 600, padding: "8px 12px" }}>
                   Weiter →
                 </Link>
               )}
@@ -231,13 +235,14 @@ export function PortalLocationContent({
             ))}
           </Box>
 
-          {/* Cross-links: portal categories */}
+          {/* Cross-links: only categories represented by current qualified results */}
+          {availableCategorySlugs.size > 0 && (
           <Box sx={{ mb: 5 }}>
             <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
               {portal.label} {locPreposition} {locationName} nach Kategorie
             </Typography>
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              {ALL_CATEGORY_SLUGS.map((s) => {
+              {ALL_CATEGORY_SLUGS.filter((s) => availableCategorySlugs.has(s)).map((s) => {
                 const catKey = Object.keys(CATEGORY_SLUGS).find((k) => CATEGORY_SLUGS[k] === s);
                 return (
                   <Link key={s} href={`/ausschreibungen/${portal.slug}/${s}`} style={{ textDecoration: "none" }}>
@@ -247,38 +252,7 @@ export function PortalLocationContent({
               })}
             </Stack>
           </Box>
-
-          {/* Cross-links: other locations for this portal */}
-          {siblingLocations.length > 0 && (
-            <Box sx={{ mb: 5 }}>
-              <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
-                {portal.label} in anderen {locationType === "region" ? "Bundesländern" : "Städten"}
-              </Typography>
-              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                {siblingLocations.map((loc) => (
-                  <Link key={loc.slug} href={`/ausschreibungen/${portal.slug}/${locationType}/${loc.slug}`} style={{ textDecoration: "none" }}>
-                    <Chip clickable label={loc.name} variant="outlined" sx={{ fontWeight: 500 }} />
-                  </Link>
-                ))}
-              </Stack>
-            </Box>
           )}
-
-          {/* Cross-links: other portals for this location */}
-          <Box sx={{ mb: 5 }}>
-            <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
-              Andere Vergabeportale {locPreposition} {locationName}
-            </Typography>
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              {["dtvp", "ted", "evergabe", "bauportal-deutschland"]
-                .filter((p) => p !== portal.slug)
-                .map((p) => (
-                  <Link key={p} href={`/ausschreibungen/${p}/${locationType}/${locationSlug}`} style={{ textDecoration: "none" }}>
-                    <Chip clickable label={p === "bauportal-deutschland" ? "Bauportal" : p.toUpperCase()} variant="outlined" sx={{ fontWeight: 500 }} />
-                  </Link>
-                ))}
-            </Stack>
-          </Box>
 
           <Box sx={{ p: { xs: 3, md: 4 }, textAlign: "center", bgcolor: "primary.light", borderRadius: 2 }}>
             <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 1 }}>

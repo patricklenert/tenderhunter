@@ -4,8 +4,14 @@ import { eq, and, or, isNull, gt, asc } from "drizzle-orm";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
 import { readPublicTenderMeta } from "@/lib/tender-meta";
+import { projectPublicDisplayFields } from "@/lib/public-content-quality";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+import { getSiteUrl } from "@/lib/site-config";
+
+const siteUrl = getSiteUrl();
+
+export const projectHomeTenderTitle = (title: string | null, id: number): string =>
+  projectPublicDisplayFields({ title }).title || `Ausschreibung #${id}`;
 
 export async function getLatestTenders() {
   const now = new Date();
@@ -46,6 +52,7 @@ export async function getLatestTenders() {
   }
 
   return rows.map((row) => {
+    const title = projectHomeTenderTitle(row.title, row.id);
     const meta = readPublicTenderMeta(row.metadataJson, {
       title: row.title,
       source: row.source,
@@ -54,7 +61,7 @@ export async function getLatestTenders() {
     const location = meta.location ? meta.location.split(",")[0].trim().slice(0, 60) : null;
     return {
       id: row.id,
-      title: row.title ?? `Ausschreibung #${row.id}`,
+      title,
       category: row.category,
       categoryLabel: CATEGORY_LABELS[row.category ?? "Sonstiges"] ?? row.category ?? "Diverse",
       categorySlug: CATEGORY_SLUGS[row.category ?? "Sonstiges"] ?? "diverse",
@@ -62,7 +69,7 @@ export async function getLatestTenders() {
         ? new Date(row.deadlineAt).toLocaleDateString("de-DE", { day: "2-digit", month: "short", year: "numeric" })
         : null,
       location,
-      slug: getCanonicalTenderSlug(row.slug, row.title, {
+      slug: getCanonicalTenderSlug(row.slug, title, {
         client: meta.client,
         location: meta.location,
       }),

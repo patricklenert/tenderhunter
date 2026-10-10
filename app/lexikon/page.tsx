@@ -5,7 +5,9 @@ import { Home as HomeIcon, BookOpen, ArrowRight } from "lucide-react";
 import { GLOSSARY, getGlossaryByCategory, GLOSSARY_CATEGORIES } from "@/lib/glossary";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+import { getSiteUrl } from "@/lib/site-config";
+
+const siteUrl = getSiteUrl();
 
 export const revalidate = 3600;
 
@@ -33,6 +35,28 @@ const CATEGORY_DESCRIPTIONS: Record<string, string> = {
   Akteure: "Wer ist am Vergabeverfahren beteiligt?",
   Sonderbereiche: "Besondere Vergabeformen und Querschnittsthemen",
 };
+
+const VOB_CLUSTER = [
+  { slug: "vob-a", label: "VOB/A: Vergabeverfahren" },
+  { slug: "vob-a-eu", label: "VOB/A EU: Abschnitt 2" },
+  { slug: "vob-b", label: "VOB/B: Vertragsbedingungen" },
+  { slug: "vob-c", label: "VOB/C: technische ATV" },
+  { slug: "losvergabe", label: "Losvergabe: Teil- und Fachlose" },
+  { slug: "schwellenwerte", label: "Schwellenwerte" },
+  { slug: "auftragswert", label: "Auftragswert" },
+  { slug: "leistungsbeschreibung", label: "Leistungsbeschreibung" },
+  { slug: "leistungsverzeichnis", label: "Leistungsverzeichnis" },
+  { slug: "vgv-vergabeverordnung", label: "VgV" },
+  { slug: "gwb-vergaberecht", label: "GWB" },
+];
+
+const PROCESS_CLUSTER = [
+  { slug: "e-vergabe", label: "E-Vergabe" },
+  { slug: "vergabeunterlagen", label: "Vergabeunterlagen" },
+  { slug: "teilnahmewettbewerb", label: "Teilnahmewettbewerb" },
+  { slug: "bieterfragen", label: "Bieterfragen" },
+  { slug: "angebot", label: "Angebot" },
+];
 
 export default function LexikonHubPage() {
   const byCategory = getGlossaryByCategory();
@@ -70,9 +94,41 @@ export default function LexikonHubPage() {
               Alle wichtigen Begriffe aus dem Vergaberecht, von Gesetzen wie GWB und VgV über Vergabeverfahren bis hin zu praktischen Konzepten wie Bindefrist und Zuschlag. Verständlich erklärt für Bieter, Auftraggeber und alle, die sich für öffentliche Ausschreibungen interessieren.
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-              {GLOSSARY.length} Begriffe · alphabetisch nach Kategorie sortiert
+              {GLOSSARY.length} Begriffe · nach Themenbereichen geordnet
             </Typography>
           </Box>
+
+          <Paper elevation={0} sx={{ mb: 5, p: { xs: 2.5, md: 3 }, border: 1, borderColor: "divider", bgcolor: "grey.50" }}>
+            <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 0.75 }}>
+              VOB im Vergaberecht: die wichtigsten Zusammenhänge
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2, maxWidth: "75ch", lineHeight: 1.7 }}>
+              VOB/A betrifft das Vergabeverfahren, VOB/B die Vertragsbedingungen und VOB/C die technischen Vertragsbedingungen. Die folgenden Begriffe helfen bei der Einordnung von Bauaufträgen und ihrem Auftragswert.
+            </Typography>
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              {VOB_CLUSTER.map((item) => (
+                <Link key={item.slug} href={`/lexikon/${item.slug}`} style={{ textDecoration: "none" }}>
+                  <Chip clickable label={item.label} variant="outlined" sx={{ fontWeight: 500 }} />
+                </Link>
+              ))}
+            </Stack>
+          </Paper>
+
+          <Paper elevation={0} sx={{ mb: 5, p: { xs: 2.5, md: 3 }, border: 1, borderColor: "divider" }}>
+            <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 0.75 }}>
+              Vergabeprozess und E-Vergabe
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2, maxWidth: "75ch", lineHeight: 1.7 }}>
+              Von den Vergabeunterlagen über den Teilnahmewettbewerb bis zur elektronischen Angebotsabgabe: Diese Begriffe ordnen die wichtigsten Schritte für Auftraggeber und Bieter ein.
+            </Typography>
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              {PROCESS_CLUSTER.map((item) => (
+                <Link key={item.slug} href={`/lexikon/${item.slug}`} style={{ textDecoration: "none" }}>
+                  <Chip clickable label={item.label} variant="outlined" sx={{ fontWeight: 500 }} />
+                </Link>
+              ))}
+            </Stack>
+          </Paper>
 
           {GLOSSARY_CATEGORIES.map((category) => {
             const entries = byCategory[category];

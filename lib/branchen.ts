@@ -383,7 +383,7 @@ export const BRANCHEN: BrancheEntry[] = [
       {
         question: "Was ist der Branchenmindestlohn in der Sicherheitsbranche?",
         answer:
-          "Der Branchenmindestlohn für Sicherheitsdienstleistungen wird halbjährlich angepasst und liegt aktuell (2025) bei ca. 13,38 € (West) bzw. 12,98 € (Ost) pro Stunde. Er gilt branchenweit und ist auch für Subunternehmer verpflichtend.",
+          "Die maßgeblichen Mindestentgelte für Sicherheitsdienstleistungen hängen von Tätigkeit, Entgeltgruppe, Einsatzort und den für den Leistungszeitraum geltenden Tarif- und Vergabevorschriften ab. Prüfen Sie die Anforderungen in den Vergabeunterlagen; einschlägige Vorgaben sind bei Nachunternehmern ebenso zu berücksichtigen.",
       },
       {
         question: "Brauche ich eine IHK-Prüfung für Wachdienste?",

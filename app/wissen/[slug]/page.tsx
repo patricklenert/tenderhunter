@@ -1,13 +1,16 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Box, Container, Typography, Stack, Chip, Breadcrumbs } from "@mui/material";
+import { Box, Container, Typography, Stack, Chip, Breadcrumbs, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from "@mui/material";
 import { Home as HomeIcon, ArrowRight } from "lucide-react";
 import { ARTICLES, ALL_ARTICLE_SLUGS } from "@/lib/articles";
 import { GLOSSARY_MAP } from "@/lib/glossary";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
+import { decodeRouteParam } from "@/lib/route-params";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+import { getSiteUrl } from "@/lib/site-config";
+
+const siteUrl = getSiteUrl();
 
 // SEO: Extract FAQ questions from article content for FAQPage JSON-LD
 function extractFaqFromContent(content: string): Array<{ question: string; answer: string }> {
@@ -47,6 +50,7 @@ function extractFaqFromContent(content: string): Array<{ question: string; answe
 }
 
 export const revalidate = 3600;
+export const dynamicParams = false;
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -57,7 +61,8 @@ export async function generateStaticParams() {
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const { slug } = await params;
+  const { slug: rawSlug } = await params;
+  const slug = decodeRouteParam(rawSlug);
   const article = ARTICLES[slug];
   if (!article) return { title: "Artikel nicht gefunden", robots: { index: false, follow: true } };
 
@@ -123,13 +128,49 @@ function renderContent(content: string) {
       );
     } else if (trimmed.startsWith("- ")) {
       listBuffer.push(trimmed.slice(2));
-    } else if (trimmed.startsWith("| ")) {
-      // Simple table row — render as preformatted text
+    } else if (trimmed.startsWith("|")) {
       flushList();
+      const rows: string[][] = [];
+      while (i < lines.length && lines[i].trim().startsWith("|")) {
+        rows.push(
+          lines[i]
+            .trim()
+            .replace(/^\|/, "")
+            .replace(/\|$/, "")
+            .split("|")
+            .map((cell) => cell.trim()),
+        );
+        i++;
+      }
+      i--;
+
+      const [header = [], ...bodyRows] = rows;
+      const isSeparatorRow = (row: string[]) => row.every((cell) => /^:?-{3,}:?$/.test(cell));
       elements.push(
-        <Typography key={i} variant="body2" color="text.secondary" sx={{ fontFamily: "monospace", fontSize: "0.85rem", lineHeight: 1.6 }}>
-          {trimmed}
-        </Typography>,
+        <TableContainer key={`table-${elements.length}`} component={Paper} elevation={0} sx={{ mb: 2, border: 1, borderColor: "divider", overflowX: "auto" }}>
+          <Table size="small" sx={{ minWidth: 560 }}>
+            <TableHead>
+              <TableRow>
+                {header.map((cell, index) => (
+                  <TableCell key={index} sx={{ fontWeight: 700, bgcolor: "grey.50" }}>
+                    <span dangerouslySetInnerHTML={{ __html: inlineFormat(cell) }} />
+                  </TableCell>
+                ))}
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {bodyRows.filter((row) => !isSeparatorRow(row)).map((row, rowIndex) => (
+                <TableRow key={rowIndex}>
+                  {header.map((_, cellIndex) => (
+                    <TableCell key={cellIndex}>
+                      <span dangerouslySetInnerHTML={{ __html: inlineFormat(row[cellIndex] ?? "") }} />
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>,
       );
     } else if (trimmed === "") {
       flushList();
@@ -145,7 +186,8 @@ function renderContent(content: string) {
 }
 
 export default async function ArticlePage({ params }: PageProps) {
-  const { slug } = await params;
+  const { slug: rawSlug } = await params;
+  const slug = decodeRouteParam(rawSlug);
   const article = ARTICLES[slug];
   if (!article) notFound();
 

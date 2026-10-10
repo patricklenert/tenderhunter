@@ -163,7 +163,7 @@ export function TenderQuickCheck({ tenderId, initialCheck = null }: TenderQuickC
 
   if (loading) {
     return (
-      <Box sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 1, bgcolor: "#f7fafb" }}>
+      <Box sx={{ p: { xs: 2, sm: 2.5 }, border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.paper" }}>
         <Stack direction="row" spacing={1} alignItems="center">
           <CircularProgress size={16} />
           <Typography variant="body2" color="text.secondary">Schnellcheck wird geladen.</Typography>
@@ -181,25 +181,25 @@ export function TenderQuickCheck({ tenderId, initialCheck = null }: TenderQuickC
   const calendarHref = `/api/tenders/public/calendar?tenderId=${tenderId}`;
 
   return (
-    <Box component="section" aria-labelledby={`tender-check-${tenderId}`} sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 1, bgcolor: "#f0f6f8" }}>
+    <Box component="section" aria-labelledby={`tender-check-${tenderId}`} sx={{ p: { xs: 2, sm: 2.5 }, border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "info.light" }}>
       <Stack spacing={1.5}>
         <Box>
-          <Typography id={`tender-check-${tenderId}`} component="h2" sx={{ color: "#163b4a", fontSize: "1.2rem", fontWeight: 700 }}>
+          <Typography id={`tender-check-${tenderId}`} component="h2" sx={{ color: "info.dark", fontSize: "1.2rem", fontWeight: 700 }}>
             Schnellcheck
           </Typography>
-          <Typography variant="body2" sx={{ mt: 0.5, color: "#38505b", lineHeight: 1.55 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, lineHeight: 1.55 }}>
             In kurzer Zeit sehen, was fehlt, was auffällt und bis wann Sie handeln müssen.
           </Typography>
         </Box>
 
         <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
-          <Box sx={{ px: 1, py: 0.5, borderRadius: 1, bgcolor: "rgba(255,255,255,0.8)" }}>
+          <Box sx={{ px: 1, py: 0.5, border: 1, borderColor: "divider", borderRadius: 1, bgcolor: "background.paper" }}>
             <Typography variant="caption" fontWeight={700}>{openItems} Punkte offen</Typography>
           </Box>
-          <Box sx={{ px: 1, py: 0.5, borderRadius: 1, bgcolor: "rgba(255,255,255,0.8)" }}>
+          <Box sx={{ px: 1, py: 0.5, border: 1, borderColor: "divider", borderRadius: 1, bgcolor: "background.paper" }}>
             <Typography variant="caption" fontWeight={700}>{check.risks.length} Hinweise prüfen</Typography>
           </Box>
-          <Box sx={{ px: 1, py: 0.5, borderRadius: 1, bgcolor: "rgba(255,255,255,0.8)" }}>
+          <Box sx={{ px: 1, py: 0.5, border: 1, borderColor: "divider", borderRadius: 1, bgcolor: "background.paper" }}>
             <Typography variant="caption" fontWeight={700}>
               {check.nextEvent ? `Nächster Termin: ${formatEventDate(check.nextEvent.startsAt, check.nextEvent.datePrecision)}` : "Keine Frist erkannt"}
             </Typography>
@@ -207,7 +207,7 @@ export function TenderQuickCheck({ tenderId, initialCheck = null }: TenderQuickC
         </Stack>
 
         {check.limitations.length > 0 ? (
-          <Alert severity="info" sx={{ bgcolor: "rgba(255,255,255,0.75)" }}>
+          <Alert severity="info" variant="outlined" sx={{ borderRadius: 1, bgcolor: "background.paper" }}>
             {check.limitations.join(" ")} Aussagen bitte im Original prüfen.
           </Alert>
         ) : null}
@@ -221,11 +221,11 @@ export function TenderQuickCheck({ tenderId, initialCheck = null }: TenderQuickC
           </AccordionSummary>
           <AccordionDetails sx={{ px: 0, pt: 0 }}>
             {check.checklist.length === 0 ? (
-              <Typography variant="body2" color="text.secondary">Keine konkreten Anforderungen erkannt. Bitte prüfe die Originalunterlagen.</Typography>
+              <Typography variant="body2" color="text.secondary">Keine konkreten Anforderungen erkannt. Bitte prüfen Sie die Originalunterlagen.</Typography>
             ) : (
               <Stack spacing={1}>
                 {check.checklist.map((item) => (
-                  <Box key={item.key} sx={{ p: 1.25, borderRadius: 0.5, bgcolor: "rgba(255,255,255,0.8)" }}>
+                  <Box key={item.key} sx={{ p: 1.25, border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.paper" }}>
                     <FormControlLabel
                       control={<Checkbox checked={Boolean(states[item.key])} onChange={(event) => toggleItem(item.key, event.target.checked)} size="small" />}
                       label={<Typography variant="body2" fontWeight={600} sx={{ textDecoration: states[item.key] ? "line-through" : "none" }}>{item.title}</Typography>}
@@ -243,7 +243,11 @@ export function TenderQuickCheck({ tenderId, initialCheck = null }: TenderQuickC
         <Accordion defaultExpanded={firstRiskIsImportant} disableGutters elevation={0} sx={{ bgcolor: "transparent", "&:before": { display: "none" } }}>
           <AccordionSummary expandIcon={<ChevronDown size={18} />} sx={{ px: 0, minHeight: 42, "& .MuiAccordionSummary-content": { my: 1 } }}>
             <Stack direction="row" spacing={1} alignItems="center">
-              {check.risks.length > 0 ? <AlertTriangle size={18} color="#a16207" /> : <CircleHelp size={18} />}
+              {check.risks.length > 0 ? (
+                <Box component="span" sx={{ display: "inline-flex", color: "warning.main" }}>
+                  <AlertTriangle size={18} aria-hidden="true" />
+                </Box>
+              ) : <CircleHelp size={18} aria-hidden="true" />}
               <Typography fontWeight={700}>Was könnte problematisch sein?</Typography>
             </Stack>
           </AccordionSummary>
@@ -253,7 +257,7 @@ export function TenderQuickCheck({ tenderId, initialCheck = null }: TenderQuickC
             ) : (
               <Stack spacing={1}>
                 {check.risks.map((risk) => (
-                  <Box key={risk.key} sx={{ p: 1.25, borderRadius: 0.5, bgcolor: "rgba(255,255,255,0.8)" }}>
+                  <Box key={risk.key} sx={{ p: 1.25, border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.paper" }}>
                     <Typography variant="body2" fontWeight={700}>{risk.severity === "important" ? "Wichtig: " : "Bitte prüfen: "}{risk.title}</Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, lineHeight: 1.55 }}>{risk.explanation}</Typography>
                     {risk.sources.map((source, index) => <SourceBlock key={`${risk.key}-${index}`} source={source} />)}
@@ -273,11 +277,11 @@ export function TenderQuickCheck({ tenderId, initialCheck = null }: TenderQuickC
           </AccordionSummary>
           <AccordionDetails sx={{ px: 0, pt: 0 }}>
             {check.events.length === 0 ? (
-              <Typography variant="body2" color="text.secondary">Keine Frist sicher erkannt. Bitte prüfe die Originalunterlagen.</Typography>
+              <Typography variant="body2" color="text.secondary">Keine Frist sicher erkannt. Bitte prüfen Sie die Originalunterlagen.</Typography>
             ) : (
               <Stack spacing={1}>
                 {check.events.map((event) => (
-                  <Box key={event.key} sx={{ p: 1.25, borderRadius: 0.5, bgcolor: "rgba(255,255,255,0.8)" }}>
+                  <Box key={event.key} sx={{ p: 1.25, border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.paper" }}>
                     <Typography variant="body2" fontWeight={700}>{event.title}</Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35 }}>{formatEventDate(event.startsAt, event.datePrecision)}</Typography>
                     <SourceBlock source={event.source} />
@@ -293,7 +297,9 @@ export function TenderQuickCheck({ tenderId, initialCheck = null }: TenderQuickC
 
         {check.checklist.length > 0 && openItems === 0 ? (
           <Stack direction="row" spacing={0.75} alignItems="center">
-            <CheckCircle2 size={16} color="#277544" />
+            <Box component="span" sx={{ display: "inline-flex", color: "success.main" }}>
+              <CheckCircle2 size={16} aria-hidden="true" />
+            </Box>
             <Typography variant="caption" color="success.dark">Alle sichtbaren Punkte als erledigt markiert.</Typography>
           </Stack>
         ) : null}

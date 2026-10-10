@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { companyProfiles, scores, tenders, structuredData } from "@/lib/schema";
-import { eq, and, desc, gt } from "drizzle-orm";
+import { eq, and, desc, gt, sql } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -13,23 +13,28 @@ import { TenderCard } from "@/components/profile/TenderCard";
 import { PageFooter } from "@/components/profile/PageFooter";
 import { findPublicProfileMatches, type PublicProfileMatch } from "@/lib/discovery";
 import { decodeHtmlEntities } from "@/lib/text-normalization";
-import { pickPublicDescription } from "@/lib/public-tender-scraper";
 import { normalizePublicClient, pickValidatedPublicCandidate, pickValidatedPublicLocationForTender } from "@/lib/public-content-quality";
+import { pickPublicTenderDescription } from "@/lib/tender-meta";
 import { daysUntil, getDeadlineState, parseDeadlineDate } from "@/lib/date-utils";
+import { getListingRobots, type SeoSearchParams } from "@/lib/seo-indexability";
 import {
   buildProfileSummary,
   sortProfileTenders,
   truncateProfileText,
+  PUBLIC_PROFILE_FALLBACK_CANDIDATE_LIMIT,
   type ProfileTender,
 } from "@/lib/public-profile";
 
 export const revalidate = 300;
 export const runtime = "nodejs";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+import { getSiteUrl } from "@/lib/site-config";
+
+const siteUrl = getSiteUrl();
 
 interface PageProps {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<SeoSearchParams>;
 }
 
 const mapProfileMatch = (row: PublicProfileMatch): ProfileTender => {
@@ -41,12 +46,11 @@ const mapProfileMatch = (row: PublicProfileMatch): ProfileTender => {
   const structuredDeadline = typeof hardFacts.deadline === "string" ? hardFacts.deadline : null;
   const deadlineSource = row.deadlineAt ?? structuredDeadline;
   const parsedDeadline = parseDeadlineDate(deadlineSource);
-  const description = pickPublicDescription(
-    blob.summary,
-    blob.description,
-    metadata.description,
-    row.rawText,
-  );
+  const description = pickPublicTenderDescription({
+    structured: blob,
+    metadata,
+    rawText: row.rawText,
+  });
   const rawTitle = pickValidatedPublicCandidate(blob.title, row.title) || `Ausschreibung #${row.tenderId}`;
   const client = normalizePublicClient(hardFacts.buyer) || normalizePublicClient(metadata.client);
   const location = pickValidatedPublicLocationForTender(
@@ -75,8 +79,9 @@ const mapProfileMatch = (row: PublicProfileMatch): ProfileTender => {
   };
 };
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
   const { slug } = await params;
+  const resolvedSearchParams = await searchParams;
   const rows = await db
     .select({ id: companyProfiles.id, name: companyProfiles.name, description: companyProfiles.description })
     .from(companyProfiles)
@@ -92,6 +97,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     title,
     description,
     alternates: { canonical: `/p/${slug}`, languages: { "de-DE": `/p/${slug}` } },
+    robots: getListingRobots(resolvedSearchParams, 1, true),
     openGraph: {
       title,
       description,
@@ -151,6 +157,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
       gt(scores.fit, 10),
       eq(scores.killSwitch, false),
       eq(tenders.qualityStatus, "qualified"),
+      sql`${tenders.rawText} IS NOT NULL AND BTRIM(${tenders.rawText}) <> ''`,
     ))
     .orderBy(desc(scores.winProbability), desc(scores.fit))
     .limit(50);
@@ -165,7 +172,10 @@ export default async function PublicProfilePage({ params }: PageProps) {
       regions_json: JSON.stringify(regions),
       team_size: company.teamSize,
       industry: company.industry,
-    }, persistedTenderIds, 10 - persistedCurrent.length + 3)
+    }, persistedTenderIds, 10 - persistedCurrent.length + 3, {
+      qualifiedOnly: true,
+      candidateLimit: PUBLIC_PROFILE_FALLBACK_CANDIDATE_LIMIT,
+    })
     : [];
   const fallbackTenders = publicFallbackRows.map((row) => mapProfileMatch(row));
   const currentTenders = sortProfileTenders([

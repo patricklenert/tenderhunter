@@ -5,7 +5,9 @@ import { Home as HomeIcon, Factory, ArrowRight } from "lucide-react";
 import { BRANCHEN } from "@/lib/branchen";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://palemaz.com";
+import { getSiteUrl } from "@/lib/site-config";
+
+const siteUrl = getSiteUrl();
 
 export const revalidate = 3600;
 

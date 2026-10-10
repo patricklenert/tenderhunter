@@ -3,12 +3,12 @@ import { tenders, structuredData } from "@/lib/schema";
 import { json, errorResponse } from "@/lib/http";
 import { and, eq } from "drizzle-orm";
 import { scrapeWebsite } from "@/lib/firecrawl";
-import { cleanPublicDescription, pickPublicDescription } from "@/lib/public-tender-scraper";
+import { cleanPublicDescription } from "@/lib/public-tender-scraper";
 import { formatDeadlineDE } from "@/lib/date-utils";
 import { requirePremiumSession } from "@/lib/entitlements";
 import OpenAI from "openai";
 import { callLLM } from "@/lib/llm";
-import { readPublicTenderMeta } from "@/lib/tender-meta";
+import { pickPublicTenderDescription, readPublicTenderMeta } from "@/lib/tender-meta";
 import { pickValidatedPublicLocationForTender } from "@/lib/public-content-quality";
 import { normalizeStructured } from "@/lib/structurer";
 
@@ -89,6 +89,12 @@ export async function POST(request: Request): Promise<Response> {
         code: "READINESS_NOT_MET",
       }, { status: 404 });
     }
+    if (!tender.rawText?.trim()) {
+      return json({
+        error: "Ausschreibung nicht gefunden",
+        code: "CONTENT_NOT_READY",
+      }, { status: 404 });
+    }
 
     // 2. If no companyProfile provided, try to load from localStorage via client
     // (Client should send it; this is a fallback)
@@ -102,7 +108,6 @@ export async function POST(request: Request): Promise<Response> {
       title: tender.title,
       source: tender.source,
       sourceUrl: tender.url,
-      rawText: tender.rawText,
     });
     let tenderDetails: Record<string, unknown> = {
       title: tender.title,
@@ -142,7 +147,10 @@ export async function POST(request: Request): Promise<Response> {
         title: structured.title,
         client,
         deadline: structured.hard_facts.deadline,
-        description: pickPublicDescription(structured.summary, cachedMeta.description, tenderDetails.description),
+          description: pickPublicTenderDescription({
+            structured,
+            metadata: [cachedMeta, tenderDetails],
+          }),
         category: tender.category,
         location,
         referenceNumber: cachedMeta.referenceNumber ?? tenderDetails.referenceNumber,

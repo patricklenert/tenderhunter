@@ -3,28 +3,20 @@ import { tenders } from "@/lib/schema";
 import { eq, and, or, gt, isNull, desc, sql, inArray } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { PROCEDURE_TYPES, ALL_PROCEDURE_TYPE_SLUGS, getProcedureDatabaseValues } from "@/lib/procedure-types";
-import { CATEGORY_LABELS, SLUG_TO_CATEGORY, ALL_CATEGORY_SLUGS } from "@/lib/categories";
+import { PROCEDURE_TYPES, getProcedureDatabaseValues } from "@/lib/procedure-types";
+import { CATEGORY_LABELS, CATEGORY_SLUGS, SLUG_TO_CATEGORY } from "@/lib/categories";
 import { TaxonomyCategoryContent } from "@/components/seo/TaxonomyCategoryContent";
 import { getListingRobots, getPageNumber, type SeoSearchParams } from "@/lib/seo-indexability";
+import { pickValidatedPublicCandidate } from "@/lib/public-content-quality";
 import { readPublicTenderMeta } from "@/lib/tender-meta";
 
 const PAGE_SIZE = 20;
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+import { getSiteUrl } from "@/lib/site-config";
+
+const siteUrl = getSiteUrl();
 
 export const revalidate = 3600;
 export const runtime = "nodejs";
-
-// SEO: Pre-render all Verfahren×Kategorie combinations (5×13 = 65 pages)
-export async function generateStaticParams() {
-  const params: Array<{ type: string; kategorie: string }> = [];
-  for (const type of ALL_PROCEDURE_TYPE_SLUGS) {
-    for (const kategorie of ALL_CATEGORY_SLUGS) {
-      params.push({ type, kategorie });
-    }
-  }
-  return params;
-}
 
 interface PageProps {
   params: Promise<{ type: string; kategorie: string }>;
@@ -90,6 +82,7 @@ export default async function ProcedureCategoryPage({ params, searchParams }: Pa
     source: string;
     slug?: string | null;
   }> = [];
+  let availableCategorySlugs: string[] = [];
   let totalCount = 0;
   let totalPages = 1;
 
@@ -142,7 +135,7 @@ export default async function ProcedureCategoryPage({ params, searchParams }: Pa
       const location = meta.location ? meta.location.split(",")[0].trim().slice(0, 60) : null;
       return {
         id: row.id,
-        title: row.title ?? `Ausschreibung #${row.id}`,
+        title: pickValidatedPublicCandidate(row.title) || `Ausschreibung #${row.id}`,
         source: row.source,
         deadline: row.deadlineAt
           ? new Date(row.deadlineAt).toLocaleDateString("de-DE", { day: "2-digit", month: "short", year: "numeric" })
@@ -152,14 +145,25 @@ export default async function ProcedureCategoryPage({ params, searchParams }: Pa
         slug: row.slug,
       };
     });
+
+    const categoryRows = await db
+      .select({ category: tenders.category })
+      .from(tenders)
+      .where(
+        and(
+          inArray(tenders.procedureType, getProcedureDatabaseValues(type)),
+          eq(tenders.qualityStatus, "qualified"),
+          or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
+          sql`${tenders.category} IS NOT NULL`,
+        ),
+      )
+      .groupBy(tenders.category);
+    availableCategorySlugs = categoryRows
+      .map((row) => row.category ? CATEGORY_SLUGS[row.category] : null)
+      .filter((slug): slug is string => Boolean(slug));
   } catch {
     // DB unavailable
   }
-
-  const siblingTaxons = ALL_PROCEDURE_TYPE_SLUGS.filter((s) => s !== type).map((s) => ({
-    slug: s,
-    label: PROCEDURE_TYPES[s].label,
-  }));
 
   return (
     <TaxonomyCategoryContent
@@ -173,7 +177,7 @@ export default async function ProcedureCategoryPage({ params, searchParams }: Pa
       currentPage={currentPage}
       totalPages={totalPages}
       siteUrl={siteUrl}
-      siblingTaxons={siblingTaxons}
+      availableCategorySlugs={availableCategorySlugs}
     />
   );
 }

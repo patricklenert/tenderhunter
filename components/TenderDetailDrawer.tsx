@@ -351,6 +351,7 @@ export function TenderDetailDrawer({
             </Box>
             <IconButton
               onClick={handleDrawerClose}
+              aria-label="Trefferdetails schließen"
               size="small"
               sx={{
                 border: 1,

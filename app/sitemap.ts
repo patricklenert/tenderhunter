@@ -5,19 +5,22 @@ import { eq, and, or, gt, isNull, isNotNull, sql } from "drizzle-orm";
 import { CATEGORY_SLUGS } from "@/lib/categories";
 import { BUNDESLAND_SLUGS, deriveBundesland, deriveCity } from "@/lib/bundesland";
 import { CITY_SLUG_MAP, ALL_CITY_SLUGS } from "@/lib/cities";
-import { isIndexableAgencyName, normalizeAgencySlug } from "@/lib/agencies";
+import { getIndexableAgency } from "@/lib/agencies";
 import { ALL_PORTAL_SLUGS, PORTALS } from "@/lib/portal-content";
 import { ALL_ARTICLE_SLUGS, ARTICLES } from "@/lib/articles";
 import { ALL_GLOSSARY_SLUGS, GLOSSARY_MAP } from "@/lib/glossary";
 import { ALL_TEMPLATE_SLUGS } from "@/lib/templates";
 import { ALL_BRANCHE_SLUGS } from "@/lib/branchen";
-import { ALL_CPV_CODES } from "@/lib/cpv-codes";
+import { ALL_CPV_CODES, matchesCpvCode } from "@/lib/cpv-codes";
 import { ALL_PROCEDURE_TYPE_SLUGS, getProcedureDatabaseValues } from "@/lib/procedure-types";
 import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
-import { readPublicTenderMeta } from "@/lib/tender-meta";
+import { readPublicTenderIndexMeta } from "@/lib/tender-meta";
 import { pickValidatedPublicLocationForTender } from "@/lib/public-content-quality";
+import { getPublicSourceBundesland } from "@/lib/public-source-registry";
+import { getMeiliClient } from "@/lib/meilisearch";
+import { getSiteUrl } from "@/lib/site-config";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+const siteUrl = getSiteUrl();
 
 function normalizeDate(value: unknown, fallback: Date): Date {
   const date =
@@ -47,15 +50,17 @@ function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null ? value as Record<string, unknown> : {};
 }
 
-type TenderSitemapRow = {
+export type TenderSitemapRow = {
   id: number;
   title: string | null;
+  rawText: string | null;
   updatedAt: Date | null;
   metadataJson: unknown;
   structuredJson: unknown;
   url: string | null;
   slug: string | null;
   source: string;
+  sourceKey: string | null;
   category: string | null;
   procedureType: string | null;
 };
@@ -67,8 +72,8 @@ type TenderContext = TenderSitemapRow & {
   cpvCodes: string[];
 };
 
-function getTenderContext(row: TenderSitemapRow): TenderContext {
-  const metadata = readPublicTenderMeta(row.metadataJson, {
+export function getTenderContext(row: TenderSitemapRow): TenderContext {
+  const metadata = readPublicTenderIndexMeta(row.metadataJson, {
     title: row.title,
     source: row.source,
     sourceUrl: row.url ?? undefined,
@@ -87,15 +92,36 @@ function getTenderContext(row: TenderSitemapRow): TenderContext {
   return {
     ...row,
     location,
-    bundesland: deriveBundesland(location),
+    bundesland: deriveBundesland(location)
+      ?? getPublicSourceBundesland(row.sourceKey ?? row.source, row.url ?? ""),
     city: deriveCity(location),
     cpvCodes,
   };
 }
 
-function hasCpvCode(row: TenderContext, code: string): boolean {
-  const divisionCode = `${code.slice(0, 2)}000000`;
-  return row.cpvCodes.some((candidate) => candidate === code || candidate === divisionCode);
+export function hasCpvCode(row: TenderContext, code: string): boolean {
+  return row.cpvCodes.some((candidate) => matchesCpvCode(candidate, code));
+}
+
+/**
+ * CPV category pages use the same public-content guard as their target route.
+ * Rows without source text otherwise make the sitemap advertise a URL whose
+ * metadata query returns zero results and therefore noindex.
+ */
+export function hasIndexableCpvContent(row: TenderContext): boolean {
+  return Boolean(row.rawText?.trim());
+}
+
+/** Pre-index CPV/category pairs once instead of scanning every tender for each pair. */
+export function getIndexableCpvCategoryKeys(rows: TenderContext[]): Set<string> {
+  const keys = new Set<string>();
+  for (const row of rows) {
+    if (!row.category || !hasIndexableCpvContent(row)) continue;
+    for (const cpvCode of ALL_CPV_CODES) {
+      if (hasCpvCode(row, cpvCode)) keys.add(`${cpvCode}\0${row.category}`);
+    }
+  }
+  return keys;
 }
 
 export const revalidate = 3600;
@@ -120,30 +146,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     entries.push(entry);
   };
 
-  // Editorial pages remain indexable even when the live catalog has no result
-  // for one taxonomy; they contain substantive copy, FAQs, and links.
+  // These editorial pages are independent of the live catalog and remain
+  // available in the fallback sitemap when the catalog dependency is down.
   addEntry({ url: siteUrl, lastModified: now, changeFrequency: "hourly", priority: 1 });
   addEntry({ url: `${siteUrl}/funktionen`, lastModified: now, changeFrequency: "monthly", priority: 0.9 });
   addEntry({ url: `${siteUrl}/ausschreibungen`, lastModified: now, changeFrequency: "weekly", priority: 0.9 });
-
-  for (const catSlug of Object.values(CATEGORY_SLUGS)) {
-    if (!catSlug) continue;
-    addEntry({
-      url: `${siteUrl}/ausschreibungen/${catSlug}`,
-      lastModified: now,
-      changeFrequency: "daily",
-      priority: 0.8,
-    });
-  }
-
-  for (const portalSlug of ALL_PORTAL_SLUGS) {
-    addEntry({
-      url: `${siteUrl}/ausschreibungen/${portalSlug}`,
-      lastModified: now,
-      changeFrequency: "daily",
-      priority: 0.8,
-    });
-  }
 
   addEntry({ url: `${siteUrl}/wissen`, lastModified: now, changeFrequency: "monthly", priority: 0.7 });
   for (const articleSlug of ALL_ARTICLE_SLUGS) {
@@ -195,15 +202,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     [tenderRows, companyRows] = await Promise.all([
       db
         .select({
-          id: tenders.id,
-          slug: tenders.slug,
-          title: tenders.title,
-          updatedAt: tenders.updatedAt,
+           id: tenders.id,
+           slug: tenders.slug,
+           title: tenders.title,
+           rawText: tenders.rawText,
+           updatedAt: tenders.updatedAt,
           metadataJson: tenders.metadataJson,
           structuredJson: structuredData.jsonBlob,
-          url: tenders.url,
-          source: tenders.source,
-          category: tenders.category,
+           url: tenders.url,
+           source: tenders.source,
+           sourceKey: tenders.sourceKey,
+           category: tenders.category,
           procedureType: tenders.procedureType,
         })
         .from(tenders)
@@ -234,6 +243,53 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }));
   }
 
+  try {
+    // Region, city, portal and tender pages depend on the live search index.
+    // Do not advertise them while that dependency would render those pages
+    // as a 200/noindex fallback.
+    const tenderIndex = getMeiliClient().index("tenders");
+    const meiliStats = await tenderIndex.getStats();
+    if (tenderRows.length > 0 && meiliStats.numberOfDocuments > 0) {
+      const nowUnix = Math.floor(now.getTime() / 1000);
+      const liveSearch = await tenderIndex.search("", {
+        limit: 1,
+        filter: `(deadlineAt IS NULL OR deadlineAt > ${nowUnix})`,
+      });
+      if (liveSearch.hits.length === 0) {
+        throw new Error("Meilisearch index has no live tender documents");
+      }
+    } else if (tenderRows.length > 0) {
+      throw new Error("Meilisearch index has no documents");
+    }
+  } catch {
+    console.error("[sitemap] Meilisearch unavailable, returning editorial URLs only");
+    return entries.map((entry) => ({
+      ...entry,
+      lastModified: toIsoDate(entry.lastModified, now),
+    }));
+  }
+
+  // Category and portal hubs query the live catalog in their metadata/content.
+  // Only advertise them after the sitemap has confirmed that dependency is up;
+  // otherwise their own failure fallback is noindex.
+  for (const catSlug of Object.values(CATEGORY_SLUGS)) {
+    if (!catSlug) continue;
+    addEntry({
+      url: `${siteUrl}/ausschreibungen/${catSlug}`,
+      lastModified: now,
+      changeFrequency: "daily",
+      priority: 0.8,
+    });
+  }
+  for (const portalSlug of ALL_PORTAL_SLUGS) {
+    addEntry({
+      url: `${siteUrl}/ausschreibungen/${portalSlug}`,
+      lastModified: now,
+      changeFrequency: "daily",
+      priority: 0.8,
+    });
+  }
+
   const contexts = tenderRows.map(getTenderContext);
   const maxTenderUpdated = contexts.reduce<Date>((max, row) => {
     const updatedAt = normalizeDate(row.updatedAt, now);
@@ -246,8 +302,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const regionUpdated = new Map<string, Date>();
   const cityUpdated = new Map<string, Date>();
-  const globalRegionCategories = new Set<string>();
-  const globalCityCategories = new Set<string>();
   const categoryRows = new Set<string>();
 
   for (const row of contexts) {
@@ -256,12 +310,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     if (row.bundesland) {
       const previous = regionUpdated.get(row.bundesland);
       if (!previous || updatedAt > previous) regionUpdated.set(row.bundesland, updatedAt);
-      if (row.category) globalRegionCategories.add(`${row.bundesland}\0${row.category}`);
     }
     if (row.city) {
       const previous = cityUpdated.get(row.city);
       if (!previous || updatedAt > previous) cityUpdated.set(row.city, updatedAt);
-      if (row.category) globalCityCategories.add(`${row.city}\0${row.category}`);
     }
   }
 
@@ -288,31 +340,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.7,
     });
   }
-  for (const key of globalRegionCategories) {
-    const [bundesland, category] = key.split("\0");
-    const blSlug = BUNDESLAND_SLUGS[bundesland];
-    const catSlug = CATEGORY_SLUGS[category];
-    if (!blSlug || !catSlug) continue;
-    addEntry({
-      url: `${siteUrl}/ausschreibungen/region/${blSlug}/${catSlug}`,
-      lastModified: regionUpdated.get(bundesland) ?? now,
-      changeFrequency: "weekly",
-      priority: 0.6,
-    });
-  }
-  for (const key of globalCityCategories) {
-    const [cityName, category] = key.split("\0");
-    const citySlug = ALL_CITY_SLUGS.find((slug) => CITY_SLUG_MAP[slug]?.label === cityName);
-    const catSlug = CATEGORY_SLUGS[category];
-    if (!citySlug || !catSlug) continue;
-    addEntry({
-      url: `${siteUrl}/ausschreibungen/stadt/${citySlug}/${catSlug}`,
-      lastModified: cityUpdated.get(cityName) ?? now,
-      changeFrequency: "weekly",
-      priority: 0.6,
-    });
-  }
-
   // Procedure roots and CPV roots are editorial landing pages. Their category
   // variants are only useful when the catalog contains a matching result.
   for (const procedureSlug of ALL_PROCEDURE_TYPE_SLUGS) {
@@ -386,9 +413,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
   }
 
+  const indexableCpvCategoryKeys = getIndexableCpvCategoryKeys(contexts);
   for (const cpvCode of ALL_CPV_CODES) {
     for (const category of categoryRows) {
-      if (!contexts.some((row) => row.category === category && hasCpvCode(row, cpvCode))) continue;
+      if (!indexableCpvCategoryKeys.has(`${cpvCode}\0${category}`)) continue;
       const catSlug = CATEGORY_SLUGS[category];
       if (!catSlug) continue;
       addEntry({
@@ -401,7 +429,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }
 
   for (const row of contexts) {
-    const slug = getCanonicalTenderSlug(row.slug, row.title, row.metadataJson, row.structuredJson);
+    const slug = getCanonicalTenderSlug(
+      row.slug,
+      row.title,
+      row.metadataJson,
+      row.rawText?.trim() ? row.structuredJson : null,
+    );
     addEntry({
       url: `${siteUrl}/ausschreibung/${row.id}/${slug}`,
       lastModified: row.updatedAt ?? now,
@@ -440,11 +473,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       .having(sql`count(*) >= 3`);
 
     for (const row of clientRows) {
-      if (!isIndexableAgencyName(row.client)) continue;
-      const agencySlug = normalizeAgencySlug(row.client);
-      if (agencySlug.length < 3) continue;
+      const agency = getIndexableAgency(row.client);
+      if (!agency) continue;
       addEntry({
-        url: `${siteUrl}/auftraggeber/${agencySlug}`,
+        url: `${siteUrl}/auftraggeber/${agency.slug}`,
         lastModified: row.maxUpdated ?? now,
         changeFrequency: "daily",
         priority: 0.6,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUpRight, BriefcaseBusiness, CalendarClock, CircleAlert, ClipboardList, Search, UserRound } from "lucide-react";
+import { ArrowUpRight, BriefcaseBusiness, CalendarClock, ClipboardList, Search, UserRound } from "lucide-react";
 import { formatDeadlineDE, daysUntil, deadlineLabel } from "@/lib/date-utils";
 import {
   Box,
@@ -23,6 +23,7 @@ import {
 } from "@mui/material";
 import { TenderDetailDrawer, type TenderDetailItem, type TenderWorkflowDraft, type WorkflowSaveState } from "@/components/TenderDetailDrawer";
 import { TRACKED_TENDER_STATUS_LABELS, type TrackedTenderStatus } from "@/lib/tracked-tender-types";
+import { ResourceState } from "@/components/ResourceState";
 
 type TrackedStatusFilter = "all" | "active" | TrackedTenderStatus;
 
@@ -110,7 +111,7 @@ function SummaryTile({ label, value, detail }: { label: string; value: string | 
   return (
     <Box
       sx={{
-        borderRadius: 3,
+        borderRadius: 2,
         border: 1,
         borderColor: "divider",
         bgcolor: "background.paper",
@@ -148,7 +149,7 @@ function TrackedTenderCard({ item, onOpen }: { item: TrackedTenderItem; onOpen: 
   const deadlineUrgent = deadlineHint && (deadlineHint.includes("heute") || deadlineHint.includes("abgelaufen"));
 
   return (
-    <Card variant="outlined" sx={{ borderRadius: 3 }}>
+    <Card variant="outlined" sx={{ borderRadius: 2 }}>
       <CardContent sx={{ p: 2.5 }}>
         <Box sx={{ display: "flex", flexDirection: { xs: "column", lg: "row" }, gap: 2.5, alignItems: { lg: "flex-start" }, justifyContent: "space-between" }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -454,7 +455,7 @@ export function TrackedTendersSection() {
         </Stack>
       </Box>
 
-      <Card variant="outlined" sx={{ borderRadius: 3 }}>
+      <Card variant="outlined" sx={{ borderRadius: 2 }}>
         <CardContent sx={{ p: 2.5 }}>
           <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", lg: "5fr 3fr 4fr" } }}>
             <TextField
@@ -509,63 +510,64 @@ export function TrackedTendersSection() {
       </Card>
 
       {error ? (
-        <Box sx={{ borderRadius: 3, border: 1, borderColor: "error.main", bgcolor: "rgba(211,47,47,0.05)", p: 2.5 }}>
-          <Typography variant="body2" color="error">
-            {error}
-          </Typography>
-        </Box>
-      ) : null}
-
-      {loading ? (
-        <Box sx={{ borderRadius: 3, border: 1, borderColor: "divider", bgcolor: "background.paper", p: 4, textAlign: "center" }}>
-          <CircularProgress size={20} sx={{ mb: 1.5 }} />
-          <Typography variant="body2" color="text.secondary">
-            Verfolgte Ausschreibungen werden geladen.
-          </Typography>
-        </Box>
+        <ResourceState
+          kind="error"
+          title="Verfolgte Ausschreibungen konnten nicht geladen werden"
+          description={error}
+          action={<Button variant="contained" onClick={() => void loadTrackedTenders()}>Erneut laden</Button>}
+        />
+      ) : loading && items.length === 0 ? (
+        <ResourceState kind="loading" title="Verfolgte Ausschreibungen werden geladen." />
       ) : items.length === 0 ? (
-        <Box sx={{ borderRadius: 3, border: 1, borderColor: "divider", bgcolor: "background.paper", p: 4, textAlign: "center" }}>
-          <CircleAlert size={24} style={{ margin: "0 auto 12px", opacity: 0.5 }} />
-          <Typography variant="body2" fontWeight={500} color="text.primary">
-            Noch keine verfolgten Ausschreibungen
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            Markieren Sie in der Analyse passende Treffer als verfolgt. Sie erscheinen dann automatisch hier.
-          </Typography>
-        </Box>
+        <ResourceState
+          kind="empty"
+          icon={BriefcaseBusiness}
+          title="Noch keine verfolgten Ausschreibungen"
+          description="Markieren Sie in der Analyse passende Treffer als verfolgt. Sie erscheinen dann automatisch hier."
+        />
       ) : (
-        <Stack spacing={3}>
-          {groups.map((group) => (
-            <Box component="section" key={group.key}>
-              <Stack spacing={1.5}>
-                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2 }}>
-                  <Box>
-                    <Typography variant="h6" component="p" fontWeight={600}>
-                      {group.label}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {group.items.length} Ausschreibungen
-                    </Typography>
-                  </Box>
-                </Box>
-
+        <>
+          {loading ? (
+            <ResourceState
+              kind="loading"
+              compact
+              title="Arbeitsansicht wird aktualisiert"
+              description="Ihre Filter werden angewendet."
+            />
+          ) : null}
+          <Stack spacing={3}>
+            {groups.map((group) => (
+              <Box component="section" key={group.key}>
                 <Stack spacing={1.5}>
-                  {group.items.map((item) => (
-                    <TrackedTenderCard
-                      key={`${item.companyId}-${item.tenderId}`}
-                      item={item}
-                      onOpen={() => {
-                        setSelectedTender(item);
-                        setWorkflowSaveState("idle");
-                        setWorkflowError(null);
-                      }}
-                    />
-                  ))}
+                  <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2 }}>
+                    <Box>
+                      <Typography variant="h6" component="p" fontWeight={600}>
+                        {group.label}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {group.items.length} Ausschreibungen
+                      </Typography>
+                    </Box>
+                  </Box>
+
+                  <Stack spacing={1.5}>
+                    {group.items.map((item) => (
+                      <TrackedTenderCard
+                        key={`${item.companyId}-${item.tenderId}`}
+                        item={item}
+                        onOpen={() => {
+                          setSelectedTender(item);
+                          setWorkflowSaveState("idle");
+                          setWorkflowError(null);
+                        }}
+                      />
+                    ))}
+                  </Stack>
                 </Stack>
-              </Stack>
-            </Box>
-          ))}
-        </Stack>
+              </Box>
+            ))}
+          </Stack>
+        </>
       )}
 
       {selectedTender ? (

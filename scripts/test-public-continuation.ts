@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import {
+  buildPublicContinuationJobKey,
+  isUnexpectedEmptyPublicSourceResult,
+  shouldRetryFailedPublicFullRun,
   shouldSchedulePublicContinuation,
   type PublicDetailReference,
   type PublicSourceCursor,
@@ -8,6 +11,43 @@ import {
 const now = new Date("2026-08-16T12:00:00.000Z");
 const due = new Date(now.getTime() - 60_000).toISOString();
 const future = new Date(now.getTime() + 60 * 60 * 1000).toISOString();
+
+assert.equal(buildPublicContinuationJobKey("dtvp"), "public-continuation:dtvp");
+assert.equal(buildPublicContinuationJobKey("dtvp", 42), "public-continuation:dtvp:run-42");
+assert.notEqual(
+  buildPublicContinuationJobKey("dtvp", 42),
+  buildPublicContinuationJobKey("dtvp", 43),
+  "a continuation must not dedupe into the still-running job that scheduled it",
+);
+
+assert.equal(shouldRetryFailedPublicFullRun(new Date(now.getTime() - 60_000), now), false);
+assert.equal(shouldRetryFailedPublicFullRun(new Date(now.getTime() - 6 * 60_000), now), true);
+assert.equal(shouldRetryFailedPublicFullRun(null, now), true);
+
+assert.equal(isUnexpectedEmptyPublicSourceResult({
+  emptyAllowed: false,
+  tenderCount: 0,
+  exhausted: true,
+  pendingCount: 0,
+}), true, "a completed, empty source that forbids empty results must be retried");
+assert.equal(isUnexpectedEmptyPublicSourceResult({
+  emptyAllowed: false,
+  tenderCount: 0,
+  exhausted: false,
+  pendingCount: 0,
+}), false, "an incomplete source can continue without being marked empty");
+assert.equal(isUnexpectedEmptyPublicSourceResult({
+  emptyAllowed: false,
+  tenderCount: 0,
+  exhausted: true,
+  pendingCount: 1,
+}), false, "a source with pending detail retries is not a completed empty result");
+assert.equal(isUnexpectedEmptyPublicSourceResult({
+  emptyAllowed: true,
+  tenderCount: 0,
+  exhausted: true,
+  pendingCount: 0,
+}), false, "explicitly empty-allowed sources may finish empty");
 
 const reference = (overrides: Partial<PublicDetailReference> = {}): PublicDetailReference => ({
   key: "source:url:https://example.test/detail",
@@ -50,9 +90,45 @@ assert.equal(
   shouldSchedulePublicContinuation(cursorWith([reference({ blocked: true })]), false, true, "partial", null, now),
   false,
 );
+assert.equal(
+  shouldSchedulePublicContinuation(
+    { ...cursorWith([reference({ blocked: true })]), listingComplete: false },
+    false,
+    true,
+    "partial",
+    null,
+    now,
+  ),
+  true,
+  "blocked detail references must not strand an unfinished listing",
+);
+assert.equal(
+  shouldSchedulePublicContinuation(
+    { ...cursorWith([reference({ blocked: true })]), listingComplete: true },
+    false,
+    true,
+    "partial",
+    null,
+    now,
+  ),
+  false,
+  "a blocked-only queue can remain parked after listing is complete",
+);
 
 // 5. Permanent source errors park the cursor.
 assert.equal(shouldSchedulePublicContinuation(cursorWith([]), false, true, "failed", "HTTP 404", now), false);
+assert.equal(
+  shouldSchedulePublicContinuation(
+    cursorWith([reference({ nextAttemptAt: due })]),
+    false,
+    true,
+    "failed",
+    "HTTP 404",
+    now,
+  ),
+  false,
+  "a permanent source error must park even due detail retries",
+);
 
 // 6. Empty queue + incomplete listing: a clean partial run may continue;
 //    old failed cursors are retried, while errored partial runs stay parked.
@@ -68,6 +144,11 @@ assert.equal(
 assert.equal(
   shouldSchedulePublicContinuation({ ...cursorWith([]), sourceFailureRetryAt: due }, false, true, "failed", "HTTP 503", now),
   true,
+);
+assert.equal(
+  shouldSchedulePublicContinuation({ ...cursorWith([]), sourceFailureRetryAt: "not-a-date" }, false, true, "failed", "HTTP 503", now),
+  true,
+  "invalid source backoff metadata must not permanently strand a retryable source",
 );
 assert.equal(
   shouldSchedulePublicContinuation(

@@ -1,8 +1,10 @@
 import { db } from "@/lib/db";
-import { documents, tenderResources, tenders, structuredData, scores, companyProfiles } from "@/lib/schema";
+import { documents, tenderResources, tenders, structuredData, scores, companyProfiles, tenderDeepDives } from "@/lib/schema";
 import { eq, and, ne, or, gt, isNull, desc } from "drizzle-orm";
 import { notFound, permanentRedirect } from "next/navigation";
+import { headers } from "next/headers";
 import type { Metadata } from "next";
+import { auth } from "@/lib/auth";
 import Link from "next/link";
 import {
   Box,
@@ -28,38 +30,47 @@ import {
   AlertCircle,
   CheckCircle2,
 } from "lucide-react";
-import { extractPublicPortalFacts, pickPublicDescription } from "@/lib/public-tender-scraper";
+import { extractPublicPortalFacts, getPublicAccessLimitedFallback } from "@/lib/public-tender-scraper";
 import { normalizeStructured } from "@/lib/structurer";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 import { deriveBundesland, deriveCity, BUNDESLAND_SLUGS } from "@/lib/bundesland";
 import { CITY_SLUG_MAP } from "@/lib/cities";
-import { normalizeAgencySlug } from "@/lib/agencies";
+import { getIndexableAgency } from "@/lib/agencies";
+import { isSmallVendorTenderModeEnabled } from "@/lib/small-vendor";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 import { PdfDocumentLink } from "@/components/PdfDocumentLink";
 import { TenderQuickCheck } from "@/components/TenderQuickCheck";
+import { SmallVendorDeepDive, type DeepDiveState } from "@/components/SmallVendorDeepDive";
+import type { DeepDiveResult } from "@/lib/small-vendor-deep-dive";
 import { SafeMarkdown } from "@/components/SafeMarkdown";
 import { buildDocumentAnalysis, documentAnalysisFieldLabel, type AnalyzedDocument } from "@/lib/document-analysis";
 import { buildTenderCheck } from "@/lib/tender-check";
 import { ROLE_LABELS_DE } from "@/lib/document-classifier";
 import { normalizeResourceUrl } from "@/lib/resource-discovery";
 import { isPortalActionUrl } from "@/lib/resource-url";
-import { deduplicateDocumentRows, documentIdentityKey } from "@/lib/document-identity";
+import { deduplicateDocumentRows, documentIdentityKey, isHtmlContentType, isHtmlDocumentResource } from "@/lib/document-identity";
+import { optionalPublicRows } from "@/lib/public-route-resilience";
 import { repairKnownGermanEncoding } from "@/lib/text-normalization";
 import { readPublicTenderMeta } from "@/lib/tender-meta";
 import { buildTenderDescriptionMarkdown } from "@/lib/tender-description";
 import { hasQueryParameters, NOINDEX_FOLLOW, type SeoSearchParams } from "@/lib/seo-indexability";
-import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
+import { getCanonicalTenderSlug, isCanonicalTenderId } from "@/lib/tender-canonical";
 import {
   normalizePublicClient,
   pickValidatedPublicCandidate,
   pickValidatedPublicLocationForTender,
   normalizePublicDisplayCandidate,
+  pickCanonicalPublicDescriptionMarkdown,
+  projectPublicDisplayFields,
+  projectPublicTenderRecord,
 } from "@/lib/public-content-quality";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+import { getSiteUrl } from "@/lib/site-config";
+
+const siteUrl = getSiteUrl();
 
 // SEO: Catch-all route handles both /ausschreibung/[id] and /ausschreibung/[id]/[slug].
 // Old numeric-only URLs redirect (301) to keyword-rich slug URLs for better long-tail SEO.
@@ -93,9 +104,10 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
       source: tenders.source,
       deadlineAt: tenders.deadlineAt,
       createdAt: tenders.createdAt,
-      updatedAt: tenders.updatedAt,
-      metadataJson: tenders.metadataJson,
-       qualityStatus: tenders.qualityStatus,
+       updatedAt: tenders.updatedAt,
+       metadataJson: tenders.metadataJson,
+       rawText: tenders.rawText,
+        qualityStatus: tenders.qualityStatus,
        structuredJson: structuredData.jsonBlob,
      })
       .from(tenders)
@@ -110,9 +122,14 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
     title: row.title,
     source: row.source,
   });
-  const rawTitle = pickValidatedPublicCandidate(row.title) || `Ausschreibung #${id}`;
-  const client = normalizePublicClient(meta.client);
-  const location = pickValidatedPublicLocationForTender(rawTitle, client, meta.location);
+  const metaDisplay = projectPublicDisplayFields({
+    title: row.title,
+    client: meta.client,
+    location: meta.location,
+  });
+  const rawTitle = metaDisplay.title || `Ausschreibung #${id}`;
+  const client = metaDisplay.client || "";
+  const location = metaDisplay.location || "";
 
   const deadline = row.deadlineAt
     ? new Date(row.deadlineAt).toLocaleDateString("de-DE", { day: "numeric", month: "long", year: "numeric" })
@@ -126,9 +143,14 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
   const description = `${rawTitle}. ${descParts ? descParts + ". " : ""}Öffentliche Ausschreibung aus ${row.source}. Alle Details, Anforderungen und Fristen.`;
 
   // Canonical slug: prefer persisted DB slug, fall back to live computation for legacy rows
-  const canonicalSlug = getCanonicalTenderSlug(row.slug, row.title, row.metadataJson, row.structuredJson);
-  if (!slug || slug !== canonicalSlug) {
-    permanentRedirect(`/ausschreibung/${id}/${canonicalSlug}`);
+   const canonicalSlug = getCanonicalTenderSlug(
+      row.slug,
+      row.title,
+      row.metadataJson,
+      row.structuredJson,
+   );
+  if (!isCanonicalTenderId(id, numericId) || !slug || slug !== canonicalSlug) {
+    permanentRedirect(`/ausschreibung/${numericId}/${canonicalSlug}`);
   }
 
   return {
@@ -164,14 +186,40 @@ export default async function TenderDetailPage({ params }: PageProps) {
 
   const row = rows[0];
   const tender = row.tenders;
-  const sd = row.structured_data;
+   const sd = row.structured_data;
 
   const expectedSlug = getCanonicalTenderSlug(tender.slug, tender.title, tender.metadataJson, sd?.jsonBlob);
-  if (!slug || slug !== expectedSlug) {
+  if (!isCanonicalTenderId(id, numericId) || !slug || slug !== expectedSlug) {
     permanentRedirect(`/ausschreibung/${tender.id}/${expectedSlug}`);
   }
 
-  const documentRows = deduplicateDocumentRows((await db
+  let smallVendorDeepDiveEnabled = false;
+  let deepDiveInitial: DeepDiveState | null = null;
+  try {
+    const session = await auth.api.getSession({ headers: await headers() });
+    smallVendorDeepDiveEnabled = isSmallVendorTenderModeEnabled(session?.user ?? null);
+  } catch {
+    smallVendorDeepDiveEnabled = false;
+  }
+  if (smallVendorDeepDiveEnabled) {
+    const deepDiveRows = await optionalPublicRows(() => db
+      .select()
+      .from(tenderDeepDives)
+      .where(eq(tenderDeepDives.tenderId, tender.id))
+      .limit(1));
+    if (deepDiveRows[0]) {
+      deepDiveInitial = {
+        status: deepDiveRows[0].status,
+        model: deepDiveRows[0].model,
+        result: (deepDiveRows[0].resultJson ?? null) as DeepDiveResult | null,
+        corpusStats: (deepDiveRows[0].corpusStats ?? null) as Record<string, number> | null,
+        error: deepDiveRows[0].error,
+        updatedAt: deepDiveRows[0].updatedAt?.toISOString() ?? null,
+      };
+    }
+  }
+
+  const fetchedDocumentRows = await optionalPublicRows(() => db
     .select({
       id: documents.id,
       url: documents.url,
@@ -189,8 +237,9 @@ export default async function TenderDetailPage({ params }: PageProps) {
       aiSummary: documents.aiSummary,
     })
     .from(documents)
-    .where(eq(documents.tenderId, tender.id)))
-    .filter((document) => !isPortalActionUrl(document.url)));
+    .where(eq(documents.tenderId, tender.id)));
+  const documentRows = deduplicateDocumentRows(fetchedDocumentRows)
+    .filter((document) => !isPortalActionUrl(document.url) && !isHtmlContentType(document.contentType));
   const documentAnalysis = buildDocumentAnalysis(documentRows as AnalyzedDocument[]);
 
   const isExpired = Boolean(tender.deadlineAt && new Date(tender.deadlineAt) < new Date());
@@ -202,32 +251,36 @@ export default async function TenderDetailPage({ params }: PageProps) {
     failed: "Analyse fehlgeschlagen",
     manual_review: "Manuelle Prüfung erforderlich",
   };
-  const readinessStatus = tender.readinessStatus ?? "pending";
+   const readinessStatus = tender.rawText?.trim() ? tender.readinessStatus ?? "pending" : "manual_review";
   const readinessTone = readinessStatus === "ready"
-    ? { background: "#f0fdf4", border: "#bbf7d0", text: "#166534" }
+    ? { background: "success.light", text: "success.dark" }
     : readinessStatus === "blocked" || readinessStatus === "failed"
-      ? { background: "#fef2f2", border: "#fecaca", text: "#991b1b" }
-      : { background: "#fffbeb", border: "#fde68a", text: "#92400e" };
+      ? { background: "error.light", text: "error.dark" }
+      : { background: "warning.light", text: "warning.dark" };
 
-  const meta = (typeof tender.metadataJson === "object" && tender.metadataJson !== null
-    ? tender.metadataJson
-    : {}) as Record<string, unknown>;
-  const tenderMeta = readPublicTenderMeta(meta, {
+  const tenderMeta = readPublicTenderMeta(tender.metadataJson, {
     title: tender.title,
     source: tender.source,
     sourceUrl: tender.url,
-    rawText: tender.rawText,
   });
-  const portalFacts = extractPublicPortalFacts([tender.rawText, tenderMeta.description].filter(Boolean).join("\n"));
+  const hasUsableRawText = Boolean(tender.rawText?.trim());
+  const portalFacts = extractPublicPortalFacts(tenderMeta.description);
+   const accessFallback = getPublicAccessLimitedFallback({
+     title: tender.title ?? "",
+     factsText: tenderMeta.description,
+     evidenceText: tender.rawText,
+     explicitlyAccessLimited: tenderMeta.accessLimited,
+   });
+   const accessLimited = accessFallback !== null;
   const fallbackFacts = {
     buyer: portalFacts.client || tenderMeta.client || null,
-    procedure: portalFacts.procedure || tenderMeta.procedure || tender.procedureType || null,
+    procedure: portalFacts.procedure || tenderMeta.procedure || (hasUsableRawText ? tender.procedureType : null) || null,
     deadline: portalFacts.deadline || (tender.deadlineAt ? tender.deadlineAt.toLocaleString("de-DE") : null),
     location: portalFacts.location || tenderMeta.location || null,
     summary: tenderMeta.description || null,
     scope: portalFacts.subject || tenderMeta.subject || null,
   };
-  const structuredSource = sd?.jsonBlob ?? meta;
+  const structuredSource = sd?.jsonBlob ?? tender.metadataJson;
   const normalizedStructured = normalizeStructured(structuredSource, tender.title ?? "", fallbackFacts);
   const tenderCheck = buildTenderCheck({
     tenderId: tender.id,
@@ -237,7 +290,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
     documents: documentRows as AnalyzedDocument[],
     documentAnalysis,
   });
-  const resourceRows = (await db
+  const resourceRows = (await optionalPublicRows(() => db
     .select({
       id: tenderResources.id,
       url: tenderResources.url,
@@ -253,7 +306,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
       contentType: tenderResources.contentType,
     })
     .from(tenderResources)
-    .where(eq(tenderResources.tenderId, tender.id)))
+    .where(eq(tenderResources.tenderId, tender.id))))
     .filter((resource) => !isPortalActionUrl(resource.url));
   const structuredMeta = readPublicTenderMeta(normalizedStructured, {
     title: tender.title,
@@ -280,7 +333,12 @@ export default async function TenderDetailPage({ params }: PageProps) {
   const documentByUrl = new Map<string, { id: number; filename: string | null; summary: string | null; parseStatus: string | null }>();
   for (const document of documentRows) {
     const key = resourceKey(document.url);
-    if (key) documentByUrl.set(key, { id: document.id, filename: document.filename, summary: document.aiSummary, parseStatus: document.parseStatus });
+    if (key) documentByUrl.set(key, {
+      id: document.id,
+      filename: document.filename,
+      summary: normalizePublicDisplayCandidate(document.aiSummary),
+      parseStatus: document.parseStatus,
+    });
   }
   const resourceByUrl = new Map<string, DisplayResource>();
   const addResource = (resource: DisplayResource): void => {
@@ -321,7 +379,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
       status: document.downloadStatus ?? "unknown",
       sourcePageUrl: null,
       contentType: document.contentType,
-      summary: document.aiSummary,
+       summary: normalizePublicDisplayCandidate(document.aiSummary),
       parseStatus: document.parseStatus,
     });
   }
@@ -370,6 +428,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
   const allResources = [...resourceByUrl.values()]
     .filter((resource) => resource.url && resource.url !== resourceUrl(tender.url))
     .filter((resource) => !isPortalActionUrl(resource.url))
+    .filter((resource) => !isHtmlDocumentResource(resource))
     .slice(0, 40);
   const downloadableResources = allResources.filter((resource) =>
     Boolean(resource.documentId) || ["document", "download"].includes(resource.resourceType),
@@ -401,7 +460,13 @@ export default async function TenderDetailPage({ params }: PageProps) {
     unknown: "Unbekannt",
   };
 
-  const title = pickValidatedPublicCandidate(tender.title) || `Ausschreibung #${tender.id}`;
+  const baseDisplay = projectPublicTenderRecord({
+    title: tender.title,
+    metadata: tender.metadataJson,
+    structured: normalizedStructured,
+    clientFallbacks: [tenderMeta.client, fallbackFacts.buyer],
+  });
+  const title = baseDisplay.title || `Ausschreibung #${tender.id}`;
   const categoryLabel = CATEGORY_LABELS[tender.category ?? "Sonstiges"] ?? tender.category ?? "Diverse Leistungen";
   const categorySlug = CATEGORY_SLUGS[tender.category ?? "Sonstiges"] ?? "diverse";
 
@@ -414,23 +479,26 @@ export default async function TenderDetailPage({ params }: PageProps) {
     return pickValidatedPublicCandidate(...candidates);
   };
 
-  const description = pickPublicDescription(
-    normalizedStructured.summary,
-    tenderMeta.description,
-    portalFacts.subject,
-  );
   const hardFacts = normalizedStructured.hard_facts as Record<string, unknown>;
   const decisionRelevant = normalizedStructured.decision_relevant as Record<string, unknown>;
   const procurement = normalizedStructured.procurement as Record<string, unknown>;
-  const client = normalizePublicClient(
-    normalizedStructured.hard_facts.buyer,
-    tenderMeta.client,
-  );
-  const location = pickValidatedPublicLocationForTender(title, client,
-    normalizedStructured.hard_facts.location,
-    typeof hardFacts.location === "string" ? hardFacts.location : null,
-    meta.location,
-  );
+  const display = projectPublicTenderRecord({
+    title,
+    metadata: tender.metadataJson,
+    structured: normalizedStructured,
+    clientFallbacks: [baseDisplay.client, tenderMeta.client, fallbackFacts.buyer],
+    locationFallbacks: [
+      normalizedStructured.hard_facts.location,
+      typeof hardFacts.location === "string" ? hardFacts.location : null,
+      tenderMeta.location,
+      fallbackFacts.location,
+    ],
+    summaryFallbacks: [accessFallback?.description, tenderMeta.description, portalFacts.subject],
+    descriptionMarkdownFallbacks: [accessFallback?.descriptionMarkdown, normalizedStructured.descriptionMarkdown, tenderMeta.descriptionMarkdown],
+  });
+  const client = display.client || "";
+  const location = display.location || "";
+  const description = display.description || "";
   const contactInfo = "";
   const estimatedValue = pickFirstClean(hardFacts.budget);
   const referenceNumber = pickFirstClean(tenderMeta.referenceNumber);
@@ -474,7 +542,11 @@ export default async function TenderDetailPage({ params }: PageProps) {
   const contractValue = estimatedValue
     || (tender.contractValueMax ? `${tender.contractValueMax.toLocaleString("de-DE", { maximumFractionDigits: 0 })} EUR` : "");
 
-  const descriptionMarkdown = buildTenderDescriptionMarkdown({
+  const descriptionMarkdown = pickCanonicalPublicDescriptionMarkdown(
+    ...(accessLimited && accessFallback ? [accessFallback.descriptionMarkdown] : []),
+    display.descriptionMarkdown,
+    tenderMeta.descriptionMarkdown,
+    buildTenderDescriptionMarkdown({
       client,
       procedure,
       deadline: typeof hardFacts.deadline === "string" ? hardFacts.deadline : deadline,
@@ -487,7 +559,8 @@ export default async function TenderDetailPage({ params }: PageProps) {
       requirements,
       awardCriteria,
       cpv: (procurement.cpv_codes ?? procurement.cpvCodes) as unknown,
-    });
+    }),
+  ) ?? "";
   const markdownHasSection = (label: string): boolean => descriptionMarkdown.includes(`- **${label}:**`);
   const markdownHasScope = markdownHasSection("Leistungsumfang");
   const markdownHasRequirements = markdownHasSection("Anforderungen");
@@ -496,7 +569,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
 
   const now = new Date();
 
-  const similarRows = await db
+  const similarRows = await optionalPublicRows(() => db
     .select({
       id: tenders.id,
       slug: tenders.slug,
@@ -516,26 +589,28 @@ export default async function TenderDetailPage({ params }: PageProps) {
       ),
     )
     .orderBy(desc(tenders.createdAt))
-    .limit(4);
+    .limit(4));
 
   const similarTenders = similarRows.map((t) => {
     const m = readPublicTenderMeta(t.metadataJson, {
       title: t.title,
       source: t.source,
     });
-    const tLocation = m.location;
+    const tTitle = pickValidatedPublicCandidate(t.title) || `Ausschreibung #${t.id}`;
+    const tClient = normalizePublicClient(m.client);
+    const tLocation = pickValidatedPublicLocationForTender(tTitle, tClient, m.location);
     // Use the same validated fallback as the detail URL and sitemap.
     const tSlug = getCanonicalTenderSlug(t.slug, t.title, {
-      client: m.client,
+      client: tClient,
       location: tLocation,
     });
     return {
       id: t.id,
       slug: tSlug,
-      title: t.title ?? `Ausschreibung #${t.id}`,
+      title: tTitle,
       category: CATEGORY_LABELS[t.category ?? "Sonstiges"] ?? t.category ?? categoryLabel,
-      client: m.client,
-      location: m.location ? m.location.split(",")[0].trim() : "",
+      client: tClient,
+      location: tLocation ? tLocation.split(",")[0].trim() : "",
       deadline: t.deadlineAt
         ? new Date(t.deadlineAt).toLocaleDateString("de-DE", { day: "2-digit", month: "short", year: "numeric" })
         : null,
@@ -543,7 +618,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
     };
   });
 
-  const scoredCompanyRows = await db
+  const scoredCompanyRows = await optionalPublicRows(() => db
     .select({
       slug: companyProfiles.slug,
       name: companyProfiles.name,
@@ -554,7 +629,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
     .leftJoin(companyProfiles, eq(scores.companyId, companyProfiles.id))
     .where(eq(scores.tenderId, tender.id))
     .orderBy(desc(scores.fit))
-    .limit(5);
+    .limit(5));
 
   const scoredCompanies = scoredCompanyRows
     .filter((c) => c.slug)
@@ -572,7 +647,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
   const citySlug = tenderCity
     ? Object.values(CITY_SLUG_MAP).find((c) => c.label.toLowerCase() === tenderCity.toLowerCase())?.slug ?? null
     : null;
-  const agencySlug = client ? normalizeAgencySlug(client) : null;
+  const agencySlug = getIndexableAgency(client)?.slug ?? null;
 
   const tenderUrl = `/ausschreibung/${tender.id}/${expectedSlug}`;
 
@@ -663,16 +738,16 @@ export default async function TenderDetailPage({ params }: PageProps) {
     fontSize: { xs: "1.25rem", md: "1.375rem" },
     fontWeight: 700,
     letterSpacing: "-0.015em",
-    color: "#2d3544",
+    color: "text.primary",
     mb: 1.25,
     lineHeight: 1.25,
   };
   const sectionSx = { mb: { xs: 4, md: 5 }, scrollMarginTop: 24 };
   const tenderStatus = isExpired
-    ? { label: "Frist abgelaufen", color: "#92400e", background: "#fffbeb" }
+    ? { label: "Frist abgelaufen", color: "warning.dark", background: "warning.light" }
     : deadline
-      ? { label: "Offene Frist", color: "#b34d3d", background: "#f8d8d2" }
-      : { label: "Frist unbekannt", color: "#667288", background: "#e8eff5" };
+      ? { label: "Offene Frist", color: "warning.dark", background: "warning.light" }
+      : { label: "Frist unbekannt", color: "text.secondary", background: "info.light" };
   const missingRolesLabel = documentAnalysis.coverage.missingRoles
     .map((role) => ROLE_LABELS_DE[role] ?? role)
     .join(", ");
@@ -692,7 +767,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
 
-      <Box sx={{ minHeight: "100vh", bgcolor: "#f0f4f8" }}>
+      <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
         <Container
           component="main"
           maxWidth={false}
@@ -705,18 +780,18 @@ export default async function TenderDetailPage({ params }: PageProps) {
           >
             {breadcrumbLinks.map((link, index) => (
               <Box key={link.href} component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 0.5 }}>
-                <Link href={link.href} style={{ color: "#667288", textDecoration: "none", fontSize: "0.8125rem" }}>
+                <Link href={link.href} style={{ color: "var(--color-text-secondary)", textDecoration: "none", fontSize: "0.8125rem" }}>
                   {link.label}
                 </Link>
-                {index < breadcrumbLinks.length - 1 && <ChevronRight size={14} color="#94a3b8" aria-hidden="true" />}
+                {index < breadcrumbLinks.length - 1 && <ChevronRight size={14} color="var(--color-border-subtle)" aria-hidden="true" />}
               </Box>
             ))}
-            <ChevronRight size={14} color="#94a3b8" aria-hidden="true" />
+            <ChevronRight size={14} color="var(--color-border-subtle)" aria-hidden="true" />
             <Typography
               component="span"
               aria-current="page"
               sx={{
-                color: "#2d3544",
+                 color: "text.primary",
                 fontSize: "0.8125rem",
                 fontWeight: 600,
                 maxWidth: { xs: "100%", sm: 360 },
@@ -745,9 +820,9 @@ export default async function TenderDetailPage({ params }: PageProps) {
                   size="small"
                   sx={{
                     height: 26,
-                    bgcolor: "#e8eff5",
-                    color: "#2d3544",
-                    borderRadius: 1.5,
+                    bgcolor: "var(--color-surface-strong)",
+                    color: "text.primary",
+                    borderRadius: 1,
                     fontWeight: 700,
                     "& .MuiChip-label": { px: 1 },
                   }}
@@ -759,14 +834,14 @@ export default async function TenderDetailPage({ params }: PageProps) {
                     gap: 0.5,
                     minHeight: 26,
                     px: 1,
-                    borderRadius: 1.5,
+                    borderRadius: 1,
                     bgcolor: tenderStatus.background,
                     color: tenderStatus.color,
                     fontSize: "0.75rem",
                     fontWeight: 700,
                   }}
                 >
-                  {isExpired ? <AlertCircle size={14} aria-hidden="true" /> : <CheckCircle2 size={14} aria-hidden="true" />}
+                   {isExpired ? <AlertCircle size={14} aria-hidden="true" /> : <CheckCircle2 size={14} aria-hidden="true" />}
                   {tenderStatus.label}
                 </Box>
               </Stack>
@@ -775,7 +850,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
                 component="h1"
                 sx={{
                   maxWidth: { lg: "23ch" },
-                  color: "#2d3544",
+                  color: "text.primary",
                   fontSize: { xs: "2rem", sm: "2.25rem", md: "2.5rem" },
                   fontWeight: 700,
                   letterSpacing: "-0.035em",
@@ -790,24 +865,24 @@ export default async function TenderDetailPage({ params }: PageProps) {
               <Stack direction="row" spacing={{ xs: 1.25, sm: 2 }} flexWrap="wrap" useFlexGap sx={{ mt: 2.25 }}>
                 {client && (
                   <Stack direction="row" spacing={0.65} alignItems="center" sx={{ minWidth: 0 }}>
-                    <Building2 size={16} color="#667288" aria-hidden="true" />
-                    <Typography variant="body2" sx={{ color: "#4b5565", fontWeight: 600, overflowWrap: "anywhere" }}>
+                    <Building2 size={16} color="var(--color-text-secondary)" aria-hidden="true" />
+                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600, overflowWrap: "anywhere" }}>
                       {client}
                     </Typography>
                   </Stack>
                 )}
                 {location && (
                   <Stack direction="row" spacing={0.65} alignItems="center" sx={{ minWidth: 0 }}>
-                    <MapPin size={16} color="#667288" aria-hidden="true" />
-                    <Typography variant="body2" sx={{ color: "#4b5565", fontWeight: 600, overflowWrap: "anywhere" }}>
+                    <MapPin size={16} color="var(--color-text-secondary)" aria-hidden="true" />
+                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600, overflowWrap: "anywhere" }}>
                       {location}
                     </Typography>
                   </Stack>
                 )}
                 {deadline && (
                   <Stack direction="row" spacing={0.65} alignItems="center">
-                    <Calendar size={16} color="#b34d3d" aria-hidden="true" />
-                    <Typography component="time" dateTime={deadlineISO ?? undefined} variant="body2" sx={{ color: "#b34d3d", fontWeight: 700 }}>
+                    <Calendar size={16} color="var(--color-status-warning)" aria-hidden="true" />
+                    <Typography component="time" dateTime={deadlineISO ?? undefined} variant="body2" color="warning.dark" sx={{ fontWeight: 700 }}>
                       Frist: {deadline}
                     </Typography>
                   </Stack>
@@ -825,7 +900,9 @@ export default async function TenderDetailPage({ params }: PageProps) {
                     bgcolor: tenderStatus.background,
                   }}
                 >
-                  <AlertCircle size={18} color={tenderStatus.color} aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
+                  <Box component="span" sx={{ color: tenderStatus.color, flexShrink: 0, mt: 0.25 }}>
+                    <AlertCircle size={18} aria-hidden="true" />
+                  </Box>
                   <Box>
                     <Typography sx={{ color: tenderStatus.color, fontSize: "0.875rem", fontWeight: 700 }}>
                       Angebotsfrist abgelaufen
@@ -836,7 +913,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
                     {categorySlug && (
                       <Link
                         href={`/ausschreibungen/${categorySlug}`}
-                        style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 8, color: tenderStatus.color, textDecoration: "none", fontWeight: 700, fontSize: "0.8125rem" }}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 8, color: "var(--color-status-warning)", textDecoration: "none", fontWeight: 700, fontSize: "0.8125rem" }}
                       >
                         Aktuelle {categoryLabel}-Ausschreibungen ansehen
                         <ArrowRight size={14} aria-hidden="true" />
@@ -850,42 +927,44 @@ export default async function TenderDetailPage({ params }: PageProps) {
                 component="section"
                 id="analyse"
                 aria-labelledby="analyse-status-heading"
-                sx={{ mt: 3.5, p: { xs: 1.5, sm: 2 }, borderRadius: 2.5, bgcolor: "#e8eff5" }}
+                 sx={{ mt: 3.5, p: { xs: 1.5, sm: 2 }, borderRadius: 2, bgcolor: "var(--color-surface-strong)" }}
               >
                 <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1.1fr 1fr 1.25fr" }, gap: { xs: 1.5, sm: 2 } }}>
                   <Box>
-                    <Typography id="analyse-status-heading" variant="caption" sx={{ color: "#667288", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                     <Typography id="analyse-status-heading" variant="caption" color="text.secondary" sx={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                       Analyse
                     </Typography>
                     <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mt: 0.35 }}>
-                      {readinessStatus === "ready" ? <CheckCircle2 size={17} color={readinessTone.text} aria-hidden="true" /> : <AlertCircle size={17} color={readinessTone.text} aria-hidden="true" />}
+                       <Box component="span" sx={{ display: "inline-flex", color: readinessTone.text }}>
+                         {readinessStatus === "ready" ? <CheckCircle2 size={17} aria-hidden="true" /> : <AlertCircle size={17} aria-hidden="true" />}
+                       </Box>
                       <Typography sx={{ color: readinessTone.text, fontSize: "0.9375rem", fontWeight: 700 }}>
                         {readinessLabel[readinessStatus] ?? readinessLabel.pending}
                       </Typography>
                     </Stack>
                   </Box>
                   <Box>
-                    <Typography variant="caption" sx={{ color: "#667288", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                     <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                       Dokumente
                     </Typography>
-                    <Typography sx={{ mt: 0.35, color: "#2d3544", fontSize: "0.9375rem", fontWeight: 700 }}>
+                     <Typography sx={{ mt: 0.35, color: "text.primary", fontSize: "0.9375rem", fontWeight: 700 }}>
                       {documentAnalysis.coverage.parsed}/{documentAnalysis.coverage.discovered} analysiert
                     </Typography>
-                    <Typography variant="caption" sx={{ color: "#667288" }}>
+                     <Typography variant="caption" color="text.secondary">
                       {downloadedResources}/{downloadableResources.length} geladen, {coverageStatusLabel[resourceCoverageStatus] ?? "unbekannt"}
                     </Typography>
                   </Box>
                   <Box>
-                    <Typography variant="caption" sx={{ color: "#667288", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                     <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                       Fehlende Unterlagen
                     </Typography>
-                    <Typography sx={{ mt: 0.35, color: "#2d3544", fontSize: "0.9375rem", fontWeight: 700, lineHeight: 1.4 }}>
+                     <Typography sx={{ mt: 0.35, color: "text.primary", fontSize: "0.9375rem", fontWeight: 700, lineHeight: 1.4 }}>
                       {missingRolesLabel || "Keine Pflichtunterlagen offen"}
                     </Typography>
                   </Box>
                 </Box>
                 {(tender.readinessReason && readinessStatus !== "ready") || documentAnalysis.evidence.length > 0 ? (
-                  <Box sx={{ mt: 1.5, pt: 1.5, borderTop: "1px solid rgba(102, 114, 136, 0.22)" }}>
+                   <Box sx={{ mt: 1.5, pt: 1.5, borderTop: 1, borderColor: "divider" }}>
                     {tender.readinessReason && readinessStatus !== "ready" && (
                       <Typography variant="body2" sx={{ color: readinessTone.text, lineHeight: 1.55 }}>
                         {tender.readinessReason}
@@ -894,7 +973,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
                     {documentAnalysis.evidence.length > 0 && (
                       <Stack spacing={0.5} sx={{ mt: tender.readinessReason && readinessStatus !== "ready" ? 1 : 0 }}>
                         {documentAnalysis.evidence.slice(0, 4).map((evidence) => (
-                          <Typography key={`${evidence.field}-${evidence.documentId}`} variant="caption" sx={{ color: "#4b5565", lineHeight: 1.5 }}>
+                           <Typography key={`${evidence.field}-${evidence.documentId}`} variant="caption" color="text.secondary" sx={{ lineHeight: 1.5 }}>
                             Beleg {documentAnalysisFieldLabel(evidence.field)}: „{evidence.quote}&quot;{evidence.page ? ` (Seite ${evidence.page})` : ""}
                           </Typography>
                         ))}
@@ -918,51 +997,52 @@ export default async function TenderDetailPage({ params }: PageProps) {
                 minWidth: 0,
                 p: { xs: 1.5, sm: 2 },
                 borderRadius: 2,
-                bgcolor: "#fbfcfd",
-                boxShadow: "0 4px 12px rgba(45, 53, 68, 0.04)",
+                border: 1,
+                borderColor: "divider",
+                bgcolor: "background.paper",
               }}
             >
-              <Typography variant="overline" sx={{ color: "#667288", fontWeight: 700, letterSpacing: "0.08em" }}>
+               <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 700, letterSpacing: "0.08em" }}>
                 Entscheidungsübersicht
               </Typography>
               <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1, mb: 1 }}>
-                <Briefcase size={14} color="#667288" aria-hidden="true" />
-                <Typography id="vergabedetails-heading" component="span" variant="caption" sx={{ color: "#7a8594", fontWeight: 500, fontSize: "0.75rem", lineHeight: 1.4 }}>
+                 <Briefcase size={14} color="var(--color-text-secondary)" aria-hidden="true" />
+                 <Typography id="vergabedetails-heading" component="span" variant="caption" color="text.secondary" sx={{ fontWeight: 500, fontSize: "0.75rem", lineHeight: 1.4 }}>
                   Quelle:
                 </Typography>
-                <Typography component="span" variant="caption" sx={{ color: "#667288", fontWeight: 500, fontSize: "0.75rem", lineHeight: 1.4 }}>
+                 <Typography component="span" variant="caption" color="text.secondary" sx={{ fontWeight: 500, fontSize: "0.75rem", lineHeight: 1.4 }}>
                   {tender.source}
                 </Typography>
               </Stack>
 
-              <Box sx={{ px: 1.5, py: 1, borderRadius: 1.5, bgcolor: deadline ? "#fcebea" : "#eef3f6" }}>
-                <Typography variant="caption" sx={{ display: "block", mb: 1, color: "#667288", fontWeight: 700, fontSize: "0.6875rem", lineHeight: 1.2, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+               <Box sx={{ px: 1.5, py: 1, borderRadius: 1, bgcolor: deadline ? "warning.light" : "info.light" }}>
+                 <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1, fontWeight: 700, fontSize: "0.6875rem", lineHeight: 1.2, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                   Angebotsfrist
                 </Typography>
                 <Typography
                   component={deadline ? "time" : "span"}
                   dateTime={deadlineISO ?? undefined}
-                  sx={{ display: "block", color: deadline ? "#ad5b4e" : "#4b5565", fontSize: "1.0625rem", fontWeight: 700, lineHeight: 1.3 }}
+                   sx={{ display: "block", color: deadline ? "warning.dark" : "text.secondary", fontSize: "1.0625rem", fontWeight: 700, lineHeight: 1.3 }}
                 >
                   {deadline ?? "Nicht angegeben"}
                 </Typography>
               </Box>
 
-              <Stack divider={<Divider flexItem sx={{ borderColor: "rgba(102, 114, 136, 0.12)" }} />} sx={{ mt: 1.5 }}>
+               <Stack divider={<Divider flexItem sx={{ borderColor: "divider" }} />} sx={{ mt: 1.5 }}>
                 <Stack direction="row" spacing={1} alignItems="flex-start" sx={{ py: 1 }}>
-                  <FileText size={17} color="#667288" aria-hidden="true" />
+                   <FileText size={17} color="var(--color-text-secondary)" aria-hidden="true" />
                   <Box sx={{ minWidth: 0 }}>
-                    <Typography variant="caption" sx={{ display: "block", color: "#667288", fontSize: "0.6875rem", lineHeight: 1.3 }}>Vergabeart</Typography>
-                    <Typography variant="body2" sx={{ display: "block", mt: 1, color: "#2d3544", fontWeight: 700, lineHeight: 1.4, overflowWrap: "anywhere" }}>
+                   <Typography variant="caption" color="text.secondary" sx={{ display: "block", fontSize: "0.6875rem", lineHeight: 1.3 }}>Vergabeart</Typography>
+                   <Typography variant="body2" sx={{ display: "block", mt: 1, color: "text.primary", fontWeight: 700, lineHeight: 1.4, overflowWrap: "anywhere" }}>
                       {procedure || "Nicht angegeben"}
                     </Typography>
                   </Box>
                 </Stack>
                 <Stack direction="row" spacing={1} alignItems="flex-start" sx={{ py: 1 }}>
-                  <Calendar size={17} color="#667288" aria-hidden="true" />
+                   <Calendar size={17} color="var(--color-text-secondary)" aria-hidden="true" />
                   <Box sx={{ minWidth: 0 }}>
-                    <Typography variant="caption" sx={{ display: "block", color: "#667288", fontSize: "0.6875rem", lineHeight: 1.3 }}>Veröffentlicht</Typography>
-                    <Typography component={publishedAt ? "time" : "span"} dateTime={publishedAtISO ?? undefined} variant="body2" sx={{ display: "block", mt: 1, color: "#2d3544", fontWeight: 700, lineHeight: 1.4, overflowWrap: "anywhere" }}>
+                   <Typography variant="caption" color="text.secondary" sx={{ display: "block", fontSize: "0.6875rem", lineHeight: 1.3 }}>Veröffentlicht</Typography>
+                   <Typography component={publishedAt ? "time" : "span"} dateTime={publishedAtISO ?? undefined} variant="body2" sx={{ display: "block", mt: 1, color: "text.primary", fontWeight: 700, lineHeight: 1.4, overflowWrap: "anywhere" }}>
                       {publishedAt ?? "Nicht angegeben"}
                     </Typography>
                   </Box>
@@ -985,22 +1065,25 @@ export default async function TenderDetailPage({ params }: PageProps) {
             </Paper>
 
             <Box sx={{ gridColumn: { lg: "1" }, minWidth: 0 }}>
+              {smallVendorDeepDiveEnabled && (
+                <SmallVendorDeepDive tenderId={tender.id} initial={deepDiveInitial} />
+              )}
               {commercialBrief && (
-                <Box component="section" aria-labelledby="geschaeftsentscheidung-heading" sx={{ ...sectionSx, bgcolor: "#f0f6f8", borderRadius: 2.5, p: { xs: 2, sm: 2.5 } }}>
+                 <Box component="section" aria-labelledby="geschaeftsentscheidung-heading" sx={{ ...sectionSx, bgcolor: "info.light", borderRadius: 2, p: { xs: 2, sm: 2.5 } }}>
                   <Typography id="geschaeftsentscheidung-heading" component="h2" sx={sectionHeadingSx}>
                     Geschäftsentscheidung
                   </Typography>
-                  <Typography sx={{ color: "#163b4a", fontSize: "1.0625rem", fontWeight: 700, lineHeight: 1.4 }}>
+                   <Typography sx={{ color: "info.dark", fontSize: "1.0625rem", fontWeight: 700, lineHeight: 1.4 }}>
                     {commercialBrief.headline}
                   </Typography>
-                  <Typography sx={{ mt: 0.75, maxWidth: "72ch", color: "#38505b", lineHeight: 1.65 }}>
+                   <Typography sx={{ mt: 0.75, maxWidth: "72ch", color: "text.secondary", lineHeight: 1.65 }}>
                     {commercialBrief.rationale}
                   </Typography>
-                  <Typography sx={{ mt: 1.25, color: "#163b4a", fontWeight: 700, lineHeight: 1.5 }}>
+                   <Typography sx={{ mt: 1.25, color: "info.dark", fontWeight: 700, lineHeight: 1.5 }}>
                     Nächster Schritt: {commercialBrief.nextAction}
                   </Typography>
                   {commercialBrief.unknowns.length > 0 && (
-                    <Typography variant="body2" sx={{ mt: 1, color: "#667288", lineHeight: 1.5 }}>
+                     <Typography variant="body2" color="text.secondary" sx={{ mt: 1, lineHeight: 1.5 }}>
                       Offen: {commercialBrief.unknowns.join(" ")}
                     </Typography>
                   )}
@@ -1013,9 +1096,9 @@ export default async function TenderDetailPage({ params }: PageProps) {
                 </Typography>
                 <SafeMarkdown
                   content={descriptionMarkdown}
-                  sx={{ maxWidth: "72ch", color: "#4b5565", fontSize: "1rem", lineHeight: 1.7 }}
+                   sx={{ maxWidth: "72ch", color: "text.secondary", fontSize: "1rem", lineHeight: 1.7 }}
                   fallback={
-                    <Typography sx={{ maxWidth: "72ch", color: "#4b5565", fontSize: "1rem", lineHeight: 1.7, whiteSpace: "pre-line" }}>
+                    <Typography sx={{ maxWidth: "72ch", color: "text.secondary", fontSize: "1rem", lineHeight: 1.7, whiteSpace: "pre-line" }}>
                       {description || "–"}
                     </Typography>
                   }
@@ -1027,7 +1110,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
                   <Typography id="leistungsumfang-heading" component="h2" sx={sectionHeadingSx}>
                     Leistungsumfang
                   </Typography>
-                  <Typography sx={{ maxWidth: "72ch", color: "#4b5565", fontSize: "1rem", lineHeight: 1.7, whiteSpace: "pre-line" }}>
+                   <Typography sx={{ maxWidth: "72ch", color: "text.secondary", fontSize: "1rem", lineHeight: 1.7, whiteSpace: "pre-line" }}>
                     {scope}
                   </Typography>
                 </Box>
@@ -1044,16 +1127,16 @@ export default async function TenderDetailPage({ params }: PageProps) {
                       gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", lg: "repeat(3, minmax(0, 1fr))" },
                       gap: { xs: 1.75, sm: 2.25 },
                       p: { xs: 2, sm: 2.5 },
-                      borderRadius: 2.5,
-                      bgcolor: "#e8eff5",
+                      borderRadius: 2,
+                      bgcolor: "var(--color-surface-strong)",
                     }}
                   >
                     {keyFacts.map(({ label, value, Icon }) => (
                       <Stack key={label} direction="row" spacing={1} alignItems="flex-start" sx={{ minWidth: 0 }}>
-                        <Icon size={17} color="#667288" aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
+                         <Icon size={17} color="var(--color-text-secondary)" aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
                         <Box sx={{ minWidth: 0 }}>
-                          <Typography variant="caption" sx={{ color: "#667288", display: "block" }}>{label}</Typography>
-                          <Typography sx={{ color: "#2d3544", fontSize: "0.9375rem", fontWeight: 700, lineHeight: 1.45, overflowWrap: "anywhere" }}>
+                           <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>{label}</Typography>
+                           <Typography sx={{ color: "text.primary", fontSize: "0.9375rem", fontWeight: 700, lineHeight: 1.45, overflowWrap: "anywhere" }}>
                             {value}
                           </Typography>
                         </Box>
@@ -1068,13 +1151,13 @@ export default async function TenderDetailPage({ params }: PageProps) {
                   <Typography id="vergabedetails-section-heading" component="h2" sx={sectionHeadingSx}>
                     Vergabedetails
                   </Typography>
-                  <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" }, gap: { xs: 3, md: 4 }, p: { xs: 2, sm: 2.5 }, borderRadius: 2.5, bgcolor: "#fbfcfd" }}>
+                   <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" }, gap: { xs: 3, md: 4 }, p: { xs: 2, sm: 2.5 }, borderRadius: 2, bgcolor: "background.paper", border: 1, borderColor: "divider" }}>
                     {requirements.length > 0 && !markdownHasRequirements && (
                       <Box>
-                        <Typography component="h3" sx={{ color: "#2d3544", fontSize: "1rem", fontWeight: 700, mb: 1 }}>
+                         <Typography component="h3" sx={{ color: "text.primary", fontSize: "1rem", fontWeight: 700, mb: 1 }}>
                           Anforderungen
                         </Typography>
-                        <Box component="ul" sx={{ m: 0, pl: 2.25, color: "#4b5565", "& li + li": { mt: 0.75 } }}>
+                         <Box component="ul" sx={{ m: 0, pl: 2.25, color: "text.secondary", "& li + li": { mt: 0.75 } }}>
                           {requirements.map((req, i) => (
                             <li key={`${req}-${i}`}>
                               <Typography component="span" sx={{ fontSize: "0.9375rem", lineHeight: 1.55 }}>{req}</Typography>
@@ -1085,10 +1168,10 @@ export default async function TenderDetailPage({ params }: PageProps) {
                     )}
                     {awardCriteria.length > 0 && !markdownHasAwards && (
                       <Box>
-                        <Typography component="h3" sx={{ color: "#2d3544", fontSize: "1rem", fontWeight: 700, mb: 1 }}>
+                         <Typography component="h3" sx={{ color: "text.primary", fontSize: "1rem", fontWeight: 700, mb: 1 }}>
                           Zuschlagskriterien
                         </Typography>
-                        <Box component="ul" sx={{ m: 0, pl: 2.25, color: "#4b5565", "& li + li": { mt: 0.75 } }}>
+                         <Box component="ul" sx={{ m: 0, pl: 2.25, color: "text.secondary", "& li + li": { mt: 0.75 } }}>
                           {awardCriteria.map((criterion, i) => (
                             <li key={`${criterion}-${i}`}>
                               <Typography component="span" sx={{ fontSize: "0.9375rem", lineHeight: 1.55 }}>{criterion}</Typography>
@@ -1099,10 +1182,10 @@ export default async function TenderDetailPage({ params }: PageProps) {
                     )}
                     {contactInfo && (
                       <Box sx={{ gridColumn: { md: requirements.length > 0 || awardCriteria.length > 0 ? "1 / -1" : "auto" } }}>
-                        <Typography component="h3" sx={{ color: "#2d3544", fontSize: "1rem", fontWeight: 700, mb: 1 }}>
+                         <Typography component="h3" sx={{ color: "text.primary", fontSize: "1rem", fontWeight: 700, mb: 1 }}>
                           Kontakt / Vergabestelle
                         </Typography>
-                        <Typography sx={{ color: "#4b5565", fontSize: "0.9375rem", lineHeight: 1.6, whiteSpace: "pre-line" }}>
+                         <Typography color="text.secondary" sx={{ fontSize: "0.9375rem", lineHeight: 1.6, whiteSpace: "pre-line" }}>
                           {contactInfo}
                         </Typography>
                       </Box>
@@ -1117,9 +1200,9 @@ export default async function TenderDetailPage({ params }: PageProps) {
                     Vergabeunterlagen
                   </Typography>
                   <Box
-                    sx={{ overflow: "hidden", borderRadius: 2.5, bgcolor: "#fbfcfd" }}
+                     sx={{ overflow: "hidden", borderRadius: 2, bgcolor: "background.paper", border: 1, borderColor: "divider" }}
                   >
-                    <Stack divider={<Divider flexItem sx={{ borderColor: "rgba(102, 114, 136, 0.16)" }} />}>
+                    <Stack divider={<Divider flexItem sx={{ borderColor: "divider" }} />}>
                       {downloadableResources.map((resource, i) => (
                         <PdfDocumentLink
                           key={`${resource.documentId ?? resource.id ?? resource.url}-${i}`}
@@ -1166,28 +1249,28 @@ export default async function TenderDetailPage({ params }: PageProps) {
                   <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" }, gap: 1.5 }}>
                     {similarTenders.map((similarTender) => (
                       <Link key={similarTender.id} href={`/ausschreibung/${similarTender.id}/${similarTender.slug}`} style={{ color: "inherit", textDecoration: "none" }}>
-                        <Box sx={{ height: "100%", p: { xs: 1.5, sm: 2 }, borderRadius: 2.5, bgcolor: "#fbfcfd", transition: "background-color 180ms ease-out", "&:hover": { bgcolor: "#e8eff5" } }}>
-                          <Typography variant="caption" sx={{ color: "#667288", fontWeight: 700 }}>{similarTender.category}</Typography>
-                          <Typography component="h3" sx={{ mt: 0.4, color: "#2d3544", fontSize: "0.9375rem", fontWeight: 700, lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                         <Box sx={{ height: "100%", p: { xs: 1.5, sm: 2 }, borderRadius: 2, bgcolor: "background.paper", border: 1, borderColor: "divider", transition: "background-color 180ms ease-out", "&:hover": { bgcolor: "var(--color-surface-strong)" } }}>
+                           <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>{similarTender.category}</Typography>
+                           <Typography component="h3" sx={{ mt: 0.4, color: "text.primary", fontSize: "0.9375rem", fontWeight: 700, lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
                             {similarTender.title}
                           </Typography>
                           <Stack direction="row" spacing={1.25} flexWrap="wrap" useFlexGap sx={{ mt: 1.25 }}>
                             {similarTender.client && (
                               <Stack direction="row" spacing={0.35} alignItems="center">
-                                <Building2 size={13} color="#667288" aria-hidden="true" />
-                                <Typography variant="caption" sx={{ color: "#667288" }}>{similarTender.client.slice(0, 50)}</Typography>
+                                 <Building2 size={13} color="var(--color-text-secondary)" aria-hidden="true" />
+                                 <Typography variant="caption" color="text.secondary">{similarTender.client.slice(0, 50)}</Typography>
                               </Stack>
                             )}
                             {similarTender.location && (
                               <Stack direction="row" spacing={0.35} alignItems="center">
-                                <MapPin size={13} color="#667288" aria-hidden="true" />
-                                <Typography variant="caption" sx={{ color: "#667288" }}>{similarTender.location}</Typography>
+                                 <MapPin size={13} color="var(--color-text-secondary)" aria-hidden="true" />
+                                 <Typography variant="caption" color="text.secondary">{similarTender.location}</Typography>
                               </Stack>
                             )}
                             {similarTender.deadline && (
                               <Stack direction="row" spacing={0.35} alignItems="center">
-                                <Calendar size={13} color="#b34d3d" aria-hidden="true" />
-                                <Typography variant="caption" sx={{ color: "#b34d3d", fontWeight: 700 }}>{similarTender.deadline}</Typography>
+                                 <Calendar size={13} color="var(--color-status-warning)" aria-hidden="true" />
+                                 <Typography variant="caption" color="warning.dark" sx={{ fontWeight: 700 }}>{similarTender.deadline}</Typography>
                               </Stack>
                             )}
                           </Stack>
@@ -1198,52 +1281,52 @@ export default async function TenderDetailPage({ params }: PageProps) {
                 </Box>
               )}
 
-              <Box component="aside" aria-labelledby="weitere-ausschreibungen-heading" sx={{ mt: { xs: 5, md: 6 }, pt: { xs: 3, md: 4 }, borderTop: "1px solid #d1d5db" }}>
-                <Typography id="weitere-ausschreibungen-heading" component="h2" sx={{ color: "#667288", fontSize: "0.9375rem", fontWeight: 700, mb: 1.25 }}>
+               <Box component="aside" aria-labelledby="weitere-ausschreibungen-heading" sx={{ mt: { xs: 5, md: 6 }, pt: { xs: 3, md: 4 }, borderTop: 1, borderColor: "divider" }}>
+                 <Typography id="weitere-ausschreibungen-heading" component="h2" color="text.secondary" sx={{ fontSize: "0.9375rem", fontWeight: 700, mb: 1.25 }}>
                   Weitere Ausschreibungen entdecken
                 </Typography>
                 <Stack direction="row" spacing={1.25} flexWrap="wrap" useFlexGap>
-                  <Link href={`/ausschreibungen/${categorySlug}`} style={{ color: "#667288", textDecoration: "none", fontSize: "0.8125rem" }}>
+                   <Link href={`/ausschreibungen/${categorySlug}`} style={{ color: "var(--color-text-secondary)", textDecoration: "none", fontSize: "0.8125rem" }}>
                     Alle {categoryLabel}-Ausschreibungen
                   </Link>
                   {bundeslandSlug && tenderBundesland && (
-                    <Link href={`/ausschreibungen/region/${bundeslandSlug}`} style={{ color: "#667288", textDecoration: "none", fontSize: "0.8125rem" }}>
+                     <Link href={`/ausschreibungen/region/${bundeslandSlug}`} style={{ color: "var(--color-text-secondary)", textDecoration: "none", fontSize: "0.8125rem" }}>
                       Ausschreibungen in {tenderBundesland}
                     </Link>
                   )}
                   {bundeslandSlug && tenderBundesland && (
-                    <Link href={`/ausschreibungen/region/${bundeslandSlug}/${categorySlug}`} style={{ color: "#667288", textDecoration: "none", fontSize: "0.8125rem" }}>
+                     <Link href={`/ausschreibungen/region/${bundeslandSlug}/${categorySlug}`} style={{ color: "var(--color-text-secondary)", textDecoration: "none", fontSize: "0.8125rem" }}>
                       {categoryLabel} in {tenderBundesland}
                     </Link>
                   )}
                   {citySlug && tenderCity && (
-                    <Link href={`/ausschreibungen/stadt/${citySlug}`} style={{ color: "#667288", textDecoration: "none", fontSize: "0.8125rem" }}>
+                     <Link href={`/ausschreibungen/stadt/${citySlug}`} style={{ color: "var(--color-text-secondary)", textDecoration: "none", fontSize: "0.8125rem" }}>
                       Ausschreibungen in {tenderCity}
                     </Link>
                   )}
                   {citySlug && tenderCity && (
-                    <Link href={`/ausschreibungen/stadt/${citySlug}/${categorySlug}`} style={{ color: "#667288", textDecoration: "none", fontSize: "0.8125rem" }}>
+                     <Link href={`/ausschreibungen/stadt/${citySlug}/${categorySlug}`} style={{ color: "var(--color-text-secondary)", textDecoration: "none", fontSize: "0.8125rem" }}>
                       {categoryLabel} in {tenderCity}
                     </Link>
                   )}
                   {agencySlug && client && (
-                    <Link href={`/auftraggeber/${agencySlug}`} style={{ color: "#667288", textDecoration: "none", fontSize: "0.8125rem" }}>
+                     <Link href={`/auftraggeber/${agencySlug}`} style={{ color: "var(--color-text-secondary)", textDecoration: "none", fontSize: "0.8125rem" }}>
                       Alle Ausschreibungen von {client.slice(0, 40)}
                     </Link>
                   )}
-                  <Link href="/ausschreibungen" style={{ color: "#667288", textDecoration: "none", fontSize: "0.8125rem" }}>
+                   <Link href="/ausschreibungen" style={{ color: "var(--color-text-secondary)", textDecoration: "none", fontSize: "0.8125rem" }}>
                     Alle Kategorien
                   </Link>
                 </Stack>
 
                 {scoredCompanies.length > 0 && (
                   <Box sx={{ mt: 2.5 }}>
-                    <Typography component="h3" sx={{ color: "#667288", fontSize: "0.875rem", fontWeight: 700, mb: 1 }}>
+                     <Typography component="h3" color="text.secondary" sx={{ fontSize: "0.875rem", fontWeight: 700, mb: 1 }}>
                       Passende Auftraggeber
                     </Typography>
                     <Stack direction="row" spacing={1.25} flexWrap="wrap" useFlexGap>
                       {scoredCompanies.map((company) => (
-                        <Link key={company.slug} href={`/p/${company.slug}`} style={{ color: "#667288", textDecoration: "none", fontSize: "0.8125rem" }}>
+                         <Link key={company.slug} href={`/p/${company.slug}`} style={{ color: "var(--color-text-secondary)", textDecoration: "none", fontSize: "0.8125rem" }}>
                           {company.name}{company.industry ? ` · ${company.industry}` : ""}
                         </Link>
                       ))}

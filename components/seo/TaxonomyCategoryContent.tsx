@@ -19,7 +19,8 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
-import { CATEGORY_LABELS, CATEGORY_SLUGS, ALL_CATEGORY_SLUGS } from "@/lib/categories";
+import { getPaginationHref } from "@/lib/seo-indexability";
+import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 
 interface TaxCatTender {
   id: number;
@@ -42,8 +43,8 @@ interface TaxonomyCategoryContentProps {
   currentPage: number;
   totalPages: number;
   siteUrl: string;
-  // Cross-links: sibling taxons (other procedure types or CPV codes)
-  siblingTaxons: Array<{ slug: string; label: string }>;
+  // Only link category combinations with a current qualified result.
+  availableCategorySlugs: string[];
 }
 
 export function TaxonomyCategoryContent({
@@ -57,7 +58,7 @@ export function TaxonomyCategoryContent({
   currentPage,
   totalPages,
   siteUrl,
-  siblingTaxons,
+  availableCategorySlugs,
 }: TaxonomyCategoryContentProps) {
   const categoryLabel = CATEGORY_LABELS[categoryKey] ?? categoryKey;
   const catSlug = CATEGORY_SLUGS[categoryKey] ?? categoryKey.toLowerCase();
@@ -186,7 +187,7 @@ export function TaxonomyCategoryContent({
           {totalPages > 1 && (
             <Stack direction="row" spacing={1} justifyContent="center" alignItems="center" sx={{ mb: 5 }} component="nav" aria-label="Seitennavigation">
               {currentPage > 1 && (
-                <Link href={`${basePath}?page=${currentPage - 1}`} style={{ textDecoration: "none", color: "#e9644d", fontWeight: 600, padding: "8px 12px" }}>
+                <Link href={getPaginationHref(basePath, currentPage - 1)} style={{ textDecoration: "none", color: "#e9644d", fontWeight: 600, padding: "8px 12px" }}>
                   ← Zurück
                 </Link>
               )}
@@ -201,13 +202,13 @@ export function TaxonomyCategoryContent({
                       {p === currentPage ? (
                         <span style={{ fontWeight: 700, color: "#e9644d", padding: "8px 12px" }}>{p}</span>
                       ) : (
-                        <Link href={`${basePath}?page=${p}`} style={{ textDecoration: "none", color: "#667288", fontWeight: 500, padding: "8px 12px" }}>{p}</Link>
+                        <Link href={getPaginationHref(basePath, p)} style={{ textDecoration: "none", color: "#667288", fontWeight: 500, padding: "8px 12px" }}>{p}</Link>
                       )}
                     </span>
                   );
                 })}
               {currentPage < totalPages && (
-                <Link href={`${basePath}?page=${currentPage + 1}`} style={{ textDecoration: "none", color: "#e9644d", fontWeight: 600, padding: "8px 12px" }}>
+                <Link href={getPaginationHref(basePath, currentPage + 1)} style={{ textDecoration: "none", color: "#e9644d", fontWeight: 600, padding: "8px 12px" }}>
                   Weiter →
                 </Link>
               )}
@@ -231,35 +232,21 @@ export function TaxonomyCategoryContent({
             ))}
           </Box>
 
-          {/* Cross-links: other categories for this taxon */}
-          <Box sx={{ mb: 5 }}>
-            <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
-              {taxonLabel} nach Kategorie
-            </Typography>
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              {ALL_CATEGORY_SLUGS.filter((s) => s !== catSlug).map((s) => {
-                const catKey = Object.keys(CATEGORY_SLUGS).find((k) => CATEGORY_SLUGS[k] === s);
-                return (
-                  <Link key={s} href={`${taxonParentPath}/${taxonSlug}/${s}`} style={{ textDecoration: "none" }}>
-                    <Chip clickable label={catKey ? CATEGORY_LABELS[catKey] : s} variant="outlined" sx={{ fontWeight: 500 }} />
-                  </Link>
-                );
-              })}
-            </Stack>
-          </Box>
-
-          {/* Cross-links: sibling taxons for this category */}
-          {siblingTaxons.length > 0 && (
+          {/* Cross-links: only result-backed categories for this taxon */}
+          {availableCategorySlugs.filter((s) => s !== catSlug).length > 0 && (
             <Box sx={{ mb: 5 }}>
               <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
-                {categoryLabel} in anderen {taxonomyType === "verfahren" ? "Verfahren" : "CPV-Codes"}
+                {taxonLabel} nach Kategorie
               </Typography>
               <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                {siblingTaxons.map((t) => (
-                  <Link key={t.slug} href={`${taxonParentPath}/${t.slug}/${catSlug}`} style={{ textDecoration: "none" }}>
-                    <Chip clickable label={t.label} variant="outlined" sx={{ fontWeight: 500 }} />
-                  </Link>
-                ))}
+                {availableCategorySlugs.filter((s) => s !== catSlug).map((s) => {
+                  const catKey = Object.keys(CATEGORY_SLUGS).find((k) => CATEGORY_SLUGS[k] === s);
+                  return (
+                    <Link key={s} href={`${taxonParentPath}/${taxonSlug}/${s}`} style={{ textDecoration: "none" }}>
+                      <Chip clickable label={catKey ? CATEGORY_LABELS[catKey] : s} variant="outlined" sx={{ fontWeight: 500 }} />
+                    </Link>
+                  );
+                })}
               </Stack>
             </Box>
           )}

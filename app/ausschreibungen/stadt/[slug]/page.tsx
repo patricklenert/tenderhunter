@@ -19,11 +19,11 @@ import {
 } from "lucide-react";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 import { searchTenders } from "@/lib/meilisearch";
-import { CITY_SLUG_MAP, ALL_CITY_SLUGS, CITY_LABEL_MAP, generateCityFaq, CITIES } from "@/lib/cities";
+import { CITY_SLUG_MAP, generateCityFaq } from "@/lib/cities";
 import { BUNDESLAND_SLUGS } from "@/lib/bundesland";
 import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
 import { SiteFooter } from "@/components/seo/SiteFooter";
-import { getListingRobots, getPageNumber, type SeoSearchParams } from "@/lib/seo-indexability";
+import { getListingRobots, getPageNumber, getPaginationHref, type SeoSearchParams } from "@/lib/seo-indexability";
 
 // SEO: City landing pages for long-tail keywords like "Ausschreibungen München"
 export const revalidate = 3600;
@@ -31,15 +31,13 @@ export const runtime = "nodejs";
 
 const PAGE_SIZE = 20;
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+import { getSiteUrl } from "@/lib/site-config";
+
+const siteUrl = getSiteUrl();
 
 interface PageProps {
   params: Promise<{ slug: string }>;
   searchParams: Promise<SeoSearchParams>;
-}
-
-export async function generateStaticParams() {
-  return ALL_CITY_SLUGS.map((slug) => ({ slug }));
 }
 
 export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
@@ -116,6 +114,12 @@ export default async function CityPage({ params, searchParams }: PageProps) {
   } catch {
     // Meilisearch unavailable — page renders empty with noindex
   }
+
+  const availableCategorySlugs = new Set(
+    tenders
+      .map((tender) => CATEGORY_SLUGS[tender.category])
+      .filter((slug): slug is string => Boolean(slug)),
+  );
 
   const itemListJsonLd = {
     "@context": "https://schema.org",
@@ -280,7 +284,7 @@ export default async function CityPage({ params, searchParams }: PageProps) {
             >
               {currentPage > 1 && (
                 <Link
-                  href={`/ausschreibungen/stadt/${slug}?page=${currentPage - 1}`}
+                  href={getPaginationHref(`/ausschreibungen/stadt/${slug}`, currentPage - 1)}
                   style={{ textDecoration: "none", color: "#e9644d", fontWeight: 600, padding: "8px 12px" }}
                 >
                   ← Zurück
@@ -298,7 +302,7 @@ export default async function CityPage({ params, searchParams }: PageProps) {
                         <span style={{ fontWeight: 700, color: "#e9644d", padding: "8px 12px" }}>{p}</span>
                       ) : (
                         <Link
-                          href={`/ausschreibungen/stadt/${slug}?page=${p}`}
+                          href={getPaginationHref(`/ausschreibungen/stadt/${slug}`, p)}
                           style={{ textDecoration: "none", color: "#667288", fontWeight: 500, padding: "8px 12px" }}
                         >
                           {p}
@@ -309,7 +313,7 @@ export default async function CityPage({ params, searchParams }: PageProps) {
                 })}
               {currentPage < totalPages && (
                 <Link
-                  href={`/ausschreibungen/stadt/${slug}?page=${currentPage + 1}`}
+                  href={getPaginationHref(`/ausschreibungen/stadt/${slug}`, currentPage + 1)}
                   style={{ textDecoration: "none", color: "#e9644d", fontWeight: 600, padding: "8px 12px" }}
                 >
                   Weiter →
@@ -318,13 +322,16 @@ export default async function CityPage({ params, searchParams }: PageProps) {
             </Stack>
           )}
 
-          {/* City×Category cross-links */}
+          {/* City×Category cross-links: only categories represented by current results */}
+          {availableCategorySlugs.size > 0 && (
           <Box sx={{ mb: 5 }}>
             <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
               Kategorien in {city.label}
             </Typography>
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              {Object.entries(CATEGORY_SLUGS).map(([key, catSlug]) => (
+              {Object.entries(CATEGORY_SLUGS)
+                .filter(([, catSlug]) => availableCategorySlugs.has(catSlug))
+                .map(([key, catSlug]) => (
                 <Link
                   key={catSlug}
                   href={`/ausschreibungen/stadt/${slug}/${catSlug}`}
@@ -337,23 +344,10 @@ export default async function CityPage({ params, searchParams }: PageProps) {
                     sx={{ fontWeight: 500 }}
                   />
                 </Link>
-              ))}
+                ))}
             </Stack>
           </Box>
-
-          {/* Other Cities */}
-          <Box sx={{ mb: 5 }}>
-            <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
-              Weitere Städte
-            </Typography>
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              {ALL_CITY_SLUGS.filter((s) => s !== slug).slice(0, 20).map((s) => (
-                <Link key={s} href={`/ausschreibungen/stadt/${s}`} style={{ textDecoration: "none" }}>
-                  <Chip clickable label={CITY_LABEL_MAP[s]} variant="outlined" sx={{ fontWeight: 500 }} />
-                </Link>
-              ))}
-            </Stack>
-          </Box>
+          )}
 
           {/* SEO: Link to parent Bundesland page for city→region internal link equity */}
           {bundeslandSlug && (
@@ -365,13 +359,6 @@ export default async function CityPage({ params, searchParams }: PageProps) {
                 <Link href={`/ausschreibungen/region/${bundeslandSlug}`} style={{ textDecoration: "none" }}>
                   <Chip clickable label={`Alle Ausschreibungen in ${city.bundesland}`} variant="outlined" color="primary" sx={{ fontWeight: 500 }} />
                 </Link>
-                {CITIES.filter((c) => c.bundesland === city.bundesland && c.slug !== slug)
-                  .slice(0, 5)
-                  .map((c) => (
-                    <Link key={c.slug} href={`/ausschreibungen/stadt/${c.slug}`} style={{ textDecoration: "none" }}>
-                      <Chip clickable label={c.label} variant="outlined" sx={{ fontWeight: 500 }} />
-                    </Link>
-                  ))}
               </Stack>
             </Box>
           )}

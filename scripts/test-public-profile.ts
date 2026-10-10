@@ -2,12 +2,15 @@ import assert from "node:assert/strict";
 import { formatDeadlineDE, getDeadlineState, parseDeadlineDate } from "@/lib/date-utils";
 import {
   buildProfileSummary,
+  PUBLIC_PROFILE_FALLBACK_CANDIDATE_LIMIT,
   sortProfileTenders,
   truncateProfileText,
   type ProfileTender,
 } from "@/lib/public-profile";
 
 const now = new Date("2026-08-06T12:00:00.000Z");
+
+assert.equal(PUBLIC_PROFILE_FALLBACK_CANDIDATE_LIMIT, 250);
 
 assert.equal(getDeadlineState("05.08.2026", now), "expired");
 assert.equal(getDeadlineState("07.08.2026", now), "current");

@@ -35,8 +35,14 @@ const main = async (): Promise<void> => {
   );
   assert.equal(accessFacts.client, "Stadt Mainz");
 
+  assert.equal(extractPublicPortalFacts("Auftraggeber: Stadt Dortmund").client, "Stadt Dortmund");
+
   const loginCapturedAsClient = "n und ein gültiges Passwort besitzen, melden Sie sich bitte mit diesen Daten am System an.";
   assert.equal(extractPublicPortalFacts(`Auftraggeber: ${loginCapturedAsClient}`).client, null);
+  assert.equal(
+    extractPublicPortalFacts("Auftraggeber: Um Zugriff auf dieses Modul zu erhalten müssen Sie am Vergabeverfahren teilnehmen.").client,
+    null,
+  );
 
   const muenchenDetail = extractBasicDetailFromHtml(
     `<html><head><title>Vergabeplattform Landeshauptstadt München</title></head><body>
@@ -49,7 +55,7 @@ const main = async (): Promise<void> => {
     [],
     true,
   );
-  assert.equal(muenchenDetail?.client, "Landeshauptstadt München");
+  assert.equal(muenchenDetail?.client, "");
 
   assert.equal(
     extractBundRssClient("Vergabestelle: Bundesagentur f&#252;r Arbeit Angebotsfrist: 20.08.2026 11:00"),

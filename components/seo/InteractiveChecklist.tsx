@@ -54,7 +54,12 @@ export default function InteractiveChecklist({ title, items }: InteractiveCheckl
             sx={{ fontWeight: 600, fontSize: "0.75rem" }}
           />
           <Tooltip title={copied ? "Kopiert!" : "Als Text kopieren"}>
-            <IconButton size="small" onClick={copyAll} sx={{ bgcolor: copied ? "success.50" : "transparent" }}>
+            <IconButton
+              size="small"
+              onClick={copyAll}
+              aria-label={copied ? "Checkliste kopiert" : "Checkliste als Text kopieren"}
+              sx={{ bgcolor: copied ? "success.50" : "transparent" }}
+            >
               {copied ? <Check size={16} color="#2e7d32" /> : <Copy size={16} color="#667288" />}
             </IconButton>
           </Tooltip>

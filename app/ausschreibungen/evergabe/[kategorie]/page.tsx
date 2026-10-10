@@ -1,20 +1,18 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { PORTALS } from "@/lib/portal-content";
-import { CATEGORY_LABELS, SLUG_TO_CATEGORY, ALL_CATEGORY_SLUGS } from "@/lib/categories";
+import { CATEGORY_LABELS, SLUG_TO_CATEGORY } from "@/lib/categories";
 import { searchTenders } from "@/lib/meilisearch";
 import { PortalCategoryContent } from "@/components/seo/PortalCategoryContent";
 import { getListingRobots, type SeoSearchParams } from "@/lib/seo-indexability";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+import { getSiteUrl } from "@/lib/site-config";
+
+const siteUrl = getSiteUrl();
 const portal = PORTALS["evergabe"];
 
 export const revalidate = 3600;
 export const runtime = "nodejs";
-
-export async function generateStaticParams() {
-  return ALL_CATEGORY_SLUGS.map((kategorie) => ({ kategorie }));
-}
 
 interface PageProps {
   params: Promise<{ kategorie: string }>;

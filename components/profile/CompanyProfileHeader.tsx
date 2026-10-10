@@ -19,7 +19,7 @@ interface CompanyProfileHeaderProps {
 
 const chipSx = {
   height: 26,
-  borderRadius: "7px",
+  borderRadius: 1,
   fontSize: "0.7rem",
   fontWeight: 600,
   "& .MuiChip-label": { px: 1 },
@@ -40,6 +40,13 @@ export function CompanyProfileHeader({
   expiredCount,
 }: CompanyProfileHeaderProps) {
   const activeCount = Math.max(tenderCount - expiredCount, 0);
+  const bestFitState = bestFit === null
+    ? { color: "text.secondary", backgroundColor: "background.default", label: "Nicht bewertet" }
+    : bestFit >= 70
+      ? { color: "success.main", backgroundColor: "success.light", label: "Stark" }
+      : bestFit >= 40
+        ? { color: "warning.main", backgroundColor: "warning.light", label: "Solide" }
+        : { color: "text.secondary", backgroundColor: "background.default", label: "Offen" };
   const locationParts = [
     regions.slice(0, 3).join(", "),
     address,
@@ -50,10 +57,10 @@ export function CompanyProfileHeader({
       sx={{
         mb: 0,
         p: { xs: 2, sm: 2.5, md: 3 },
-        bgcolor: "#f8fbfc",
-        border: "1px solid #d7e3ea",
-        borderRadius: "18px",
-        boxShadow: "0 12px 28px rgba(45, 53, 68, 0.07)",
+        bgcolor: "background.paper",
+        border: "1px solid",
+        borderColor: "divider",
+        borderRadius: 2,
       }}
     >
       <Box
@@ -69,7 +76,7 @@ export function CompanyProfileHeader({
           <Box sx={{ minWidth: 0 }}>
             <Typography
               sx={{
-                color: "#8b5a50",
+                color: "text.secondary",
                 fontSize: "0.68rem",
                 fontWeight: 800,
                 letterSpacing: "0.1em",
@@ -86,7 +93,7 @@ export function CompanyProfileHeader({
                 fontWeight: 750,
                 letterSpacing: "-0.035em",
                 lineHeight: 1.08,
-                color: "#263242",
+                color: "text.primary",
               }}
             >
               {name}
@@ -99,10 +106,11 @@ export function CompanyProfileHeader({
                 sx={{
                   ...chipSx,
                   mt: 1,
-                  bgcolor: "#e8eff4",
-                  color: "#405368",
-                  border: "1px solid #d5e1e8",
-                  "& .MuiChip-icon": { color: "#667b8e", ml: 0.7 },
+                  bgcolor: "background.default",
+                  color: "text.secondary",
+                  border: "1px solid",
+                  borderColor: "divider",
+                  "& .MuiChip-icon": { color: "text.secondary", ml: 0.7 },
                 }}
               />
             )}
@@ -110,7 +118,7 @@ export function CompanyProfileHeader({
               <Typography
                 sx={{
                   maxWidth: "68ch",
-                  color: "#4e5e70",
+                  color: "text.secondary",
                   fontSize: { xs: "0.82rem", md: "0.875rem" },
                   lineHeight: 1.65,
                   mt: 1.25,
@@ -129,7 +137,7 @@ export function CompanyProfileHeader({
         <Box
           sx={{
             display: "grid",
-            gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", md: "repeat(2, 132px)" },
+            gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", md: "repeat(2, 152px)" },
             gap: 1,
             width: { xs: "100%", md: "auto" },
           }}
@@ -137,43 +145,45 @@ export function CompanyProfileHeader({
           <Box
             sx={{
               p: 1.5,
-              bgcolor: "#eef4f7",
-              border: "1px solid #d8e4ea",
-              borderRadius: "11px",
+              bgcolor: "background.default",
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 2,
             }}
           >
-            <Typography sx={{ color: "#667288", fontSize: "0.68rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            <Typography sx={{ color: "text.secondary", fontSize: "0.68rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
               Treffer
             </Typography>
-            <Typography sx={{ color: "#263242", fontSize: "1.8rem", fontWeight: 750, letterSpacing: "-0.04em", lineHeight: 1, mt: 0.65 }}>
+            <Typography sx={{ color: "text.primary", fontSize: "1.8rem", fontWeight: 750, letterSpacing: "-0.04em", lineHeight: 1, mt: 0.65, fontVariantNumeric: "tabular-nums" }}>
               {tenderCount}
             </Typography>
-            <Typography sx={{ color: "#667288", fontSize: "0.7rem", mt: 0.6 }}>
+            <Typography sx={{ color: "text.secondary", fontSize: "0.7rem", mt: 0.6 }}>
               {expiredCount > 0 ? `${activeCount} aktiv · ${expiredCount} abgelaufen` : "mit offener Frist"}
             </Typography>
           </Box>
           <Box
             sx={{
               p: 1.5,
-              bgcolor: "#f8e9e5",
-              border: "1px solid #f0d0c9",
-              borderRadius: "11px",
+              bgcolor: bestFitState.backgroundColor,
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 2,
             }}
           >
-            <Typography sx={{ color: "#9b5a4e", fontSize: "0.68rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            <Typography sx={{ color: bestFitState.color, fontSize: "0.68rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
               Bester Fit
             </Typography>
-            <Typography sx={{ color: "#a94f40", fontSize: "1.8rem", fontWeight: 750, letterSpacing: "-0.04em", lineHeight: 1, mt: 0.65 }}>
+            <Typography sx={{ color: bestFitState.color, fontSize: "1.8rem", fontWeight: 750, letterSpacing: "-0.04em", lineHeight: 1, mt: 0.65, fontVariantNumeric: "tabular-nums" }}>
               {bestFit === null ? "–" : `${bestFit}%`}
             </Typography>
-            <Typography sx={{ color: "#9b5a4e", fontSize: "0.7rem", mt: 0.6 }}>
-              höchste Übereinstimmung
+            <Typography sx={{ color: "text.secondary", fontSize: "0.7rem", mt: 0.6 }}>
+              {bestFitState.label}
             </Typography>
           </Box>
         </Box>
       </Box>
 
-      <Box sx={{ mt: { xs: 2.25, md: 2.5 }, pt: 1.75, borderTop: "1px solid #e0e9ee" }}>
+      <Box sx={{ mt: { xs: 2.25, md: 2.5 }, pt: 1.75, borderTop: "1px solid", borderColor: "divider" }}>
         <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
           {capabilities.slice(0, 5).map((capability) => (
             <Chip
@@ -182,9 +192,10 @@ export function CompanyProfileHeader({
               size="small"
               sx={{
                 ...chipSx,
-                bgcolor: "#f1f5f7",
-                color: "#4b5d6d",
-                border: "1px solid #dbe5eb",
+                bgcolor: "background.default",
+                color: "text.secondary",
+                border: "1px solid",
+                borderColor: "divider",
               }}
             />
           ))}
@@ -196,10 +207,11 @@ export function CompanyProfileHeader({
               size="small"
               sx={{
                 ...chipSx,
-                bgcolor: "#f8e9e5",
-                color: "#a94f40",
-                border: "1px solid #f0d0c9",
-                "& .MuiChip-icon": { color: "#b86657", ml: 0.7 },
+                bgcolor: "info.light",
+                color: "info.dark",
+                border: "1px solid",
+                borderColor: "divider",
+                "& .MuiChip-icon": { color: "info.main", ml: 0.7 },
               }}
             />
           ))}
@@ -208,17 +220,17 @@ export function CompanyProfileHeader({
         {(locationParts.length > 0 || teamSize) && (
           <Stack direction="row" spacing={{ xs: 1.25, sm: 2.5 }} flexWrap="wrap" useFlexGap alignItems="center" sx={{ mt: 1.5 }}>
             {locationParts.length > 0 && (
-              <Box sx={{ display: "flex", alignItems: "center", gap: 0.6, minWidth: 0 }}>
-                <MapPin size={14} color="#718296" aria-hidden="true" />
-                <Typography sx={{ color: "#526476", fontSize: "0.76rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 0.6, minWidth: 0, color: "text.secondary" }}>
+                <MapPin size={14} aria-hidden="true" />
+                <Typography sx={{ color: "inherit", fontSize: "0.76rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                   {locationParts.join(" · ")}
                 </Typography>
               </Box>
             )}
             {teamSize && (
-              <Box sx={{ display: "flex", alignItems: "center", gap: 0.6 }}>
-                <Users size={14} color="#718296" aria-hidden="true" />
-                <Typography sx={{ color: "#526476", fontSize: "0.76rem" }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 0.6, color: "text.secondary" }}>
+                <Users size={14} aria-hidden="true" />
+                <Typography sx={{ color: "inherit", fontSize: "0.76rem" }}>
                   {teamSize} Mitarbeiter
                 </Typography>
               </Box>

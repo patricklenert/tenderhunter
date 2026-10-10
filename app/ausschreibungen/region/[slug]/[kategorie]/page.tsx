@@ -6,7 +6,6 @@ import {
   Container,
   Typography,
   Stack,
-  Chip,
   Paper,
   Breadcrumbs,
 } from "@mui/material";
@@ -17,23 +16,24 @@ import {
   ArrowRight,
   Home as HomeIcon,
 } from "lucide-react";
-import { SLUG_TO_BUNDESLAND, ALL_BUNDESLAND_SLUGS } from "@/lib/bundesland";
-import { CATEGORY_LABELS, CATEGORY_SLUGS, SLUG_TO_CATEGORY, ALL_CATEGORY_SLUGS } from "@/lib/categories";
+import { SLUG_TO_BUNDESLAND } from "@/lib/bundesland";
+import { CATEGORY_LABELS, SLUG_TO_CATEGORY } from "@/lib/categories";
 import { CATEGORY_CONTENT } from "@/lib/category-content";
 import { BUNDESLAND_CONTENT } from "@/lib/bundesland-content";
 import { ARTICLES } from "@/lib/articles";
-import { CITIES } from "@/lib/cities";
 import { searchTenders } from "@/lib/meilisearch";
 import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
 import { SiteFooter } from "@/components/seo/SiteFooter";
-import { getListingRobots, getPageNumber, type SeoSearchParams } from "@/lib/seo-indexability";
+import { getListingRobots, getPageNumber, getPaginationHref, type SeoSearchParams } from "@/lib/seo-indexability";
 
 // SEO: Region×Category cross pages for long-tail keywords like "gebäudereinigung ausschreibung nrw"
 export const revalidate = 3600;
 export const runtime = "nodejs";
 
 const PAGE_SIZE = 20;
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+import { getSiteUrl } from "@/lib/site-config";
+
+const siteUrl = getSiteUrl();
 
 // SEO: Auto-generated FAQ for region×category pages — targets long-tail queries like "IT Ausschreibungen NRW"
 function generateRegionCategoryFaq(bundesland: string, categoryLabel: string): Array<{ question: string; answer: string }> {
@@ -59,16 +59,6 @@ interface PageProps {
 }
 
 // SEO: Pre-render all 208 Bundesland×Category combinations
-export async function generateStaticParams() {
-  const params: Array<{ slug: string; kategorie: string }> = [];
-  for (const slug of ALL_BUNDESLAND_SLUGS) {
-    for (const kategorie of ALL_CATEGORY_SLUGS) {
-      params.push({ slug, kategorie });
-    }
-  }
-  return params;
-}
-
 export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
   const { slug, kategorie } = await params;
   const { page: pageParam } = await searchParams;
@@ -308,7 +298,7 @@ export default async function RegionCategoryPage({ params, searchParams }: PageP
             >
               {currentPage > 1 && (
                 <Link
-                  href={`/ausschreibungen/region/${slug}/${kategorie}?page=${currentPage - 1}`}
+                  href={getPaginationHref(`/ausschreibungen/region/${slug}/${kategorie}`, currentPage - 1)}
                   style={{ textDecoration: "none", color: "#e9644d", fontWeight: 600, padding: "8px 12px" }}
                 >
                   ← Zurück
@@ -326,7 +316,7 @@ export default async function RegionCategoryPage({ params, searchParams }: PageP
                         <span style={{ fontWeight: 700, color: "#e9644d", padding: "8px 12px" }}>{p}</span>
                       ) : (
                         <Link
-                          href={`/ausschreibungen/region/${slug}/${kategorie}?page=${p}`}
+                          href={getPaginationHref(`/ausschreibungen/region/${slug}/${kategorie}`, p)}
                           style={{ textDecoration: "none", color: "#667288", fontWeight: 500, padding: "8px 12px" }}
                         >
                           {p}
@@ -337,7 +327,7 @@ export default async function RegionCategoryPage({ params, searchParams }: PageP
                 })}
               {currentPage < totalPages && (
                 <Link
-                  href={`/ausschreibungen/region/${slug}/${kategorie}?page=${currentPage + 1}`}
+                  href={getPaginationHref(`/ausschreibungen/region/${slug}/${kategorie}`, currentPage + 1)}
                   style={{ textDecoration: "none", color: "#e9644d", fontWeight: 600, padding: "8px 12px" }}
                 >
                   Weiter →
@@ -378,73 +368,6 @@ export default async function RegionCategoryPage({ params, searchParams }: PageP
               </Box>
             </Box>
           )}
-
-          {/* Other Categories in this Region */}
-          <Box sx={{ mb: 5 }}>
-            <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
-              Weitere Kategorien in {bundesland}
-            </Typography>
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              {ALL_CATEGORY_SLUGS.filter((s) => s !== kategorie).map((s) => (
-                <Link key={s} href={`/ausschreibungen/region/${slug}/${s}`} style={{ textDecoration: "none" }}>
-                  <Chip
-                    clickable
-                    label={CATEGORY_LABELS[Object.keys(CATEGORY_SLUGS).find((k) => CATEGORY_SLUGS[k] === s) ?? ""] ?? s}
-                    variant="outlined"
-                    sx={{ fontWeight: 500 }}
-                  />
-                </Link>
-              ))}
-            </Stack>
-          </Box>
-
-          {/* Other Regions for this Category */}
-          <Box sx={{ mb: 5 }}>
-            <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
-              {label} in anderen Bundesländern
-            </Typography>
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              {ALL_BUNDESLAND_SLUGS.filter((s) => s !== slug).map((s) => (
-                <Link key={s} href={`/ausschreibungen/region/${s}/${kategorie}`} style={{ textDecoration: "none" }}>
-                  <Chip
-                    clickable
-                    label={SLUG_TO_BUNDESLAND[s]}
-                    variant="outlined"
-                    sx={{ fontWeight: 500 }}
-                  />
-                </Link>
-              ))}
-            </Stack>
-          </Box>
-
-          {/* SEO: Cross-links to city landing pages within this Bundesland */}
-          {(() => {
-            const regionCities = CITIES.filter((c) => c.bundesland === bundesland);
-            if (regionCities.length === 0) return null;
-            return (
-              <Box sx={{ mb: 5 }}>
-                <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
-                  {label} nach Stadt in {bundesland}
-                </Typography>
-                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                  {regionCities.map((city) => (
-                    <Link
-                      key={city.slug}
-                      href={`/ausschreibungen/stadt/${city.slug}/${kategorie}`}
-                      style={{ textDecoration: "none" }}
-                    >
-                      <Chip
-                        clickable
-                        label={`${label} ${city.label}`}
-                        variant="outlined"
-                        sx={{ fontWeight: 500 }}
-                      />
-                    </Link>
-                  ))}
-                </Stack>
-              </Box>
-            );
-          })()}
 
           {/* SEO: Cross-links to related Wissen articles */}
           {(() => {

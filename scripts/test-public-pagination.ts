@@ -7,9 +7,11 @@ import {
   cursorPendingDetails,
   cursorString,
   publicDetailReference,
+  resolvePublicSourcePersistenceError,
+  shouldCommitPublicCursor,
   sourceResult,
 } from "../lib/public-pagination";
-import { parseDtvpPageInfo, parseGenericPaginationUrls } from "../lib/public-tender-scraper";
+import { getNewBerlinListingKeys, parseDtvpPageInfo, parseGenericPaginationUrls, pendingOnlyResult } from "../lib/public-tender-scraper";
 import { canonicalPublicTenderUrl, derivePublicExternalId, inferPublicSourceKey, resolvePublicSourceKey } from "../lib/public-source-registry";
 import { decodeHtmlEntities } from "../lib/text-normalization";
 
@@ -46,6 +48,64 @@ const partial = sourceResult([], {
   pendingCount: 1,
 });
 assert.equal(partial.continuationRequired, true);
+assert.equal(sourceResult([], { cursorCommit: "hold", listingComplete: true }).continuationRequired, true);
+const drainedCursor = {
+  ...createPublicSourceCursorV2("test-page", { page: 2 }, false, [pending]),
+  listingComplete: true,
+};
+const drained = pendingOnlyResult(drainedCursor, "test-page", {
+  tenders: [],
+  pendingDetails: [],
+  detailAttempted: 1,
+  detailFailed: 0,
+});
+assert.equal(drained.nextCursor?.exhausted, true, "draining the last detail must finish the listing cursor");
+assert.equal(drained.exhausted, true, "a completed listing without pending details is exhausted");
+assert.equal(drained.continuationRequired, false, "a drained listing must not schedule another listing pass");
+assert.equal(shouldCommitPublicCursor({ cursorCommit: "commit", cursorAdvanced: true }), true);
+assert.equal(
+  shouldCommitPublicCursor({ cursorCommit: "commit", cursorAdvanced: true, errorMessage: "Persistenzfehler" }),
+  false,
+  "a source cursor must not advance when its tender batch was not persisted",
+);
+assert.equal(
+  shouldCommitPublicCursor({ cursorCommit: "commit", cursorAdvanced: true }, "Persistenzfehler"),
+  false,
+  "a source cursor must not advance when the batch reports a persistence error",
+);
+assert.equal(
+  resolvePublicSourcePersistenceError({
+    sourceError: null,
+    mappedSourceError: null,
+    globalError: "Quelle A fehlgeschlagen",
+    globalErrorAttributed: true,
+  }),
+  null,
+  "a source-specific global error must not block unrelated source cursors",
+);
+assert.equal(
+  resolvePublicSourcePersistenceError({
+    sourceError: "Quelle A fehlgeschlagen",
+    mappedSourceError: null,
+    globalError: "Quelle A fehlgeschlagen",
+    globalErrorAttributed: true,
+  }),
+  "Quelle A fehlgeschlagen",
+);
+assert.equal(
+  resolvePublicSourcePersistenceError({
+    sourceError: null,
+    mappedSourceError: null,
+    globalError: "Unbekannter Persistenzfehler",
+    globalErrorAttributed: false,
+  }),
+  "Unbekannter Persistenzfehler",
+  "an unattributed global error must still hold every cursor",
+);
+const seenBerlinKeys = new Set<string>();
+assert.deepEqual(getNewBerlinListingKeys(["a", "b", "b"], seenBerlinKeys), ["a", "b"]);
+assert.deepEqual(getNewBerlinListingKeys(["b", "a"], seenBerlinKeys), []);
+assert.deepEqual(getNewBerlinListingKeys(["b", "c"], seenBerlinKeys), ["c"]);
 assert.equal(partial.exhausted, undefined);
 assert.equal(resolvePublicSourceKey("DTVP"), "dtvp");
 assert.equal(resolvePublicSourceKey("rlp"), null);

@@ -26,6 +26,10 @@ export interface ProfileSummary {
   relevantCapabilities: string[];
 }
 
+// Profile pages are public sitemap targets. Keep their fallback scoring bounded
+// so one SSR request cannot scan and score the whole tender catalog.
+export const PUBLIC_PROFILE_FALLBACK_CANDIDATE_LIMIT = 250;
+
 const cleanLabel = (value: string): string => value.replace(/\s+/g, " ").trim();
 
 export function truncateProfileText(value: string, maxLength = 240): string {

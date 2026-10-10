@@ -4,6 +4,60 @@ export type PublicSourceCursor = Record<string, JsonValue>;
 
 export type PublicCursorCommit = "commit" | "hold" | "none";
 
+export const shouldCommitPublicCursor = (input: {
+  cursorCommit: PublicCursorCommit;
+  cursorAdvanced: boolean;
+  errorMessage?: string | null;
+}, persistenceError?: string | null): boolean => (
+  !persistenceError
+  && !input.errorMessage
+  && input.cursorCommit === "commit"
+  && input.cursorAdvanced
+);
+
+/**
+ * Keep persistence failures scoped to the source whose batch failed. The
+ * scraper also exposes a legacy global error field; only use that fallback
+ * when it cannot be attributed to one of the source runs.
+ */
+export const resolvePublicSourcePersistenceError = (input: {
+  sourceError?: string | null;
+  mappedSourceError?: string | null;
+  globalError?: string | null;
+  globalErrorAttributed: boolean;
+}): string | null => (
+  input.mappedSourceError
+  ?? input.sourceError
+  ?? (input.globalErrorAttributed ? null : input.globalError ?? null)
+);
+
+export const PUBLIC_FULL_RUN_FAILURE_RETRY_MS = 5 * 60 * 1000;
+
+export const buildPublicContinuationJobKey = (sourceKey: string, generation?: string | number): string =>
+  `public-continuation:${sourceKey}${generation === undefined ? "" : `:run-${generation}`}`;
+
+export const shouldRetryFailedPublicFullRun = (
+  finishedAt: Date | null | undefined,
+  now: Date = new Date(),
+): boolean => {
+  if (!finishedAt) return true;
+  const finishedAtMs = finishedAt.getTime();
+  return !Number.isFinite(finishedAtMs)
+    || now.getTime() - finishedAtMs >= PUBLIC_FULL_RUN_FAILURE_RETRY_MS;
+};
+
+export const isUnexpectedEmptyPublicSourceResult = (input: {
+  emptyAllowed: boolean;
+  tenderCount: number;
+  exhausted: boolean;
+  pendingCount: number;
+}): boolean => (
+  !input.emptyAllowed
+  && input.tenderCount === 0
+  && input.exhausted
+  && input.pendingCount === 0
+);
+
 export type PublicDetailReference = {
   key: string;
   url: string;
@@ -110,11 +164,11 @@ export const shouldSchedulePublicContinuation = (
   // references, until the source backoff expires.
   if ((lastStatus === "failed" || (lastStatus === "partial" && lastError)) && sourceFailureRetryAt) {
     const retryAt = Date.parse(sourceFailureRetryAt);
-    if (!Number.isFinite(retryAt) || retryAt > nowMs) return false;
+    if (Number.isFinite(retryAt) && retryAt > nowMs) return false;
   }
+  if (isPermanentPublicSourceError(lastError)) return false;
   const pendingDetails = cursorPendingDetails(cursor);
   if (pendingDetails.some((reference) => isDueDetailReference(reference, nowMs))) return true;
-  if (isPermanentPublicSourceError(lastError)) return false;
   // Older failed cursors predate persisted source backoff metadata. Retry them
   // once so a fixed scraper is not permanently stranded by stale state.
   if (lastStatus === "failed" && !sourceFailureRetryAt) return true;
@@ -122,6 +176,17 @@ export const shouldSchedulePublicContinuation = (
     const retryAt = Date.parse(sourceFailureRetryAt);
     return !Number.isFinite(retryAt) || retryAt <= nowMs;
   }
+  // Blocked detail URLs are terminal, but they must not strand listing pages
+  // that the source has not visited yet. The scraper can skip these refs and
+  // continue pagination; only park a blocked-only queue once listing is done.
+  if (
+    !exhausted
+    && cursor?.listingComplete === false
+    && pendingDetails.length > 0
+    && pendingDetails.every((reference) => reference.blocked)
+    && !lastError
+    && (lastStatus === "success" || lastStatus === "partial")
+  ) return true;
   if (exhausted) return false;
   // A source reports "partial" when the listing has more pages to visit. It
   // is safe to continue that clean pagination run when no source error was

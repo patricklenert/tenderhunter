@@ -1,27 +1,28 @@
 import type { Metadata } from "next";
+import { HomeSeoContent } from "@/components/seo/HomeSeoContent";
 import { InteractiveApp } from "@/components/seo/InteractiveApp";
 import { HomeTenderList } from "@/components/seo/HomeTenderList";
 import { SeoFooter } from "@/components/seo/SeoFooter";
 import { getListingRobots, type SeoSearchParams } from "@/lib/seo-indexability";
+import { BRAND_METADATA } from "@/lib/brand-tokens";
+import { getSiteUrl } from "@/lib/site-config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const baseMetadata: Metadata = {
-  title: { absolute: "Tenderhunter – KI-Ausschreibungssoftware für deutsche Unternehmen" },
-  description:
-    "Finden Sie automatisch passende öffentliche Ausschreibungen in Deutschland. KI analysiert Anforderungen, Ihre Unternehmenswebsite wird gescannt, täglich passende Projekte.",
+  title: { absolute: BRAND_METADATA.defaultTitle },
+  description: BRAND_METADATA.description,
   alternates: {
     canonical: "/",
     languages: { "de-DE": "/" },
     types: {
-      "application/rss+xml": `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com"}/feeds/tender.xml`,
+      "application/rss+xml": `${getSiteUrl()}/feeds/tender.xml`,
     },
   },
   openGraph: {
-    title: "Tenderhunter – KI-Ausschreibungssoftware",
-    description:
-      "Deutsche Ausschreibungsportale automatisch durchsuchen. KI-gestütztes Matching für Ihr Unternehmen.",
+    title: BRAND_METADATA.socialTitle,
+    description: BRAND_METADATA.socialDescription,
     type: "website",
     locale: "de_DE",
   },
@@ -43,6 +44,7 @@ export default function HomePage() {
     <>
       <HomeTenderList />
       <InteractiveApp />
+      <HomeSeoContent />
       <SeoFooter />
     </>
   );

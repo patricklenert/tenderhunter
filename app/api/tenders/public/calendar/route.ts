@@ -62,19 +62,18 @@ export async function GET(request: Request): Promise<Response> {
     title: tender.title,
     source: tender.source,
     sourceUrl: tender.url,
-    rawText: tender.rawText,
   });
-  const portalFacts = extractPublicPortalFacts([tender.rawText, tenderMeta.description].filter(Boolean).join("\n"));
+  const portalFacts = extractPublicPortalFacts(tenderMeta.description);
   const fallbackFacts = {
     buyer: portalFacts.client || tenderMeta.client || null,
-    procedure: portalFacts.procedure || tenderMeta.procedure || tender.procedureType || null,
+     procedure: portalFacts.procedure || tenderMeta.procedure || (tender.rawText?.trim() ? tender.procedureType : null) || null,
     deadline: portalFacts.deadline || (tender.deadlineAt ? formatDeadlineDE(tender.deadlineAt) : null),
     location: portalFacts.location || tenderMeta.location || null,
     summary: tenderMeta.description || null,
     scope: portalFacts.subject || tenderMeta.subject || null,
   };
-  const structured = normalizeStructured(
-    row.structured_data?.jsonBlob ?? metadata,
+   const structured = normalizeStructured(
+     row.structured_data?.jsonBlob ?? metadata,
     tender.title ?? "",
     fallbackFacts,
   );

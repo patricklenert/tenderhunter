@@ -12,7 +12,7 @@ const summaryLabelSx = {
   display: "flex",
   alignItems: "center",
   gap: 0.55,
-  color: "#697b8c",
+  color: "text.secondary",
   fontSize: "0.66rem",
   fontWeight: 800,
   letterSpacing: "0.08em",
@@ -21,10 +21,11 @@ const summaryLabelSx = {
 
 const summaryChipSx = {
   height: 25,
-  bgcolor: "#f8fbfc",
-  color: "#526476",
-  border: "1px solid #d8e4ea",
-  borderRadius: "7px",
+  bgcolor: "background.default",
+  color: "text.secondary",
+  border: "1px solid",
+  borderColor: "divider",
+  borderRadius: 1,
   fontSize: "0.68rem",
   fontWeight: 650,
   "& .MuiChip-label": { px: 0.85 },
@@ -43,11 +44,11 @@ export function TenderSectionHeader({ count, summary }: TenderSectionHeaderProps
           <Typography
             id="profile-matches-heading"
             component="h2"
-            sx={{ fontSize: { xs: "1.2rem", md: "1.35rem" }, fontWeight: 750, letterSpacing: "-0.025em", color: "#263242", lineHeight: 1.2 }}
+            sx={{ fontSize: { xs: "1.2rem", md: "1.35rem" }, fontWeight: 750, letterSpacing: "-0.025em", color: "text.primary", lineHeight: 1.2 }}
           >
             {count} {count === 1 ? "passender Treffer" : "passende Treffer"}
           </Typography>
-          <Typography sx={{ color: "#697b8c", fontSize: "0.78rem", mt: 0.4 }}>
+          <Typography sx={{ color: "text.secondary", fontSize: "0.78rem", mt: 0.4 }}>
             Sortiert nach Fit, Gewinnchance und Frist.
           </Typography>
         </Box>
@@ -58,17 +59,19 @@ export function TenderSectionHeader({ count, summary }: TenderSectionHeaderProps
             gap: 0.7,
             px: 1.1,
             py: 0.8,
-            bgcolor: "#f3f7f9",
-            border: "1px solid #d8e4ea",
-            borderRadius: "9px",
+            bgcolor: "background.default",
+            border: "1px solid",
+            borderColor: "divider",
+            borderRadius: 2,
+            color: "text.secondary",
           }}
         >
-          <RefreshCw size={13} color="#718296" aria-hidden="true" />
+          <RefreshCw size={13} aria-hidden="true" />
           <Box>
-            <Typography sx={{ color: "#526476", fontSize: "0.68rem", fontWeight: 750, lineHeight: 1.1 }}>
+            <Typography sx={{ color: "text.primary", fontSize: "0.68rem", fontWeight: 750, lineHeight: 1.1 }}>
               Automatische Aktualisierung
             </Typography>
-            <Typography sx={{ color: "#7b8a99", fontSize: "0.67rem", mt: 0.25 }}>
+            <Typography sx={{ color: "text.secondary", fontSize: "0.67rem", mt: 0.25 }}>
               Neue Treffer {updateCadence}
             </Typography>
           </Box>
@@ -82,33 +85,34 @@ export function TenderSectionHeader({ count, summary }: TenderSectionHeaderProps
           gap: { xs: 1.25, sm: 0 },
           mt: 2,
           p: { xs: 1.5, sm: 1.75 },
-          bgcolor: "#f3f7f9",
-          border: "1px solid #d8e4ea",
-          borderRadius: "12px",
+          bgcolor: "background.paper",
+          border: "1px solid",
+          borderColor: "divider",
+          borderRadius: 2,
         }}
       >
-        <Box sx={{ pr: { sm: 1.75 }, borderRight: { sm: "1px solid #dce6eb" } }}>
+        <Box sx={{ pr: { sm: 1.75 }, borderRight: { sm: "1px solid" }, borderColor: "divider" }}>
           <Typography sx={summaryLabelSx}>
             <BarChart3 size={13} aria-hidden="true" />
             Fit-Verteilung
           </Typography>
-          <Box role="img" sx={{ display: "flex", height: 7, overflow: "hidden", borderRadius: 99, bgcolor: "#e4ebef", mt: 1.2 }} aria-label={`${summary.fitDistribution.high} hohe, ${summary.fitDistribution.medium} mittlere und ${summary.fitDistribution.low} niedrige Fits`}>
+          <Box role="img" sx={{ display: "flex", height: 7, overflow: "hidden", borderRadius: 99, bgcolor: "background.default", mt: 1.2 }} aria-label={`${summary.fitDistribution.high} hohe, ${summary.fitDistribution.medium} mittlere und ${summary.fitDistribution.low} niedrige Fits`}>
             {[
-              { key: "high", count: summary.fitDistribution.high, color: "#4b9a62" },
-              { key: "medium", count: summary.fitDistribution.medium, color: "#d39a3e" },
-              { key: "low", count: summary.fitDistribution.low, color: "#93a1ae" },
+              { key: "high", count: summary.fitDistribution.high, color: "success.main" },
+              { key: "medium", count: summary.fitDistribution.medium, color: "warning.main" },
+              { key: "low", count: summary.fitDistribution.low, color: "text.secondary" },
             ].map((segment) => (
-              <Box key={segment.key} sx={{ width: total > 0 ? `${(segment.count / total) * 100}%` : 0, bgcolor: segment.color, transition: "width 180ms ease-out" }} />
+              <Box key={segment.key} sx={{ width: total > 0 ? `${(segment.count / total) * 100}%` : 0, bgcolor: segment.color, transition: (theme) => theme.transitions.create("width", { duration: theme.transitions.duration.short }) }} />
             ))}
           </Box>
           <Stack direction="row" spacing={1.25} flexWrap="wrap" useFlexGap sx={{ mt: 0.85 }}>
-            <Typography sx={{ color: "#277544", fontSize: "0.68rem", fontWeight: 700 }}>Stark {summary.fitDistribution.high}</Typography>
-            <Typography sx={{ color: "#9a5a08", fontSize: "0.68rem", fontWeight: 700 }}>Solide {summary.fitDistribution.medium}</Typography>
-            <Typography sx={{ color: "#697b8c", fontSize: "0.68rem", fontWeight: 700 }}>Offen {summary.fitDistribution.low}</Typography>
+            <Typography sx={{ color: "success.main", fontSize: "0.68rem", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>Stark {summary.fitDistribution.high}</Typography>
+            <Typography sx={{ color: "warning.main", fontSize: "0.68rem", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>Solide {summary.fitDistribution.medium}</Typography>
+            <Typography sx={{ color: "text.secondary", fontSize: "0.68rem", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>Offen {summary.fitDistribution.low}</Typography>
           </Stack>
         </Box>
 
-        <Box sx={{ px: { sm: 1.75 }, borderRight: { sm: "1px solid #dce6eb" } }}>
+        <Box sx={{ px: { sm: 1.75 }, borderRight: { sm: "1px solid" }, borderColor: "divider" }}>
           <Typography sx={summaryLabelSx}>
             <MapPin size={13} aria-hidden="true" />
             Regionen
@@ -122,7 +126,7 @@ export function TenderSectionHeader({ count, summary }: TenderSectionHeaderProps
                 sx={summaryChipSx}
               />
             )) : (
-              <Typography sx={{ color: "#7b8a99", fontSize: "0.72rem", mt: 0.35 }}>Keine Region erfasst</Typography>
+              <Typography sx={{ color: "text.secondary", fontSize: "0.72rem", mt: 0.35 }}>Keine Region erfasst</Typography>
             )}
           </Stack>
         </Box>
@@ -136,7 +140,7 @@ export function TenderSectionHeader({ count, summary }: TenderSectionHeaderProps
             {summary.relevantCapabilities.length > 0 ? summary.relevantCapabilities.map((capability) => (
               <Chip key={capability} label={capability} size="small" sx={summaryChipSx} />
             )) : (
-              <Typography sx={{ color: "#7b8a99", fontSize: "0.72rem", mt: 0.35 }}>Keine Leistungen erfasst</Typography>
+              <Typography sx={{ color: "text.secondary", fontSize: "0.72rem", mt: 0.35 }}>Keine Leistungen erfasst</Typography>
             )}
           </Stack>
         </Box>

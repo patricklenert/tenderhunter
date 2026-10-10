@@ -1,22 +1,20 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { PORTALS } from "@/lib/portal-content";
-import { SLUG_TO_BUNDESLAND, ALL_BUNDESLAND_SLUGS } from "@/lib/bundesland";
+import { SLUG_TO_BUNDESLAND } from "@/lib/bundesland";
 import { searchTenders } from "@/lib/meilisearch";
 import { PortalLocationContent } from "@/components/seo/PortalLocationContent";
 import { getListingRobots, getPageNumber, type SeoSearchParams } from "@/lib/seo-indexability";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+import { getSiteUrl } from "@/lib/site-config";
+
+const siteUrl = getSiteUrl();
 const portal = PORTALS["dtvp"];
 
 export const revalidate = 3600;
 export const runtime = "nodejs";
 
 // SEO: Pre-render all 16 Bundesländer for DTVP (16 pages)
-export async function generateStaticParams() {
-  return ALL_BUNDESLAND_SLUGS.map((slug) => ({ slug }));
-}
-
 interface PageProps {
   params: Promise<{ slug: string }>;
   searchParams: Promise<SeoSearchParams>;
@@ -69,6 +67,7 @@ export default async function DtvpRegionPage({ params, searchParams }: PageProps
     location: string | null;
     client: string | null;
     source: string;
+    category: string | null;
     slug: string | null;
   }> = [];
   let totalCount = 0;
@@ -89,13 +88,12 @@ export default async function DtvpRegionPage({ params, searchParams }: PageProps
       location: hit.location ? hit.location.split(",")[0].trim().slice(0, 60) : null,
       client: hit.client ? hit.client.slice(0, 80) : null,
       source: hit.source,
+      category: hit.category ?? null,
       slug: hit.slug ?? null,
     }));
   } catch {
     // Meilisearch unavailable
   }
-
-  const siblingLocations = ALL_BUNDESLAND_SLUGS.filter((s) => s !== slug).map((s) => ({ name: SLUG_TO_BUNDESLAND[s], slug: s }));
 
   return (
     <PortalLocationContent
@@ -107,8 +105,7 @@ export default async function DtvpRegionPage({ params, searchParams }: PageProps
       totalCount={totalCount}
       currentPage={currentPage}
       totalPages={totalPages}
-      siteUrl={siteUrl}
-      siblingLocations={siblingLocations}
+       siteUrl={siteUrl}
     />
   );
 }

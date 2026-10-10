@@ -6,7 +6,6 @@ import {
   Container,
   Typography,
   Stack,
-  Chip,
   Paper,
   Breadcrumbs,
 } from "@mui/material";
@@ -17,14 +16,14 @@ import {
   ArrowRight,
   Home as HomeIcon,
 } from "lucide-react";
-import { CATEGORY_LABELS, CATEGORY_SLUGS, SLUG_TO_CATEGORY, ALL_CATEGORY_SLUGS } from "@/lib/categories";
+import { CATEGORY_LABELS, SLUG_TO_CATEGORY } from "@/lib/categories";
 import { CATEGORY_CONTENT } from "@/lib/category-content";
 import { searchTenders } from "@/lib/meilisearch";
-import { CITY_SLUG_MAP, ALL_CITY_SLUGS, CITY_LABEL_MAP } from "@/lib/cities";
+import { CITY_SLUG_MAP } from "@/lib/cities";
 import { BUNDESLAND_SLUGS } from "@/lib/bundesland";
 import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
 import { SiteFooter } from "@/components/seo/SiteFooter";
-import { getListingRobots, getPageNumber, type SeoSearchParams } from "@/lib/seo-indexability";
+import { getListingRobots, getPageNumber, getPaginationHref, type SeoSearchParams } from "@/lib/seo-indexability";
 
 // SEO: Auto-generated FAQ for city×category pages — targets long-tail queries like "Ausschreibungen München IT"
 function generateCityCategoryFaq(cityLabel: string, categoryLabel: string): Array<{ question: string; answer: string }> {
@@ -49,21 +48,13 @@ export const revalidate = 3600;
 export const runtime = "nodejs";
 
 const PAGE_SIZE = 20;
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+import { getSiteUrl } from "@/lib/site-config";
+
+const siteUrl = getSiteUrl();
 
 interface PageProps {
   params: Promise<{ slug: string; kategorie: string }>;
   searchParams: Promise<SeoSearchParams>;
-}
-
-export async function generateStaticParams() {
-  const params: Array<{ slug: string; kategorie: string }> = [];
-  for (const slug of ALL_CITY_SLUGS) {
-    for (const kategorie of ALL_CATEGORY_SLUGS) {
-      params.push({ slug, kategorie });
-    }
-  }
-  return params;
 }
 
 export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
@@ -316,7 +307,7 @@ export default async function CityCategoryPage({ params, searchParams }: PagePro
             >
               {currentPage > 1 && (
                 <Link
-                  href={`/ausschreibungen/stadt/${slug}/${kategorie}?page=${currentPage - 1}`}
+                  href={getPaginationHref(`/ausschreibungen/stadt/${slug}/${kategorie}`, currentPage - 1)}
                   style={{ textDecoration: "none", color: "#e9644d", fontWeight: 600, padding: "8px 12px" }}
                 >
                   ← Zurück
@@ -334,7 +325,7 @@ export default async function CityCategoryPage({ params, searchParams }: PagePro
                         <span style={{ fontWeight: 700, color: "#e9644d", padding: "8px 12px" }}>{p}</span>
                       ) : (
                         <Link
-                          href={`/ausschreibungen/stadt/${slug}/${kategorie}?page=${p}`}
+                          href={getPaginationHref(`/ausschreibungen/stadt/${slug}/${kategorie}`, p)}
                           style={{ textDecoration: "none", color: "#667288", fontWeight: 500, padding: "8px 12px" }}
                         >
                           {p}
@@ -345,7 +336,7 @@ export default async function CityCategoryPage({ params, searchParams }: PagePro
                 })}
               {currentPage < totalPages && (
                 <Link
-                  href={`/ausschreibungen/stadt/${slug}/${kategorie}?page=${currentPage + 1}`}
+                  href={getPaginationHref(`/ausschreibungen/stadt/${slug}/${kategorie}`, currentPage + 1)}
                   style={{ textDecoration: "none", color: "#e9644d", fontWeight: 600, padding: "8px 12px" }}
                 >
                   Weiter →
@@ -353,44 +344,6 @@ export default async function CityCategoryPage({ params, searchParams }: PagePro
               )}
             </Stack>
           )}
-
-          {/* Other Categories in this City */}
-          <Box sx={{ mb: 5 }}>
-            <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
-              Weitere Kategorien in {city.label}
-            </Typography>
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              {ALL_CATEGORY_SLUGS.filter((s) => s !== kategorie).map((s) => (
-                <Link key={s} href={`/ausschreibungen/stadt/${slug}/${s}`} style={{ textDecoration: "none" }}>
-                  <Chip
-                    clickable
-                    label={CATEGORY_LABELS[Object.keys(CATEGORY_SLUGS).find((k) => CATEGORY_SLUGS[k] === s) ?? ""] ?? s}
-                    variant="outlined"
-                    sx={{ fontWeight: 500 }}
-                  />
-                </Link>
-              ))}
-            </Stack>
-          </Box>
-
-          {/* Other Cities for this Category */}
-          <Box sx={{ mb: 5 }}>
-            <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
-              {label} in anderen Städten
-            </Typography>
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              {ALL_CITY_SLUGS.filter((s) => s !== slug).slice(0, 15).map((s) => (
-                <Link key={s} href={`/ausschreibungen/stadt/${s}/${kategorie}`} style={{ textDecoration: "none" }}>
-                  <Chip
-                    clickable
-                    label={CITY_LABEL_MAP[s]}
-                    variant="outlined"
-                    sx={{ fontWeight: 500 }}
-                  />
-                </Link>
-              ))}
-            </Stack>
-          </Box>
 
           {/* FAQ — SEO: unique content for city×category pages */}
           <Box sx={{ mb: 5 }}>

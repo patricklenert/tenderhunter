@@ -409,7 +409,7 @@ export const TEMPLATES: TemplateEntry[] = [
       },
       {
         question: "Wie lange müssen die Fristen sein?",
-        answer: "Die Angebotsfrist hängt vom Vergabeverfahren ab. Im offenen Verfahren nach VgV sind mindestens 35 Tage vorgeschrieben. Im Unterschwellenbereich (UVgO) sind kürzere Fristen möglich, sollten aber angemessen sein, um Wettbewerb zu ermöglichen.",
+        answer: "Die Angebotsfrist hängt vom Vergabeverfahren, der Auftragsart, dem Auftraggeber und dem anwendbaren Regelwerk ab. Im offenen Verfahren nach VgV gelten gesetzliche Mindestfristen mit möglichen Verkürzungen; unterhalb der Schwellenwerte sind die einschlägigen nationalen Vorgaben und die Angemessenheit der Frist zu prüfen.",
       },
     ],
     relatedTemplates: ["leistungsbeschreibung-vorlage", "eignungskriterien-vorlage", "bvb-vorlage"],
@@ -537,7 +537,7 @@ export const TEMPLATES: TemplateEntry[] = [
       },
       {
         question: "Was passiert nach der Rüge?",
-        answer: "Der Auftraggeber hat die Möglichkeit, den Verstoß zu korrigieren oder die Rüge zurückzuweisen. Bleibt die Rüge erfolglos, kann der Bieter ein Nachprüfungsverfahren bei der Vergabekammer beantragen. Die Frist dafür beträgt 15 Tage nach Information über die Zuschlagserteilung.",
+        answer: "Der Auftraggeber kann den Verstoß korrigieren oder die Rüge zurückweisen. Bleibt die Rüge erfolglos, kann ein Nachprüfungsantrag bei der zuständigen Vergabekammer in Betracht kommen. Die Zulässigkeit hängt insbesondere von Antragsbefugnis, Rügeobliegenheit und den Fristen des § 160 Abs. 3 GWB ab.",
       },
     ],
     relatedTemplates: ["bieterfrage-muster"],

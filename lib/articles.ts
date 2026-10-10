@@ -24,15 +24,20 @@ export const ARTICLES: Record<string, Article> = {
     description:
       "Alle Vergabeverfahren in Deutschland im Überblick: Offenes, nichtoffenes, Verhandlungsverfahren und mehr. Erfahren Sie, welche Verfahren es gibt und wie Bieter teilnehmen können.",
     datePublished: "2025-01-15",
-    dateModified: "2026-09-08",
+    dateModified: "2026-09-29",
     relatedCategories: ["Bauarbeiten", "IT-Dienstleistungen", "Planungsleistungen"],
-    relatedArticles: ["vob-vergabe", "wie-funktioniert-ausschreibung", "oeffentliche-auftraege-finden"],
-    relatedGlossaryTerms: ["offenes-verfahren", "beschraenktes-verfahren", "verhandlungsverfahren", "vgv-vergabeverordnung", "uvgo", "vob-a"],
+    relatedArticles: ["vob-vergabe", "schwellenwerte-vergabe", "wie-funktioniert-ausschreibung", "oeffentliche-auftraege-finden"],
+     relatedGlossaryTerms: ["offenes-verfahren", "beschraenktes-verfahren", "verhandlungsverfahren", "teilnahmewettbewerb", "vergabeunterlagen", "e-vergabe", "vgv-vergabeverordnung", "uvgo", "vob-a", "vob-a-eu", "schwellenwerte", "auftragswert"],
     sources: [
       { title: "§ 119 GWB – Verfahrensarten", url: "https://www.gesetze-im-internet.de/gwb/__119.html" },
       { title: "BMWE: Vergabeübersicht und Rechtsgrundlagen", url: "https://www.bundeswirtschaftsministerium.de/Redaktion/DE/Artikel/Wirtschaft/vergabe-uebersicht-und-rechtsgrundlagen.html" },
+      { title: "Bundesanzeiger: EU-Schwellenwerte ab 1. Januar 2026", url: "https://www.bundesanzeiger.de/pub/publication/zDKvMODHbpcIPpDPapc/content/zDKvMODHbpcIPpDPapc/BAnz%20AT%2018.12.2025%20B4.pdf?inline" },
+      { title: "§ 106 GWB – Schwellenwerte", url: "https://www.gesetze-im-internet.de/gwb/__106.html" },
+      { title: "Delegierte Verordnung (EU) 2025/2152", url: "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32025R2152" },
+      { title: "Delegierte Verordnung (EU) 2025/2151 für Konzessionen", url: "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32025R2151" },
+      { title: "Delegierte Verordnung (EU) 2025/2150 für Sektorenauftraggeber", url: "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32025R2150" },
     ],
-    lastReviewed: "2026-09-08",
+    lastReviewed: "2026-09-29",
     content: `
 ## Was sind Vergabeverfahren?
 
@@ -75,16 +80,18 @@ Der wettbewerbliche Dialog wird bei besonders komplexen Projekten eingesetzt, be
 
 Die Innovationspartnerschaft wurde 2016 eingeführt und ermöglicht die Entwicklung und anschließende Beschaffung innovativer Produkte oder Dienstleistungen.
 
-## Schwellenwerte 2026/2027
+## Ausgewählte EU-Schwellenwerte 2026/2027
 
 | Bereich | EU-Schwellenwert |
 |---------|-----------------|
-| Bauaufträge | 5.404.000 € |
-| Liefer- und Dienstleistungen (bestimmte zentrale Regierungsbehörden) | 140.000 € |
-| Liefer- und Dienstleistungen (sonstige bestimmte Auftraggeber) | 216.000 € |
+| Bauaufträge klassischer öffentlicher Auftraggeber | 5.404.000 € |
+| Liefer- und Dienstleistungen zentraler Regierungsbehörden im Sinne von § 106 Absatz 2 Nummer 1 GWB | 140.000 € |
+| Liefer- und Dienstleistungen anderer öffentlicher Auftraggeber im Anwendungsbereich der Richtlinie 2014/24/EU | 216.000 € |
 | Sektorenaufträge (Liefer- und Dienstleistungen) | 432.000 € |
+| Soziale und andere besondere Dienstleistungen (klassische Auftraggeber) | 750.000 € |
+| Konzessionen | 5.404.000 € |
 
-Unterhalb dieser Werte gelten nationale Vergaberegeln mit geringeren Formalanforderungen.
+Unterhalb des jeweils einschlägigen Werts gelten die nationalen Regeln des Auftraggebers und Leistungsbereichs. Die Beträge sind keine pauschalen Wertgrenzen für jede Beschaffung: Maßgeblich sind Auftraggeber, Leistungsart und das einschlägige Regelwerk. Für Bauaufträge gilt oberhalb des Schwellenwerts neben VOB/A Abschnitt 2 auch § 2 VgV.
 
 ## Tipps für Bieter
 
@@ -92,7 +99,7 @@ Unterhalb dieser Werte gelten nationale Vergaberegeln mit geringeren Formalanfor
 2. **Eignungsnachweise vorbereiten:** Halten Sie Referenzen, Bilanzen und Bescheinigungen aktuell.
 3. **Fristen im Blick behalten:** Versäumte Fristen sind der häufigste Grund für den Ausschluss.
 4. **Nachweise sorgfältig prüfen:** Fehlende oder fehlerhafte Unterlagen führen zur Ablehnung.
-5. **AVV und Vergabekriterien genau lesen:** Die Angebots- und Vergabeunterlagen definieren die Anforderungen.
+5. **Vergabeunterlagen und Vergabekriterien genau lesen:** Die Angebots- und Vergabeunterlagen definieren die Anforderungen.
 `,
   },
 
@@ -102,15 +109,17 @@ Unterhalb dieser Werte gelten nationale Vergaberegeln mit geringeren Formalanfor
     description:
       "VOB/A, VOB/B und VOB/C verständlich erklärt: Vergabeverfahren, Bauvertragsbedingungen, technische ATV, Schwellenwerte und wichtige Hinweise für Bieter.",
     datePublished: "2025-01-15",
-    dateModified: "2026-09-06",
-    lastReviewed: "2026-09-06",
+    dateModified: "2026-10-08",
+    lastReviewed: "2026-10-08",
     relatedCategories: ["Bauarbeiten", "Tiefbau", "TGA", "Planungsleistungen"],
-    relatedArticles: ["vergabeverfahren-uebersicht", "ausschreibung-muster", "bietergemeinschaft-gruenden"],
-    relatedGlossaryTerms: ["vob-a", "vob-b", "vob-c", "vob-a-eu", "schwellenwerte", "auftragswert", "leistungsbeschreibung", "leistungsverzeichnis", "vgv-vergabeverordnung", "gwb-vergaberecht"],
+    relatedArticles: ["vergabeverfahren-uebersicht", "schwellenwerte-vergabe", "ausschreibung-muster", "bietergemeinschaft-gruenden"],
+    relatedGlossaryTerms: ["vob-a", "vob-b", "vob-c", "vob-a-eu", "schwellenwerte", "auftragswert", "losvergabe", "leistungsbeschreibung", "leistungsverzeichnis", "vgv-vergabeverordnung", "gwb-vergaberecht", "eignungsleihe"],
     sources: [
+      { title: "Bundesanzeiger: VOB/A-Änderung vom 22. Juli 2026 (BAnz AT 24.08.2026 B6)", url: "https://www.bundesanzeiger.de/pub/publication/73xO0rpP1jfX5HRt0Ja/content/73xO0rpP1jfX5HRt0Ja/BAnz%20AT%2024.08.2026%20B6.pdf?inline" },
       { title: "VOB/A, Bekanntmachung vom 31. Januar 2019 (BAnz AT 19.02.2019 B2)", url: "https://www.verwaltungsvorschriften-im-internet.de/bsvwvbund_31012019_BWI781063060120180001604634.htm" },
       { title: "§ 2 VgV – Bauaufträge", url: "https://www.gesetze-im-internet.de/vgv_2016/__2.html" },
-      { title: "BMWE: Vergabeübersicht und Rechtsgrundlagen", url: "https://www.bundeswirtschaftsministerium.de/Redaktion/DE/Artikel/Wirtschaft/vergabe-uebersicht-und-rechtsgrundlagen.html" },
+      { title: "§ 97a GWB – Losgrundsatz", url: "https://www.gesetze-im-internet.de/gwb/__97a.html" },
+      { title: "§ 134 GWB – Informations- und Wartepflicht", url: "https://www.gesetze-im-internet.de/gwb/__134.html" },
     ],
     content: `
 ## Was ist die VOB/A?
@@ -121,11 +130,19 @@ Die Vergabe- und Vertragsordnung für Bauleistungen (VOB) besteht aus drei Teile
 - **VOB/B** – Allgemeine Vertragsbedingungen für die Ausführung von Bauleistungen
 - **VOB/C** – Allgemeine Technische Vertragsbedingungen für Bauleistungen
 
-VOB/A betrifft das Vergabeverfahren. VOB/B und VOB/C werden für die spätere Vertragsausführung als Vertragsbestandteile einbezogen. Die Teile haben daher unterschiedliche Funktionen und dürfen nicht gleichgesetzt werden.
+VOB/A betrifft das Vergabeverfahren. VOB/B und VOB/C können für die spätere Vertragsausführung als Vertragsbestandteile einbezogen werden. Die Teile haben daher unterschiedliche Funktionen und dürfen nicht gleichgesetzt werden.
+
+### VOB/B: Vertragsbedingungen nach dem Zuschlag
+
+Die VOB/B regelt die rechtlichen Bedingungen der Bauausführung, wenn sie wirksam in den Bauvertrag einbezogen wurde. Dazu gehören unter anderem Anordnungen und Änderungen der Leistung, Abnahme, Vergütung und Nachträge, Mängel, Kündigung sowie Ausführungs- und Zahlungsfristen. Sie ist keine Verfahrensart und ersetzt nicht die VOB/A.
+
+### VOB/C: Technische Vertragsbedingungen
+
+Die VOB/C enthält gewerkespezifische Allgemeine Technische Vertragsbedingungen (ATV). Sie unterstützt eine eindeutige Leistungsbeschreibung und beschreibt Anforderungen an Ausführung, Neben- und besondere Leistungen sowie Abrechnung. Das Leistungsverzeichnis konkretisiert dabei die ausgeschriebene Leistung; VOB/C und Leistungsverzeichnis sind deshalb gemeinsam zu lesen.
 
 ## Geltungsbereich der VOB/A
 
-Für Bauaufträge unterscheidet die VOB/A drei Abschnitte: Abschnitt 1 für den nationalen Bereich, Abschnitt 2 für den EU-Oberschwellenbereich und Abschnitt 3 für verteidigungs- und sicherheitsspezifische Vergaben. § 2 VgV legt fest, welche VgV-Regeln bei Bauaufträgen zusätzlich gelten. Baukonzessionen sind gesondert zu prüfen.
+Für Bauaufträge unterscheidet die VOB/A drei Abschnitte: Abschnitt 1 für den nationalen Bereich, Abschnitt 2 für den EU-Oberschwellenbereich und Abschnitt 3 für verteidigungs- und sicherheitsspezifische Vergaben. Nach § 2 VgV sind bei Bauaufträgen Abschnitt 1 und Abschnitt 2 Unterabschnitt 2 der VgV anzuwenden; im Übrigen gilt VOB/A Teil A Abschnitt 2. Planungsleistungen, die als Los eines Bauauftrags vergeben werden, unterliegen der VgV. Baukonzessionen sind gesondert zu prüfen.
 
 **Unterscheidung:**
 - **Unterhalb der EU-Schwellenwerte:** VOB/A Abschnitt 1, ergänzt durch anwendbares Landes- und Haushaltsrecht
@@ -133,24 +150,30 @@ Für Bauaufträge unterscheidet die VOB/A drei Abschnitte: Abschnitt 1 für den 
 
 ## Zuschlagskriterien nach VOB/A
 
-Die VOB/A kennt grundsätzlich zwei Zuschlagsmodelle:
-
-Der Zuschlag wird auf das wirtschaftlichste Angebot erteilt. Das kann bei geeigneten Bauleistungen allein über den Preis oder über das beste Preis-Leistungs-Verhältnis anhand bekannt gemachter Kriterien bestimmt werden. Eine pauschale Rangfolge „niedrigster Preis gewinnt“ gibt es nicht.
+Der Zuschlag wird auf das wirtschaftlichste Angebot erteilt. Das bestimmt sich nach dem besten Preis-Leistungs-Verhältnis; bei geeigneten Bauleistungen kann der Preis dabei das alleinige Zuschlagskriterium sein. Maßgeblich sind die vorab bekannt gemachten Zuschlagskriterien.
 
 ## Typische Eignungsanforderungen
 
-Öffentliche Auftraggeber prüfen die Eignung der Bieter anhand folgender Kriterien:
+Öffentliche Auftraggeber prüfen die Eignung der Bieter anhand der bekannt gemachten Kriterien und Nachweise. Typische Beispiele sind:
 
-- **Berufliche Zulassung:** Eintragung in die Handwerksrolle oder vergleichbar
-   - **Leistungsreferenzen:** Nachweis vergleichbarer Bauleistungen nach den bekannt gemachten Anforderungen
-- **Finanzielle Leistungsfähigkeit:** Jahresabschlüsse, Eigenkapitalquote
+- **Berufliche Zulassung:** Eintragung in die Handwerksrolle oder vergleichbar, soweit gefordert
+- **Leistungsreferenzen:** Nachweis vergleichbarer Bauleistungen nach den bekannt gemachten Anforderungen
+- **Finanzielle Leistungsfähigkeit:** etwa Umsatzangaben, Jahresabschlüsse oder andere zulässige Nachweise
 - **Technische Ausstattung:** Maschinen, Anlagen, Personal
-- **Qualitätssicherung:** Zertifikate wie ISO 9001
+- **Qualitätssicherung:** etwa Zertifikate oder Beschreibungen, soweit auftragsbezogen gefordert
+
+### Eignung durch ein anderes Unternehmen (Eignungsleihe)
+
+Kann ein Bieter ein bekannt gemachtes Eignungskriterium nicht allein erfüllen, kann er sich im jeweils anwendbaren Regelwerk unter bestimmten Voraussetzungen auf die Kapazitäten eines anderen Unternehmens stützen. Er muss nachweisen, dass ihm diese Mittel für den konkreten Auftrag tatsächlich zur Verfügung stehen. Bei EU-weiten Bauvergaben regelt § 6d EU VOB/A die Eignungsleihe. § 47 VgV gilt in seinem Anwendungsbereich, etwa für Liefer- und Dienstleistungen sowie Planungsleistungen, die als Los eines Bauauftrags vergeben werden. Für Bauaufträge ordnet § 2 VgV im Übrigen die Anwendung der VOB/A an; § 47 VgV darf daher nicht pauschal zusätzlich auf Bauvergaben übertragen werden.
+
+Werden berufliche Befähigung oder Erfahrung geliehen, muss das andere Unternehmen die Arbeiten ausführen, für die diese Kapazitäten benötigt werden. Eine Eignungsleihe ist weder automatisch eine Bietergemeinschaft noch ein Nachunternehmerverhältnis; dieselbe Firma kann abhängig von der konkreten Rolle aber beides sein. Unterhalb der EU-Schwellenwerte ist das jeweils eingeführte Regelwerk maßgeblich.
 
 ## Besonderheiten bei Bauausschreibungen
 
 ### Teillosevergabe
-Bauaufträge sind grundsätzlich in Teil- und Fachlose aufzuteilen, damit auch kleine und mittlere Unternehmen teilnehmen können. Eine Gesamtvergabe muss sachlich begründet werden.
+Bei Bauvergaben sind die Losregeln des jeweils geltenden Regelwerks maßgeblich. Im Anwendungsbereich des vierten Teils des GWB verlangt § 97a Absatz 1 grundsätzlich die Aufteilung in Teil- und Fachlose; eine Zusammenfassung ist nach Absatz 2 bei erforderlichen wirtschaftlichen oder technischen Gründen möglich. Für nationale Bauvergaben enthält § 5 Absatz 2 VOB/A Abschnitt 1 eine entsprechende Regel, soweit dieser Abschnitt eingeführt ist.
+
+Die aktuelle Fassung des § 97a Absatz 3 GWB erlaubt außerdem aus zeitlichen Gründen eine Zusammenfassung bei bestimmten Infrastrukturvorhaben, wenn der geschätzte Auftragswert mindestens das Doppelte des einschlägigen EU-Schwellenwerts erreicht und die im Gesetz genannten Finanzierungs- oder Infrastrukturvoraussetzungen vorliegen. Das ist keine allgemeine Ausnahme für dringliche Bauprojekte. Für Bieter sind die zulässigen Lose, mögliche Höchstzahlen für Zuschläge und kombinierbare Lose der Bekanntmachung und den Vergabeunterlagen zu entnehmen.
 
 ### Nebenangebote
 Nebenangebote sind nur zu werten, wenn der Auftraggeber sie zugelassen oder nicht ausgeschlossen hat und die bekannt gemachten Mindestanforderungen eingehalten werden.
@@ -162,7 +185,7 @@ Bei komplexen Bauvorhaben werden häufig Ortstermine angeboten. Die Teilnahme is
 
 - **Information:** Unter den gesetzlichen Voraussetzungen können Bieter Informationen über die Ablehnung und den vorgesehenen Zuschlag verlangen
 - **Nachprüfungsverfahren:** Bei Vergabeverstößen können Bieter eine Nachprüfung bei der zuständigen Vergabekammer beantragen
-- **Wartepflicht:** Im Anwendungsbereich des § 134 GWB beträgt die Wartefrist grundsätzlich 15 Kalendertage, bei elektronischer Übermittlung 10 Kalendertage
+- **Wartepflicht:** Im Anwendungsbereich des § 134 GWB beginnt der Vertrag grundsätzlich erst nach 15 Kalendertagen ab Absendung der Information, bei elektronischer Übermittlung nach 10 Kalendertagen; Ausnahmen und der konkrete Übermittlungsweg sind zu prüfen
 `,
   },
 
@@ -225,9 +248,9 @@ Halten Sie folgende Unterlagen immer aktuell:
 
 Die häufigste Ursache für den Ausschluss: verspätete Angebote. Beachten Sie:
 
-- **EU-Schwellenwert:** Mindestens 35 Kalendertage Angebotsfrist
-- **Unterhalb Schwelle:** Meist 10-20 Kalendertage
-- **Fristversäumnis = Ausschluss** – Ausnahmen sind extrem selten
+- **EU-Verfahren:** Die Mindestfrist hängt vom Verfahren ab; im offenen Verfahren nach § 15 VgV beträgt sie regulär 35 Tage, Verkürzungen sind nur unter gesetzlichen Voraussetzungen möglich
+- **Unterhalb der Schwellenwerte:** Es gibt keine einheitliche Frist für alle Auftraggeber und Leistungen; maßgeblich sind das einschlägige Regelwerk und die Vergabeunterlagen
+- **Fristversäumnis:** Verspätete Angebote werden grundsätzlich nicht gewertet; Ausnahmen richten sich nach den anwendbaren Vorschriften
 - **Elektronische Submission:** Hochladen dauert länger als gedacht – nicht auf die letzte Minute warten
 
 ## Tipp 5: Ausschreibungen verstehen, bevor Sie bieten
@@ -268,18 +291,19 @@ Nicht jedes Angebot führt zum Zuschlag. Nutzen Sie Ablehnungen als Lernchance:
     description:
       "Öffentliche Ausschreibung einfach erklärt: Von der Bekanntmachung bis zum Zuschlag. Erfahren Sie, wie Vergabeverfahren in Deutschland ablaufen und was Bieter beachten müssen.",
     datePublished: "2025-02-01",
-    dateModified: "2025-02-01",
+    dateModified: "2026-09-13",
     relatedCategories: ["Bauarbeiten", "IT-Dienstleistungen", "Facility Management"],
-    relatedArticles: ["vergabeverfahren-uebersicht", "oeffentliche-auftraege-finden", "ausschreibung-gewinnen"],
+     relatedArticles: ["vergabeverfahren-uebersicht", "oeffentliche-auftraege-finden", "ausschreibung-gewinnen"],
+     relatedGlossaryTerms: ["vergabeunterlagen", "e-vergabe", "bieterfragen", "leistungsbeschreibung", "angebot"],
     // SEO: HowTo steps extracted from H2 headings — enables HowTo rich snippet in Google SERP
     howToSteps: [
       { name: "Bedarfsfeststellung und Leistungsbeschreibung", text: "Der öffentliche Auftraggeber definiert seinen Bedarf und erstellt eine detaillierte Leistungsbeschreibung mit Umfang, Fristen und Formalien." },
       { name: "Veröffentlichung der Ausschreibung", text: "Die Ausschreibung wird auf DTVP, TED, evergabe oder regionalen Portalen veröffentlicht — inklusive Leistungsbeschreibung, Angebotsfrist und Zuschlagskriterien." },
-      { name: "Bieter stellen Fragen", text: "In der Angebotsfrist können Bieter Fragen zur Ausschreibung stellen. Die Vergabestelle beantwortet diese und stellt die Antworten allen Bietern zur Verfügung." },
+      { name: "Bieter stellen Fragen", text: "Bieter können innerhalb der vorgesehenen Frist und über den festgelegten Kommunikationsweg Fragen stellen. Relevante Antworten oder Änderungen werden nach den anwendbaren Vorgaben so bereitgestellt, dass die betroffenen Unternehmen gleich informiert werden." },
       { name: "Angebot erstellen und einreichen", text: "Bieter kalkulieren ihren Preis, prüfen Formalien und Eignungsanforderungen und reichen das Angebot elektronisch vor Fristende ein." },
       { name: "Angebotsöffnung und Prüfung", text: "Die Vergabestelle öffnet die Angebote, prüft Formalien und Eignung. Angebote mit formalen Mängeln werden ausgeschlossen." },
       { name: "Zuschlag erteilen", text: "Das wirtschaftlichste Angebot erhält den Zuschlag — entweder nach niedrigstem Preis oder nach dem wirtschaftlichsten Angebot (Preis + Qualität)." },
-      { name: "Vertrag schließen und Leistung erbringen", text: "Nach der Wartepflicht (15 Kalendertage bei EU-Vergaben) wird der Vertrag geschlossen und die Leistungserbringung beginnt." },
+      { name: "Vertrag schließen und Leistung erbringen", text: "Soweit § 134 GWB anwendbar ist, wird der Vertrag erst nach Ablauf der dort geregelten Wartefrist geschlossen; anschließend beginnt die Leistungserbringung." },
     ],
     content: `
 ## Was ist eine öffentliche Ausschreibung?
@@ -302,17 +326,17 @@ Die Vergabestelle erstellt eine detaillierte **Leistungsbeschreibung**, die gena
 Die Ausschreibung wird auf den relevanten Plattformen veröffentlicht:
 
 - **Unterhalb der EU-Schwellenwerte:** DTVP, evergabe, Bauportal Deutschland oder regionale Portale
-- **Oberhalb der EU-Schwellenwerte:** TED (Tenders Electronic Daily) zusätzlich zu den nationalen Portalen
+- **Bei unionsrechtlich erforderlichen Bekanntmachungen:** TED (Tenders Electronic Daily) zusätzlich zu den nationalen Portalen
 
 Die Veröffentlichung enthält:
 - Die Leistungsbeschreibung und alle Vergabeunterlagen
-- Die Angebotsfrist (mindestens 10–20 Kalendertage unterhalb Schwelle, 35 Tage bei EU-Vergaben)
+- Die Angebotsfrist nach den für Auftraggeber, Leistungsart und Verfahren geltenden Vorschriften
 - Die Zuschlagskriterien
 - Kontaktdaten der Vergabestelle
 
 ## Schritt 3: Bieter stellen Fragen
 
-In der Frist können Bieter Fragen zur Ausschreibung stellen. Die Vergabestelle beantwortet diese — häufig anonymisiert — und stellt die Antworten allen Bietern zur Verfügung.
+In der Frist können Bieter über den vorgesehenen Kommunikationsweg Fragen zur Ausschreibung stellen. Relevante Antworten oder Änderungen werden nach den anwendbaren Vorgaben so bereitgestellt, dass die betroffenen Unternehmen gleich informiert werden; bei erheblichen Änderungen kann eine Fristverlängerung erforderlich sein.
 
 **Wichtig:** Nutzen Sie diese Möglichkeit! Viele Bieter versäumen es, Fragen zu stellen, und bieten dann ins Blaue hinein.
 
@@ -323,17 +347,17 @@ Jetzt beginnt die eigentliche Arbeit:
 1. **Preis kalkulieren:** Material, Personal, Overhead, Marge — und dabei die öffentlichen Auftraggeber-Erfordernisse (Mindestlohn, Tariftreue) berücksichtigen.
 2. **Formalien prüfen:** Welche Nachweise werden gefordert? Berufshaftpflicht, Handelsregister, Referenzen, Bilanzen?
 3. **Angebot formatieren:** Viele Vergaben erfolgen elektronisch über evergabe oder DTVP. Achten Sie auf das richtige Format und die korrekte Signatur.
-4. **Frist einhalten:** Verspätete Angebote werden ausgeschlossen — Ausnahmen gibt es praktisch nicht.
+4. **Frist einhalten:** Verspätete Angebote werden nach den anwendbaren Vorschriften grundsätzlich nicht berücksichtigt; maßgeblich sind das konkrete Regelwerk und die Vergabeunterlagen.
 
 ## Schritt 5: Angebotsöffnung und Prüfung
 
 Nach Ablauf der Frist öffnet die Vergabestelle die Angebote:
 
-- **Öffentliche Angebotsöffnung** (bei offenen Verfahren): Jeder Bieter darf dabei sein
-- **Prüfung der Formalien:** Sind alle Nachweise vorhanden? Ist das Angebot vollständig?
+- **Öffnung und Dokumentation:** Die Angebote werden nach Fristablauf nach den Regeln des konkreten Verfahrens geöffnet und erfasst; bei elektronischen Vergaben findet regelmäßig keine öffentliche Bieteröffnung statt
+- **Prüfung der Formalien:** Sind die geforderten Angaben und Unterlagen vorhanden? Nachforderungen sind nur im Rahmen der anwendbaren Vorschriften zulässig
 - **Prüfung der Eignung:** Erfüllt der Bieter die Eignungsanforderungen (Referenzen, Finanzkraft, Personal)?
 
-Angebote, die formale Mängel haben oder die Eignungsanforderungen nicht erfüllen, werden ausgeschlossen.
+Angebote, die nach den anwendbaren Vorschriften zwingende Mängel haben oder deren Bieter die Eignungsanforderungen nicht erfüllen, können beziehungsweise müssen ausgeschlossen werden. Ob Unterlagen nachgefordert oder erläutert werden dürfen, richtet sich nach dem konkreten Regelwerk und den Vergabeunterlagen.
 
 ## Schritt 6: Zuschlag
 
@@ -342,11 +366,11 @@ Die Vergabestelle wertet die zulässigen Angebote nach den veröffentlichten Zus
 - **Niedrigstes Angebot:** Preis allein entscheidet
 - **Wirtschaftlichstes Angebot:** Preis und Qualität (z.B. 70% Preis, 30% Qualität)
 
-Das Angebot mit der besten Bewertung erhält den Zuschlag. Nach der Vergabe informiert die Vergabestelle alle Bieter über das Ergebnis.
+Das Angebot mit der besten Bewertung erhält den Zuschlag. Soweit Informationspflichten nach dem anwendbaren Vergaberecht bestehen, informiert die Vergabestelle die betroffenen Bieter über die Entscheidung.
 
 ## Schritt 7: Vertrag und Ausführung
 
-Nach dem Zuschlag wird der Vertrag geschlossen — frühestens jedoch nach Ablauf der **Wartepflicht** (15 Kalendertage bei EU-Vergaben). Dann beginnt die eigentliche Leistungserbringung.
+Nach dem Zuschlag wird der Vertrag geschlossen — soweit § 134 GWB anwendbar ist, frühestens nach Ablauf der dort geregelten **Wartepflicht**. Dann beginnt die eigentliche Leistungserbringung.
 
 ## Was unterscheidet die verschiedenen Verfahrenstypen?
 
@@ -369,9 +393,15 @@ Eine öffentliche Ausschreibung folgt klaren Regeln und Schritten. Wer die einze
     description:
       "Bietergemeinschaft (ARGE) gründen bei öffentlichen Ausschreibungen: Vorteile, rechtliche Anforderungen, Vertragsgestaltung und Tipps für erfolgreiche Gemeinschaftsangebote.",
     datePublished: "2025-02-01",
-    dateModified: "2025-02-01",
+    dateModified: "2026-10-06",
     relatedCategories: ["Bauarbeiten", "Tiefbau", "Planungsleistungen"],
     relatedArticles: ["vob-vergabe", "ausschreibung-gewinnen", "vergabeverfahren-uebersicht"],
+    relatedGlossaryTerms: ["bietergemeinschaft", "eignungsleihe", "nachunternehmer"],
+    sources: [
+      { title: "§ 47 VgV – Eignungsleihe", url: "https://www.gesetze-im-internet.de/vgv_2016/__47.html" },
+      { title: "§ 2 VgV – Vergabe von Bauaufträgen", url: "https://www.gesetze-im-internet.de/vgv_2016/__2.html" },
+      { title: "VOB/A, Abschnitte 2 und 3, Ausgabe 2026 (BAnz AT 24.08.2026 B6)", url: "https://www.bundesanzeiger.de/pub/publication/73xO0rpP1jfX5HRt0Ja/content/73xO0rpP1jfX5HRt0Ja/BAnz%20AT%2024.08.2026%20B6.pdf?inline" },
+    ],
     // SEO: HowTo steps for ARGE founding — enables HowTo rich snippet in Google SERP
     howToSteps: [
       { name: "Passende Partner finden", text: "Suchen Sie Unternehmen mit komplementären Leistungen, vergleichbaren Qualitätsstandards und stabiler Finanzkraft. Nutzen Sie IHK-Netzwerke und Fachverbände." },
@@ -467,6 +497,12 @@ Nach dem Zuschlag:
 | Risiko | Geteilt | Beim Hauptunternehmer |
 | Vertrag | ARGE-Vertrag + Vergabevertrag | Subunternehmervertrag + Vergabevertrag |
 
+## Bietergemeinschaft oder Eignungsleihe?
+
+Bei einer Bietergemeinschaft geben mehrere Unternehmen gemeinsam ein Angebot ab. Bei der Eignungsleihe bleibt dagegen ein Unternehmen allein Bewerber oder Bieter und weist ein oder mehrere Eignungskriterien mit den Kapazitäten eines anderen Unternehmens nach. Im Anwendungsbereich der VgV gilt § 47 auch für Bietergemeinschaften; bei EU-weiten Bauvergaben ist § 6d EU VOB/A maßgeblich. Für Bauaufträge ist außerdem die Zuordnung in § 2 VgV zu beachten.
+
+Der Kapazitätsgeber muss seine Mittel tatsächlich für den Auftrag bereitstellen. Wird berufliche Befähigung oder Erfahrung geliehen, muss er die entsprechenden Arbeiten ausführen. Er kann zugleich Nachunternehmer sein; die Eignungsleihe allein macht ihn aber nicht automatisch zum Nachunternehmer. Unterhalb der EU-Schwellenwerte kommt es auf das für den Auftraggeber geltende Regelwerk an.
+
 ## Fazit
 
 Eine Bietergemeinschaft ist ein mächtiges Instrument, um bei großen öffentlichen Ausschreibungen wettbewerbsfähig zu sein. Die rechtlichen und organisatorischen Anforderungen sind hoch — aber mit sorgfältiger Planung und einem soliden ARGE-Vertrag ist die Zusammenarbeit erfolgreich.
@@ -480,25 +516,22 @@ Eine Bietergemeinschaft ist ein mächtiges Instrument, um bei großen öffentlic
     description:
       "EU-Schwellenwerte für öffentliche Aufträge 2026 und 2027: Bauaufträge, Lieferungen, Dienstleistungen und Konzessionen nach Auftraggeber und Leistungsart eingeordnet.",
     datePublished: "2025-06-01",
-    dateModified: "2026-09-06",
-    lastReviewed: "2026-09-06",
+    dateModified: "2026-09-29",
+    lastReviewed: "2026-09-29",
     relatedCategories: ["Bauarbeiten", "IT-Dienstleistungen", "Lieferung"],
-    relatedArticles: ["vergabeverfahren-uebersicht", "vob-vergabe", "ausschreibung-muster"],
+    relatedArticles: ["vergabeverfahren-uebersicht", "vob-vergabe", "eu-vergabe", "ausschreibung-muster"],
     relatedGlossaryTerms: ["schwellenwerte", "auftragswert", "vob-a", "vob-a-eu", "vgv-vergabeverordnung", "gwb-vergaberecht"],
     sources: [
       { title: "BMWE: Vergabeübersicht und Rechtsgrundlagen", url: "https://www.bundeswirtschaftsministerium.de/Redaktion/DE/Artikel/Wirtschaft/vergabe-uebersicht-und-rechtsgrundlagen.html" },
+      { title: "Bundesanzeiger: EU-Schwellenwerte ab 1. Januar 2026", url: "https://www.bundesanzeiger.de/pub/publication/zDKvMODHbpcIPpDPapc/content/zDKvMODHbpcIPpDPapc/BAnz%20AT%2018.12.2025%20B4.pdf?inline" },
       { title: "Delegierte Verordnung (EU) 2025/2152", url: "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32025R2152" },
       { title: "Delegierte Verordnung (EU) 2025/2151 für Konzessionen", url: "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32025R2151" },
-    ],
-    howToSteps: [
-      { name: "Schwellenwert prüfen", text: "Ermitteln Sie den geschätzten Auftragswert ohne Umsatzsteuer. Vergleichen Sie diesen mit den geltenden EU-Schwellenwerten für Ihre Leistungsart." },
-      { name: "Verfahren wählen", text: "Liegt der Auftragswert über dem EU-Schwellenwert, gilt EU-Vergaberecht mit Bekanntmachung auf TED. Unterhalb gelten nationale Regeln mit vereinfachten Verfahren." },
-      { name: "Angebot vorbereiten", text: "Je nach Verfahrenstyp variieren Fristen und Formalien. EU-Vergaben erfordern längere Fristen (mind. 35 Tage) und strengere Eignungsanforderungen." },
+      { title: "Delegierte Verordnung (EU) 2025/2150 für Sektorenauftraggeber", url: "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32025R2150" },
     ],
     content: `
 ## Was sind Schwellenwerte in der Vergabe?
 
-Schwellenwerte legen fest, ab welchem Auftragswert öffentliche Auftraggeber das EU-Vergaberecht anwenden müssen. Oberhalb dieser Werte gelten strengere Regeln: EU-weite Bekanntmachung auf TED, längere Angebotsfristen und formale Eignungsprüfungen. Unterhalb gelten nationale Vergaberegeln mit geringeren Formalanforderungen.
+Schwellenwerte legen fest, ab welchem Auftragswert öffentliche Auftraggeber das EU-Vergaberecht anwenden müssen. Oberhalb dieser Werte gelten die Regeln des EU-Oberschwellenbereichs, einschließlich der einschlägigen Bekanntmachungs- und Verfahrensvorgaben. Unterhalb gelten nationale Vergaberegeln. Welche Vorschriften greifen, hängt immer von Auftraggeber, Leistungsart und Anwendungsbereich ab.
 
 Die Schwellenwerte werden regelmäßig angepasst. Die folgenden EU-Werte gelten ab dem 1. Januar 2026 für 2026 und 2027. Sie beziehen sich auf den geschätzten Auftragswert ohne Umsatzsteuer und nur auf den jeweils passenden Auftraggeber- und Leistungsbereich.
 
@@ -506,13 +539,17 @@ Die Schwellenwerte werden regelmäßig angepasst. Die folgenden EU-Werte gelten 
 
 | Auftragsart | EU-Schwellenwert (netto) |
 |-------------|--------------------------|
-| Bauaufträge | 5.404.000 € |
-| Liefer- und Dienstleistungen (bestimmte zentrale Regierungsbehörden) | 140.000 € |
-| Liefer- und Dienstleistungen (sonstige bestimmte Auftraggeber) | 216.000 € |
+| Bauaufträge klassischer öffentlicher Auftraggeber | 5.404.000 € |
+| Liefer- und Dienstleistungen zentraler Regierungsbehörden im Sinne von § 106 Absatz 2 Nummer 1 GWB | 140.000 € |
+| Liefer- und Dienstleistungen anderer öffentlicher Auftraggeber im Anwendungsbereich der Richtlinie 2014/24/EU | 216.000 € |
+| Liefer- und Dienstleistungen von Sektorenauftraggebern | 432.000 € |
 | Konzessionen | 5.404.000 € |
-| Soziale und andere besondere Dienstleistungen | 750.000 € |
+| Soziale und andere besondere Dienstleistungen (klassische Auftraggeber) | 750.000 € |
+| Liefer- und Dienstleistungen im Verteidigungs- und Sicherheitsbereich | 432.000 € |
+| Bauaufträge im Verteidigungs- und Sicherheitsbereich | 5.404.000 € |
+| Soziale und andere besondere Dienstleistungen von Sektorenauftraggebern | 1.000.000 € |
 
-**Wichtig:** Die Werte gelten netto (ohne Umsatzsteuer). Bei der Schwellenwertberechnung sind insbesondere Optionen, Verlängerungen und der Gesamtwert von Losen zu berücksichtigen. Eine künstliche Aufteilung zur Umgehung des EU-Vergaberechts ist unzulässig.
+**Wichtig:** Die Werte gelten netto (ohne Umsatzsteuer) und sind keine allgemeine Wertgrenze für jede Ausschreibung. Bei der Schwellenwertberechnung sind die jeweils einschlägigen Vorschriften zu Optionen, Verlängerungen, Losen und möglichen Aufteilungen zu beachten. Eine künstliche Aufteilung zur Umgehung des EU-Vergaberechts ist unzulässig.
 
 ## Was gilt unterhalb der EU-Schwellenwerte?
 
@@ -521,23 +558,17 @@ Unterhalb der EU-Schwellenwerte gelten die nationalen Regeln des jeweils zustän
 ## Praxis-Tipps für Bieter
 
 1. **Schwellenwert im Auge behalten:** Prüfen Sie bei jeder Ausschreibung, ob der Auftragswert über oder unter dem EU-Schwellenwert liegt. Daran entscheiden sich Fristen und Formalien.
-2. **EU-weite Bekanntmachung:** Oberhalb des Schwellenwerts muss die Ausschreibung auf TED veröffentlicht werden. Nutzen Sie Tenderhunter, um auch diese Aufträge zu finden.
-3. **Fristen beachten:** EU-Vergaben: mindestens 35 Kalendertage Angebotsfrist. Nationale Vergaben: meist 10-20 Kalendertage.
-4. **Eignungsanforderungen unterscheiden sich:** EU-Vergaben haben strengere Eignungsanforderungen (Referenzen, Bilanzen, Zertifikate). Bereiten Sie diese vor.
+2. **Unionsweite Bekanntmachung:** Oberhalb des einschlägigen Schwellenwerts ist im passenden Anwendungsbereich regelmäßig eine Bekanntmachung über TED erforderlich. Ausnahmen und besondere Regelwerke müssen anhand der konkreten Ausschreibung geprüft werden. Nutzen Sie Tenderhunter, um auch diese Aufträge zu finden.
+3. **Fristen beachten:** Die Mindestfrist hängt vom Verfahren und den anwendbaren Vorschriften ab. Maßgeblich sind Bekanntmachung und Vergabeunterlagen.
+4. **Eignungsanforderungen prüfen:** Anforderungen an Referenzen, Bilanzen und Zertifikate müssen aus den konkreten Vergabeunterlagen hervorgehen.
 5. **Teillosevergabe:** Die Losbildung ist nach den jeweils anwendbaren Regeln zu prüfen; eine Gesamtvergabe muss sachlich begründet werden, wenn eine Losaufteilung geboten ist.
 
 ## Sonderfälle und Ausnahmen
 
 ### Kalkulation des Auftragswerts
-- Berechnung auf Basis des Gesamtwerts ohne Umsatzsteuer
-- Bei Rahmenverträgen: Höchstwert aller möglichen Aufträge
-- Bei Losen: Summe aller Lose (wenn Lose zusammen vergeben werden)
-
-### Beschaffungsverbund
-Bilden mehrere Auftraggeber einen Beschaffungsverbund, werden die Auftragswerte addiert. So kann ein Gemeinschaftskauf über den EU-Schwellenwert fallen.
-
-### Wechselkurse
-Bei Aufträgen in Fremdwährung gilt der Euro-Referenzkurs der EZB am Tag der Bekanntmachung.
+- Schätzung auf Basis des Gesamtwerts ohne Umsatzsteuer
+- Optionen, Verlängerungen, Rahmenvereinbarungen und Lose nach der jeweils einschlägigen Berechnungsvorschrift prüfen
+- Die Wertschätzung vor Einleitung des Vergabeverfahrens nachvollziehbar dokumentieren
 
 ## Häufige Fragen
 
@@ -560,7 +591,8 @@ Die Vergabestelle muss den Auftragswert nachvollziehbar schätzen und dokumentie
     datePublished: "2025-06-01",
     dateModified: "2025-06-01",
     relatedCategories: ["Planungsleistungen", "Facility Management"],
-    relatedArticles: ["vergabeverfahren-uebersicht", "vob-vergabe", "oeffentliche-auftraege-finden"],
+     relatedArticles: ["vergabeverfahren-uebersicht", "vob-vergabe", "oeffentliche-auftraege-finden"],
+     relatedGlossaryTerms: ["vergabeunterlagen", "leistungsbeschreibung", "leistungsverzeichnis", "e-vergabe", "zuschlagskriterien"],
     howToSteps: [
       { name: "Bedarf ermitteln", text: "Definieren Sie den genauen Bedarf: Was wird benötigt, in welchem Umfang, bis wann? Klären Sie technische Anforderungen und Rahmenbedingungen." },
       { name: "Leistungsbeschreibung erstellen", text: "Formulieren Sie eine präzise Leistungsbeschreibung mit Spezifikationen, Mengen, Fristen und Qualitätsanforderungen. Nutzen Sie ATV-DIN-Normen bei Bauleistungen." },
@@ -659,14 +691,14 @@ Das vollständige Vergabepaket enthält:
 
 ### Bekanntmachungsportale
 - **Unterhalb EU-Schwellenwert:** DTVP, evergabe, regionale Portale
-- **Oberhalb EU-Schwellenwert:** TED zusätzlich zu nationalen Portalen
+- **Bei unionsrechtlich erforderlichen Bekanntmachungen:** TED zusätzlich zu nationalen Portalen
 
 ### Ablauf
 1. Bekanntmachung veröffentlichen
 2. Vergabeunterlagen bereitstellen
-3. Bieterfragen beantworten (meist anonymisiert)
+3. Relevante Bieterfragen nach den Verfahrensvorgaben beantworten und bereitstellen
 4. Angebote öffnen und prüfen
-5. Zuschlag erteilen (nach Wartepflicht)
+5. Zuschlag erteilen und – soweit § 134 GWB anwendbar ist – die Wartepflicht beachten
 6. Vertrag schließen
 
 ## Fazit
@@ -688,17 +720,17 @@ Eine gute Ausschreibung zeichnet sich durch präzise Leistungsbeschreibung, fair
     howToSteps: [
       { name: "Bedarf feststellen", text: "Definieren Sie den genauen Beschaffungsbedarf: Was wird benötigt, in welchem Umfang und bis wann? Klären Sie technische Anforderungen und Budgetrahmen." },
       { name: "Leistungsbeschreibung erstellen", text: "Formulieren Sie eine präzise Leistungsbeschreibung mit Spezifikationen, Mengen, Qualitätsanforderungen und Ausführungsfristen. Nutzen Sie ATV-DIN-Normen bei Bauleistungen." },
-      { name: "Angebotsfrist und Formalien festlegen", text: "Legen Sie die Angebotsfrist fest (mind. 10 Tage unterhalb EU-Schwellenwert, 35 Tage bei EU-Vergaben). Definieren Sie Angebotsformat, Nachweise und Unterschrift." },
+      { name: "Angebotsfrist und Formalien festlegen", text: "Legen Sie die Angebotsfrist nach dem einschlägigen Verfahren und Regelwerk fest. Definieren Sie außerdem Angebotsformat, Nachweise und Unterschrift." },
       { name: "Bekanntmachung veröffentlichen", text: "Veröffentlichen Sie die Ausschreibung auf den relevanten Portalen (DTVP, TED, evergabe). Beachten Sie die vorgeschriebenen Bekanntmachungsformulare." },
       { name: "Angebote auswerten", text: "Öffnen Sie die Angebote, prüfen Sie Formalien und Eignung. Werten Sie nach den veröffentlichten Zuschlagskriterien aus." },
-      { name: "Zuschlag erteilen", text: "Das wirtschaftlichste Angebot erhält den Zuschlag. Nach der Wartepflicht (15 Kalendertage bei EU-Vergaben) wird der Vertrag geschlossen." },
+      { name: "Zuschlag erteilen", text: "Das wirtschaftlichste Angebot erhält den Zuschlag. Soweit § 134 GWB anwendbar ist, muss die dort geregelte Wartefrist vor Vertragsschluss beachtet werden." },
     ],
     content: `
 ## Was ist eine Ausschreibung?
 
 Eine Ausschreibung ist ein geregeltes Vergabeverfahren, bei dem öffentliche Auftraggeber (Bund, Länder, Kommunen) private Unternehmen auffordern, ein Angebot für eine bestimmte Leistung abzugeben. Ziel ist es, das wirtschaftlichste Angebot bei fairem Wettbewerb zu finden.
 
-In Deutschland unterliegen Ausschreibungen dem Vergaberecht, das im Gesetz gegen Wettbewerbsbeschränkungen (GWB) sowie in den Vergabeverordnungen (VgV, VOB/A, VOL/A) geregelt ist.
+In Deutschland unterliegen Ausschreibungen dem Vergaberecht, das im Gesetz gegen Wettbewerbsbeschränkungen (GWB) sowie in den jeweils anwendbaren Regelwerken (unter anderem VgV, VOB/A und UVgO) geregelt ist.
 
 ## Aufbau einer Ausschreibung
 
@@ -716,13 +748,13 @@ Die Vergabeunterlagen enthalten alle Dokumente, die der Bieter benötigt: Leistu
 ### 4. Zuschlagskriterien
 Die Zuschlagskriterien legen fest, wie das wirtschaftlichste Angebot ermittelt wird — entweder nach niedrigstem Preis oder nach Preis und Qualität (z.B. 70% Preis, 30% Qualität).
 
-## Pflichtangaben nach VOB/A §7
+## Wichtige Inhalte einer Ausschreibung nach VOB/A
 
-Die Vergabe- und Vertragsordnung für Bauleistungen (VOB/A) schreibt folgende Pflichtangaben vor:
+§ 7 VOB/A enthält vor allem Anforderungen an die Leistungsbeschreibung: Sie muss die Leistung eindeutig, erschöpfend und so beschreiben, dass vergleichbare Angebote möglich sind. Die folgenden Punkte gehören je nach Verfahren und Regelwerk typischerweise in die Vergabeunterlagen; sie sind nicht sämtlich in § 7 VOB/A geregelt:
 
 - **Art und Umfang der Leistung** — präzise Beschreibung der Baumaßnahme
 - **Ausführungsfristen** — Beginn, Dauer und Abnahmetermin
-- **Angebotsfrist** — mindestens 10 Kalendertage (national) bzw. 35 Tage (EU-Schwellenwert)
+- **Angebotsfrist** — nach Verfahren, Leistungsart, Auftraggeber und den einschlägigen Vorschriften
 - **Zuschlagskriterien** — transparente Gewichtung von Preis und Qualität
 - **Eignungsanforderungen** — Nachweise über Referenzen, Finanzkraft und Personal
 - **Formalien** — Angebotsformat, Unterschrift, elektronische Einreichung
@@ -747,7 +779,7 @@ Hier ein vereinfachtes Muster für eine Leistungsbeschreibung:
 - Dokumentation jeder Reinigung per Checkliste
 
 **Fristen:**
-- Vertragsbeginn: 01.10.2025
+- Vertragsbeginn: nach den Angaben der konkreten Ausschreibung
 - Vertragslaufzeit: 24 Monate mit Option auf Verlängerung
 
 **Eignungsanforderungen:**
@@ -765,10 +797,10 @@ Hier ein vereinfachtes Muster für eine Leistungsbeschreibung:
 - [ ] Vergabeunterlagen zusammengestellt (inkl. Entwurfsvertrag)
 - [ ] Bekanntmachungsformular ausgefüllt
 - [ ] Bekanntmachung auf relevanten Portalen veröffentlicht
-- [ ] Bieterfragen beantwortet und allen Bietern zur Verfügung gestellt
+- [ ] Relevante Bieterfragen nach den Verfahrensvorgaben beantwortet und bereitgestellt
 - [ ] Angebote fristgerecht geöffnet und geprüft
 - [ ] Zuschlag nach Kriterien erteilt
-- [ ] Wartepflicht eingehalten (15 Tage bei EU-Vergaben)
+- [ ] Wartepflicht nach § 134 GWB geprüft und eingehalten, soweit anwendbar
 
 ## Häufige Fehler bei Ausschreibungen
 
@@ -799,7 +831,7 @@ Eine gute Ausschreibung zeichnet sich durch präzise Leistungsbeschreibung, fair
       { name: "Ausschreibungsunterlagen sorgfältig lesen", text: "Lesen Sie die Leistungsbeschreibung vollständig. Prüfen Sie Zuschlagskriterien, Eignungsanforderungen und Formalien — Fehler führen zum Ausschluss." },
       { name: "Eignungsnachweise vorbereiten", text: "Halten Sie alle Nachweise aktuell: Handelsregister, Gewerbeanmeldung, Unbedenklichkeitsbescheinigungen, Referenzen, Bilanzen und Versicherungen." },
       { name: "Angebot strategisch kalkulieren", text: "Kalkulieren Sie den Preis realistisch — zu niedrig wirkt unseriös, zu hoch verliert den Zuschlag. Berücksichtigen Sie Mindestlohn und Tariftreue." },
-      { name: "Angebot fristgerecht einreichen", text: "Reichen Sie das Angebot elektronisch und vor Fristende ein. Verspätete Angebote werden ausnahmslos ausgeschlossen." },
+      { name: "Angebot fristgerecht einreichen", text: "Reichen Sie das Angebot elektronisch und vor Fristende ein. Verspätete Angebote werden nach den anwendbaren Vorschriften grundsätzlich nicht gewertet." },
     ],
     content: `
 ## Warum gewinnen manche Bieter regelmäßig?
@@ -866,7 +898,7 @@ Nicht jede Referenz ist gleich viel wert. Wählen Sie Projekte aus, die:
 
 Die häufigsten formalen Gründe für den Ausschluss:
 
-1. **Frist versäumt** — Verspätete Angebote werden ausnahmslos ausgeschlossen
+1. **Frist versäumt** — Verspätete Angebote werden nach den anwendbaren Vorschriften grundsätzlich nicht gewertet
 2. **Unterschrift fehlt** — Elektronische Signatur oder eigenhändige Unterschrift
 3. **Nachweise unvollständig** — Fehlende Bescheinigungen oder abgelaufene Zertifikate
 4. **Format nicht eingehalten** — PDF statt Word, falsche Seitenzahl, fehlende Anlagen
@@ -874,15 +906,15 @@ Die häufigsten formalen Gründe für den Ausschluss:
 
 ## Tipp 7: Bieterfragen nutzen
 
-In der Angebotsfrist können Bieter Fragen stellen. Nutzen Sie diese Möglichkeit:
+In der vorgesehenen Frage- und Angebotsfrist können Bieter Fragen stellen. Nutzen Sie diese Möglichkeit:
 
 - Stellen Sie Fragen zu unklaren Anforderungen
 - Fragen Sie nach technischen Details, die in der Leistungsbeschreibung fehlen
-- Die Vergabestelle muss antworten — und die Antwort gilt für alle Bieter
+- Relevante Antworten müssen nach dem anwendbaren Vergaberecht gleichbehandlungs- und transparent bereitgestellt werden
 
 ## Tipp 8: Nachverhandlungen vorbereiten
 
-Bei Verhandlungsverfahren oder wirtschaftlichstem Angebot kann es zu Nachverhandlungen kommen. Bereiten Sie sich vor:
+Nur in Verhandlungsverfahren oder anderen ausdrücklich dafür vorgesehenen Verfahrenssituationen kann es zu Verhandlungen kommen. Im offenen Verfahren sind Verhandlungen über Angebote und Preise unzulässig. Bereiten Sie sich vor:
 
 - Kennen Sie Ihre Schmerzgrenze beim Preis
 - Haben Sie Argumente für Ihre Qualitätsvorteile parat
@@ -912,25 +944,33 @@ Ausschreibungen gewinnen ist keine Glückssache — es erfordert Systematik, Vor
 
   "nachpruefungsverfahren-vergabe": {
     slug: "nachpruefungsverfahren-vergabe",
-    title: "Nachprüfungsverfahren bei der Vergabe: Widerspruch und Rechte der Bieter",
+    title: "Nachprüfungsverfahren bei der Vergabe: Rüge und Rechte der Bieter",
     description:
       "Vergabefehler erkennen, Rüge aussprechen und Nachprüfungsverfahren einleiten. Alle Rechte der Bieter bei Vergabeverstößen — von der Rüge bis zur Vergabekammer.",
     datePublished: "2025-06-01",
-    dateModified: "2025-06-01",
+    dateModified: "2026-09-17",
+    lastReviewed: "2026-09-17",
     relatedCategories: ["Bauarbeiten", "Tiefbau"],
     relatedArticles: ["vob-vergabe", "vergabeverfahren-uebersicht", "ausschreibung-gewinnen"],
+    relatedGlossaryTerms: ["nachpruefungsverfahren", "ruege", "vergabekammer", "vergabesenat", "gwb-vergaberecht"],
+    sources: [
+      { title: "§ 160 GWB – Einleitung, Antrag", url: "https://www.gesetze-im-internet.de/gwb/__160.html" },
+      { title: "§ 134 GWB – Informations- und Wartepflicht", url: "https://www.gesetze-im-internet.de/gwb/__134.html" },
+      { title: "§ 172 GWB – Frist, Form, Inhalt der sofortigen Beschwerde", url: "https://www.gesetze-im-internet.de/gwb/__172.html" },
+      { title: "§ 182 GWB – Kosten des Verfahrens vor der Vergabekammer", url: "https://www.gesetze-im-internet.de/gwb/__182.html" },
+    ],
     howToSteps: [
       { name: "Vergabefehler erkennen", text: "Prüfen Sie die Vergabeunterlagen und das Verfahren auf Verstöße gegen Vergaberecht: formale Fehler, inhaltliche Mängel oder Verfahrensverstöße." },
-      { name: "Rüge aussprechen", text: "Setzen Sie dem Auftraggeber eine Frist zur Abhilfe (meist 10-15 Tage). Die Rüge muss den Vergabefehler konkret benennen." },
-      { name: "Antrag bei Vergabekammer stellen", text: "Wenn der Auftraggeber nicht abhilft, stellen Sie einen Nachprüfungsantrag bei der zuständigen Vergabekammer. Frist: 15 Kalendertage nach Bekanntgabe des Vergabefehlers." },
-      { name: "Kammer-Entscheidung abwarten", text: "Die Vergabekammer prüft den Antrag innerhalb von 5 Wochen (EU-Vergaben) bzw. 7 Wochen (nationale Vergaben). Die Entscheidung ist bindend." },
+      { name: "Rüge aussprechen", text: "Rügen Sie einen erkannten Vergabeverstoß gegenüber dem Auftraggeber konkret und rechtzeitig. Die gesetzlichen Anforderungen und Fristen des § 160 Abs. 3 GWB sind zu prüfen." },
+      { name: "Antrag bei Vergabekammer stellen", text: "Wenn der Auftraggeber nicht abhilft, stellen Sie unter den Voraussetzungen des GWB einen Nachprüfungsantrag bei der zuständigen Vergabekammer. Maßgeblich sind insbesondere Antragsbefugnis und die gesetzlichen Fristen." },
+      { name: "Kammer-Entscheidung abwarten", text: "Die Vergabekammer prüft Zulässigkeit und Begründetheit und kann Maßnahmen zur Korrektur des Vergabeverfahrens treffen. Die konkrete Verfahrensdauer hängt vom Fall ab." },
     ],
     content: `
 ## Was ist ein Nachprüfungsverfahren?
 
-Das Nachprüfungsverfahren ist das vergaberechtliche Instrument, mit dem Bieter Verstöße gegen Vergaberegeln geltend machen können. Es funktioniert ähnlich einem Widerspruch, ist aber eigenständig im GWB (Gesetz gegen Wettbewerbsbeschränkungen) geregelt.
+Das Nachprüfungsverfahren ist das vergaberechtliche Instrument, mit dem Unternehmen Verstöße gegen Vergaberegeln geltend machen können. Es ist kein allgemeiner Widerspruch, sondern ein eigenständiges Verfahren nach dem vierten Teil des GWB.
 
-**Wichtig:** Das Nachprüfungsverfahren ist nur für Bieter zugänglich, die sich um einen konkreten Auftrag bewerben. Allgemeine Kritik an Vergabeverfahren kann nicht geltend gemacht werden.
+**Wichtig:** Antragsbefugt ist ein Unternehmen, das ein Interesse am konkreten Auftrag oder an der Konzession hat, eine mögliche Rechtsverletzung geltend macht und einen drohenden oder entstandenen Schaden darlegt. Eine bloß allgemeine Kritik ohne eigenes Auftragsinteresse genügt nicht.
 
 ## Welche Vergabefehler können gerügt werden?
 
@@ -969,29 +1009,26 @@ Prüfen Sie systematisch:
 Bevor Sie einen Nachprüfungsantrag stellen können, müssen Sie den Vergabefehler beim Auftraggeber rügen (§ 160 Abs. 3 GWB).
 
 ### Anforderungen an die Rüge
-- **Schriftlich** (E-Mail reicht aus)
+- **Nachvollziehbar übermitteln:** Nutzen Sie den in den Vergabeunterlagen vorgesehenen Kommunikationsweg; eine dokumentierte elektronische Übermittlung kann je nach Verfahren genügen
 - **Konkret:** Benennen Sie den Vergabefehler genau
-- **Frist:** Setzen Sie eine angemessene Frist zur Abhilfe (10-15 Tage)
+- **Frist:** Setzen Sie keine pauschale gesetzliche Abhilfefrist voraus; entscheidend sind die Rüge- und Antragsfristen des § 160 Abs. 3 GWB
 - **Dokumentation:** Bewahren Sie den Versandnachweis auf
 
 ### Musterformulierung
 "Hiermit rüge ich den Vergabefehler [konkret beschreiben] im Vergabeverfahren [Aktenzeichen]. Ich bitte um Abhilfe bis zum [Datum]."
 
-**Wichtig:** Die Rüge muss vor Ablauf der Angebotsfrist oder innerhalb von 10 Kalendertagen nach Kenntnis des Vergabefehlers erfolgen.
+**Wichtig:** Ein erkannter Verstoß ist im Anwendungsbereich des § 160 Abs. 3 GWB grundsätzlich innerhalb von zehn Kalendertagen zu rügen. Verstöße, die aus der Bekanntmachung oder den Vergabeunterlagen erkennbar sind, müssen spätestens bis zum Ablauf der dort genannten Bewerbungs- oder Angebotsfrist gerügt werden.
 
 ## Schritt 3: Nachprüfungsantrag stellen
 
 Wenn der Auftraggeber nicht abhilft, können Sie einen Nachprüfungsantrag bei der zuständigen Vergabekammer stellen.
 
 ### Zuständige Vergabekammer
-- **Bundesvergabekammer:** Für Aufträge des Bundes
-- **Landesvergabekammern:** Für Aufträge der Länder und Kommunen
-- **Zuständigkeit:** Nach dem Sitz des Auftraggebers
+- **Vergabekammer des Bundes oder eines Landes:** Welche Stelle zuständig ist, richtet sich nach Auftraggeber und Auftrag
+- **Zuständigkeit:** Maßgeblich sind die gesetzlichen Zuständigkeitsregeln; der Sitz des Auftraggebers ist ein wichtiger, aber nicht alleiniger Anknüpfungspunkt
 
 ### Fristen
-- **15 Kalendertage** nach Bekanntgabe des Vergabefehlers
-- **10 Kalendertage** nach Eingang der Rüge-Antwort des Auftraggebers
-- **Bei EU-Vergaben:** 15 Kalendertage nach Information über den Zuschlag
+Die Fristen richten sich nach § 160 Abs. 3 GWB und hängen davon ab, wann der Verstoß erkannt wurde und ob er aus Bekanntmachung oder Vergabeunterlagen hervorgeht. Ein erkannter Verstoß ist grundsätzlich innerhalb von 10 Kalendertagen zu rügen; Fehler aus Bekanntmachung oder Unterlagen müssen spätestens bis zum Ablauf der Angebots- oder Bewerbungsfrist gerügt werden. Zusätzlich gilt eine gesetzliche Ausschlussfrist nach einer Mitteilung des Auftraggebers, dass er der Rüge nicht abhilft.
 
 ### Antragsinhalt
 Der Antrag muss enthalten:
@@ -1015,49 +1052,43 @@ Der Antrag muss enthalten:
 - **Zuschlag untersagt:** Auftraggeber darf keinen Vertrag schließen
 
 ### Fristen der Vergabekammer
-- **EU-Vergaben:** Entscheidung innerhalb von 5 Wochen
-- **Nationale Vergaben:** Entscheidung innerhalb von 7 Wochen
-- **Verlängerung:** Um 2 Wochen in besonderen Fällen
+Die Vergabekammer entscheidet grundsätzlich innerhalb der gesetzlichen Entscheidungsfrist; die konkrete Dauer und mögliche Verlängerungen richten sich nach dem Verfahrensstand und den gesetzlichen Voraussetzungen. Eine pauschale Dauer für jede Vergabe lässt sich daraus nicht ableiten.
 
 ## Schritt 5: Rechtsmittel
 
 Gegen die Entscheidung der Vergabekammer können Sie Rechtsmittel einlegen:
 
 ### Oberlandesgericht (OLG)
-- **Frist:** 2 Wochen nach Zustellung der Kammer-Entscheidung
-- **Prüfung:** Rechtsfragen und Tatsachenfragen
-- **Entscheidung:** Endgültig (keine weitere Berufung)
+- **Rechtsbehelf:** Sofortige Beschwerde gegen die Entscheidung der Vergabekammer
+- **Frist:** Zwei Wochen nach Zustellung der Kammer-Entscheidung
+- **Form:** Schriftlich, begründet und grundsätzlich anwaltlich unterzeichnet
+- **Weitere Vorlage:** Eine Vorlage an den Bundesgerichtshof kommt nur unter den besonderen gesetzlichen Voraussetzungen in Betracht
 
 ### Sofortige Beschwerde
-- Bei besonders eiligen Fällen
-- Entscheidung innerhalb weniger Tage
-- Nur bei drohenden schweren Schäden
+- Sie ist der gesetzliche Rechtsbehelf gegen die Entscheidung der Vergabekammer und nicht nur für besonders eilige Fälle vorgesehen
+- Ihre Wirkung und mögliche vorläufige Maßnahmen richten sich nach den §§ 173 ff. GWB
 
 ## Kosten des Nachprüfungsverfahrens
 
 ### Gebühren der Vergabekammer
-- **EU-Vergaben:** 2.500 € bis 50.000 € (nach Auftragswert)
-- **Nationale Vergaben:** 500 € bis 25.000 €
-- **Bei Erfolg:** Gebühren werden dem Auftraggeber auferlegt
+Für das Nachprüfungsverfahren fallen grundsätzlich Gebühren an. Höhe und Kostenentscheidung richten sich nach den gesetzlichen Vorschriften und dem konkreten Verfahren; pauschale Gebührenkorridore oder eine automatische Kostenerstattung sollten daher nicht angenommen werden.
 
 ### Anwaltskosten
-- **Erstberatung:** 200 € bis 500 €
-- **Verfahren:** 1.000 € bis 5.000 € (je nach Komplexität)
-- **Bei Erfolg:** Kostenerstattung durch den Auftraggeber
+Die notwendigen Aufwendungen und ihre Erstattung richten sich nach dem Ausgang des Verfahrens und den gesetzlichen Vorschriften. Pauschale Kostenangaben sind nicht belastbar; insbesondere können Anwaltskosten, Auslagen, Kammergebühren und gegebenenfalls Kosten eines Beschwerdeverfahrens anfallen.
 
 ## Häufige Fragen
 
 **Kann ich nach der Angebotsabgabe noch rügen?**
-Ja, aber nur innerhalb von 10 Kalendertagen nach Kenntnis des Vergabefehlers. Nach Ablauf der Angebotsfrist ist die Rüge nur noch bei offensichtlichen Fehlern möglich.
+Das hängt vom Zeitpunkt der Kenntnis und vom betroffenen Fehler ab. Für Fehler aus Bekanntmachung oder Vergabeunterlagen ist regelmäßig die Angebots- oder Bewerbungsfrist maßgeblich; bei später erkannten Verstößen gelten die weiteren Voraussetzungen und Fristen des § 160 Abs. 3 GWB.
 
 **Was passiert, wenn ich zu spät rüge?**
-Verspätete Rügen sind unzulässig. Sie verlieren Ihr Recht auf Nachprüfung, auch wenn ein Vergabefehler vorliegt.
+Eine verspätete Rüge kann zur Unzulässigkeit eines späteren Nachprüfungsantrags führen. Welche Frist gilt, muss anhand des konkreten Fehlers und Kenntniszeitpunkts geprüft werden.
 
 **Kann ich Schadensersatz verlangen?**
-Ja, bei nachgewiesenen Vergabefehlern können Sie entgangenen Gewinn geltend machen. Allerdings nur, wenn Sie den Zuschlag bei korrektem Verfahren erhalten hätten.
+Schadensersatz ist vom Nachprüfungsverfahren zu unterscheiden. Ob ein Anspruch besteht, hängt von einer eigenen Anspruchsgrundlage und den Umständen des Einzelfalls ab; die Vergabekammer spricht nicht automatisch entgangenen Gewinn zu.
 
 **Muss ich den Auftraggeber vorher informieren?**
-Ja, die Rüge ist Pflicht. Ohne vorherige Rüge ist der Nachprüfungsantrag unzulässig (§ 160 Abs. 3 GWB).
+Grundsätzlich muss ein erkannter Vergabeverstoß zunächst gegenüber dem Auftraggeber gerügt werden. § 160 Abs. 3 GWB enthält jedoch differenzierte Fristen und Ausnahmen, etwa für bestimmte Feststellungsanträge; der konkrete Fall muss geprüft werden.
 
 ## Fazit
 
@@ -1079,7 +1110,7 @@ Das Nachprüfungsverfahren ist ein starkes Instrument für Bieter bei Vergabefeh
       { name: "Ausschreibungsunterlagen sorgfältig lesen", text: "Lesen Sie die Leistungsbeschreibung, Vergabeunterlagen und Zuschlagskriterien vollständig. Notieren Sie alle Formalien, Fristen und Eignungsanforderungen." },
       { name: "Eignungsnachweise zusammenstellen", text: "Stellen Sie alle geforderten Nachweise zusammen: Handelsregister, Gewerbeanmeldung, Unbedenklichkeitsbescheinigungen, Referenzen, Bilanzen und Versicherungen." },
       { name: "Preis kalkulieren", text: "Kalkulieren Sie den Preis realistisch: Material, Personal (inkl. Mindestlohn), Lohnnebenkosten, Overhead und Marge. Berücksichtigen Sie Tariftreue und Nachhaltigkeitsanforderungen." },
-      { name: "Angebot formatieren und einreichen", text: "Formatieren Sie das Angebot nach den Vorgaben der Ausschreibung. Reichen Sie elektronisch und vor Fristende ein. Verspätete Angebote werden ausnahmslos ausgeschlossen." },
+      { name: "Angebot formatieren und einreichen", text: "Formatieren Sie das Angebot nach den Vorgaben der Ausschreibung. Reichen Sie elektronisch und vor Fristende ein. Verspätete Angebote werden nach den anwendbaren Vorschriften grundsätzlich nicht gewertet." },
     ],
     content: `
 ## Warum ein gutes Angebot über den Zuschlag entscheidet
@@ -1136,7 +1167,7 @@ Die Preisermittlung ist der sensibelste Teil der Angebotserstellung. Kalkulieren
 4. **Marge:** Gewinnzuschlag (üblich: 5-15% je nach Branche)
 
 ### Wichtige Hinweise
-- **Mindestlohn:** Der gesetzliche Mindestlohn (derzeit 12,41 €/h) ist Pflicht — Unterschreitung führt zum Ausschluss
+- **Mindestlohn:** Kalkulieren Sie den jeweils geltenden gesetzlichen Mindestlohn sowie einschlägige tarifliche oder landesrechtliche Vorgaben ein; die konkreten Vergabeunterlagen sind maßgeblich
 - **Tariftreue:** Viele Vergabestellen fordern Tariflohn — prüfen Sie die AVR, TVöD oder TV-L
 - **Materialpreise:** Bei langfristigen Verträgen (Rahmenvereinbarungen) Preissteigerungen einkalkulieren
 - **Nachhaltigkeit:** Zertifizierte Materialien (EU-Blume, Blauer Engel) können Mehrkosten verursachen, aber den Zuschlag sichern
@@ -1176,9 +1207,9 @@ Das Angebot sollte enthalten:
 ## Schritt 5: Angebot einreichen
 
 ### Frist einhalten
-- **EU-Schwellenwert:** Mindestens 35 Kalendertage Angebotsfrist
-- **Unterhalb Schwelle:** Meist 10-20 Kalendertage
-- **Fristversäumnis = Ausschluss** — Ausnahmen gibt es praktisch nicht
+- **EU-Verfahren:** Die Mindestfrist hängt vom Verfahren ab; im offenen Verfahren nach VgV beträgt sie regulär 35 Tage, Verkürzungen sind nur unter gesetzlichen Voraussetzungen möglich
+- **Unterhalb der Schwellenwerte:** Es gibt keine einheitliche Frist für alle Auftraggeber und Leistungen; maßgeblich sind das einschlägige Regelwerk und die Vergabeunterlagen
+- **Fristversäumnis:** Verspätete Angebote werden nach den anwendbaren Vorschriften grundsätzlich nicht gewertet
 
 ### Einreichung prüfen
 Vor der Einreichung prüfen:
@@ -1190,13 +1221,13 @@ Vor der Einreichung prüfen:
 
 ## Typische Fehler vermeiden
 
-1. **Frist versäumt** — Verspätete Angebote werden ausnahmslos ausgeschlossen
+1. **Frist versäumt** — Verspätete Angebote werden nach den anwendbaren Vorschriften grundsätzlich nicht gewertet
 2. **Unterschrift fehlt** — Elektronische Signatur oder eigenhändige Unterschrift
 3. **Nachweise unvollständig** — Fehlende Bescheinigungen oder abgelaufene Zertifikate
 4. **Format nicht eingehalten** — PDF statt Word, falsche Seitenzahl, fehlende Anlagen
 5. **Nebenangebot nicht gekennzeichnet** — Muss klar als solches erkennbar sein
-6. **Preis zu niedrig** — Wirkt unseriös, kann zum Ausschluss führen (§ 60 VgV)
-7. **Mindestlohn unterschritten** — Pflicht bei allen öffentlichen Aufträgen
+6. **Preis zu niedrig** — Ein ungewöhnlich niedriges Angebot kann nach den anwendbaren Vorschriften aufgeklärt und bei fehlender tragfähiger Erklärung ausgeschlossen werden (§ 60 VgV im entsprechenden Anwendungsbereich)
+7. **Arbeitsbedingungen nicht berücksichtigt** — Prüfen Sie gesetzliche Mindestlöhne, Tariftreue- und sonstige landesrechtliche Vorgaben des konkreten Auftrags
 
 ## Checkliste: Angebot erstellen
 
@@ -1223,7 +1254,7 @@ Ein Angebot bei öffentlichen Ausschreibungen zu schreiben erfordert Sorgfalt, S
     description:
       "Umfassender Leitfaden zum Vergaberecht in Deutschland: Gesetzliche Grundlagen, Zuständigkeiten, Rechtsschutz und praktische Tipps für Unternehmen bei öffentlichen Ausschreibungen.",
     datePublished: "2025-02-01",
-    dateModified: "2025-02-01",
+    dateModified: "2026-09-13",
     relatedCategories: ["Bauarbeiten", "IT-Dienstleistungen", "Planungsleistungen"],
     relatedArticles: ["vergabeverfahren-uebersicht", "vob-vergabe", "nachpruefungsverfahren-vergabe"],
     content: `
@@ -1235,14 +1266,14 @@ Das Vergaberecht regelt, wie öffentliche Aufträge an private Unternehmen verge
 
 ### Gesetz gegen Wettbewerbsbeschränkungen (GWB)
 
-Das GWB bildet die Grundlage des deutschen Vergaberechts. Die §§ 97–186 GWB regeln die Vergabe öffentlicher Aufträge. Seit der Vergaberechtsreform 2016 gelten neue Regelungen, die das Verfahren modernisieren und digitalisieren.
+Das GWB bildet die Grundlage des deutschen Vergaberechts. Der vierte Teil enthält die zentralen Regeln für Vergaben im Oberschwellenbereich, darunter Grundsätze, Anwendungsbereich, Schwellenwerte und Rechtsschutz. Seit der Vergaberechtsreform 2016 wurden die Regeln mehrfach weiterentwickelt.
 
 **Wichtige Paragrafen:**
 - § 97 GWB: Grundsätze der Vergabe (Wettbewerb, Transparenz, Gleichbehandlung)
-- § 98 GWB: Öffentliche Auftraggeber
-- § 99 GWB: Vergabeverfahren
+- § 99 GWB: Öffentliche Auftraggeber
+- § 100 und § 101 GWB: Sektorenauftraggeber und Tätigkeiten
 - § 103 GWB: Auftragsarten (Liefer-, Dienstleistungs-, Bauaufträge)
-- § 104 GWB: Schwellenwerte
+- § 106 GWB: Schwellenwerte
 
 ### Vergabeverordnungen
 
@@ -1250,32 +1281,32 @@ Die detaillierten Verfahrensregeln stehen in den Vergabeverordnungen:
 
 | Verordnung | Anwendungsbereich |
 |-----------|------------------|
-| VgV | Vergabe von Liefer- und Dienstleistungen oberhalb EU-Schwellenwerte |
+| VgV | Vergabe von Liefer- und Dienstleistungen im Anwendungsbereich des EU-Oberschwellenbereichs |
 | VOB/A | Vergabe von Bauleistungen |
-| VOL/A | Vergabe von Liefer- und Dienstleistungen unterhalb EU-Schwellenwerte |
+| UVgO | Liefer- und Dienstleistungen im Unterschwellenbereich, soweit eingeführt |
 | SektVO | Vergabe durch Sektorenauftraggeber (Energie, Wasser, Verkehr) |
 
 ## Zuständigkeiten
 
 ### Vergabekammern
 
-In Deutschland gibt es 17 Vergabekammern, die als erste Instanz für vergaberechtliche Nachprüfungsverfahren zuständig sind. Sie sind bei den Landesregierungen angesiedelt.
+Vergabekammern sind die erste Instanz für vergaberechtliche Nachprüfungsverfahren. Zuständig ist die Vergabekammer des Bundes oder des jeweiligen Landes nach den gesetzlichen Zuständigkeitsregeln.
 
 **Aufgaben der Vergabekammern:**
 - Prüfung von Vergabeverfahren auf Rechtmäßigkeit
 - Erlass von einstweiligen Anordnungen
 - Aufhebung rechtswidriger Vergabeentscheidungen
-- Schadensersatzfestsetzung
+- Anordnung von Maßnahmen zur Beseitigung festgestellter Vergabeverstöße
 
 ### Oberlandesgerichte
 
-Die Oberlandesgerichte sind die zweite Instanz im vergaberechtlichen Rechtsschutz. Sie entscheiden über Beschwerden gegen Entscheidungen der Vergabekammern.
+Die Vergabesenate der Oberlandesgerichte entscheiden über die sofortige Beschwerde gegen Entscheidungen der Vergabekammern. Das ist ein besonderer vergaberechtlicher Rechtsbehelf und keine gewöhnliche Berufung.
 
 ## Rechtsschutz im Vergabeverfahren
 
 ### Rügepflicht
 
-Unternehmen müssen Vergabeverstöße unverzüglich rügen (§ 160 Abs. 3 GWB). Die Rüge muss:
+Unternehmen müssen erkannte Vergabeverstöße nach Maßgabe des § 160 Abs. 3 GWB rechtzeitig rügen. Für einen erkannten Verstoß gilt grundsätzlich eine Frist von zehn Kalendertagen. Die Rüge muss:
 - Schriftlich erfolgen
 - Den Verstoß konkret benennen
 - Innerhalb von 10 Tagen nach Kenntnis erfolgen
@@ -1283,9 +1314,9 @@ Unternehmen müssen Vergabeverstöße unverzüglich rügen (§ 160 Abs. 3 GWB). 
 ### Nachprüfungsantrag
 
 Wenn die Rüge nicht abhilft, können Unternehmen einen Nachprüfungsantrag bei der Vergabekammer stellen. Voraussetzungen:
-- Schwerwiegender Vergabeverstoß
+- Mögliche Verletzung einer vergaberechtlichen Vorschrift
 - Rechtzeitige Rüge
-- Antragsfrist: 15 Kalendertage nach Zustellung der Vergabeinformation
+- Antragsfrist: In bestimmten Fällen 15 Kalendertage nach Eingang der Mitteilung, dass der Auftraggeber der Rüge nicht abhelfen will; die weiteren Voraussetzungen des § 160 GWB müssen erfüllt sein
 
 ### Einstweilige Anordnung
 
@@ -1348,9 +1379,18 @@ Das Vergaberecht ist komplex, aber durchsichtig. Wer die grundlegenden Regeln ke
     description:
       "EU-Vergabe erklärt: Schwellenwerte, TED-Suche, Vergabeverfahren in der EU, Rechtsschutz und Tipps für deutsche Unternehmen bei europaweiten Ausschreibungen.",
     datePublished: "2025-02-15",
-    dateModified: "2025-02-15",
+    dateModified: "2026-09-29",
     relatedCategories: ["IT-Dienstleistungen", "Planungsleistungen", "Lieferung"],
-    relatedArticles: ["vergabeverfahren-uebersicht", "vergaberecht-leitfaden", "oeffentliche-auftraege-finden"],
+    relatedArticles: ["vergabeverfahren-uebersicht", "schwellenwerte-vergabe", "vob-vergabe", "vergaberecht-leitfaden", "oeffentliche-auftraege-finden"],
+    relatedGlossaryTerms: ["schwellenwerte", "auftragswert", "vob-a-eu", "vgv-vergabeverordnung", "gwb-vergaberecht", "ted"],
+    sources: [
+      { title: "Bundesanzeiger: EU-Schwellenwerte ab 1. Januar 2026", url: "https://www.bundesanzeiger.de/pub/publication/zDKvMODHbpcIPpDPapc/content/zDKvMODHbpcIPpDPapc/BAnz%20AT%2018.12.2025%20B4.pdf?inline" },
+      { title: "§ 106 GWB – Schwellenwerte", url: "https://www.gesetze-im-internet.de/gwb/__106.html" },
+      { title: "Delegierte Verordnung (EU) 2025/2152", url: "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32025R2152" },
+      { title: "Delegierte Verordnung (EU) 2025/2151 für Konzessionen", url: "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32025R2151" },
+      { title: "Delegierte Verordnung (EU) 2025/2150 für Sektorenauftraggeber", url: "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32025R2150" },
+    ],
+    lastReviewed: "2026-09-29",
     content: `
 ## Was ist EU-Vergabe?
 
@@ -1360,19 +1400,23 @@ Die EU-Vergabe regelt die Vergabe öffentlicher Aufträge oberhalb bestimmter Sc
 
 | Auftragsart | Schwellenwert (netto) |
 |------------|----------------------|
-| Bauaufträge | 5.404.000 € |
-| Liefer- und Dienstleistungen (bestimmte zentrale Regierungsbehörden) | 140.000 € |
-| Liefer- und Dienstleistungen (sonstige bestimmte Auftraggeber) | 216.000 € |
+| Bauaufträge klassischer öffentlicher Auftraggeber | 5.404.000 € |
+| Liefer- und Dienstleistungen zentraler Regierungsbehörden im Sinne von § 106 Absatz 2 Nummer 1 GWB | 140.000 € |
+| Liefer- und Dienstleistungen anderer öffentlicher Auftraggeber im Anwendungsbereich der Richtlinie 2014/24/EU | 216.000 € |
 | Sektorenaufträge (Liefer- und Dienstleistungen) | 432.000 € |
-| Soziale Dienste | 750.000 € |
+| Soziale und andere besondere Dienstleistungen (klassische Auftraggeber) | 750.000 € |
+| Konzessionen | 5.404.000 € |
+| Liefer- und Dienstleistungen im Verteidigungs- und Sicherheitsbereich | 432.000 € |
+| Bauaufträge im Verteidigungs- und Sicherheitsbereich | 5.404.000 € |
+| Soziale und andere besondere Dienstleistungen von Sektorenauftraggebern | 1.000.000 € |
 
-Oberhalb dieser Werte gelten die EU-Vergaberichtlinien und das GWB. Unterhalb gelten nationale Regeln.
+Die Beträge gelten ab dem 1. Januar 2026 für 2026/2027 und beziehen sich auf Deutschland; entscheidend sind stets Auftraggeber, Auftragsart und der passende Anwendungsbereich. Oberhalb des einschlägigen Schwellenwerts gelten das GWB und die jeweils anwendbaren EU-Vergaberegeln, unterhalb die nationalen Regeln.
 
 ## Vergabeplattformen in der EU
 
 ### TED (Tenders Electronic Daily)
 
-TED ist die offizielle Plattform der EU für die Veröffentlichung von Ausschreibungen. Alle Aufträge oberhalb der EU-Schwellenwerte müssen hier veröffentlicht werden.
+TED ist die offizielle Plattform der EU für unionsrechtlich vorgeschriebene Vergabebekanntmachungen. Bekanntmachungspflichtige Vergaben im EU-Oberschwellenbereich werden dort grundsätzlich veröffentlicht; Ausnahmen und besondere Regelwerke sind anhand des konkreten Verfahrens zu prüfen.
 
 **TED bietet:**
 - Volltextsuche nach Aufträgen
@@ -1389,7 +1433,7 @@ Jedes EU-Land hat eigene Vergabeplattformen:
 | Deutschland | DTVP, evergabe, TED-DE |
 | Österreich | Unternehmensserviceportal |
 | Schweiz | Simap |
-| Frankenção | BOAMP |
+| Frankreich | BOAMP |
 | Niederlande | TenderNed |
 
 ## Vergabeverfahren in der EU
@@ -1476,7 +1520,8 @@ Die EU-Vergabe bietet deutschen Unternehmen große Chancen. Wer die EU-Schwellen
     datePublished: "2025-03-01",
     dateModified: "2025-03-01",
     relatedCategories: ["Bauarbeiten", "IT-Dienstleistungen", "Facility Management"],
-    relatedArticles: ["oeffentliche-auftraege-finden", "vergabeverfahren-uebersicht", "vergaberecht-leitfaden"],
+     relatedArticles: ["oeffentliche-auftraege-finden", "vergabeverfahren-uebersicht", "vergaberecht-leitfaden"],
+     relatedGlossaryTerms: ["e-vergabe", "vergabeunterlagen", "ted", "eforms"],
     content: `
 ## Warum einen Vergabeportal-Vergleich?
 
@@ -1539,7 +1584,7 @@ Die Wahl des richtigen Vergabeportals ist entscheidend für den Erfolg bei öffe
 
 ### TED (Tenders Electronic Daily)
 
-**Beschreibung:** TED ist die offizielle Plattform der EU für die Veröffentlichung von Ausschreibungen oberhalb der EU-Schwellenwerte.
+**Beschreibung:** TED ist die offizielle Plattform der EU für unionsrechtlich vorgeschriebene Vergabebekanntmachungen; bekanntmachungspflichtige Verfahren im EU-Oberschwellenbereich werden dort grundsätzlich veröffentlicht.
 
 **Funktionen:**
 - Suche nach EU-weiten Ausschreibungen

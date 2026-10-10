@@ -17,14 +17,13 @@ import {
   ArrowRight,
   Home as HomeIcon,
 } from "lucide-react";
-import { BUNDESLAND_SLUGS, SLUG_TO_BUNDESLAND, ALL_BUNDESLAND_SLUGS } from "@/lib/bundesland";
+import { SLUG_TO_BUNDESLAND } from "@/lib/bundesland";
 import { BUNDESLAND_CONTENT } from "@/lib/bundesland-content";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 import { searchTenders } from "@/lib/meilisearch";
-import { CITIES } from "@/lib/cities";
 import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
 import { SiteFooter } from "@/components/seo/SiteFooter";
-import { getListingRobots, getPageNumber, type SeoSearchParams } from "@/lib/seo-indexability";
+import { getListingRobots, getPageNumber, getPaginationHref, type SeoSearchParams } from "@/lib/seo-indexability";
 
 // SEO: Bundesland landing pages for regional long-tail keywords like "Ausschreibungen Bayern"
 export const revalidate = 3600;
@@ -32,7 +31,9 @@ export const runtime = "nodejs";
 
 const PAGE_SIZE = 20;
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+import { getSiteUrl } from "@/lib/site-config";
+
+const siteUrl = getSiteUrl();
 
 // Editorial intros for each Bundesland — SEO keyword-rich content
 const REGION_INTRO: Record<string, string> = {
@@ -57,10 +58,6 @@ const REGION_INTRO: Record<string, string> = {
 interface PageProps {
   params: Promise<{ slug: string }>;
   searchParams: Promise<SeoSearchParams>;
-}
-
-export async function generateStaticParams() {
-  return ALL_BUNDESLAND_SLUGS.map((slug) => ({ slug }));
 }
 
 export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
@@ -139,6 +136,12 @@ export default async function RegionPage({ params, searchParams }: PageProps) {
   } catch {
     // Meilisearch unavailable — page renders empty with noindex
   }
+
+  const availableCategorySlugs = new Set(
+    tenders
+      .map((tender) => CATEGORY_SLUGS[tender.category])
+      .filter((catSlug): catSlug is string => Boolean(catSlug)),
+  );
 
   const itemListJsonLd = {
     "@context": "https://schema.org",
@@ -304,7 +307,7 @@ export default async function RegionPage({ params, searchParams }: PageProps) {
             >
               {currentPage > 1 && (
                 <Link
-                  href={`/ausschreibungen/region/${slug}?page=${currentPage - 1}`}
+                  href={getPaginationHref(`/ausschreibungen/region/${slug}`, currentPage - 1)}
                   style={{ textDecoration: "none", color: "#e9644d", fontWeight: 600, padding: "8px 12px" }}
                 >
                   ← Zurück
@@ -322,7 +325,7 @@ export default async function RegionPage({ params, searchParams }: PageProps) {
                         <span style={{ fontWeight: 700, color: "#e9644d", padding: "8px 12px" }}>{p}</span>
                       ) : (
                         <Link
-                          href={`/ausschreibungen/region/${slug}?page=${p}`}
+                          href={getPaginationHref(`/ausschreibungen/region/${slug}`, p)}
                           style={{ textDecoration: "none", color: "#667288", fontWeight: 500, padding: "8px 12px" }}
                         >
                           {p}
@@ -333,7 +336,7 @@ export default async function RegionPage({ params, searchParams }: PageProps) {
                 })}
               {currentPage < totalPages && (
                 <Link
-                  href={`/ausschreibungen/region/${slug}?page=${currentPage + 1}`}
+                  href={getPaginationHref(`/ausschreibungen/region/${slug}`, currentPage + 1)}
                   style={{ textDecoration: "none", color: "#e9644d", fontWeight: 600, padding: "8px 12px" }}
                 >
                   Weiter →
@@ -392,27 +395,16 @@ export default async function RegionPage({ params, searchParams }: PageProps) {
             </Box>
           )}
 
-          {/* Other Regions */}
-          <Box sx={{ mb: 5 }}>
-            <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
-              Weitere Regionen
-            </Typography>
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              {ALL_BUNDESLAND_SLUGS.filter((s) => s !== slug).map((s) => (
-                <Link key={s} href={`/ausschreibungen/region/${s}`} style={{ textDecoration: "none" }}>
-                  <Chip clickable label={SLUG_TO_BUNDESLAND[s]} variant="outlined" sx={{ fontWeight: 500 }} />
-                </Link>
-              ))}
-            </Stack>
-          </Box>
-
-          {/* SEO: Cross-links to Region×Category pages for long-tail internal linking */}
+          {/* SEO: Link only to Region×Category pages represented by current results */}
+          {availableCategorySlugs.size > 0 && (
           <Box sx={{ mb: 5 }}>
             <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
               Kategorien in {bundesland}
             </Typography>
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              {Object.entries(CATEGORY_SLUGS).map(([key, catSlug]) => (
+              {Object.entries(CATEGORY_SLUGS)
+                .filter(([, catSlug]) => availableCategorySlugs.has(catSlug))
+                .map(([key, catSlug]) => (
                 <Link
                   key={catSlug}
                   href={`/ausschreibungen/region/${slug}/${catSlug}`}
@@ -425,32 +417,10 @@ export default async function RegionPage({ params, searchParams }: PageProps) {
                     sx={{ fontWeight: 500 }}
                   />
                 </Link>
-              ))}
+                ))}
             </Stack>
           </Box>
-
-          {/* SEO: Cross-links to city landing pages within this Bundesland */}
-          <Box sx={{ mb: 5 }}>
-            <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
-              Ausschreibungen nach Stadt in {bundesland}
-            </Typography>
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              {CITIES.filter((c) => c.bundesland === bundesland).map((city) => (
-                <Link
-                  key={city.slug}
-                  href={`/ausschreibungen/stadt/${city.slug}`}
-                  style={{ textDecoration: "none" }}
-                >
-                  <Chip
-                    clickable
-                    label={city.label}
-                    variant="outlined"
-                    sx={{ fontWeight: 500 }}
-                  />
-                </Link>
-              ))}
-            </Stack>
-          </Box>
+          )}
 
           {/* CTA */}
           <Box sx={{ p: { xs: 3, md: 4 }, textAlign: "center", bgcolor: "primary.light", borderRadius: 2 }}>

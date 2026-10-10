@@ -22,12 +22,11 @@ import {
 } from "lucide-react";
 import { CATEGORY_LABELS, CATEGORY_SLUGS, SLUG_TO_CATEGORY, ALL_CATEGORY_SLUGS } from "@/lib/categories";
 import { CATEGORY_CONTENT } from "@/lib/category-content";
-import { BUNDESLAND_SLUGS } from "@/lib/bundesland";
-import { CITIES } from "@/lib/cities";
 import { ARTICLES } from "@/lib/articles";
 import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
 import { SiteFooter } from "@/components/seo/SiteFooter";
-import { getListingRobots, getPageNumber, type SeoSearchParams } from "@/lib/seo-indexability";
+import { getListingRobots, getPageNumber, getPaginationHref, type SeoSearchParams } from "@/lib/seo-indexability";
+import { pickValidatedPublicCandidate } from "@/lib/public-content-quality";
 import { readPublicTenderMeta } from "@/lib/tender-meta";
 
 // SEO: Pagination for category pages — 20 tenders per page
@@ -36,7 +35,9 @@ const PAGE_SIZE = 20;
 export const revalidate = 3600;
 export const runtime = "nodejs";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+import { getSiteUrl } from "@/lib/site-config";
+
+const siteUrl = getSiteUrl();
 
 interface PageProps {
   params: Promise<{ kategorie: string }>;
@@ -176,7 +177,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
       const location = meta.location ? meta.location.split(",")[0].trim().slice(0, 60) : null;
       return {
         id: row.id,
-        title: row.title ?? `Ausschreibung #${row.id}`,
+        title: pickValidatedPublicCandidate(row.title) || `Ausschreibung #${row.id}`,
         source: row.source,
         deadline: row.deadlineAt
           ? new Date(row.deadlineAt).toLocaleDateString("de-DE", {
@@ -454,7 +455,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
             >
               {currentPage > 1 && (
                 <Link
-                  href={`/ausschreibungen/${kategorie}?page=${currentPage - 1}`}
+                  href={getPaginationHref(`/ausschreibungen/${kategorie}`, currentPage - 1)}
                   style={{ textDecoration: "none", color: "#e9644d", fontWeight: 600, padding: "8px 12px" }}
                 >
                   ← Zurück
@@ -472,7 +473,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
                         <span style={{ fontWeight: 700, color: "#e9644d", padding: "8px 12px" }}>{p}</span>
                       ) : (
                         <Link
-                          href={`/ausschreibungen/${kategorie}?page=${p}`}
+                          href={getPaginationHref(`/ausschreibungen/${kategorie}`, p)}
                           style={{ textDecoration: "none", color: "#667288", fontWeight: 500, padding: "8px 12px" }}
                         >
                           {p}
@@ -483,7 +484,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
                 })}
               {currentPage < totalPages && (
                 <Link
-                  href={`/ausschreibungen/${kategorie}?page=${currentPage + 1}`}
+                  href={getPaginationHref(`/ausschreibungen/${kategorie}`, currentPage + 1)}
                   style={{ textDecoration: "none", color: "#e9644d", fontWeight: 600, padding: "8px 12px" }}
                 >
                   Weiter →
@@ -597,52 +598,6 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
               </Stack>
             </Box>
           )}
-
-          {/* SEO: Cross-links to Region×Category pages for long-tail internal linking */}
-          <Box sx={{ mb: 5 }}>
-            <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
-              {label} nach Bundesland
-            </Typography>
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              {Object.entries(BUNDESLAND_SLUGS).map(([bundesland, blSlug]) => (
-                <Link
-                  key={blSlug}
-                  href={`/ausschreibungen/region/${blSlug}/${kategorie}`}
-                  style={{ textDecoration: "none" }}
-                >
-                  <Chip
-                    clickable
-                    label={`${label} ${bundesland}`}
-                    variant="outlined"
-                    sx={{ fontWeight: 500 }}
-                  />
-                </Link>
-              ))}
-            </Stack>
-          </Box>
-
-          {/* SEO: Cross-links to City×Category pages for long-tail "{Kategorie} {Stadt}" keywords */}
-          <Box sx={{ mb: 5 }}>
-            <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
-              {label} nach Stadt
-            </Typography>
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              {CITIES.slice(0, 15).map((city) => (
-                <Link
-                  key={city.slug}
-                  href={`/ausschreibungen/stadt/${city.slug}/${kategorie}`}
-                  style={{ textDecoration: "none" }}
-                >
-                  <Chip
-                    clickable
-                    label={`${label} ${city.label}`}
-                    variant="outlined"
-                    sx={{ fontWeight: 500 }}
-                  />
-                </Link>
-              ))}
-            </Stack>
-          </Box>
 
           {/* CTA */}
           <Box

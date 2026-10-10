@@ -1,4 +1,4 @@
-// SEO: Vergabelexikon — ~50 glossary entries targeting long-tail glossary queries
+// SEO: Vergabelexikon — focused glossary entries targeting long-tail queries
 // Competitor vergabe24.de has 100+ entries; this is our foundation set.
 // Categories: Rechtsgrundlagen, Verfahren, Prozess, Eignung, Nachprüfung, Technik, Akteure
 
@@ -28,33 +28,40 @@ export const GLOSSARY: GlossaryEntry[] = [
     slug: "gwb-vergaberecht",
     term: "GWB (Gesetz gegen Wettbewerbsbeschränkungen)",
     category: "Rechtsgrundlagen",
-    shortDefinition: "Das GWB ist das zentrale Wettbewerbsgesetz Deutschlands. Teil 4 (§§ 97–173) regelt das öffentliche Vergaberecht.",
+    shortDefinition: "Das GWB ist das zentrale Wettbewerbsgesetz Deutschlands. Teil 4 enthält die zentralen Regeln für öffentliche Aufträge und Konzessionen im dort geregelten Anwendungsbereich.",
     definition: [
-      "Das Gesetz gegen Wettbewerbsbeschränkungen (GWB) ist die rechtliche Grundlage für die öffentliche Auftragsvergabe in Deutschland. Der vierte Teil des GWB (§§ 97–173 GWB) enthält die zentralen vergaberechtlichen Vorschriften, die für öffentliche Auftraggeber bindend sind.",
+      "Das Gesetz gegen Wettbewerbsbeschränkungen (GWB) ist die rechtliche Grundlage für die öffentliche Auftragsvergabe in Deutschland. Sein vierter Teil enthält die zentralen vergaberechtlichen Vorschriften, die für öffentliche Auftraggeber im jeweiligen Anwendungsbereich bindend sind.",
       "Das GWB regelt unter anderem die Anwendungsbereiche des Vergaberechts, die vergabeverfahrensrechtlichen Prinzipien (Transparenz, Wettbewerb, Gleichbehandlung), die Schwellenwerte und das Nachprüfungsverfahren. Es implementiert die europäischen Vergaberichtlinien in nationales Recht.",
-      "Die Vorschriften des GWB gelten für Beschaffungen oberhalb der EU-Schwellenwerte. Für Unterschwellenvergaben gelten stattdessen die UVgO (Liefer- und Dienstleistungen), die VOB/A (Bauleistungen) oder landesspezifische Vergabevorschriften.",
+      "Teil 4 GWB greift grundsätzlich bei öffentlichen Aufträgen und Konzessionen ab dem jeweils einschlägigen EU-Schwellenwert. Für Unterschwellenvergaben gelten je nach Auftraggeber, Leistungsart und Einführung UVgO, VOB/A oder landesspezifische und haushaltsrechtliche Vorschriften.",
     ],
     keyPoints: [
-      "Teil 4 (§§ 97–173 GWB) = Kern des deutschen Vergaberechts",
-      "Gilt für Vergaben oberhalb der EU-Schwellenwerte",
+      "Teil 4 GWB = Kern des deutschen Vergaberechts",
+      "Teil 4 gilt im jeweils einschlägigen EU-Oberschwellenbereich",
       "Regelt Transparenz-, Wettbewerbs- und Gleichbehandlungsprinzip",
       "Grundlage für das Nachprüfungsverfahren vor Vergabekammern",
     ],
     faq: [
       {
         question: "Was regelt das GWB im Vergaberecht?",
-        answer: "Das GWB regelt in seinem vierten Teil (§§ 97–173) die öffentliche Auftragsvergabe in Deutschland. Es definiert die Grundprinzipien wie Transparenz, Wettbewerb und Gleichbehandlung, legt die Schwellenwerte fest und ermöglicht die Nachprüfung von Vergabeverfahren durch Vergabekammern.",
+        answer: "Das GWB regelt in seinem vierten Teil die öffentliche Auftragsvergabe in Deutschland. Es definiert Grundprinzipien wie Transparenz, Wettbewerb und Gleichbehandlung, regelt den Anwendungsbereich über Schwellenwerte und ermöglicht unter den gesetzlichen Voraussetzungen die Nachprüfung durch Vergabekammern.",
       },
       {
-        question: "Für welche Aufträge gilt das GWB?",
-        answer: "Das GWB gilt grundsätzlich für alle öffentlichen Aufträge oberhalb der EU-Schwellenwerte. Für Unterschwellenvergaben gelten die UVgO, VOB/A oder landesspezifische Vorschriften, die dem GWB-Prinzip der Wirtschaftlichkeit und Sparsamkeit folgen.",
+        question: "Für welche Aufträge gilt Teil 4 GWB?",
+        answer: "Teil 4 GWB gilt grundsätzlich für öffentliche Aufträge und Konzessionen, deren geschätzter Wert den jeweils einschlägigen EU-Schwellenwert erreicht oder überschreitet und die in seinen Anwendungsbereich fallen. Auftraggeber, Leistungsart und Sonderregelungen müssen dabei geprüft werden.",
       },
       {
         question: "Wo finde ich den vollständigen Text des GWB?",
-        answer: "Den vollständigen Text des GWB finden Sie auf gesetze-im-internet.de unter der offiziellen Veröffentlichung des Bundesministeriums der Justiz. Teil 4 umfasst die §§ 97 bis 173.",
+        answer: "Den vollständigen Text des GWB finden Sie auf gesetze-im-internet.de unter der offiziellen Veröffentlichung des Bundesministeriums der Justiz. Für die Einordnung sind insbesondere die Vorschriften des vierten Teils und die jeweils aktuelle Fassung maßgeblich.",
       },
     ],
-    relatedTerms: ["vgv-vergabeverordnung", "uvgo", "vob-a"],
+    relatedTerms: ["vgv-vergabeverordnung", "uvgo", "vob-a", "vob-a-eu", "schwellenwerte", "nachpruefungsverfahren"],
+    relatedArticles: ["vergaberecht-leitfaden", "schwellenwerte-vergabe", "vob-vergabe"],
+    sources: [
+      { title: "§ 97 GWB – Grundsätze der Vergabe", url: "https://www.gesetze-im-internet.de/gwb/__97.html" },
+      { title: "§ 106 GWB – Schwellenwerte", url: "https://www.gesetze-im-internet.de/gwb/__106.html" },
+      { title: "§ 160 GWB – Einleitung, Antrag", url: "https://www.gesetze-im-internet.de/gwb/__160.html" },
+    ],
+    lastReviewed: "2026-09-13",
   },
   {
     slug: "vgv-vergabeverordnung",
@@ -86,8 +93,13 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "Für Sektorenauftraggeber und Konzessionen gelten regelmäßig besondere Regelwerke. Bei Bauaufträgen gilt nicht pauschal ein vollständiger Ausschluss der VgV: § 2 VgV ordnet die Anwendung bestimmter VgV-Teile an und verweist im Übrigen auf VOB/A Abschnitt 2.",
       },
     ],
-    relatedTerms: ["uvgo", "vob-a", "gwb-vergaberecht", "sektvo", "konzvgv"],
+    relatedTerms: ["uvgo", "vob-a", "vob-a-eu", "gwb-vergaberecht", "sektvo", "konzvgv"],
     relatedCategories: ["Planungsleistungen", "IT-Dienstleistungen", "Lieferung"],
+    sources: [
+      { title: "§ 2 VgV – Bauaufträge", url: "https://www.gesetze-im-internet.de/vgv_2016/__2.html" },
+      { title: "VgV – vollständige amtliche Fassung", url: "https://www.gesetze-im-internet.de/vgv_2016/" },
+    ],
+    lastReviewed: "2026-09-17",
   },
   {
     slug: "uvgo",
@@ -126,10 +138,10 @@ export const GLOSSARY: GlossaryEntry[] = [
     slug: "vob-a",
     term: "VOB/A (Vergabe- und Vertragsordnung für Bauleistungen, Teil A)",
     category: "Rechtsgrundlagen",
-    shortDefinition: "Die VOB/A enthält die Vergaberegeln für öffentliche Bauaufträge. Abschnitt 1 gilt national, Abschnitt 2 für Bauaufträge im EU-Oberschwellenbereich und Abschnitt 3 für verteidigungs- und sicherheitsspezifische Vergaben.",
+    shortDefinition: "Die VOB/A enthält die Vergaberegeln für öffentliche Bauaufträge: Abschnitt 1 für den nationalen Bereich, Abschnitt 2 für den EU-Oberschwellenbereich und Abschnitt 3 für verteidigungs- und sicherheitsspezifische Vergaben.",
     definition: [
-      "Die Vergabe- und Vertragsordnung für Bauleistungen, Teil A (VOB/A) regelt den vergaberechtlichen Teil öffentlicher Bauaufträge. Sie unterscheidet zwischen Abschnitt 1 für den nationalen Unterschwellenbereich, Abschnitt 2 für den EU-Oberschwellenbereich und Abschnitt 3 für verteidigungs- und sicherheitsspezifische Aufträge.",
-      "Bei Bauaufträgen oberhalb der EU-Schwellenwerte ist die VOB/A Abschnitt 2 nicht isoliert zu lesen. § 2 VgV ordnet an, welche Teile der VgV zusätzlich gelten; für die Vergabe von Planungsleistungen, die als Los eines Bauauftrags vergeben werden, gilt die VgV nach dieser Vorschrift unmittelbar.",
+      "Die Vergabe- und Vertragsordnung für Bauleistungen, Teil A (VOB/A, auch „VOB A“ geschrieben) regelt den vergaberechtlichen Teil öffentlicher Bauaufträge. Sie unterscheidet zwischen Abschnitt 1 für den nationalen Unterschwellenbereich, Abschnitt 2 für den EU-Oberschwellenbereich und Abschnitt 3 für verteidigungs- und sicherheitsspezifische Aufträge.",
+      "Bei Bauaufträgen oberhalb der EU-Schwellenwerte ist die VOB/A Abschnitt 2 nicht isoliert zu lesen. Nach § 2 VgV sind Abschnitt 1 und Abschnitt 2 Unterabschnitt 2 der VgV anzuwenden; im Übrigen gilt VOB/A Teil A Abschnitt 2. Planungsleistungen, die als Los eines Bauauftrags vergeben werden, unterliegen nach § 2 VgV der VgV.",
       "Die VOB/A betrifft das Vergabeverfahren, etwa Leistungsbeschreibung, Eignung, Angebote und Zuschlag. Die VOB/B regelt dagegen Vertragsbedingungen für die Ausführung, die VOB/C technische Vertragsbedingungen und Abrechnungsgrundlagen.",
     ],
     keyPoints: [
@@ -152,15 +164,16 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "Die VOB/A regelt die Vergabe von Bauleistungen. Die VgV regelt grundsätzlich Liefer- und Dienstleistungen oberhalb der EU-Schwellenwerte; § 2 VgV bestimmt aber auch ihre Anwendung bei Bauaufträgen und bei bestimmten Planungsleistungen. Deshalb ist keine pauschale Entweder-oder-Aussage richtig.",
       },
     ],
-    relatedTerms: ["vob-b", "vob-c", "vob-a-eu", "schwellenwerte", "auftragswert", "leistungsbeschreibung", "leistungsverzeichnis", "vgv-vergabeverordnung", "gwb-vergaberecht"],
+    relatedTerms: ["vob-b", "vob-c", "vob-a-eu", "schwellenwerte", "auftragswert", "leistungsbeschreibung", "leistungsverzeichnis", "losvergabe", "vgv-vergabeverordnung", "gwb-vergaberecht", "eignungsleihe"],
     relatedCategories: ["Bauarbeiten", "Tiefbau", "TGA", "Gartenarbeiten"],
-    relatedArticles: ["vob-vergabe"],
+    relatedArticles: ["vob-vergabe", "schwellenwerte-vergabe"],
     sources: [
-      { title: "VOB/A, Bekanntmachung vom 31. Januar 2019 (BAnz AT 19.02.2019 B2)", url: "https://www.verwaltungsvorschriften-im-internet.de/bsvwvbund_31012019_BWI781063060120180001604634.htm" },
+        { title: "Bundesanzeiger: VOB/A-Änderung vom 22. Juli 2026 (BAnz AT 24.08.2026 B6)", url: "https://www.bundesanzeiger.de/pub/publication/73xO0rpP1jfX5HRt0Ja/content/73xO0rpP1jfX5HRt0Ja/BAnz%20AT%2024.08.2026%20B6.pdf?inline" },
+       { title: "VOB/A, Bekanntmachung vom 31. Januar 2019 (BAnz AT 19.02.2019 B2)", url: "https://www.verwaltungsvorschriften-im-internet.de/bsvwvbund_31012019_BWI781063060120180001604634.htm" },
       { title: "§ 2 VgV – Bauaufträge", url: "https://www.gesetze-im-internet.de/vgv_2016/__2.html" },
       { title: "BMWE: Vergabeübersicht und Rechtsgrundlagen", url: "https://www.bundeswirtschaftsministerium.de/Redaktion/DE/Artikel/Wirtschaft/vergabe-uebersicht-und-rechtsgrundlagen.html" },
     ],
-    lastReviewed: "2026-09-06",
+    lastReviewed: "2026-09-29",
   },
   {
     slug: "vob-b",
@@ -176,12 +189,16 @@ export const GLOSSARY: GlossaryEntry[] = [
     faq: [
       { question: "Was ist der Unterschied zwischen VOB/A und VOB/B?", answer: "VOB/A regelt das Vergabeverfahren für Bauleistungen. VOB/B enthält Vertragsbedingungen für die Ausführung eines Bauvertrags nach dem Zuschlag." },
       { question: "Gilt die VOB/B automatisch bei öffentlichen Bauaufträgen?", answer: "Nein. Die VOB/B muss grundsätzlich als Vertragsbestandteil vereinbart und in den Vergabeunterlagen eindeutig einbezogen werden." },
+      { question: "Welche Themen regelt die VOB/B?", answer: "Die VOB/B betrifft unter anderem Ausführung und Fristen, Abnahme, Vergütung, Änderungen und Nachträge, Mängel sowie Kündigung. Entscheidend bleiben die wirksame Einbeziehung und der konkrete Vertrag." },
     ],
-    relatedTerms: ["vob-a", "vob-c", "leistungsbeschreibung", "leistungsverzeichnis"],
+    relatedTerms: ["vob-a", "vob-a-eu", "vob-c", "nachunternehmer", "leistungsbeschreibung", "leistungsverzeichnis"],
     relatedCategories: ["Bauarbeiten", "Tiefbau", "TGA", "Gartenarbeiten"],
     relatedArticles: ["vob-vergabe"],
-    sources: [{ title: "VOB/A, Abschnitt 1, § 8a (Einbeziehung von VOB/B und VOB/C)", url: "https://www.verwaltungsvorschriften-im-internet.de/bsvwvbund_31012019_BWI781063060120180001604634.htm" }],
-    lastReviewed: "2026-09-06",
+    sources: [
+      { title: "VOB/A, Abschnitt 1, § 8a (Einbeziehung von VOB/B und VOB/C)", url: "https://www.verwaltungsvorschriften-im-internet.de/bsvwvbund_31012019_BWI781063060120180001604634.htm" },
+      { title: "BMWE: Vergabeübersicht und Rechtsgrundlagen", url: "https://www.bundeswirtschaftsministerium.de/Redaktion/DE/Artikel/Wirtschaft/vergabe-uebersicht-und-rechtsgrundlagen.html" },
+    ],
+    lastReviewed: "2026-09-17",
   },
   {
     slug: "vob-c",
@@ -197,12 +214,16 @@ export const GLOSSARY: GlossaryEntry[] = [
     faq: [
       { question: "Was regelt die VOB/C?", answer: "Die VOB/C regelt technische Anforderungen und Abrechnungsgrundlagen für unterschiedliche Bauleistungen, insbesondere über die jeweiligen ATV." },
       { question: "Was ist der Unterschied zwischen VOB/B und VOB/C?", answer: "VOB/B enthält allgemeine rechtliche Vertragsbedingungen für die Bauausführung. VOB/C enthält technische, gewerkespezifische Vertragsbedingungen." },
+      { question: "Ist die VOB/C eine Vergabeordnung?", answer: "Nein. Die VOB/C beschreibt technische Vertragsbedingungen und ATV. Das Vergabeverfahren steht in VOB/A; allgemeine Ausführungsbedingungen enthält VOB/B." },
     ],
-    relatedTerms: ["vob-a", "vob-b", "leistungsbeschreibung", "leistungsverzeichnis"],
+    relatedTerms: ["vob-a", "vob-a-eu", "vob-b", "leistungsbeschreibung", "leistungsverzeichnis"],
     relatedCategories: ["Bauarbeiten", "Tiefbau", "TGA", "Gartenarbeiten"],
     relatedArticles: ["vob-vergabe"],
-    sources: [{ title: "VOB/A, Abschnitt 1, § 8a (Einbeziehung von VOB/B und VOB/C)", url: "https://www.verwaltungsvorschriften-im-internet.de/bsvwvbund_31012019_BWI781063060120180001604634.htm" }],
-    lastReviewed: "2026-09-06",
+    sources: [
+      { title: "VOB/A, Abschnitt 1, § 8a (Einbeziehung von VOB/B und VOB/C)", url: "https://www.verwaltungsvorschriften-im-internet.de/bsvwvbund_31012019_BWI781063060120180001604634.htm" },
+      { title: "BMWE: Vergabeübersicht und Rechtsgrundlagen", url: "https://www.bundeswirtschaftsministerium.de/Redaktion/DE/Artikel/Wirtschaft/vergabe-uebersicht-und-rechtsgrundlagen.html" },
+    ],
+    lastReviewed: "2026-09-17",
   },
   {
     slug: "vob-a-eu",
@@ -210,7 +231,8 @@ export const GLOSSARY: GlossaryEntry[] = [
     category: "Rechtsgrundlagen",
     shortDefinition: "VOB/A EU bezeichnet Abschnitt 2 der VOB/A für Bauaufträge im EU-Oberschwellenbereich. Sie gilt zusammen mit den nach § 2 VgV anwendbaren Vorschriften und dem GWB.",
     definition: [
-      "VOB/A EU ist die gebräuchliche Bezeichnung für VOB/A Abschnitt 2. Dieser Abschnitt enthält die besonderen Vergaberegeln für öffentliche Bauaufträge oberhalb des einschlägigen EU-Schwellenwerts, darunter Vorgaben zu Bekanntmachung, Verfahren, Fristen, Eignung, Angeboten und Zuschlag.",
+      "VOB/A EU (auch VOB/A-EU geschrieben) ist die gebräuchliche Bezeichnung für VOB/A Abschnitt 2. Dieser Abschnitt enthält die besonderen Vergaberegeln für öffentliche Bauaufträge oberhalb des einschlägigen EU-Schwellenwerts, darunter Vorgaben zu Bekanntmachung, Verfahren, Fristen, Eignung, Angeboten und Zuschlag.",
+      "Neben „VOB/A EU“ sind „VOB A EU“ und „VOB/A-EU“ gebräuchliche Schreibweisen; gelegentlich finden sich auch die umgestellten Formen „EU VOB/A“ und „EU-VOB/A“ sowie „VOB Teil A EU“.",
       "Die Einordnung beginnt mit dem geschätzten Auftragswert ohne Umsatzsteuer und dem konkreten Auftraggeber- und Leistungsbereich. Für Bauaufträge ordnet § 2 VgV an, dass Abschnitt 1 und Abschnitt 2 Unterabschnitt 2 der VgV sowie im Übrigen VOB/A Teil A Abschnitt 2 anzuwenden sind. Planungsleistungen, die als Los eines Bauauftrags vergeben werden, unterliegen nach § 2 VgV der VgV.",
       "VOB/A EU ist daher weder eine eigene vierte VOB noch ein vollständiger Ersatz für GWB und VgV. Abschnitt 1 der VOB/A bleibt der nationale Bereich; Abschnitt 3 betrifft verteidigungs- und sicherheitsspezifische Vergaben.",
     ],
@@ -219,15 +241,17 @@ export const GLOSSARY: GlossaryEntry[] = [
       { question: "Ab wann gilt VOB/A EU?", answer: "VOB/A EU kommt bei Bauaufträgen im EU-Oberschwellenbereich zur Anwendung, wenn der geschätzte Auftragswert ohne Umsatzsteuer den einschlägigen EU-Schwellenwert erreicht oder überschreitet und keine Sonderregel greift." },
       { question: "Ist VOB/A EU dasselbe wie VgV?", answer: "Nein. VOB/A EU ist Abschnitt 2 der VOB/A. Bei Bauaufträgen gelten daneben die in § 2 VgV genannten VgV-Vorschriften sowie der vierte Teil des GWB." },
     ],
-    relatedTerms: ["vob-a", "schwellenwerte", "auftragswert", "vgv-vergabeverordnung", "gwb-vergaberecht"],
+    relatedTerms: ["vob-a", "vob-b", "vob-c", "schwellenwerte", "auftragswert", "losvergabe", "vgv-vergabeverordnung", "gwb-vergaberecht"],
     relatedCategories: ["Bauarbeiten", "Tiefbau", "TGA", "Gartenarbeiten"],
     relatedArticles: ["vob-vergabe", "schwellenwerte-vergabe"],
     sources: [
       { title: "§ 2 VgV – Bauaufträge", url: "https://www.gesetze-im-internet.de/vgv_2016/__2.html" },
       { title: "§ 106 GWB – Schwellenwerte", url: "https://www.gesetze-im-internet.de/gwb/__106.html" },
-      { title: "VOB/A, Abschnitt 2, Bekanntmachung vom 31. Januar 2019", url: "https://www.verwaltungsvorschriften-im-internet.de/bsvwvbund_31012019_BWI781063060120180001604634.htm" },
+        { title: "Bundesanzeiger: VOB/A-Änderung vom 22. Juli 2026 (BAnz AT 24.08.2026 B6)", url: "https://www.bundesanzeiger.de/pub/publication/73xO0rpP1jfX5HRt0Ja/content/73xO0rpP1jfX5HRt0Ja/BAnz%20AT%2024.08.2026%20B6.pdf?inline" },
+       { title: "VOB/A, Abschnitt 2, Bekanntmachung vom 31. Januar 2019", url: "https://www.verwaltungsvorschriften-im-internet.de/bsvwvbund_31012019_BWI781063060120180001604634.htm" },
+      { title: "BMWE: Vergabeübersicht und Rechtsgrundlagen", url: "https://www.bundeswirtschaftsministerium.de/Redaktion/DE/Artikel/Wirtschaft/vergabe-uebersicht-und-rechtsgrundlagen.html" },
     ],
-    lastReviewed: "2026-09-06",
+    lastReviewed: "2026-09-29",
   },
   {
     slug: "vol-a",
@@ -350,13 +374,13 @@ export const GLOSSARY: GlossaryEntry[] = [
     shortDefinition: "Das offene Verfahren ist ein Vergabeverfahren, bei dem jedes interessierte Unternehmen ein Angebot abgeben kann. Es gibt keine Teilnahmeantrags-Phase.",
     definition: [
       "Das offene Verfahren ist die transparenteste und wettbewerbsorientierteste Form der Vergabe. Jedes interessierte Unternehmen kann ein Angebot einreichen, ohne dass es einer vorherigen Teilnahmeantrags-Phase bedarf. Die Vergabeunterlagen stehen allen Interessenten zur Verfügung.",
-      "Das Verfahren ist stärker reglementiert als andere Verfahrensarten. Die Angebotsfrist beträgt im Oberschwellenbereich mindestens 35 Tage. Eine Verhandlung über die Angebote ist ausgeschlossen — der Auftrag wird an das wirtschaftlichste Angebot auf Basis der vorab bekanntgemachten Zuschlagskriterien erteilt.",
+      "Das Verfahren ist stärker reglementiert als andere Verfahrensarten. Im offenen Verfahren nach VgV beträgt die reguläre Angebotsfrist mindestens 35 Tage; gesetzliche Verkürzungen sind unter bestimmten Voraussetzungen möglich. Eine Verhandlung über die Angebote ist ausgeschlossen — der Auftrag wird an das wirtschaftlichste Angebot auf Basis der vorab bekanntgemachten Zuschlagskriterien erteilt.",
       "Das offene Verfahren wird häufig bei standardisierten Leistungen eingesetzt, bei denen eine einfache Bewertung der Angebote möglich ist. Es ist das am häufigsten angewendete Verfahren im öffentlichen Bereich.",
     ],
     keyPoints: [
       "Jedes interessierte Unternehmen kann ein Angebot abgeben",
       "Keine Teilnahmeantrags-Phase, keine Verhandlungen",
-      "Angebotsfrist: mindestens 35 Tage (Oberschwellenbereich)",
+      "Reguläre Angebotsfrist nach VgV: mindestens 35 Tage; Verkürzungen sind gesetzlich nur unter Voraussetzungen möglich",
       "Zuschlag auf das wirtschaftlichste Angebot",
     ],
     faq: [
@@ -366,7 +390,7 @@ export const GLOSSARY: GlossaryEntry[] = [
       },
       {
         question: "Wie lange ist die Frist im offenen Verfahren?",
-        answer: "Die Angebotsfrist im offenen Verfahren beträgt im Oberschwellenbereich mindestens 35 Tage ab Absendung der Bekanntmachung. Im Unterschwellenbereich (UVgO) sind kürzere Fristen möglich.",
+        answer: "Im offenen Verfahren nach VgV beträgt die reguläre Angebotsfrist mindestens 35 Tage ab Absendung der Bekanntmachung. Verkürzungen können unter den Voraussetzungen der VgV möglich sein. Im Unterschwellenbereich richtet sich die Frist nach dem einschlägigen nationalen Regelwerk und den Vergabeunterlagen.",
       },
       {
         question: "Kann im offenen Verfahren verhandelt werden?",
@@ -496,24 +520,24 @@ export const GLOSSARY: GlossaryEntry[] = [
     category: "Verfahren",
     shortDefinition: "Die freihändige Vergabe ist ein Vergabeverfahren im Unterschwellenbereich, bei dem der Auftraggeber mit ausgewählten Unternehmen verhandeln kann.",
     definition: [
-      "Die freihändige Vergabe ist ein Verfahren im Unterschwellenbereich (UVgO und § 3 VOB/A), bei dem der Auftraggeber die Möglichkeit hat, mit mehreren, aber einer begrenzten Zahl von Unternehmen zu verhandeln. Sie ist das Unterschwellen-Pendant zum Verhandlungsverfahren.",
+      "Die freihändige Vergabe ist die traditionelle Bezeichnung für ein vereinfachtes Unterschwellenverfahren nach VOB/A Abschnitt 1. Bei Liefer- und Dienstleistungen verwendet die UVgO grundsätzlich den Begriff Verhandlungsvergabe. Die konkrete Zulässigkeit und der Ablauf richten sich nach dem jeweils anwendbaren Regelwerk.",
       "Der Auftraggeber wählt die Unternehmen, mit denen er verhandelt, nach pflichtgemäßem Ermessen aus. Die Zahl der Unternehmen muss so groß sein, dass ein echter Wettbewerb gewährleistet ist, in der Regel mindestens drei.",
-      "Die freihändige Vergabe ist zulässig, wenn die Auftragsbedingungen nicht eindeutig bestimmt werden können oder wenn aufgrund der Dringlichkeit oder der besonderen Komplexität andere Verfahren nicht praktikabel sind.",
+      "Eine freihändige Vergabe beziehungsweise Verhandlungsvergabe ist nur zulässig, wenn die Voraussetzungen des jeweils anwendbaren Unterschwellenregelwerks erfüllt sind, etwa wegen besonderer Dringlichkeit, fehlender eindeutiger Bestimmbarkeit oder anderer ausdrücklich geregelter Gründe.",
     ],
     keyPoints: [
       "Unterschwellenverfahren (UVgO / § 3 VOB/A)",
       "Verhandlung mit ausgewählten Unternehmen möglich",
-      "Mindestens 3 angefragte Unternehmen für Wettbewerb",
+      "Mehrere geeignete Unternehmen können beteiligt werden; die konkrete Mindestzahl richtet sich nach dem anwendbaren Regelwerk",
       "Pendant zum Verhandlungsverfahren im Oberschwellenbereich",
     ],
     faq: [
       {
         question: "Was ist die freihändige Vergabe?",
-        answer: "Die freihändige Vergabe ist ein Vergabeverfahren im Unterschwellenbereich, bei dem der Auftraggeber mit ausgewählten Unternehmen verhandeln kann. Sie ist das Pendant zum Verhandlungsverfahren im Oberschwellenbereich.",
+        answer: "Die freihändige Vergabe ist eine traditionelle Bezeichnung für ein vereinfachtes Verfahren im Unterschwellenbereich, insbesondere nach VOB/A Abschnitt 1. Bei Liefer- und Dienstleistungen spricht die UVgO grundsätzlich von Verhandlungsvergabe.",
       },
       {
         question: "Wann ist die freihändige Vergabe zulässig?",
-        answer: "Die freihändige Vergabe ist zulässig, wenn die Auftragsbedingungen nicht eindeutig bestimmt werden können, bei besonderer Dringlichkeit oder Komplexität oder wenn andere Verfahren nicht praktikabel sind. Sie erfordert in der Regel die Anfrage von mindestens drei Unternehmen.",
+        answer: "Ob eine freihändige Vergabe oder Verhandlungsvergabe zulässig ist, hängt vom einschlägigen Regelwerk und den dort genannten Voraussetzungen ab. Eine feste Zahl angefragter Unternehmen gilt nicht pauschal für jede Konstellation; Wettbewerb und Gleichbehandlung bleiben zu beachten.",
       },
     ],
     relatedTerms: ["verhandlungsverfahren", "uvgo", "vob-a"],
@@ -578,7 +602,7 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "Öffentliche Ausschreibungen werden auf verschiedenen Vergabeportalen wie DTVP, TED, evergabe.de und Bauportal Deutschland veröffentlicht. Tenderhunter aggregiert alle diese Quellen und macht sie zentral auffindbar.",
       },
     ],
-    relatedTerms: ["leistungsbeschreibung", "leistungsverzeichnis", "offenes-verfahren"],
+    relatedTerms: ["leistungsbeschreibung", "leistungsverzeichnis", "losvergabe", "offenes-verfahren"],
     relatedCategories: ["Bauarbeiten", "Gebaeudereinigung", "IT-Dienstleistungen"],
   },
   {
@@ -635,7 +659,8 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "Eine Leistungsbeschreibung wird vom Auftraggeber erstellt und muss konkret, eindeutig und vollständig sein. Sie kann funktional (Ergebnisorientiert) oder detailliert (ausführungsorientiert) sein. Oft werden Vorlagen oder Muster verwendet.",
       },
     ],
-    relatedTerms: ["leistungsverzeichnis", "ausschreibung", "eigenerklaerung"],
+    relatedTerms: ["vob-a", "vob-a-eu", "vob-c", "leistungsverzeichnis", "losvergabe", "ausschreibung", "eigenerklaerung"],
+    relatedArticles: ["vob-vergabe", "ausschreibung-schreiben"],
     relatedCategories: ["Bauarbeiten", "Tiefbau", "TGA"],
   },
   {
@@ -664,36 +689,88 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "GAEB (Gemeinsamer Ausschuss Elektronik im Bauwesen) ist ein Standard für den elektronischen Austausch von Leistungsverzeichnissen. GAEB-Dateien erleichtern die Kommunikation zwischen Auftraggebern und Bietern.",
       },
     ],
-    relatedTerms: ["leistungsbeschreibung", "gaeb", "ausschreibung"],
+    relatedTerms: ["vob-a", "vob-a-eu", "vob-c", "leistungsbeschreibung", "losvergabe", "gaeb", "ausschreibung"],
+    relatedArticles: ["vob-vergabe", "ausschreibung-schreiben"],
     relatedCategories: ["Bauarbeiten", "Tiefbau", "TGA"],
+  },
+  {
+    slug: "losvergabe",
+    term: "Losvergabe (Teil- und Fachlose)",
+    category: "Vergabeprozess",
+    shortDefinition: "Bei der Losvergabe wird ein öffentlicher Auftrag in eigenständige Teile geteilt: Teillose trennen Mengen, Fachlose unterschiedliche Gewerke oder Fachgebiete.",
+    definition: [
+      "Ein Los ist ein abgrenzbarer Teil eines Beschaffungsvorhabens. Teillose teilen eine Leistung nach Menge oder Umfang, etwa in regionale Abschnitte. Fachlose trennen Leistungen nach Art oder Fachgebiet, zum Beispiel Rohbau, Elektro und Heizung.",
+      "Im Anwendungsbereich des vierten Teils des GWB verlangt § 97a Absatz 1 grundsätzlich die Aufteilung in Teil- und Fachlose. Mehrere Lose dürfen nach Absatz 2 zusammen vergeben werden, wenn wirtschaftliche oder technische Gründe dies erfordern. Für nationale Bauvergaben enthält § 5 Absatz 2 VOB/A Abschnitt 1 eine entsprechende Regel, soweit dieser Abschnitt für den Auftraggeber eingeführt ist.",
+      "Die aktuelle Fassung des § 97a Absatz 3 GWB sieht außerdem eine eng begrenzte Zusammenfassung aus zeitlichen Gründen bei bestimmten Infrastrukturvorhaben vor. Dafür muss der geschätzte Auftragswert mindestens das Doppelte des einschlägigen EU-Schwellenwerts erreichen und das Vorhaben entweder aus dem Sondervermögen Infrastruktur und Klimaneutralität finanziert werden oder zu den im Gesetz genannten Verkehrswegen gehören. Das ist keine allgemeine Ausnahme für eilige Bauprojekte. Die VOB/A EU enthält die Regelung in § 5a ebenfalls.",
+      "Für Bieter entscheidet die Bekanntmachung, ob sie Angebote für ein, mehrere oder alle Lose einreichen können und ob eine Höchstzahl für Zuschläge gilt. Losbildung bedeutet nicht automatisch, dass der Auftragswert oder Schwellenwert für jedes Los isoliert zu beurteilen ist; dafür gelten eigene Berechnungsregeln.",
+    ],
+    keyPoints: [
+      "Teillos = Aufteilung nach Menge oder Umfang; Fachlos = Trennung nach Gewerk oder Fachgebiet",
+      "Im einschlägigen Regelwerk ist die Losvergabe grundsätzlich vorgesehen",
+      "Zusammenfassung ist bei wirtschaftlichen oder technischen Gründen möglich; die gesetzliche Infrastruktur-Ausnahme ist eng begrenzt",
+      "Bekanntmachung und Vergabeunterlagen regeln, für wie viele Lose Bieter Angebote abgeben und Zuschläge erhalten können",
+    ],
+    faq: [
+      {
+        question: "Was ist der Unterschied zwischen Teil- und Fachlosen?",
+        answer: "Teillose teilen eine Leistung nach Menge oder Umfang, zum Beispiel nach Bauabschnitten. Fachlose trennen die Leistung nach Art oder Fachgebiet, etwa in Rohbau, Elektro und Heizung.",
+      },
+      {
+        question: "Muss ein öffentlicher Auftrag immer in Lose aufgeteilt werden?",
+        answer: "Nein, nicht ausnahmslos. Im jeweils anwendbaren Regelwerk gilt grundsätzlich ein Losgrundsatz; mehrere Lose können insbesondere bei erforderlichen wirtschaftlichen oder technischen Gründen zusammen vergeben werden. Für bestimmte Infrastrukturvorhaben gibt es zusätzlich eine eng begrenzte gesetzliche Ausnahme aus zeitlichen Gründen.",
+      },
+      {
+        question: "Kann ich ein Angebot für nur ein Los abgeben?",
+        answer: "Das richtet sich nach der Bekanntmachung und den Vergabeunterlagen. Im Anwendungsbereich der VgV muss der Auftraggeber angeben, ob Angebote für ein, mehrere oder alle Lose zulässig sind; eine Höchstzahl möglicher Zuschläge muss ebenfalls bekannt gemacht werden.",
+      },
+      {
+        question: "Wird der Schwellenwert für jedes Los einzeln berechnet?",
+        answer: "Nicht automatisch. Für die Schätzung des Auftragswerts gelten eigene Regeln zu Losen und möglichen Ausnahmen. Die Aufteilung in Lose erlaubt deshalb nicht ohne Weiteres, jedes Los als eigenständige Unterschwellenvergabe zu behandeln.",
+      },
+    ],
+    relatedTerms: ["vob-a", "vob-a-eu", "schwellenwerte", "auftragswert", "leistungsbeschreibung", "leistungsverzeichnis", "ausschreibung"],
+    relatedArticles: ["vob-vergabe", "schwellenwerte-vergabe"],
+    relatedCategories: ["Bauarbeiten", "Tiefbau", "TGA", "Gartenarbeiten"],
+    sources: [
+      { title: "§ 97a GWB – Losgrundsatz", url: "https://www.gesetze-im-internet.de/gwb/__97a.html" },
+      { title: "§ 30 VgV – Aufteilung nach Losen", url: "https://www.gesetze-im-internet.de/vgv_2016/__30.html" },
+      { title: "VOB/A Abschnitt 1, § 5 – Vergabe nach Losen", url: "https://www.verwaltungsvorschriften-im-internet.de/bsvwvbund_31012019_BWI781063060120180001604634.htm" },
+      { title: "Bundesanzeiger: VOB/A Abschnitt 2 und 3, Ausgabe 2026", url: "https://www.bundesanzeiger.de/pub/publication/73xO0rpP1jfX5HRt0Ja/content/73xO0rpP1jfX5HRt0Ja/BAnz%20AT%2024.08.2026%20B6.pdf?inline" },
+      { title: "§ 3 VgV – Schätzung des Auftragswerts", url: "https://www.gesetze-im-internet.de/vgv_2016/__3.html" },
+    ],
+    lastReviewed: "2026-10-08",
   },
   {
     slug: "bindefrist",
     term: "Bindefrist",
     category: "Vergabeprozess",
-    shortDefinition: "Die Bindefrist ist der Zeitraum, während dessen ein Bieter an sein Angebot gebunden ist und den Zuschlag annehmen muss.",
+    shortDefinition: "Die Bindefrist ist der Zeitraum, während dessen ein Bieter an sein Angebot gebunden bleibt.",
     definition: [
-      "Die Bindefrist ist ein zentraler Begriff im Vergaberecht. Sie definiert den Zeitraum, während dessen ein Bieter an sein abgegebenes Angebot gebunden ist. Der Bieter kann innerhalb dieser Frist sein Angebot nicht zurückziehen und muss den Zuschlag annehmen, wenn er ihn erhält.",
-      "Die Bindefrist wird vom Auftraggeber in der Ausschreibung festgelegt. Sie muss angemessen sein und wird durch die Angebotsfrist ausgelöst, läuft also ab dem Tag der Angebotseröffnung. Die Bindefrist muss so lang sein, dass der Auftraggeber ausreichend Zeit für die Prüfung der Angebote hat.",
-      "Läuft die Bindefrist ab, ohne dass der Bieter den Zuschlag erhalten hat, kann er sein Angebot zurückziehen. Der Auftraggeber muss die Bindefrist beachten und darf den Zuschlag nicht mehr nach Ablauf erteilen.",
+      "Die Bindefrist bezeichnet den Zeitraum, in dem ein Bieter an sein abgegebenes Angebot gebunden bleibt. Ein Zuschlag innerhalb dieser Frist kann den Vertrag nach den Vorgaben des konkreten Verfahrens zustande bringen; die Bindefrist ist keine Pflicht, ein beliebig geändertes Angebot anzunehmen.",
+      "Der Auftraggeber legt die Bindefrist in der Bekanntmachung oder den Vergabeunterlagen fest. Sie muss angemessen sein und beginnt bei den einschlägigen VOB/A-Regelungen grundsätzlich mit dem Ablauf der Angebotsfrist, nicht erst mit der Angebotseröffnung. Das konkrete Regelwerk ist maßgeblich.",
+      "Nach Ablauf der Bindefrist ist der Bieter grundsätzlich nicht mehr an sein Angebot gebunden. Ein späterer Vertragsschluss setzt dann regelmäßig seine Zustimmung beziehungsweise eine erneute Bindung voraus; der Auftraggeber darf die Bindefrist nicht einseitig verlängern.",
     ],
     keyPoints: [
       "Zeitraum, in dem der Bieter an sein Angebot gebunden ist",
       "Wird vom Auftraggeber festgelegt",
-      "Beginnt mit der Angebotseröffnung",
-      "Nach Ablauf: Bieter kann Angebot zurückziehen",
+      "Beginnt nach den einschlägigen Vorschriften regelmäßig mit dem Ablauf der Angebotsfrist",
+      "Nach Ablauf ist eine weitere Bindung des Bieters nicht selbstverständlich",
     ],
     faq: [
       {
         question: "Was ist die Bindefrist bei einer Ausschreibung?",
-        answer: "Die Bindefrist ist der Zeitraum, in dem ein Bieter an sein Angebot gebunden ist und den Zuschlag annehmen muss. Sie wird vom Auftraggeber festgelegt und beginnt mit der Angebotseröffnung.",
+        answer: "Die Bindefrist ist der Zeitraum, in dem ein Bieter an sein Angebot gebunden bleibt. Sie wird vom Auftraggeber in den Vergabeunterlagen festgelegt. Nach den einschlägigen Vorschriften beginnt sie regelmäßig mit dem Ablauf der Angebotsfrist; eine pauschale Regel ab Angebotseröffnung gibt es nicht.",
       },
       {
         question: "Wie lange ist eine typische Bindefrist?",
-        answer: "Eine typische Bindefrist beträgt 30 bis 60 Tage ab Angebotseröffnung. Die genaue Dauer hängt von der Komplexität der Ausschreibung und dem Vergabeverfahren ab. Sie muss so lang sein, dass der Auftraggeber die Angebote sorgfältig prüfen kann.",
+        answer: "Eine allgemeingültige typische Dauer gibt es nicht. Die Bindefrist muss für die Prüfung und Wertung der Angebote angemessen sein und ergibt sich aus der konkreten Bekanntmachung oder den Vergabeunterlagen.",
       },
     ],
     relatedTerms: ["ausschreibung", "zuschlag", "angebot"],
+    sources: [
+      { title: "VOB/A 2019 – § 10a und § 10b", url: "https://www.verwaltungsvorschriften-im-internet.de/bsvwvbund_31012019_BWI781063060120180001604634.htm" },
+    ],
+    lastReviewed: "2026-09-27",
   },
   {
     slug: "zuschlag",
@@ -701,7 +778,7 @@ export const GLOSSARY: GlossaryEntry[] = [
     category: "Vergabeprozess",
     shortDefinition: "Der Zuschlag ist die Annahme eines Angebots durch den Auftraggeber und führt zum Vertragsabschluss.",
     definition: [
-      "Der Zuschlag ist die verbindliche Annahme eines Angebots durch den öffentlichen Auftraggeber. Mit dem Zuschlag kommt der Vertrag zwischen Auftraggeber und Bieter zustande. Der Zuschlag muss schriftlich und eindeutig formuliert sein.",
+      "Der Zuschlag ist die verbindliche Annahme eines Angebots durch den öffentlichen Auftraggeber. Mit dem Zuschlag kommt der Vertrag zwischen Auftraggeber und Bieter zustande. Die Zuschlagsentscheidung und ihre Mitteilung müssen den jeweils anwendbaren Formvorschriften entsprechen.",
       "Der Zuschlag muss auf Basis der vorab bekannt gemachten Zuschlagskriterien erfolgen. Das wirtschaftlichste Angebot erhält den Zuschlag — das muss nicht zwingend das billigste sein, wenn andere Kriterien wie Qualität, Laufzeit oder Nachhaltigkeit berücksichtigt werden.",
       "Nach erfolgtem Zuschlag müssen die nicht berücksichtigten Bieter informiert werden. Sie können innerhalb bestimmter Fristen den Zuschlag angreifen, wenn sie der Meinung sind, dass das Verfahren fehlerhaft war.",
     ],
@@ -718,10 +795,16 @@ export const GLOSSARY: GlossaryEntry[] = [
       },
       {
         question: "Kann der Zuschlag angegriffen werden?",
-        answer: "Ja, nicht berücksichtigte Bieter können den Zuschlag angreifen, wenn sie der Meinung sind, dass das Verfahren fehlerhaft war. Dies muss innerhalb bestimmter Fristen (in der Regel 15 Tage nach Information) über ein Nachprüfungsverfahren geschehen.",
+        answer: "Unter den Voraussetzungen des vierten Teils des GWB können antragsbefugte Unternehmen ein Nachprüfungsverfahren einleiten. Die Fristen richten sich insbesondere nach § 160 Absatz 3 GWB; sie sind nicht pauschal mit der 15- oder 10-tägigen Wartefrist aus § 134 GWB gleichzusetzen.",
       },
     ],
     relatedTerms: ["zuschlagskriterien", "bindefrist", "nachpruefungsverfahren"],
+    sources: [
+      { title: "§ 127 GWB – Zuschlag", url: "https://www.gesetze-im-internet.de/gwb/__127.html" },
+      { title: "§ 134 GWB – Informations- und Wartepflicht", url: "https://www.gesetze-im-internet.de/gwb/__134.html" },
+      { title: "§ 160 GWB – Einleitung, Antrag", url: "https://www.gesetze-im-internet.de/gwb/__160.html" },
+    ],
+    lastReviewed: "2026-09-27",
   },
   {
     slug: "angebot",
@@ -746,7 +829,7 @@ export const GLOSSARY: GlossaryEntry[] = [
       },
       {
         question: "Können unvollständige Angebote berücksichtigt werden?",
-        answer: "Unvollständige Angebote können ausgeschlossen werden, wenn wesentliche Angaben fehlen. Der Auftraggeber darf aber Nachklärungen zu formalen Mängeln verlangen, wenn das Angebot sonst als brauchbar zu bewerten ist.",
+        answer: "Unvollständige Angebote können ausgeschlossen werden. Ob fehlende, unvollständige oder fehlerhafte Unterlagen nachgefordert, ergänzt oder erläutert werden dürfen, richtet sich nach dem anwendbaren Regelwerk, der Bekanntmachung und den Vergabeunterlagen; leistungsbezogene Angaben dürfen nicht beliebig nachgereicht werden.",
       },
     ],
     relatedTerms: ["zuschlag", "bindefrist", "eignungskriterien"],
@@ -777,7 +860,7 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "Eine Bietergemeinschaft lohnt sich, wenn ein einzelnes Unternehmen die Anforderungen nicht erfüllen kann (z.B. aufgrund fehlender Kapazitäten oder Referenzen) oder wenn durch die Zusammenarbeit Synergieeffekte entstehen, die zu einem besseren Angebot führen.",
       },
     ],
-    relatedTerms: ["nachunternehmer", "eignungskriterien", "angebot"],
+    relatedTerms: ["nachunternehmer", "eignungskriterien", "angebot", "eignungsleihe"],
     relatedCategories: ["Bauarbeiten", "Tiefbau", "Facility Management"],
   },
   {
@@ -788,7 +871,7 @@ export const GLOSSARY: GlossaryEntry[] = [
     definition: [
       "Ein Nachunternehmer (auch Unterauftragnehmer genannt) ist ein Unternehmen, das im Rahmen eines öffentlichen Vergabevertrags bestimmte Leistungen erbringt, ohne selbst Vertragspartner des Auftraggebers zu sein. Der Hauptauftragnehmer bleibt allein verantwortlich für die Vertragserfüllung.",
       "Die Einschaltung von Nachunternehmern muss in der Regel bei der Angebotsabgabe angegeben werden, insbesondere bei Leistungen, die einen wesentlichen Teil des Auftrags ausmachen. Der Auftraggeber kann die Eignung des Nachunternehmers überprüfen.",
-      "Aus vergaberechtlicher Sicht ist relevant, dass die Einschaltung von Nachunternehmern nicht zur Umgehung von Tariftreue- oder Vergabepflichten führen darf. Bei bestimmten Vergaben gelten besondere Nachunternehmeregelungen (z.B. VgV, Tariftreuegesetz).",
+      "Aus vergaberechtlicher Sicht ist relevant, dass die Einschaltung von Nachunternehmern nicht zur Umgehung von Tariftreue- oder Vergabepflichten führen darf. Bei bestimmten Vergaben gelten besondere Nachunternehmeregelungen (z.B. VgV sowie einschlägige Tariftreue- oder Vergabegesetze).",
     ],
     keyPoints: [
       "Erbringt Teilleistungen für den Hauptauftragnehmer",
@@ -806,7 +889,7 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "Ja, die Einschaltung von Nachunternehmern für wesentliche Teilleistungen muss in der Regel bei der Angebotsabgabe angegeben werden. Der Auftraggeber kann die Eignung des Nachunternehmers überprüfen und die Einschaltung ablehnen, wenn Bedenken bestehen.",
       },
     ],
-    relatedTerms: ["bietergemeinschaft", "eignungskriterien", "angebot"],
+    relatedTerms: ["bietergemeinschaft", "eignungskriterien", "angebot", "vob-b", "eignungsleihe"],
   },
 
   // === EIGNUUNG & ZUSCHLAG ===
@@ -816,7 +899,7 @@ export const GLOSSARY: GlossaryEntry[] = [
     category: "Eignung & Zuschlag",
     shortDefinition: "Eignungskriterien sind die Kriterien, anhand derer der Auftraggeber beurteilt, ob ein Bieter fachlich, wirtschaftlich und rechtlich zur Auftragsausführung geeignet ist.",
     definition: [
-      "Eignungskriterien sind die Maßstäbe, anhand derer der Auftraggeber feststellt, ob ein Bieter die notwendige fachliche, wirtschaftliche und rechtliche Eignung für die Durchführung des Auftrags besitzt. Bieter, die die Eignungskriterien nicht erfüllen, müssen vom Verfahren ausgeschlossen werden.",
+      "Eignungskriterien sind die Maßstäbe, anhand derer der Auftraggeber feststellt, ob ein Bieter die notwendige fachliche, wirtschaftliche und rechtliche Eignung für die Durchführung des Auftrags besitzt. Bieter, die die festgelegten Eignungskriterien nicht erfüllen, sind nach den jeweils anwendbaren Vorschriften nicht für den Zuschlag geeignet.",
       "Die wichtigsten Eignungskriterien sind: Befähigung und Fachkunde (Qualifikationen, Zertifikate), Leistungsfähigkeit (personelle und technische Ausstattung), Zuverlässigkeit (keine Vorstrafen, Steuern/Sozialabgaben), und wirtschaftliche Leistungskraft (Umsatz, Referenzen).",
       "Eignungskriterien müssen transparent, nachvollziehbar und angemessen sein. Sie müssen vorab in der Bekanntmachung oder in den Vergabeunterlagen bekannt gemacht werden und in einem klaren Bezug zur Leistung stehen.",
     ],
@@ -836,7 +919,52 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "Eignungskriterien müssen vorab in der Bekanntmachung oder den Vergabeunterlagen definiert werden. Sie müssen transparent, nachvollziehbar und im angemessenen Verhältnis zur Leistung stehen. Typische Kriterien sind Referenzen, Zertifikate, Umsatzzahlen und personelle Ausstattung.",
       },
     ],
-    relatedTerms: ["zuschlagskriterien", "eigenerklaerung", "referenzen"],
+    relatedTerms: ["zuschlagskriterien", "eigenerklaerung", "referenzen", "eignungsleihe"],
+  },
+  {
+    slug: "eignungsleihe",
+    term: "Eignungsleihe",
+    category: "Eignung & Zuschlag",
+    shortDefinition: "Bei einer Eignungsleihe weist ein Bewerber oder Bieter seine Leistungsfähigkeit mit tatsächlich verfügbaren Kapazitäten eines anderen Unternehmens nach.",
+    definition: [
+      "Bei der Eignungsleihe stützt sich ein Bewerber oder Bieter für ein bekannt gemachtes Eignungskriterium auf die wirtschaftlichen, technischen oder beruflichen Kapazitäten eines anderen Unternehmens. Das ist grundsätzlich auch möglich, wenn zwischen beiden Unternehmen keine gesellschaftsrechtliche Verbindung besteht. Der Bieter muss aber belegen, dass ihm die benötigten Mittel für den konkreten Auftrag tatsächlich zur Verfügung stehen.",
+      "Für Vergaben im Anwendungsbereich der VgV regelt § 47 die Eignungsleihe. Bauaufträge sind wegen § 2 VgV gesondert einzuordnen: Für EU-weite Bauvergaben enthält § 6d EU VOB/A die einschlägigen Vorgaben; die VgV gilt für Planungsleistungen, die als Los eines Bauauftrags vergeben werden. Der Auftraggeber prüft nach dem jeweils anwendbaren Regelwerk die Eignung und mögliche Ausschlussgründe des Kapazitätsgebers und kann beziehungsweise muss dessen Ersetzung verlangen, wenn Anforderungen nicht erfüllt sind oder Ausschlussgründe vorliegen.",
+      "Besondere Anforderungen gelten für berufliche Befähigung und Erfahrung: Werden solche Kapazitäten in Anspruch genommen, muss das andere Unternehmen die Arbeiten ausführen, für die diese Fähigkeiten oder Erfahrungen benötigt werden. Bei wirtschaftlicher und finanzieller Leistungsfähigkeit kann eine gemeinsame Haftung für die Auftragsausführung verlangt werden.",
+      "Eignungsleihe ist nicht dasselbe wie eine Bietergemeinschaft oder ein Nachunternehmerverhältnis. Bei der Eignungsleihe bleibt das Unternehmen, das die Kapazität nutzt, selbst Bewerber oder Bieter und weist damit seine Eignung nach. Eine Bietergemeinschaft gibt dagegen gemeinsam ein Angebot ab. Ein Kapazitätsgeber kann zugleich Nachunternehmer sein, aber die Rollen sind nicht automatisch deckungsgleich. Unterhalb der EU-Schwellenwerte richten sich Möglichkeit und Anforderungen nach dem jeweils eingeführten Regelwerk; § 47 VgV gilt dort nicht pauschal.",
+    ],
+    keyPoints: [
+      "Kapazitäten anderer Unternehmen können für bestimmte Eignungskriterien genutzt werden",
+      "Die tatsächlich verfügbare Ressource muss für den konkreten Auftrag nachgewiesen werden",
+      "Bei beruflicher Befähigung oder Erfahrung muss der Kapazitätsgeber die betreffenden Arbeiten ausführen",
+      "Nicht mit Bietergemeinschaft oder Nachunternehmerverhältnis gleichzusetzen",
+      "Unterhalb der EU-Schwellenwerte gilt das jeweils eingeführte Regelwerk",
+    ],
+    faq: [
+      {
+        question: "Was bedeutet Eignungsleihe bei einer Ausschreibung?",
+        answer: "Ein Bewerber oder Bieter nutzt die wirtschaftlichen, technischen oder beruflichen Kapazitäten eines anderen Unternehmens, um ein bekannt gemachtes Eignungskriterium zu erfüllen. Er muss nachweisen, dass ihm die nötigen Mittel für den Auftrag tatsächlich zur Verfügung stehen.",
+      },
+      {
+        question: "Kann ich für Referenzen oder Berufserfahrung die Kapazitäten eines anderen Unternehmens nutzen?",
+        answer: "Das kann nach den einschlägigen Regeln möglich sein. Wird berufliche Erfahrung oder Befähigung geliehen, muss das andere Unternehmen grundsätzlich die Arbeiten ausführen, für die diese Kapazität benötigt wird. Maßgeblich sind das anwendbare Regelwerk und die Vergabeunterlagen.",
+      },
+      {
+        question: "Ist der Kapazitätsgeber automatisch mein Nachunternehmer?",
+        answer: "Nein. Eignungsleihe betrifft den Nachweis der Eignung, ein Nachunternehmerverhältnis die Ausführung von Teilleistungen. Ein Unternehmen kann beide Rollen übernehmen; das folgt aber nicht automatisch aus der Eignungsleihe.",
+      },
+      {
+        question: "Gilt § 47 VgV auch bei Unterschwellenvergaben?",
+        answer: "Nicht pauschal. Unterhalb der EU-Schwellenwerte kommt es darauf an, welches Bundes-, Landes- oder Haushaltsregelwerk für den Auftraggeber und die Leistung eingeführt ist.",
+      },
+    ],
+    relatedTerms: ["eignungskriterien", "referenzen", "nachunternehmer", "bietergemeinschaft", "vob-a", "vob-a-eu"],
+    relatedArticles: ["vob-vergabe", "bietergemeinschaft-gruenden"],
+    sources: [
+      { title: "§ 47 VgV – Eignungsleihe", url: "https://www.gesetze-im-internet.de/vgv_2016/__47.html" },
+      { title: "§ 2 VgV – Vergabe von Bauaufträgen", url: "https://www.gesetze-im-internet.de/vgv_2016/__2.html" },
+      { title: "VOB/A, Abschnitte 2 und 3, Ausgabe 2026 (BAnz AT 24.08.2026 B6)", url: "https://www.bundesanzeiger.de/pub/publication/73xO0rpP1jfX5HRt0Ja/content/73xO0rpP1jfX5HRt0Ja/BAnz%20AT%2024.08.2026%20B6.pdf?inline" },
+    ],
+    lastReviewed: "2026-10-06",
   },
   {
     slug: "zuschlagskriterien",
@@ -873,26 +1001,31 @@ export const GLOSSARY: GlossaryEntry[] = [
     shortDefinition: "Die Einheitliche Europäische Eigenerklärung (EEE) ist ein Standardformular, das Bieter zur Eignungsprüfung ausfüllen.",
     definition: [
       "Die Einheitliche Europäische Eigenerklärung (EEE) ist ein standardisiertes Formular, das im Rahmen von öffentlichen Vergabeverfahren in der EU verwendet wird. Der Bieter erklärt damit seine Eignung für den Auftrag, ohne im ersten Schritt Nachweise vorlegen zu müssen.",
-      "Die EEE umfasst Erklärungen zur Befähigung, Fachkunde, Leistungsfähigkeit und Zuverlässigkeit. Sie ist verbindlich für alle Oberschwellenvergaben in der EU und erleichtert die grenzüberschreitende Teilnahme an Vergabeverfahren.",
+      "Die EEE umfasst Erklärungen zu Ausschlussgründen sowie zur Befähigung, Fachkunde und Leistungsfähigkeit. Ob sie verwendet werden kann oder verlangt wird, richtet sich nach dem konkreten Verfahren und den anwendbaren Vergabevorschriften.",
       "Der Auftraggeber kann die Richtigkeit der Eigenerklärung jederzeit überprüfen, in der Regel vor der Zuschlagserteilung an den erfolgreichen Bieter. Falsche Angaben können zum Angebotsausschluss führen.",
     ],
     keyPoints: [
       "Standardisiertes Formular zur Eignungsklärung",
-      "Verbindlich für alle EU-Oberschwellenvergaben",
+      "Standardisierte vorläufige Eigenerklärung im EU-Vergaberecht",
       "Selbsterklärung statt sofortiger Nachweisvorlage",
       "Überprüfbar bei Zuschlagserteilung",
     ],
     faq: [
       {
         question: "Was ist die Einheitliche Europäische Eigenerklärung (EEE)?",
-        answer: "Die EEE ist ein standardisiertes Formular, in dem der Bieter im Rahmen der Eignungsprüfung seine Befähigung, Fachkunde, Leistungsfähigkeit und Zuverlässigkeit selbst erklärt. Sie ist verbindlich für EU-Oberschwellenvergaben.",
+        answer: "Die EEE ist ein standardisiertes Formular, mit dem ein Unternehmen im Rahmen der Eignungsprüfung unter anderem Ausschlussgründe sowie Befähigung, Fachkunde und Leistungsfähigkeit vorläufig erklärt. Die Verwendung richtet sich nach dem konkreten Verfahren.",
       },
       {
         question: "Müssen Nachweise vorgelegt werden?",
-        answer: "Die EEE ist eine vorläufige Selbsterklärung. Erst der erfolgreiche Bieter muss bei Zuschlagserteilung die entsprechenden Nachweise (Zertifikate, Referenzen, Steuerbescheinigungen etc.) vorlegen.",
+        answer: "Die EEE ist eine vorläufige Selbsterklärung. Der Auftraggeber kann Nachweise nach den anwendbaren Vorschriften und den Vergabeunterlagen verlangen; das ist nicht auf einen einzigen Zeitpunkt oder ausschließlich den erfolgreichen Bieter beschränkt.",
       },
     ],
     relatedTerms: ["eignungskriterien", "referenzen"],
+    sources: [
+      { title: "§ 48 VgV – Beleg der Eignung und des Nichtvorliegens von Ausschlussgründen", url: "https://www.gesetze-im-internet.de/vgv_2016/__48.html" },
+      { title: "§ 50 VgV – Einheitliche Europäische Eigenerklärung", url: "https://www.gesetze-im-internet.de/vgv_2016/__50.html" },
+    ],
+    lastReviewed: "2026-09-27",
   },
   {
     slug: "referenzen",
@@ -928,34 +1061,44 @@ export const GLOSSARY: GlossaryEntry[] = [
     slug: "schwellenwerte",
     term: "Schwellenwerte",
     category: "Schwellenwerte",
-    shortDefinition: "Schwellenwerte sind finanzielle Grenzen, ab denen EU-weite Vergabeverfahren und Bekanntmachungen verpflichtend werden.",
+    shortDefinition: "Schwellenwerte sind finanzielle Grenzen, ab denen im jeweils einschlägigen Anwendungsbereich die Regeln des EU-Oberschwellenbereichs greifen.",
     definition: [
       "Schwellenwerte sind zentrale vergaberechtliche Grenzwerte, die bestimmen, ab welchem Auftragswert die vergaberechtlichen Vorschriften des europäischen Vergaberechts (Oberschwellenbereich) gelten. Unterhalb der Schwellenwerte gilt das nationale Vergaberecht (Unterschwellenbereich).",
       "Die Schwellenwerte werden von der Europäischen Kommission alle zwei Jahre überprüft und angepasst. Sie unterscheiden sich nach Auftragsart (Lieferungen, Dienstleistungen, Bauleistungen) und Auftraggeberart (klassische Auftraggeber, Sektorenauftraggeber).",
-      "Für 2026/2027 gelten je nach Auftraggeber und Leistungsart unterschiedliche EU-Schwellenwerte. Beispielsweise gelten 140.000 EUR für bestimmte zentrale Regierungsbehörden, 216.000 EUR für sonstige bestimmte Liefer- und Dienstleistungsaufträge und 5.404.000 EUR für Bauaufträge.",
+      "Für 2026/2027 gelten je nach Auftraggeber und Leistungsart unterschiedliche EU-Schwellenwerte. Beispiele sind 140.000 EUR für Liefer- und Dienstleistungsaufträge zentraler Regierungsbehörden im Sinne von § 106 Absatz 2 Nummer 1 GWB, 216.000 EUR für entsprechende Aufträge anderer öffentlicher Auftraggeber im Anwendungsbereich der Richtlinie 2014/24/EU, 432.000 EUR für Liefer- und Dienstleistungen von Sektorenauftraggebern und 5.404.000 EUR für Bauaufträge klassischer Auftraggeber.",
     ],
     keyPoints: [
       "Grenzwert zwischen Ober- und Unterschwellenbereich",
       "Werden alle 2 Jahre von der EU-Kommission angepasst",
-      "2026/2027: 140.000 EUR bzw. 216.000 EUR für bestimmte Liefer- und Dienstleistungsaufträge",
-      "2026/2027: 5.404.000 EUR für Bauaufträge",
+      "2026/2027: 140.000 EUR für die erfassten zentralen Regierungsbehörden, 216.000 EUR für andere Auftraggeber im Anwendungsbereich der Richtlinie 2014/24/EU",
+      "2026/2027: 432.000 EUR für Liefer- und Dienstleistungsaufträge von Sektorenauftraggebern",
+      "2026/2027: 5.404.000 EUR für Bauaufträge klassischer Auftraggeber",
     ],
     faq: [
       {
         question: "Welche EU-Schwellenwerte gelten 2026 und 2027?",
-        answer: "Für 2026 und 2027 gelten je nach Auftraggeber und Auftragsart unterschiedliche Werte. Die zentralen Kontrollwerte sind 140.000 EUR für bestimmte zentrale Regierungsbehörden, 216.000 EUR für sonstige bestimmte Liefer- und Dienstleistungsaufträge sowie 5.404.000 EUR für Bauaufträge; Konzessionen liegen ebenfalls bei 5.404.000 EUR.",
+        answer: "Für 2026 und 2027 gelten je nach Auftraggeber und Auftragsart unterschiedliche Werte. Die zentralen Kontrollwerte sind 140.000 EUR für Liefer- und Dienstleistungsaufträge zentraler Regierungsbehörden im Sinne von § 106 Absatz 2 Nummer 1 GWB, 216.000 EUR für entsprechende Aufträge anderer öffentlicher Auftraggeber im Anwendungsbereich der Richtlinie 2014/24/EU, 432.000 EUR für Liefer- und Dienstleistungen von Sektorenauftraggebern sowie 5.404.000 EUR für Bauaufträge klassischer Auftraggeber; Konzessionen liegen ebenfalls bei 5.404.000 EUR.",
       },
       {
         question: "Was passiert bei Überschreitung des Schwellenwerts?",
-        answer: "Bei Überschreitung des einschlägigen Schwellenwerts gelten die Regeln des Oberschwellenbereichs. Dazu gehören insbesondere die EU-weite Bekanntmachung und die Vorschriften des vierten Teils des GWB. Bei Liefer- und Dienstleistungen ist regelmäßig die VgV maßgeblich; bei Bauaufträgen gelten VOB/A Abschnitt 2 und die nach § 2 VgV anwendbaren Vorschriften. Unter den gesetzlichen Voraussetzungen ist ein Nachprüfungsverfahren nach dem GWB möglich.",
+        answer: "Bei Überschreitung des einschlägigen Schwellenwerts gelten die Regeln des Oberschwellenbereichs. Dazu gehören im jeweiligen Anwendungsbereich die unionsweite Bekanntmachung und die Vorschriften des vierten Teils des GWB. Bei Liefer- und Dienstleistungen ist regelmäßig die VgV maßgeblich; bei Bauaufträgen gelten VOB/A Abschnitt 2 und die nach § 2 VgV anwendbaren Vorschriften. Unter den gesetzlichen Voraussetzungen ist ein Nachprüfungsverfahren nach dem GWB möglich.",
       },
       {
         question: "Wie wird der Auftragswert berechnet?",
-        answer: "Der Auftragswert wird grundsätzlich als Gesamtwert des Auftrags inklusive aller Optionen und Verlängerungen berechnet. Abhängig von der Art des Auftrags gibt es unterschiedliche Berechnungsmethoden. Bei regelmäßig wiederkehrenden Leistungen ist die Laufzeit zu berücksichtigen.",
+        answer: "Der Auftragswert wird nach der jeweils einschlägigen Berechnungsvorschrift als geschätzter Gesamtwert ohne Umsatzsteuer ermittelt. Optionen, Verlängerungen, Lose und wiederkehrende Leistungen können einzubeziehen sein; entscheidend sind Auftragsart, Laufzeit und das anwendbare Regelwerk.",
       },
     ],
-    relatedTerms: ["auftragswert", "vgv-vergabeverordnung", "uvgo", "eu-vergaberichtlinien"],
+    relatedTerms: ["auftragswert", "losvergabe", "vgv-vergabeverordnung", "uvgo", "vob-a", "vob-a-eu", "gwb-vergaberecht", "eu-vergaberichtlinien"],
     relatedArticles: ["schwellenwerte-vergabe", "vob-vergabe"],
+    sources: [
+      { title: "§ 106 GWB – Schwellenwerte", url: "https://www.gesetze-im-internet.de/gwb/__106.html" },
+      { title: "Bundesanzeiger: EU-Schwellenwerte ab 1. Januar 2026", url: "https://www.bundesanzeiger.de/pub/publication/zDKvMODHbpcIPpDPapc/content/zDKvMODHbpcIPpDPapc/BAnz%20AT%2018.12.2025%20B4.pdf?inline" },
+      { title: "BMWE: Vergabeübersicht und Rechtsgrundlagen", url: "https://www.bundeswirtschaftsministerium.de/Redaktion/DE/Artikel/Wirtschaft/vergabe-uebersicht-und-rechtsgrundlagen.html" },
+      { title: "Delegierte Verordnung (EU) 2025/2152", url: "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32025R2152" },
+      { title: "Delegierte Verordnung (EU) 2025/2151 für Konzessionen", url: "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32025R2151" },
+      { title: "Delegierte Verordnung (EU) 2025/2150 für Sektorenauftraggeber", url: "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32025R2150" },
+    ],
+    lastReviewed: "2026-09-29",
   },
   {
     slug: "auftragswert",
@@ -963,28 +1106,33 @@ export const GLOSSARY: GlossaryEntry[] = [
     category: "Schwellenwerte",
     shortDefinition: "Der Auftragswert ist der geschätzte Gesamtwert eines öffentlichen Auftrags. Er entscheidet über die Anwendung ober- oder unterschwelliger Vorschriften.",
     definition: [
-      "Der Auftragswert ist der geschätzte Gesamtwert eines öffentlichen Auftrags. Er ist maßgeblich für die Bestimmung, ob die Vorgaben des Ober- oder Unterschwellenbereichs anwendbar sind. Die Berechnung muss sorgfältig und nachvollziehbar erfolgen.",
-      "Bei der Berechnung des Auftragswerts sind alle mit dem Vertrag verbundenen Kosten zu berücksichtigen, einschließlich eventueller Optionen, Verlängerungen und Nebenkosten. Der Auftragswert ist vorab zu schätzen und zu dokumentieren.",
-      "Verschiedene Auftragsarten haben unterschiedliche Berechnungsmethoden: Bei Liefer- und Dienstleistungen kann der Wert anhand der vergangenen Abrechnungen oder der Marktanalyse geschätzt werden. Bei Bauleistungen werden die Baukosten inklusive Planung angesetzt.",
+      "Der Auftragswert ist der geschätzte Gesamtwert eines öffentlichen Auftrags. Er ist maßgeblich für die Bestimmung, ob die Vorgaben des Ober- oder Unterschwellenbereichs anwendbar sind. Die Berechnung muss nach den für den Auftrag geltenden Vorschriften nachvollziehbar erfolgen.",
+      "In die Schätzung können insbesondere Optionen, Verlängerungen, Prämien und Zahlungen einfließen, soweit die einschlägige Vorschrift dies vorsieht. Der Wert wird vor Beginn des Vergabeverfahrens ohne Umsatzsteuer geschätzt und dokumentiert.",
+      "Die Berechnungsmethode hängt von Auftragsart, Laufzeit, Losen und dem anwendbaren Regelwerk ab. Bei Bauaufträgen ist nicht pauschal jede Planung einzubeziehen; maßgeblich ist, was zum konkreten Beschaffungsvorhaben und seiner Wertberechnung gehört.",
     ],
     keyPoints: [
       "Geschätzter Gesamtwert eines öffentlichen Auftrags",
       "Entscheidet über Ober- oder Unterschwellenbereich",
-      "Alle Kosten inklusive Optionen und Verlängerungen",
+      "Optionen und Verlängerungen nach der jeweils einschlägigen Berechnungsvorschrift berücksichtigen",
       "Vorab zu schätzen und zu dokumentieren",
     ],
     faq: [
       {
         question: "Wie wird der Auftragswert berechnet?",
-        answer: "Der Auftragswert wird als Gesamtwert des Auftrags inklusive Optionen, Verlängerungen und Nebenkosten berechnet. Die Berechnungsmethode hängt von der Auftragsart ab (Lieferungen/Dienstleistungen vs. Bauleistungen). Er muss vorab geschätzt und dokumentiert werden.",
+        answer: "Der Auftragswert wird nach der für die Auftragsart geltenden Berechnungsvorschrift geschätzt. Optionen, Verlängerungen, Lose oder andere Bestandteile können einzubeziehen sein. Die Schätzung erfolgt vorab ohne Umsatzsteuer und wird dokumentiert.",
       },
       {
         question: "Warum ist der Auftragswert wichtig?",
-        answer: "Der Auftragswert entscheidet darüber, ob die Vorgaben des Ober- oder Unterschwellenbereichs anwendbar sind. Oberhalb der EU-Schwellenwerte gelten strengere Regeln (EU-weite Bekanntmachung, VgV statt UVgO, erweiterte Nachprüfungsmöglichkeiten).",
+        answer: "Der Auftragswert entscheidet darüber, ob die Vorgaben des Ober- oder Unterschwellenbereichs anwendbar sind. Oberhalb des einschlägigen EU-Schwellenwerts gelten im passenden Anwendungsbereich strengere Regeln, etwa unionsweite Bekanntmachungs- und Nachprüfungsvorschriften. Bei Bauaufträgen ist nicht pauschal die VgV anstelle der VOB/A anzuwenden; § 2 VgV ordnet die Kombination der Regelwerke an.",
       },
     ],
-    relatedTerms: ["schwellenwerte", "vgv-vergabeverordnung", "uvgo"],
+    relatedTerms: ["schwellenwerte", "losvergabe", "vgv-vergabeverordnung", "uvgo", "vob-a", "vob-a-eu", "gwb-vergaberecht"],
     relatedArticles: ["schwellenwerte-vergabe"],
+    sources: [
+      { title: "§ 3 VgV – Schätzung des Auftragswerts", url: "https://www.gesetze-im-internet.de/vgv_2016/__3.html" },
+      { title: "§ 106 GWB – Schwellenwerte", url: "https://www.gesetze-im-internet.de/gwb/__106.html" },
+    ],
+    lastReviewed: "2026-09-17",
   },
 
   // === NACHPRÜFUNG ===
@@ -994,7 +1142,7 @@ export const GLOSSARY: GlossaryEntry[] = [
     category: "Nachprüfung",
     shortDefinition: "Das Nachprüfungsverfahren erlaubt es Bietern, Verstöße gegen Vergabevorschriften durch öffentliche Auftraggeber zu rügen.",
     definition: [
-      "Das Nachprüfungsverfahren ist ein förmliches Verfahren, das es Unternehmen ermöglicht, vermeintliche Verstöße gegen das Vergaberecht durch öffentliche Auftraggeber überprüfen zu lassen. Es ist im vierten Teil des GWB geregelt.",
+      "Das Nachprüfungsverfahren ist ein förmliches Verfahren, das antragsbefugten Unternehmen ermöglicht, vermeintliche Verstöße gegen das Vergaberecht durch öffentliche Auftraggeber überprüfen zu lassen. Es ist im vierten Teil des GWB geregelt und betrifft grundsätzlich Vergaben in dessen Anwendungsbereich.",
       "Zuständig für das Nachprüfungsverfahren sind die Vergabekammern des Bundes und der Länder. Gegen Entscheidungen der Vergabekammer kann Beschwerde bei den Vergabesenaten der Oberlandesgerichte eingelegt werden.",
       "Vor einem Nachprüfungsantrag ist ein erkannter Verstoß grundsätzlich gegenüber dem Auftraggeber zu rügen. Für die Zulässigkeit gelten die gesetzlichen Fristen und Anforderungen, insbesondere § 160 Absatz 3 GWB. Zuständig ist die Vergabekammer, nicht ein allgemeiner Vergabenachprüfungsausschuss.",
     ],
@@ -1015,10 +1163,16 @@ export const GLOSSARY: GlossaryEntry[] = [
       },
       {
         question: "Wie lange dauert ein Nachprüfungsverfahren?",
-        answer: "Ein Nachprüfungsverfahren bei der Vergabekammer dauert in der Regel einige Wochen bis Monate, abhängig von der Komplexität des Falls. Gegen die Entscheidung kann Beschwerde beim Vergabesenat des Oberlandesgerichts eingelegt werden.",
+        answer: "Die Dauer hängt vom konkreten Verfahren, der Auslastung und der Komplexität des Falls ab. Gegen die Entscheidung der Vergabekammer kann unter den Voraussetzungen des GWB sofortige Beschwerde beim zuständigen Oberlandesgericht eingelegt werden.",
       },
     ],
     relatedTerms: ["ruege", "vergabekammer", "vergabesenat", "gwb-vergaberecht"],
+    sources: [
+      { title: "§ 155 GWB – Nachprüfungsbehörden", url: "https://www.gesetze-im-internet.de/gwb/__155.html" },
+      { title: "§ 160 GWB – Einleitung, Antrag", url: "https://www.gesetze-im-internet.de/gwb/__160.html" },
+      { title: "§ 172 GWB – Frist, Form, Inhalt der sofortigen Beschwerde", url: "https://www.gesetze-im-internet.de/gwb/__172.html" },
+    ],
+    lastReviewed: "2026-09-27",
   },
   {
     slug: "ruege",
@@ -1027,7 +1181,7 @@ export const GLOSSARY: GlossaryEntry[] = [
     shortDefinition: "Die Rüge ist die formelle Beanstandung eines Vergaberechtsverstoßes durch einen Bieter gegenüber dem Auftraggeber.",
     definition: [
       "Die Rüge ist die förmliche Beanstandung eines vermuteten Vergaberechtsverstoßes durch einen Bieter gegenüber dem öffentlichen Auftraggeber. Sie ist Voraussetzung für ein späteres Nachprüfungsverfahren: Erst wenn die Rüge erfolglos bleibt, kann die Vergabekammer angerufen werden.",
-      "Eine Rüge muss unverzüglich nach Kenntnisnahme des angeblichen Verstoßes erfolgen. Der Bieter muss klar benennen, welcher Verstoß gegen welche Vergabevorschrift vorliegen soll. Der Auftraggeber hat dann die Möglichkeit, den Verstoß zu korrigieren.",
+      "Für Vergaben im Anwendungsbereich des vierten Teils des GWB muss ein erkannter Verstoß grundsätzlich innerhalb von zehn Kalendertagen gerügt werden. Verstöße, die aus der Bekanntmachung oder den Vergabeunterlagen erkennbar sind, müssen spätestens bis zum Ablauf der dort genannten Bewerbungs- oder Angebotsfrist gerügt werden. Der Bieter sollte den Verstoß klar und nachvollziehbar benennen.",
       "Rügen können sich auf verschiedene Aspekte beziehen: unklare Leistungsbeschreibung, unangemessene Fristen, intransparente Zuschlagskriterien, Diskriminierung von Bietern, falsche Eignungsprüfung oder unzulässige Verhandlung von Angeboten.",
     ],
     keyPoints: [
@@ -1039,14 +1193,18 @@ export const GLOSSARY: GlossaryEntry[] = [
     faq: [
       {
         question: "Was ist eine Rüge im Vergabeverfahren?",
-        answer: "Eine Rüge ist die formelle Beanstandung eines vermuteten Vergaberechtsverstoßes durch einen Bieter gegenüber dem Auftraggeber. Sie muss unverzüglich erfolgen und klar benannt sein. Erst nach erfolgloser Rüge kann die Vergabekammer angerufen werden.",
+        answer: "Eine Rüge ist die konkrete Beanstandung eines vermuteten Vergaberechtsverstoßes gegenüber dem Auftraggeber. Im Anwendungsbereich des vierten Teils des GWB gelten dafür insbesondere die Fristen und Anforderungen des § 160 Absatz 3 GWB. Eine erfolglose Rüge ist grundsätzlich Voraussetzung für den späteren Nachprüfungsantrag.",
       },
       {
         question: "Wie muss eine Rüge formuliert sein?",
-        answer: "Eine Rüge muss den vermuteten Verstoß klar und konkret benennen: Welcher Vorgang verstößt gegen welche Vorschrift? Eine pauschale Rüge reicht nicht aus. Die Rüge sollte schriftlich erfolgen und eine Frist zur Stellungnahme setzen.",
+        answer: "Die Rüge sollte den konkreten Vorgang und den vermuteten Vergaberechtsverstoß nachvollziehbar benennen und über den vorgesehenen Kommunikationsweg übermittelt werden. Eine pauschale Unzufriedenheit reicht nicht aus; ein bestimmtes Antwort- oder Abhilfedatum ist keine allgemeine gesetzliche Voraussetzung.",
       },
     ],
     relatedTerms: ["nachpruefungsverfahren", "vergabekammer"],
+    sources: [
+      { title: "§ 160 Absatz 3 GWB – Rügefristen", url: "https://www.gesetze-im-internet.de/gwb/__160.html" },
+    ],
+    lastReviewed: "2026-09-27",
   },
   {
     slug: "vergabekammer",
@@ -1080,17 +1238,17 @@ export const GLOSSARY: GlossaryEntry[] = [
     slug: "vergabesenat",
     term: "Vergabesenat",
     category: "Nachprüfung",
-    shortDefinition: "Der Vergabesenat ist die Berufungsinstanz bei Oberlandesgerichten für Entscheidungen der Vergabekammern.",
+    shortDefinition: "Der Vergabesenat beim Oberlandesgericht entscheidet über die sofortige Beschwerde gegen Entscheidungen der Vergabekammer.",
     definition: [
-      "Der Vergabesenat ist die zweite Instanz im Nachprüfungsverfahren. Er ist bei den Oberlandesgerichten (OLG) angesiedelt und entscheidet über Beschwerden gegen Entscheidungen der Vergabekammern.",
-      "Der Vergabesenat prüft, ob die Vergabekammer das Vergaberecht richtig angewendet hat. Er kann die Entscheidung der Vergabekammer bestätigen, ändern oder aufheben und an die Vergabekammer zurückverweisen.",
-      "Eine weitere Rechtsbeschwerde zum Bundesgerichtshof kommt nur unter den gesetzlichen Voraussetzungen in Betracht. Ob ein Rechtsmittel möglich ist, hängt daher von der konkreten Entscheidung und den Vorgaben des GWB ab.",
+      "Der Vergabesenat ist beim zuständigen Oberlandesgericht angesiedelt und entscheidet über die sofortige Beschwerde gegen Entscheidungen der Vergabekammer. Der Rechtsbehelf ist keine gewöhnliche Berufung; für Frist, Form und Begründung gelten die besonderen Vorschriften des GWB.",
+      "Das Oberlandesgericht kann die Entscheidung der Vergabekammer bestätigen, ändern oder aufheben und die Sache unter den gesetzlichen Voraussetzungen zurückverweisen. Die sofortige Beschwerde ist grundsätzlich binnen zwei Wochen nach Zustellung der Entscheidung einzulegen und muss anwaltlich unterzeichnet sein.",
+      "Das Oberlandesgericht ist grundsätzlich die letzte Tatsachen- und Rechtsmittelinstanz. Eine Vorlage an den Bundesgerichtshof kommt insbesondere bei einer beabsichtigten Abweichung von der Entscheidung eines anderen Oberlandesgerichts oder des Bundesgerichtshofs nach den gesetzlichen Voraussetzungen in Betracht.",
     ],
     keyPoints: [
-      "Berufungsinstanz bei Oberlandesgerichten (OLG)",
-      "Zweite Instanz im Nachprüfungsverfahren",
-      "Entscheidet über Beschwerden gegen Vergabekammer-Entscheidungen",
-      "Entscheidungen sind endgültig",
+      "Vergaberechtliches Beschwerdegericht beim Oberlandesgericht (OLG)",
+      "Entscheidet über die sofortige Beschwerde gegen Vergabekammer-Entscheidungen",
+      "Kann Entscheidungen bestätigen, ändern oder aufheben",
+      "Weitere Rechtsmittel kommen nur unter den gesetzlichen Voraussetzungen in Betracht",
     ],
     faq: [
       {
@@ -1099,10 +1257,15 @@ export const GLOSSARY: GlossaryEntry[] = [
       },
       {
         question: "Kann man gegen Vergabesenatsentscheidungen vorgehen?",
-        answer: "Gegen Entscheidungen des Vergabesenats ist keine weitere Beschwerde im Nachprüfungsverfahren möglich. Die Entscheidungen sind endgültig. In Ausnahmefällen kann der Weg zu allgemeinen Zivilgerichten oder zum Bundesverfassungsgericht offenstehen.",
+        answer: "Ein weiteres allgemeines Rechtsmittel steht nicht automatisch offen. Eine Vorlage an den Bundesgerichtshof kann unter den besonderen Voraussetzungen des § 179 Absatz 2 GWB erforderlich sein; das hängt von der konkreten Entscheidung und einer möglichen Abweichung in einer Rechtsfrage ab.",
       },
     ],
     relatedTerms: ["nachpruefungsverfahren", "vergabekammer"],
+    sources: [
+      { title: "§ 172 GWB – Frist, Form, Inhalt der sofortigen Beschwerde", url: "https://www.gesetze-im-internet.de/gwb/__172.html" },
+      { title: "§ 179 GWB – Bindungswirkung und Vorlagepflicht", url: "https://www.gesetze-im-internet.de/gwb/__179.html" },
+    ],
+    lastReviewed: "2026-09-27",
   },
 
   // === TECHNIK & STANDARDS ===
@@ -1143,17 +1306,17 @@ export const GLOSSARY: GlossaryEntry[] = [
     slug: "eforms",
     term: "eForms",
     category: "Technik & Standards",
-    shortDefinition: "eForms ist der EU-Standard für strukturierte elektronische Vergabebekanntmachungen, der seit 2025 stufenweise verwendet wird.",
+    shortDefinition: "eForms ist der EU-Standard für strukturierte elektronische Vergabebekanntmachungen, der seit 2023 für unionsrechtlich erfasste Bekanntmachungen eingesetzt wird.",
     definition: [
       "eForms ist ein neuer, standardisierter elektronischer Standard für Vergabebekanntmachungen in der Europäischen Union. Er löst die bisherigen Formulare (wie die Standardformulare für Bekanntmachungen) ab und soll die Transparenz, Vergleichbarkeit und Auffindbarkeit von Vergabeverfahren verbessern.",
       "eForms basiert auf einem strukturierten XML-Format und ermöglicht die maschinenlesbare Verarbeitung von Bekanntmachungen. Dadurch können Ausschreibungen leichter durchsucht, gefiltert und analysiert werden — ein Vorteil sowohl für Auftraggeber als auch für Bieter.",
-      "eForms werden seit 2025 für die unionsrechtlich erfassten Bekanntmachungen stufenweise eingesetzt. Die konkrete Umsetzung erfolgt über die zuständigen elektronischen Vergabesysteme und die jeweils geltenden Bekanntmachungspflichten.",
+      "eForms werden seit dem 25. Oktober 2023 für die unionsrechtlich erfassten Bekanntmachungen eingesetzt. Die konkrete Umsetzung erfolgt über die zuständigen elektronischen Vergabesysteme und die jeweils geltenden Bekanntmachungspflichten.",
     ],
     keyPoints: [
       "Neuer EU-Standard für Vergabebekanntmachungen",
       "Löst bisherige Standardformulare ab",
       "Maschinenlesbares XML-Format",
-      "Seit 2025 unionsweit maßgeblicher Bekanntmachungsstandard",
+      "Seit 2023 unionsweit maßgeblicher Bekanntmachungsstandard",
     ],
     faq: [
       {
@@ -1162,10 +1325,14 @@ export const GLOSSARY: GlossaryEntry[] = [
       },
       {
         question: "Ab wann sind eForms verpflichtend?",
-        answer: "eForms werden seit 2025 unionsweit für die einschlägigen Bekanntmachungen eingesetzt. Welche Bekanntmachung konkret erforderlich ist, richtet sich nach dem Verfahren und den geltenden elektronischen Vergaberegeln.",
+        answer: "Für unionsrechtlich erfasste Bekanntmachungen sind eForms seit dem 25. Oktober 2023 der maßgebliche Standard. Welche Bekanntmachung konkret erforderlich ist, richtet sich weiterhin nach dem Verfahren und den geltenden Bekanntmachungsregeln.",
       },
     ],
     relatedTerms: ["cpv-code", "eu-vergaberichtlinien", "gaeb"],
+    sources: [
+      { title: "Durchführungsverordnung (EU) 2019/1780 – eForms", url: "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32019R1780" },
+    ],
+    lastReviewed: "2026-09-27",
   },
   {
     slug: "gaeb",
@@ -1202,27 +1369,121 @@ export const GLOSSARY: GlossaryEntry[] = [
     category: "Technik & Standards",
     shortDefinition: "TED ist das offizielle Vergabeportal der Europäischen Union für die Veröffentlichung von Oberschwellenvergaben.",
     definition: [
-      "TED (Tenders Electronic Daily) ist das offizielle Online-Portal der Europäischen Union für die Veröffentlichung von Vergabebekanntmachungen. Alle öffentlichen Aufträge oberhalb der EU-Schwellenwerte müssen hier veröffentlicht werden, damit sie EU-weit sichtbar sind.",
+      "TED (Tenders Electronic Daily) ist das offizielle Online-Portal der Europäischen Union für unionsrechtlich vorgeschriebene Vergabebekanntmachungen. Bekanntmachungspflichtige Vergaben im EU-Oberschwellenbereich werden dort grundsätzlich veröffentlicht; Ausnahmen und besondere Regelwerke sind anhand des konkreten Verfahrens zu prüfen.",
       "Das Portal wird vom Amt für Veröffentlichungen der Europäischen Union betrieben und ist kostenlos nutzbar. Es bietet eine Suchfunktion, mit der Bieter gezielt nach Aufträgen filtern können — nach Land, CPV-Code, Auftragsart und anderen Kriterien.",
       "Neben Bekanntmachungen bietet TED auch Informationen über Zuschlagserteilungen, Korrekturen und Verfahrensaufhebungen. Für Unternehmen mit internationaler Ausrichtung ist TED eine unverzichtbare Informationsquelle.",
     ],
     keyPoints: [
       "Offizielles EU-Vergabeportal",
-      "Verpflichtend für alle Oberschwellenvergaben",
+      "Portal für unionsrechtlich vorgeschriebene Bekanntmachungen",
       "Kostenlose Nutzung für Bieter",
       "Suche nach Land, CPV-Code, Auftragsart möglich",
     ],
     faq: [
       {
         question: "Was ist TED?",
-        answer: "TED (Tenders Electronic Daily) ist das offizielle Vergabeportal der Europäischen Union. Alle Oberschwellenvergaben müssen hier veröffentlicht werden. Es ist kostenlos nutzbar und bietet vielfältige Suchfunktionen.",
+        answer: "TED (Tenders Electronic Daily) ist das offizielle Vergabeportal der Europäischen Union für unionsrechtlich vorgeschriebene Bekanntmachungen. Es ist kostenlos nutzbar und bietet vielfältige Suchfunktionen.",
       },
       {
         question: "Müssen alle Ausschreibungen auf TED veröffentlicht werden?",
-        answer: "Nein, nur Aufträge oberhalb der EU-Schwellenwerte müssen auf TED veröffentlicht werden. Für Unterschwellenvergaben genügt die Veröffentlichung auf nationalen oder regionalen Portalen wie DTVP oder evergabe.",
+        answer: "Nein. Auf TED werden grundsätzlich die unionsrechtlich bekanntmachungspflichtigen Vergaben veröffentlicht. Unterschwellenvergaben werden regelmäßig national oder regional bekannt gemacht; für Ausnahmen und besondere Auftraggeber gelten die jeweiligen Vorschriften.",
       },
     ],
     relatedTerms: ["eu-vergaberichtlinien", "schwellenwerte", "cpv-code"],
+    sources: [
+      { title: "TED – Tenders Electronic Daily der Europäischen Union", url: "https://ted.europa.eu/de/" },
+    ],
+    lastReviewed: "2026-09-27",
+  },
+
+  {
+    slug: "e-vergabe",
+    term: "E-Vergabe (elektronische Vergabe)",
+    category: "Technik & Standards",
+    shortDefinition: "E-Vergabe bezeichnet die elektronische Durchführung von Vergabeverfahren: von der Bereitstellung der Unterlagen über die Kommunikation bis zur Angebotsabgabe.",
+    definition: [
+      "Bei der E-Vergabe werden die wesentlichen Verfahrensschritte elektronisch über ein Vergabeportal abgewickelt. Dazu gehören insbesondere der Zugang zu Bekanntmachung und Vergabeunterlagen, Bieterfragen, Antworten und die Einreichung von Teilnahmeanträgen oder Angeboten.",
+      "Für EU-Vergaben verlangt die VgV grundsätzlich die Verwendung elektronischer Kommunikationsmittel. Die konkrete Bedienung, Dateiformate, Fristen und Anforderungen an Signatur oder Authentifizierung ergeben sich aus der Bekanntmachung und den Vergabeunterlagen des jeweiligen Verfahrens.",
+      "E-Vergabe ist nicht dasselbe wie ein einzelnes Portal. Auftraggeber können unterschiedliche Plattformen einsetzen; für Bieter ist deshalb entscheidend, sich am angegebenen System zu registrieren, die Unterlagen vollständig herunterzuladen und die elektronische Übermittlung rechtzeitig zu testen.",
+    ],
+    keyPoints: [
+      "Elektronische Bereitstellung, Kommunikation und Einreichung",
+      "Portal und technische Anforderungen stehen in der Bekanntmachung",
+      "Fristgerechter Upload liegt im Verantwortungsbereich des Bieters",
+      "Nicht jedes Vergabeportal funktioniert mit demselben Konto oder Dateiformat",
+    ],
+    faq: [
+      { question: "Was bedeutet E-Vergabe?", answer: "E-Vergabe bedeutet, dass ein Vergabeverfahren ganz oder in seinen wesentlichen Schritten elektronisch über ein Vergabeportal durchgeführt wird. Dazu zählen insbesondere Unterlagen, Kommunikation und die Abgabe von Teilnahmeanträgen oder Angeboten." },
+      { question: "Muss ein Angebot elektronisch abgegeben werden?", answer: "Ob und in welcher Form ein Angebot elektronisch einzureichen ist, ergibt sich aus dem anwendbaren Regelwerk und den konkreten Vergabeunterlagen. Bei EU-Vergaben ist die elektronische Kommunikation grundsätzlich vorgesehen; die Bekanntmachung nennt die maßgebliche Plattform und die technischen Vorgaben." },
+      { question: "Was sollten Bieter bei der E-Vergabe prüfen?", answer: "Bieter sollten Registrierung, Benutzerrechte, Dateiformate, Größenlimits, erforderliche Signaturen und die tatsächliche Übermittlung vor Fristablauf prüfen. Eine bloße Speicherung als Entwurf ersetzt die erfolgreiche Einreichung nicht." },
+    ],
+    relatedTerms: ["vergabeunterlagen", "teilnahmewettbewerb", "eforms", "ted", "angebot"],
+    relatedArticles: ["wie-funktioniert-ausschreibung", "vergabeverfahren-uebersicht", "vergabeportal-vergleich", "eu-vergabe"],
+    sources: [
+      { title: "§ 9 VgV – Grundsätze der Kommunikation", url: "https://www.gesetze-im-internet.de/vgv_2016/__9.html" },
+      { title: "§ 10 VgV – Anforderungen an elektronische Mittel", url: "https://www.gesetze-im-internet.de/vgv_2016/__10.html" },
+      { title: "§ 11 VgV – Anforderungen an elektronische Kommunikation", url: "https://www.gesetze-im-internet.de/vgv_2016/__11.html" },
+    ],
+    lastReviewed: "2026-09-24",
+  },
+  {
+    slug: "vergabeunterlagen",
+    term: "Vergabeunterlagen",
+    category: "Vergabeprozess",
+    shortDefinition: "Vergabeunterlagen enthalten die Informationen und Bedingungen, die Unternehmen für die Entscheidung über eine Teilnahme und die Erstellung eines Angebots benötigen.",
+    definition: [
+      "Zu den Vergabeunterlagen gehören je nach Verfahren unter anderem die Aufforderung zur Angebotsabgabe oder zur Teilnahme, Vertragsbedingungen, Leistungsbeschreibung, Leistungsverzeichnis, Formblätter, Eignungsanforderungen und Zuschlagskriterien.",
+      "Die Unterlagen müssen die Anforderungen des konkreten Auftrags so klar beschreiben, dass Unternehmen ihre Teilnahmeentscheidung treffen und vergleichbare Angebote abgeben können. Maßgeblich sind immer die Unterlagen der konkreten Vergabestelle; eine allgemeine Musterliste ersetzt sie nicht.",
+      "Bieter sollten die Unterlagen vollständig herunterladen, Fristen und Nachweise in einer Checkliste erfassen und Unklarheiten innerhalb der vorgesehenen Frist über das Vergabeportal fragen. Änderungen oder Antworten der Vergabestelle können die ursprünglichen Unterlagen ergänzen.",
+    ],
+    keyPoints: [
+      "Leistungsbeschreibung und Leistungsverzeichnis bilden den fachlichen Kern",
+      "Eignungs- und Zuschlagskriterien müssen für das Angebot erkennbar sein",
+      "Vertragsbedingungen und Formblätter gehören zum Gesamtpaket",
+      "Nachträge, Antworten und Änderungen im Portal mitprüfen",
+    ],
+    faq: [
+      { question: "Was gehört zu den Vergabeunterlagen?", answer: "Das hängt vom Verfahren ab. Typisch sind Aufforderung, Leistungsbeschreibung, Leistungsverzeichnis, Vertragsbedingungen, Formblätter, Eignungsanforderungen, Zuschlagskriterien sowie weitere Anlagen wie Pläne oder Gutachten." },
+      { question: "Wo finde ich die Vergabeunterlagen?", answer: "Die Bekanntmachung nennt die zuständige Vergabeplattform und den Zugang. Bei elektronischen Verfahren werden die Unterlagen dort bereitgestellt; Bieter sollten auch spätere Antworten und Änderungen im selben Verfahren abrufen." },
+      { question: "Was tun bei unklaren Vergabeunterlagen?", answer: "Unklarheiten sollten innerhalb der angegebenen Frist über den vorgesehenen Kommunikationsweg als Bieterfrage gestellt werden. Die Antwort kann für alle Bieter relevant sein und die Unterlagen ergänzen oder erläutern." },
+    ],
+    relatedTerms: ["leistungsbeschreibung", "leistungsverzeichnis", "e-vergabe", "eignungskriterien", "zuschlagskriterien", "bieterfragen"],
+    relatedArticles: ["ausschreibung-schreiben", "ausschreibung-muster", "wie-funktioniert-ausschreibung", "vob-vergabe"],
+    sources: [
+      { title: "§ 29 VgV – Vergabeunterlagen", url: "https://www.gesetze-im-internet.de/vgv_2016/__29.html" },
+      { title: "VOB/A 2019 – §§ 7 und 8", url: "https://www.verwaltungsvorschriften-im-internet.de/bsvwvbund_31012019_BWI781063060120180001604634.htm" },
+    ],
+    lastReviewed: "2026-09-24",
+  },
+  {
+    slug: "teilnahmewettbewerb",
+    term: "Teilnahmewettbewerb",
+    category: "Verfahren",
+    shortDefinition: "Im Teilnahmewettbewerb prüft der Auftraggeber zunächst, welche Unternehmen geeignet sind und zur Angebotsabgabe aufgefordert werden.",
+    definition: [
+      "Der Teilnahmewettbewerb ist eine Auswahlphase vor der eigentlichen Angebotsphase. Unternehmen reichen zunächst einen Teilnahmeantrag mit den geforderten Eignungsnachweisen ein; ein Angebot wird erst von den ausgewählten Bewerbern verlangt.",
+      "Er kommt insbesondere beim nichtoffenen Verfahren und bei Verfahren mit vorgeschalteter Auswahl in Betracht. Die Bekanntmachung muss die Teilnahmebedingungen, Eignungskriterien und gegebenenfalls die objektiven Regeln für die Begrenzung der Bewerberzahl nennen.",
+      "Bewerber sollten den Teilnahmeantrag strikt von einem Angebot unterscheiden: In dieser Phase geht es um die eigene Eignung und Auswahl, nicht um eine vollständige Preis- und Leistungskalkulation, sofern die Vergabestelle nichts anderes verlangt.",
+    ],
+    keyPoints: [
+      "Auswahlphase vor der Angebotsabgabe",
+      "Teilnahmeantrag ist kein Angebot",
+      "Eignung und Auswahlregeln stehen in der Bekanntmachung",
+      "Nur ausgewählte Bewerber werden zur Angebotsabgabe aufgefordert",
+    ],
+    faq: [
+      { question: "Was ist ein Teilnahmewettbewerb?", answer: "Ein Teilnahmewettbewerb ist eine vorgelagerte Auswahlphase. Unternehmen weisen zunächst ihre Eignung nach; anschließend fordert der Auftraggeber die ausgewählten Bewerber zur Abgabe eines Angebots auf." },
+      { question: "Ist ein Teilnahmeantrag schon ein Angebot?", answer: "Nein. Der Teilnahmeantrag dient grundsätzlich der Auswahl geeigneter Bewerber. Ein Angebot wird erst in der anschließenden Angebotsphase abgegeben, wenn die Vergabestelle dazu auffordert." },
+      { question: "Welche Nachweise werden im Teilnahmewettbewerb verlangt?", answer: "Verlangt werden die in der Bekanntmachung genannten Eignungsnachweise, zum Beispiel Angaben zur beruflichen Befähigung, Referenzen oder zur wirtschaftlichen Leistungsfähigkeit. Maßgeblich sind die konkreten Anforderungen des Verfahrens." },
+    ],
+    relatedTerms: ["beschraenktes-verfahren", "eignungskriterien", "eigenerklaerung", "referenzen", "e-vergabe"],
+    relatedArticles: ["vergabeverfahren-uebersicht", "wie-funktioniert-ausschreibung", "eu-vergabe"],
+    sources: [
+      { title: "§ 16 VgV – Nichtoffenes Verfahren", url: "https://www.gesetze-im-internet.de/vgv_2016/__16.html" },
+      { title: "§ 17 VgV – Verhandlungsverfahren", url: "https://www.gesetze-im-internet.de/vgv_2016/__17.html" },
+      { title: "§ 3b VOB/A – Arten der Vergabe", url: "https://www.verwaltungsvorschriften-im-internet.de/bsvwvbund_31012019_BWI781063060120180001604634.htm" },
+    ],
+    lastReviewed: "2026-09-24",
   },
 
   // === AKTEURE ===
@@ -1316,30 +1577,35 @@ export const GLOSSARY: GlossaryEntry[] = [
     slug: "tariftreue",
     term: "Tariftreue",
     category: "Sonderbereiche",
-    shortDefinition: "Tariftreue bedeutet, dass Auftragnehmer bei öffentlichen Aufträgen die einschlägigen Tariflöhne zahlen müssen.",
+    shortDefinition: "Tariftreue bezeichnet vergaberechtliche Vorgaben zur Einhaltung einschlägiger Arbeits- oder Tarifbedingungen bei der Auftragsausführung.",
     definition: [
-      "Tariftreue ist ein Begriff aus dem öffentlichen Beschaffungswesen, der besagt, dass Auftragnehmer bei der Ausführung öffentlicher Aufträge verpflichtet sind, ihren Beschäftigten mindestens den einschlägigen Tariflohn zu zahlen.",
-      "Die Tariftreuepflicht ist in verschiedenen Gesetzen geregelt, darunter das Tariftreuegesetz (Tarifaugleichungsgesetz) des Bundes und entsprechende Landesgesetze. Sie gilt für bestimmte öffentliche Aufträge und soll Lohndumping verhindern und faire Wettbewerbsbedingungen schaffen.",
-      "Auftraggeber müssen die Einhaltung der Tariftreue bei der Vergabe prüfen und können Verträge kündigen, wenn der Auftragnehmer gegen die Tariftreuepflicht verstößt.",
+      "Tariftreue kann bedeuten, dass Auftragnehmer bei der Ausführung eines öffentlichen Auftrags bestimmte tarifliche oder gesetzlich festgelegte Arbeitsbedingungen einhalten müssen. Ob eine solche Verpflichtung besteht, hängt vom Auftraggeber, Auftragsgegenstand, Auftragswert und dem einschlägigen Bundes- oder Landesrecht ab.",
+      "Die Anforderungen ergeben sich aus dem anwendbaren Tariftreue- oder Vergabegesetz, dem Vertrag und den Vergabeunterlagen. Sie können auch Nachunternehmer erfassen. Eine allgemeine Pflicht, bei jedem öffentlichen Auftrag einen Tariflohn zu zahlen, folgt daraus nicht.",
+      "Auftraggeber können Nachweise und Kontrollen vorsehen. Rechtsfolgen bei Verstößen – etwa Vertragsstrafe, Ausschluss von künftigen Vergaben oder Kündigung – müssen sich aus der einschlägigen Rechtsgrundlage und den Vertragsbedingungen ergeben.",
     ],
     keyPoints: [
-      "Pflicht zur Zahlung des Tariflohns bei öffentlichen Aufträgen",
-      "Geregelt im Tariftreuegesetz (Bund) und Landesgesetzen",
+      "Arbeits- und Tarifbedingungen nach dem einschlägigen Recht einhalten",
+      "Gilt nicht automatisch für jeden öffentlichen Auftrag",
       "Soll Lohndumping verhindern",
       "Auftraggeber prüfen Einhaltung",
     ],
     faq: [
       {
         question: "Was bedeutet Tariftreue bei öffentlichen Aufträgen?",
-        answer: "Tariftreue bedeutet, dass Auftragnehmer bei öffentlichen Aufträgen verpflichtet sind, mindestens den einschlägigen Tariflohn zu zahlen. Dies ist im Tariftreuegesetz und in Landesgesetzen geregelt.",
+        answer: "Tariftreue bedeutet, dass bei einem konkreten öffentlichen Auftrag die in Recht und Vergabeunterlagen festgelegten tariflichen oder gesetzlichen Arbeitsbedingungen eingehalten werden müssen. Die genaue Verpflichtung hängt vom anwendbaren Bundes- oder Landesrecht ab.",
       },
       {
         question: "Gilt die Tariftreuepflicht für alle öffentlichen Aufträge?",
-        answer: "Die Tariftreuepflicht gilt nicht für alle öffentlichen Aufträge, sondern für bestimmte Arten und Größenordnungen. Die genauen Voraussetzungen sind im Tariftreuegesetz des Bundes und in den jeweiligen Landesgesetzen geregelt.",
+        answer: "Die Tariftreuepflicht gilt nicht für alle öffentlichen Aufträge, sondern für bestimmte Arten und Größenordnungen. Die genauen Voraussetzungen ergeben sich aus dem einschlägigen Bundes- oder Landesrecht, dem Vertrag und den Vergabeunterlagen.",
       },
     ],
     relatedTerms: ["auftraggeber"],
     relatedCategories: ["Gebaeudereinigung", "Facility Management"],
+    sources: [
+      { title: "§ 128 GWB – Auftragsausführung", url: "https://www.gesetze-im-internet.de/gwb/__128.html" },
+      { title: "§ 129 GWB – Zwingende Arbeitsbedingungen", url: "https://www.gesetze-im-internet.de/gwb/__129.html" },
+    ],
+    lastReviewed: "2026-09-27",
   },
   {
     slug: "konzession",
@@ -1376,26 +1642,30 @@ export const GLOSSARY: GlossaryEntry[] = [
     shortDefinition: "Die Zuschlagserteilung ist die förmliche Beauftragung eines Bieters nach Abschluss des Vergabeverfahrens.",
     definition: [
       "Die Zuschlagserteilung ist der förmliche Akt, mit dem der öffentliche Auftraggeber einem Bieter den Zuschlag erteilt und damit den Vertrag abschließt. Sie erfolgt nach Abschluss des Vergabeverfahrens und der Prüfung aller Angebote.",
-      "Vor der Zuschlagserteilung muss der Auftraggeber die nicht berücksichtigten Bieter über die beabsichtigte Zuschlagserteilung informieren und ihnen die Möglichkeit geben, den Zuschlag zu überprüfen (Nachprüfungsverfahren). Diese Information muss bestimmte Angaben enthalten (z.B. Name des erfolgreichen Bieters, Zuschlagskriterien, Rangfolge der Angebote).",
-      "Die Wartefrist nach dieser Information beträgt in der Regel 15 Tage (bei elektronischer Übermittlung 10 Tage). Erst nach Ablauf der Frist kann der Zuschlag formell erteilt werden. Die Zuschlagserteilung muss schriftlich erfolgen und den Bieter über die Annahme seines Angebots informieren.",
+      "Soweit § 134 GWB anwendbar ist, muss der Auftraggeber die betroffenen Bieter in Textform über den Namen des vorgesehenen Zuschlagsempfängers, die Gründe der Nichtberücksichtigung und den frühesten Vertragsschluss informieren. Diese Informationspflicht gilt nicht pauschal für jedes Unterschwellenverfahren.",
+      "Im Anwendungsbereich des § 134 GWB darf der Vertrag grundsätzlich erst 15 Kalendertage nach Absendung der Information geschlossen werden, bei elektronischer Übermittlung oder Fax nach zehn Kalendertagen. Ausnahmen, der konkrete Übermittlungsweg und die Form des Vertragsschlusses richten sich nach den einschlägigen Vorschriften.",
     ],
     keyPoints: [
       "Förmliche Beauftragung eines Bieters",
       "Erfolgt nach Prüfung aller Angebote",
       "Informations- und Wartepflicht gegenüber unterlegenen Bietern",
-      "Wartefrist: 15 Tage (10 bei elektronischer Übermittlung)",
+      "Im Anwendungsbereich des § 134 GWB: 15 Kalendertage (10 bei elektronischer Übermittlung)",
     ],
     faq: [
       {
         question: "Was ist die Zuschlagserteilung?",
-        answer: "Die Zuschlagserteilung ist die förmliche Beauftragung eines Bieters nach Abschluss des Vergabeverfahrens. Sie muss schriftlich erfolgen und ist der Abschluss des Vergabeverfahrens.",
+        answer: "Die Zuschlagserteilung ist die Beauftragung des erfolgreichen Bieters nach Prüfung und Wertung der Angebote. Form, Informationspflichten und ein möglicher Vertragsschluss nach einer Wartefrist richten sich nach dem anwendbaren Vergaberecht.",
       },
       {
         question: "Wie läuft die Zuschlagserteilung ab?",
-        answer: "Vor der Zuschlagserteilung müssen unterlegene Bieter informiert werden. Nach einer Wartefrist (15 Tage bzw. 10 Tage bei elektronischer Übermittlung) kann der Zuschlag formell erteilt werden. In dieser Frist können Bieter Nachprüfungsanträge stellen.",
+        answer: "Soweit § 134 GWB anwendbar ist, werden die betroffenen Bieter zunächst in Textform informiert. Der Vertrag darf grundsätzlich erst nach 15 Kalendertagen ab Absendung geschlossen werden, bei elektronischer Übermittlung nach 10 Kalendertagen. Ausnahmen und die konkreten Voraussetzungen müssen geprüft werden.",
       },
     ],
     relatedTerms: ["zuschlag", "nachpruefungsverfahren", "bindefrist"],
+    sources: [
+      { title: "§ 134 GWB – Informations- und Wartepflicht", url: "https://www.gesetze-im-internet.de/gwb/__134.html" },
+    ],
+    lastReviewed: "2026-09-27",
   },
   {
     slug: "bieterfragen",
@@ -1403,27 +1673,32 @@ export const GLOSSARY: GlossaryEntry[] = [
     category: "Vergabeprozess",
     shortDefinition: "Bieterfragen sind Anfragen von Bietern zur Ausschreibung, die während der Angebotsfrist gestellt werden können.",
     definition: [
-      "Bieterfragen sind Anfragen, die Bieter während der Angebotsfrist an den Auftraggeber richten können, um Unklarheiten oder Fragen zur Ausschreibung zu klären. Der Auftraggeber ist verpflichtet, Bieterfragen fristgerecht und vollständig zu beantworten.",
-      "Die Antworten auf Bieterfragen werden in der Regel allen Bietern zeitgleich zur Verfügung gestellt (anonymisiert), um die Gleichbehandlung sicherzustellen. Bei erheblichen Fragen kann der Auftraggeber die Angebotsfrist verlängern, um Bietern ausreichend Zeit für die Angebotsabgabe zu geben.",
+      "Bieterfragen sind Anfragen, die Bewerber oder Bieter über den vorgesehenen Kommunikationsweg an den Auftraggeber richten, um Unklarheiten in Bekanntmachung oder Vergabeunterlagen zu klären. Maßgeblich sind die in den Unterlagen genannten Fristen und Kommunikationsregeln.",
+      "Relevante Antworten oder Änderungen müssen nach dem anwendbaren Vergaberecht so bereitgestellt werden, dass die Gleichbehandlung und ausreichende Information aller betroffenen Unternehmen gewahrt bleiben. Bei erheblichen Änderungen kann eine Verlängerung der Angebotsfrist erforderlich sein.",
       "Bieterfragen sind ein wichtiges Instrument zur Klärung von Unklarheiten und zur Verbesserung der Qualität der Angebote. Sie können sich auf alle Aspekte der Ausschreibung beziehen: Leistungsbeschreibung, Eignungskriterien, Zuschlagskriterien, Vertragsbedingungen.",
     ],
     keyPoints: [
       "Anfragen von Bietern zur Ausschreibung",
-      "Während der Angebotsfrist",
-      "Auftraggeber muss antworten, Antworten an alle Bieter",
-      "Können zu Fristverlängerung führen",
+      "Innerhalb des vorgesehenen Kommunikationswegs und der genannten Fristen",
+      "Relevante Antworten müssen gleichbehandlungs- und transparent bereitgestellt werden",
+      "Erhebliche Änderungen können eine Fristverlängerung erfordern",
     ],
     faq: [
       {
         question: "Was sind Bieterfragen?",
-        answer: "Bieterfragen sind Anfragen, die Bieter während der Angebotsfrist an den Auftraggeber stellen können, um Unklarheiten zur Ausschreibung zu klären. Der Auftraggeber muss diese fristgerecht und vollständig beantworten.",
+        answer: "Bieterfragen sind Anfragen von Bewerbern oder Bietern zu Unklarheiten in Bekanntmachung oder Vergabeunterlagen. Sie müssen über den vorgesehenen Kommunikationsweg und innerhalb der dort genannten Fristen gestellt werden.",
       },
       {
         question: "Müssen Antworten auf Bieterfragen veröffentlicht werden?",
-        answer: "Ja, die Antworten müssen allen Bietern zeitgleich und anonymisiert zur Verfügung gestellt werden. Nur so wird die Gleichbehandlung der Bieter sichergestellt. Bei erheblichen Fragen kann die Angebotsfrist verlängert werden.",
+        answer: "Relevante Antworten müssen so bereitgestellt werden, dass alle betroffenen Unternehmen gleich informiert werden. Ob eine Antwort anonymisiert, im Portal veröffentlicht oder die Frist verlängert wird, richtet sich nach dem Verfahren und den anwendbaren Vorschriften.",
       },
     ],
     relatedTerms: ["ausschreibung", "leistungsbeschreibung"],
+    sources: [
+      { title: "§ 9 VgV – Grundsätze der Kommunikation", url: "https://www.gesetze-im-internet.de/vgv_2016/__9.html" },
+      { title: "§ 97 GWB – Allgemeine Grundsätze", url: "https://www.gesetze-im-internet.de/gwb/__97.html" },
+    ],
+    lastReviewed: "2026-09-27",
   },
   {
     slug: "angebotseroeffnung",
@@ -1431,27 +1706,32 @@ export const GLOSSARY: GlossaryEntry[] = [
     category: "Vergabeprozess",
     shortDefinition: "Die Angebotseröffnung ist der Zeitpunkt, zu dem die eingegangenen Angebote vom Auftraggeber geöffnet und erfasst werden.",
     definition: [
-      "Die Angebotseröffnung ist der formelle Akt, bei dem der öffentliche Auftraggeber die eingegangenen Angebote nach Ablauf der Einreichungsfrist öffnet und erfasst. Im offenen Verfahren findet die Eröffnung in der Regel öffentlich statt; Bieter können teilnehmen.",
-      "Bei der Eröffnung werden die Angebote in ihrer äußeren Form erfasst (Absender, Datum, Unversehrtheit) und die wesentlichen Bedingungen wie Preis und Fristen bekannt gegeben. Eine inhaltliche Bewertung erfolgt jedoch erst nach der Eröffnung.",
-      "Im beschränkten Verfahren und in anderen Verfahrensarten gibt es in der Regel keine öffentliche Eröffnung, da die Angebote nur von ausgewählten Bietern angefordert wurden.",
+      "Die Angebotseröffnung bezeichnet den Vorgang, bei dem der Auftraggeber die eingegangenen Angebote nach Ablauf der Einreichungsfrist öffnet und für die weitere Prüfung erfasst. Ablauf und Dokumentation richten sich nach dem anwendbaren Regelwerk und der Verfahrensart.",
+      "Bei elektronischen Vergaben findet regelmäßig keine öffentliche Bieteröffnung statt. Die Vergabestelle dokumentiert den Eingang und prüft die Angebote anschließend auf Vollständigkeit, fachliche und rechnerische Richtigkeit sowie nach den weiteren Verfahrensvorgaben.",
+      "Eine öffentliche Öffnung mit Bekanntgabe bestimmter Angebotsdaten kann in einzelnen VOB/A-Konstellationen vorgesehen sein, ist aber keine allgemeine Folge eines offenen Verfahrens. Die konkrete Ausschreibung und das anwendbare Regelwerk sind maßgeblich.",
     ],
     keyPoints: [
       "Formeller Akt der Öffnung und Erfassung der Angebote",
-      "Im offenen Verfahren oft öffentlich",
-      "Erfassung von Absender, Datum, Unversehrtheit",
-      "Inhaltliche Bewertung erfolgt erst später",
+      "Ablauf und Öffentlichkeit hängen vom anwendbaren Regelwerk ab",
+      "Elektronische Vergaben haben regelmäßig keine öffentliche Bieteröffnung",
+      "Inhaltliche Bewertung erfolgt nach dem Öffnungsvorgang",
     ],
     faq: [
       {
         question: "Was ist die Angebotseröffnung?",
-        answer: "Die Angebotseröffnung ist der Zeitpunkt, zu dem der Auftraggeber die eingegangenen Angebote nach Ablauf der Einreichungsfrist öffnet und erfasst. Im offenen Verfahren kann dies öffentlich stattfinden.",
+        answer: "Die Angebotseröffnung ist der Vorgang, bei dem der Auftraggeber die eingegangenen Angebote nach Ablauf der Einreichungsfrist öffnet und erfasst. Ob sie öffentlich stattfindet, hängt vom anwendbaren Regelwerk und der Verfahrensart ab; bei elektronischen Vergaben ist sie regelmäßig nicht öffentlich.",
       },
       {
         question: "Können Bieter der Angebotseröffnung beiwohnen?",
-        answer: "Im offenen Verfahren können Bieter in der Regel der Angebotseröffnung beiwohnen. Im beschränkten Verfahren oder bei anderen Verfahrensarten ist dies nicht üblich, da die Angebote nur von ausgewählten Bietern angefordert wurden.",
+        answer: "Das lässt sich nicht pauschal aus der Verfahrensart ableiten. Bei elektronischen Vergaben findet regelmäßig keine öffentliche Bieteröffnung statt; ob eine Teilnahme möglich ist, ergibt sich aus dem anwendbaren Regelwerk und den Vergabeunterlagen.",
       },
     ],
     relatedTerms: ["angebot", "offenes-verfahren", "ausschreibung"],
+    sources: [
+      { title: "§ 55 VgV – Öffnung der Angebote", url: "https://www.gesetze-im-internet.de/vgv_2016/__55.html" },
+      { title: "VOB/A 2019 – § 14 Öffnung der Angebote", url: "https://www.verwaltungsvorschriften-im-internet.de/bsvwvbund_31012019_BWI781063060120180001604634.htm" },
+    ],
+    lastReviewed: "2026-09-27",
   },
   {
     slug: "wirtschaftlichkeitsprinzip",
@@ -1589,7 +1869,7 @@ export const GLOSSARY: GlossaryEntry[] = [
     faq: [
       {
         question: "Wann ist eine Direktvergabe zulässig?",
-        answer: "Eine Direktvergabe ist nur in engen Ausnahmefällen zulässig: bei Unterschreitung der Schwellenwerte und Vorliegen der Voraussetzungen für freihändige Vergabe, bei Einzigartigkeit der Leistung, bei extremem Zeitdruck oder bei Wiederholungsaufträgen.",
+        answer: "Eine Direktvergabe ist nur zulässig, wenn das einschlägige Unterschwellenregelwerk oder eine besondere gesetzliche Ausnahme dies erlaubt. Die Voraussetzungen hängen insbesondere von Auftraggeber, Leistungsart, Auftragswert und dem geltenden Landes- oder Haushaltsrecht ab.",
       },
       {
         question: "Was ist der Unterschied zwischen Direktvergabe und freihändiger Vergabe?",

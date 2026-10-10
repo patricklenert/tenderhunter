@@ -17,7 +17,9 @@ const TOP_REGIONS = [
   "Hamburg",
 ];
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+import { getSiteUrl } from "@/lib/site-config";
+
+const siteUrl = getSiteUrl();
 
 export function SiteFooter({ containerMaxWidth = "lg" }: { containerMaxWidth?: string }) {
   const isMuiBreakpoint = ["xs", "sm", "md", "lg", "xl", false].includes(containerMaxWidth as string);

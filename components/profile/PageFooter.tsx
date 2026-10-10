@@ -1,4 +1,5 @@
 import { Box, Stack, Typography } from "@mui/material";
+import { getSiteUrl } from "@/lib/site-config";
 
 export function PageFooter() {
   return (
@@ -20,7 +21,7 @@ export function PageFooter() {
           © {new Date().getFullYear()}{" "}
           <Box
             component="a"
-            href="https://tenderhunter.palemadigital.com"
+            href={getSiteUrl()}
             target="_blank"
             rel="noopener noreferrer"
             sx={{
@@ -36,7 +37,7 @@ export function PageFooter() {
         <Stack direction="row" spacing={2}>
           <Box
             component="a"
-            href="https://tenderhunter.palemadigital.com"
+            href={getSiteUrl()}
             target="_blank"
             rel="noopener noreferrer"
             sx={{

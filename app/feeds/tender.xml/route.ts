@@ -8,7 +8,9 @@ import { readPublicTenderMeta } from "@/lib/tender-meta";
 export const revalidate = 3600;
 export const dynamic = "force-dynamic";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+import { getSiteUrl } from "@/lib/site-config";
+
+const siteUrl = getSiteUrl();
 
 function escapeXml(str: string): string {
   return str
