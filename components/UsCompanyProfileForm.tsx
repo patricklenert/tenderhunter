@@ -66,12 +66,12 @@ export function UsCompanyProfileForm() {
   };
 
   return (
-    <Card elevation={0} sx={{ border: "1px solid #cddce8", borderRadius: 3, bgcolor: "rgba(255,255,255,.94)" }}>
+    <Card elevation={0} sx={{ bgcolor: "background.paper", borderRadius: 2 }}>
       <CardContent sx={{ p: { xs: 2.25, md: 3.5 } }}>
         <Stack spacing={2.5} component="form" onSubmit={save}>
           <Box>
-            <Typography variant="overline" sx={{ color: "#0d5c80", fontWeight: 800, letterSpacing: "0.12em" }}>U.S. pursuit profile</Typography>
-            <Typography component="h1" sx={{ color: "#102a43", fontSize: { xs: "2rem", md: "2.8rem" }, fontWeight: 850, lineHeight: 1.05, letterSpacing: "-0.045em", mt: 0.5 }}>Make every pursuit brief specific to your LLC.</Typography>
+            <Typography variant="overline" sx={{ color: "secondary.main", fontWeight: 800, letterSpacing: "0.12em" }}>U.S. pursuit profile</Typography>
+            <Typography component="h1" sx={{ color: "text.primary", fontSize: { xs: "2rem", md: "2.8rem" }, fontWeight: 850, lineHeight: 1.05, letterSpacing: "-0.045em", mt: 0.5 }}>Make every pursuit brief specific to your LLC.</Typography>
             <Typography color="text.secondary" sx={{ lineHeight: 1.7, mt: 1 }}>Save your U.S. eligibility and technical fit once. A UEI is required for direct federal bidding; you can still use the profile for teaming before registration is complete.</Typography>
           </Box>
           {saved && <Alert severity="success" action={<Button component={Link} href="/#us" color="inherit" size="small">Browse opportunities</Button>}>{saved}</Alert>}
@@ -92,7 +92,7 @@ export function UsCompanyProfileForm() {
               {SOCIO_ECONOMIC_OPTIONS.map(([value, label]) => <FormControlLabel key={value} control={<Checkbox checked={socioEconomic.includes(value)} onChange={() => toggleStatus(value)} />} label={label} />)}
             </FormGroup>
           </Box>
-          <Button type="submit" variant="contained" disabled={saving || !name.trim()} sx={{ alignSelf: "flex-start", bgcolor: "#0d5c80", px: 3, "&:hover": { bgcolor: "#074664" } }}>{saving ? "Saving profile" : "Save U.S. profile"}</Button>
+          <Button type="submit" variant="contained" color="primary" disabled={saving || !name.trim()} sx={{ alignSelf: "flex-start", px: 3, bgcolor: "primary.dark" }}>{saving ? "Saving profile" : "Save U.S. profile"}</Button>
         </Stack>
       </CardContent>
     </Card>

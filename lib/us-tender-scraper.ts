@@ -42,6 +42,19 @@ export const US_TENDER_SOURCE_ADAPTERS: Array<[UsTenderSource, () => Promise<UsE
 
 const US_PORTAL_TIMEOUT_MS = 5 * 60 * 1000; // 5 Minuten pro Quelle
 
+export const buildUsTenderIdentityKey = (
+  tender: { source: UsTenderSource; externalId?: string | null; url: string },
+): string => {
+  if (tender.externalId) return `${tender.source}:id:${tender.externalId}`;
+  try {
+    const url = new URL(tender.url);
+    url.hash = "";
+    return `${tender.source}:url:${url.href}`;
+  } catch {
+    return `${tender.source}:url:${tender.url}`;
+  }
+};
+
 function withTimeout<T>(name: string, fn: () => Promise<T>, ms: number): Promise<T> {
   return Promise.race([
     fn(),
@@ -80,7 +93,7 @@ export async function scrapeAllUsTenders(): Promise<UsScrapeResult> {
     bySource[source] = activeTenders.length;
     sourceRuns.push({ source, status: "success", discoveredCount: result.value.length, acceptedCount: activeTenders.length, errorMessage: null });
     for (const tender of activeTenders) {
-      byIdentity.set(`${tender.source}:${tender.externalId}`, tender);
+      byIdentity.set(buildUsTenderIdentityKey(tender), tender);
     }
   });
 

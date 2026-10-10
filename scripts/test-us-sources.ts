@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { US_TENDER_SOURCE_ADAPTERS } from "../lib/us-tender-scraper";
+import { buildUsTenderIdentityKey, US_TENDER_SOURCE_ADAPTERS } from "../lib/us-tender-scraper";
 import { parseFloridaMfmpDetailAttachments, parseFloridaMfmpListingHtml } from "../lib/us/florida-mfmp";
 import { parseGeorgiaGprDetailAttachments } from "../lib/us/georgia-gpr";
 import { parseNewYorkContractReporterHtml } from "../lib/us/new-york-contract-reporter";
@@ -12,6 +12,16 @@ assert.ok(sourceKeys.includes("sba_subnet"));
 assert.ok(sourceKeys.includes("north_carolina_evp"));
 assert.ok(sourceKeys.includes("florida_mfmp"));
 assert.ok(sourceKeys.includes("new_york_contract_reporter"));
+assert.notEqual(
+  buildUsTenderIdentityKey({ source: "sam_gov", externalId: undefined, url: "https://example.test/opportunity/1" }),
+  buildUsTenderIdentityKey({ source: "sam_gov", externalId: undefined, url: "https://example.test/opportunity/2" }),
+  "US opportunities without an external ID must remain distinct by URL",
+);
+assert.equal(
+  buildUsTenderIdentityKey({ source: "sam_gov", externalId: undefined, url: "https://EXAMPLE.test/opportunity/1#details" }),
+  buildUsTenderIdentityKey({ source: "sam_gov", externalId: undefined, url: "https://example.test/opportunity/1#documents" }),
+  "URL fragments must not create duplicate US opportunities",
+);
 
 assert.deepEqual(
   dedupeUsAttachments([

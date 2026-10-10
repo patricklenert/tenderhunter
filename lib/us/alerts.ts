@@ -5,8 +5,7 @@ import { sendEmail } from "@/lib/email";
 import { and, eq } from "drizzle-orm";
 import { randomBytes } from "node:crypto";
 import { hasPremiumAccess } from "@/lib/entitlements";
-
-const SITE_URL = "https://palemaz.com";
+import { getSiteUrl } from "@/lib/site-config";
 
 export interface AlertFilters {
   query?: string;
@@ -63,7 +62,7 @@ export async function unsubscribeAlertSubscription(token: string): Promise<boole
 }
 
 export async function sendConfirmationEmail(email: string, token: string): Promise<boolean> {
-  const confirmUrl = `${SITE_URL}/api/us/alerts/confirm?token=${token}`;
+  const confirmUrl = `${getSiteUrl()}/api/us/alerts/confirm?token=${token}`;
   return sendEmail({
     to: email,
     subject: "Confirm your Tenderhunter U.S. opportunity alerts",
@@ -144,6 +143,7 @@ async function sendDigestEmail(email: string, unsubscribeToken: string, opportun
   deadlineAt: Date | null;
   subcontracting: boolean;
 }>): Promise<boolean> {
+  const siteUrl = getSiteUrl();
   const items = opportunities.map((opp) => {
     const deadline = opp.deadlineAt
       ? new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: "UTC" }).format(opp.deadlineAt)
@@ -151,7 +151,7 @@ async function sendDigestEmail(email: string, unsubscribeToken: string, opportun
     return `
       <tr>
         <td style="padding: 12px 0; border-bottom: 1px solid #e2e8f0;">
-          <a href="${SITE_URL}/us/tender/${opp.id}" style="color: #0d5c80; font-weight: 700; text-decoration: none; font-size: 15px;">${opp.title}</a>
+          <a href="${siteUrl}/us/tender/${opp.id}" style="color: #0d5c80; font-weight: 700; text-decoration: none; font-size: 15px;">${opp.title}</a>
           <div style="color: #64748b; font-size: 13px; margin-top: 4px;">
             ${[opp.category, opp.state, opp.subcontracting ? "Subcontracting" : "Direct bid", `Due: ${deadline}`].filter(Boolean).join(" · ")}
           </div>
@@ -167,8 +167,8 @@ async function sendDigestEmail(email: string, unsubscribeToken: string, opportun
         <h1 style="color: #0d5c80;">${opportunities.length} new opportunit${opportunities.length === 1 ? "y" : "ies"} match your search</h1>
         <table style="width: 100%; border-collapse: collapse;">${items}</table>
         <p style="color: #64748b; font-size: 14px; margin-top: 24px;">
-          <a href="${SITE_URL}/us" style="color: #0d5c80;">View all opportunities</a>
-          · <a href="${SITE_URL}/api/us/alerts/unsubscribe?token=${encodeURIComponent(unsubscribeToken)}" style="color: #64748b;">Unsubscribe</a>
+          <a href="${siteUrl}/us" style="color: #0d5c80;">View all opportunities</a>
+          · <a href="${siteUrl}/api/us/alerts/unsubscribe?token=${encodeURIComponent(unsubscribeToken)}" style="color: #64748b;">Unsubscribe</a>
         </p>
       </div>
     `,

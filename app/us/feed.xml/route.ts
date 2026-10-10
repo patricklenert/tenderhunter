@@ -2,7 +2,9 @@ import { searchUsTenders, getUsTenderMetadata } from "@/lib/us/repository";
 
 export const revalidate = 3600;
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tenderhunter.palemadigital.com";
+import { getSiteUrl } from "@/lib/site-config";
+
+const siteUrl = getSiteUrl();
 
 function escapeXml(str: string): string {
   return str

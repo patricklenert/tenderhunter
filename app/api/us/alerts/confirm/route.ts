@@ -1,5 +1,6 @@
 import { confirmAlertSubscription } from "@/lib/us/alerts";
 import { json } from "@/lib/http";
+import { getSiteUrl } from "@/lib/site-config";
 
 export const runtime = "nodejs";
 
@@ -10,5 +11,5 @@ export async function GET(request: Request): Promise<Response> {
   const confirmed = await confirmAlertSubscription(token);
   if (!confirmed) return json({ error: "Invalid or already confirmed token." }, { status: 400 });
 
-  return Response.redirect("https://palemaz.com/us?alert=confirmed", 302);
+  return Response.redirect(`${getSiteUrl()}/us?alert=confirmed`, 302);
 }

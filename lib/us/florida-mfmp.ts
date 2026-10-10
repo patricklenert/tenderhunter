@@ -1,7 +1,7 @@
 import * as cheerio from "cheerio";
 import type { AnyNode } from "domhandler";
 import type { Browser } from "playwright";
-import { getBrowser } from "@/lib/firecrawl";
+import { getBrowser, readStablePageContent } from "@/lib/firecrawl";
 import { dedupeUsAttachments, normalizeUsDate, type UsContact, type UsExtractedTender } from "@/lib/us/types";
 
 const MFMP_URL = "https://vendor.myfloridamarketplace.com/search/bids";
@@ -110,7 +110,7 @@ const captureFloridaDetail = async (
   try {
     await page.goto(listing.url, { waitUntil: "networkidle", timeout: 30_000 });
     await page.waitForTimeout(500);
-    const html = await page.content();
+    const html = await readStablePageContent(page);
     const domAttachments = parseFloridaMfmpDetailAttachments(html, page.url());
     const documentLinks = page.locator("a.document-link");
     for (let index = 0; index < await documentLinks.count(); index += 1) {
@@ -143,7 +143,7 @@ export async function fetchFloridaMfmpOpportunities(): Promise<UsExtractedTender
     }
     await page.getByRole("button", { name: "Search", exact: true }).click();
     await page.waitForTimeout(1_500);
-    const listings = parseFloridaMfmpListingHtml(await page.content(), page.url());
+    const listings = parseFloridaMfmpListingHtml(await readStablePageContent(page), page.url());
     const enriched = new Map<string, { detail: FloridaMfmpDetail; attachments: Array<{ name: string; url: string }> }>();
 
     for (const listing of listings) {

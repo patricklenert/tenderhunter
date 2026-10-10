@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Alert, Box, Button, Card, CardContent, Chip, Collapse, LinearProgress, MenuItem, Paper, Stack, TextField, Typography } from "@mui/material";
+import { Box, Button, Card, CardContent, Chip, Collapse, LinearProgress, MenuItem, Paper, Stack, TextField, Typography } from "@mui/material";
 import { ArrowUpRight, Building2, CalendarClock, MapPin, Search } from "lucide-react";
 import { US_CATEGORIES } from "@/lib/us/categorize";
 import { PaywallPanel } from "@/components/billing/PaywallPanel";
+import { ResourceState } from "@/components/ResourceState";
 
 export interface UsTenderItem {
   id: number;
@@ -121,14 +122,14 @@ export function UsTendersSection({ initialItems, initialTotal }: { initialItems?
   };
 
   return (
-    <Box component="section" lang="en" sx={{ display: "flex", flexDirection: "column" }}>
+    <Box component="section" lang="en" aria-busy={loading || undefined} sx={{ display: "flex", flexDirection: "column" }}>
       <Box sx={{ mb: 3 }}>
         <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" alignItems={{ md: "flex-start" }} spacing={2}>
           <Box sx={{ maxWidth: 760 }}>
-            <Typography variant="h5" component="h1" fontWeight={600} sx={{ color: "#1e293b", fontSize: { xs: "1.5rem", md: "1.75rem" } }}>
+            <Typography variant="h5" component="h1" fontWeight={600} sx={{ color: "text.primary", fontSize: { xs: "1.5rem", md: "1.75rem" } }}>
               U.S. Opportunities
             </Typography>
-            <Typography variant="body2" sx={{ mt: 1, color: "#475569", fontSize: "0.9375rem", lineHeight: 1.6 }}>
+            <Typography variant="body2" sx={{ mt: 1, color: "text.secondary", fontSize: "0.9375rem", lineHeight: 1.6 }}>
               Public and private procurement opportunities across the United States, including federal and subcontracting work.
             </Typography>
           </Box>
@@ -180,10 +181,10 @@ export function UsTendersSection({ initialItems, initialTotal }: { initialItems?
           </TextField>
         </Box>
         <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ sm: "center" }} spacing={1}>
-          <Typography variant="body2" sx={{ color: "#475569", fontSize: "0.8125rem" }}>
+          <Typography variant="body2" sx={{ color: "text.secondary", fontSize: "0.8125rem" }}>
             {loading ? "Refreshing opportunities" : `${total.toLocaleString("en-US")} active opportunities`}
           </Typography>
-          <Typography variant="caption" sx={{ color: "#64748b" }}>
+          <Typography variant="caption" color="text.secondary">
             Federal and subcontracting opportunities
           </Typography>
         </Stack>
@@ -199,11 +200,11 @@ export function UsTendersSection({ initialItems, initialTotal }: { initialItems?
             component="form"
             variant="outlined"
             onSubmit={(event) => { event.preventDefault(); void subscribeToAlerts(); }}
-            sx={{ mb: 3, borderRadius: "6px", p: { xs: 2, md: 2.25 } }}
+            sx={{ mb: 3, borderRadius: 2, bgcolor: "background.paper", p: { xs: 2, md: 2.25 } }}
           >
             <Stack direction={{ xs: "column", md: "row" }} spacing={1.5} alignItems={{ md: "center" }}>
               <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography variant="body2" fontWeight={700} sx={{ color: "#1e293b" }}>Get alerts for this search</Typography>
+                <Typography variant="body2" fontWeight={700} color="text.primary">Get alerts for this search</Typography>
                 <Typography variant="caption" color="text.secondary">We&apos;ll email you when new matching opportunities appear. Double opt-in required.</Typography>
               </Box>
               <TextField type="email" required size="small" label="Your email" value={alertEmail} onChange={(event) => setAlertEmail(event.target.value)} sx={{ minWidth: { md: 240 } }} />
@@ -216,18 +217,30 @@ export function UsTendersSection({ initialItems, initialTotal }: { initialItems?
         )}
       </Collapse>
 
-      {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
-      {loading && <LinearProgress aria-label="Refreshing opportunities" sx={{ mb: 2, borderRadius: 1 }} />}
+      {error ? (
+        <Box sx={{ mb: 3 }}>
+          <ResourceState
+            kind="error"
+            title="We couldn't refresh these opportunities."
+            description={error}
+          />
+        </Box>
+      ) : null}
+      {loading && items.length === 0 ? (
+        <ResourceState
+          kind="loading"
+          title="Scanning U.S. opportunities"
+          description="We are refreshing the available signals for your filters."
+        />
+      ) : null}
+      {loading && items.length > 0 ? <LinearProgress aria-label="Refreshing opportunities" sx={{ mb: 2, borderRadius: 1 }} /> : null}
 
-      {items.length === 0 && !loading ? (
-        <Paper elevation={0} variant="outlined" sx={{ borderRadius: "6px", py: 6, px: 3, textAlign: "center" }}>
-          <Typography variant="h6" component="p" fontWeight={600} sx={{ mb: 1, color: "#1e293b" }}>
-            No active opportunities match these filters
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Broaden your terms or check again after the next source refresh.
-          </Typography>
-        </Paper>
+      {items.length === 0 && !loading && !error ? (
+        <ResourceState
+          kind="empty"
+          title="No active opportunities match these filters"
+          description="Broaden your terms or check again after the next source refresh."
+        />
       ) : items.length > 0 ? (
         <Stack spacing={2}>
           {items.map((item) => {
@@ -235,17 +248,17 @@ export function UsTendersSection({ initialItems, initialTotal }: { initialItems?
               .filter((value, index, values) => Boolean(value) && values.indexOf(value) === index)
               .join(", ");
             const typeChipSx = item.subcontracting
-              ? { borderColor: "rgba(25, 118, 210, 0.35)", color: "#1d4f72", bgcolor: "rgba(25, 118, 210, 0.05)" }
-              : { borderColor: "rgba(233, 100, 77, 0.4)", color: "primary.dark", bgcolor: "rgba(233, 100, 77, 0.06)" };
+              ? { borderColor: "info.main", color: "info.dark", bgcolor: "info.light" }
+              : { borderColor: "primary.main", color: "primary.dark", bgcolor: "primary.light" };
 
             return (
               <Card
                 key={item.id}
                 variant="outlined"
                 sx={{
-                  borderRadius: "6px",
-                  transition: "border-color 0.2s, box-shadow 0.2s",
-                  "&:hover": { borderColor: "primary.light", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" },
+                  borderRadius: 2,
+                  transition: (theme) => theme.transitions.create("border-color", { duration: theme.transitions.duration.short }),
+                  "&:hover": { borderColor: "primary.light" },
                 }}
               >
                 <CardContent sx={{ p: { xs: 1.5, md: 2 }, "&:last-child": { pb: { xs: 1.5, md: 2 } } }}>
@@ -257,19 +270,19 @@ export function UsTendersSection({ initialItems, initialTotal }: { initialItems?
                         {item.setAside && <Chip label={item.setAside} size="small" variant="outlined" />}
                         {item.naicsCodes.slice(0, 2).map((code) => <Chip key={code} label={`NAICS ${code}`} size="small" variant="outlined" />)}
                       </Stack>
-                      <Typography variant="subtitle1" component="h2" fontWeight={600} sx={{ color: "#1e293b", lineHeight: 1.35, overflowWrap: "anywhere" }}>
+                      <Typography variant="subtitle1" component="h2" fontWeight={600} sx={{ color: "text.primary", lineHeight: 1.35, overflowWrap: "anywhere" }}>
                         {item.title}
                       </Typography>
                     </Box>
 
-                    <Stack direction="row" spacing={{ xs: 1, sm: 2 }} sx={{ color: "#475569", flexWrap: "wrap", rowGap: 0.75 }}>
+                    <Stack direction="row" spacing={{ xs: 1, sm: 2 }} sx={{ color: "text.secondary", flexWrap: "wrap", rowGap: 0.75 }}>
                       {item.buyer && <Typography variant="body2" sx={{ display: "flex", gap: 0.55, alignItems: "center", fontSize: "0.8125rem" }}><Building2 size={15} />{item.buyer}</Typography>}
                       {location && <Typography variant="body2" sx={{ display: "flex", gap: 0.55, alignItems: "center", fontSize: "0.8125rem" }}><MapPin size={15} />{location}</Typography>}
-                      {item.deadline && <Typography variant="body2" sx={{ display: "flex", gap: 0.55, alignItems: "center", color: "#984e16", fontWeight: 700, fontSize: "0.8125rem" }}><CalendarClock size={15} />Due {item.deadline}</Typography>}
+                      {item.deadline && <Typography variant="body2" sx={{ display: "flex", gap: 0.55, alignItems: "center", color: "warning.main", fontWeight: 700, fontSize: "0.8125rem" }}><CalendarClock size={15} />Due {item.deadline}</Typography>}
                     </Stack>
 
                     <Stack direction={{ xs: "column", sm: "row" }} spacing={1} justifyContent="space-between" alignItems={{ sm: "center" }} sx={{ pt: 1.5, borderTop: 1, borderColor: "divider" }}>
-                      <Typography variant="caption" sx={{ color: "#475569", fontSize: "0.75rem" }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.75rem" }}>
                         Source: {item.source}
                       </Typography>
                       <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="flex-end">

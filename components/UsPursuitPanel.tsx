@@ -71,17 +71,17 @@ export function UsPursuitPanel({ tenderId }: { tenderId: number }) {
 
   return (
     <Stack spacing={2}>
-      <Card elevation={0} sx={{ border: "1px solid #bbd6e7", bgcolor: "#eef7fc", borderRadius: 2.5 }}>
+      <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", bgcolor: "background.paper", borderRadius: 2 }}>
         <CardContent>
-          <Typography variant="overline" sx={{ color: "#0d5c80", fontWeight: 800 }}>Your pursuit brief</Typography>
-          <Typography variant="h6" fontWeight={800} sx={{ color: "#102a43", mt: 0.5 }}>Start with readiness, then lead with a focused teaming ask.</Typography>
+          <Typography variant="overline" sx={{ color: "secondary.main", fontWeight: 800 }}>Your pursuit brief</Typography>
+          <Typography variant="h6" fontWeight={800} sx={{ color: "text.primary", mt: 0.5 }}>Start with readiness, then lead with a focused teaming ask.</Typography>
           <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ mt: 2 }}>
             <TextField select label="Match with a U.S. profile" size="small" value={companyId} onChange={(event) => selectCompany(event.target.value)} helperText="Use saved NAICS, UEI, and set-aside data for this brief." sx={{ minWidth: { sm: 260 } }}>
               <MenuItem value="">No profile selected</MenuItem>
               {profiles.map((profile) => <MenuItem key={profile.id} value={String(profile.id)}>{profile.name}</MenuItem>)}
             </TextField>
-            <Button component={Link} href="/us/profile" variant="outlined" sx={{ alignSelf: { sm: "flex-start" }, borderColor: "#0d5c80", color: "#0d5c80" }}>Set up profile</Button>
-            <Button variant="contained" onClick={() => void load()} disabled={loading} sx={{ alignSelf: { sm: "flex-start" }, bgcolor: "#0d5c80" }}>Refresh fit</Button>
+            <Button component={Link} href="/us/profile" variant="outlined" color="secondary" sx={{ alignSelf: { sm: "flex-start" } }}>Set up profile</Button>
+            <Button variant="contained" onClick={() => void load()} disabled={loading} sx={{ alignSelf: { sm: "flex-start" } }}>Refresh fit</Button>
           </Stack>
         </CardContent>
       </Card>
@@ -91,20 +91,22 @@ export function UsPursuitPanel({ tenderId }: { tenderId: number }) {
       {data && !loading && <>
         {data.fit && <Alert severity={data.directBidReady ? "success" : "warning"}>{`Fit score: ${data.fit.score}/100. ${data.fit.reasons[0]}`}</Alert>}
         {!data.fit && <Alert severity="info">Set up or select a U.S. company profile to assess NAICS and set-aside fit. Until your UEI is active, prioritize teaming outreach rather than direct bidding.</Alert>}
-        <Card elevation={0} sx={{ border: "1px solid #d6e0e9", borderRadius: 2.5 }}>
+        <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
           <CardContent>
             <Typography variant="h6" fontWeight={800}>Bid and registration checklist</Typography>
             <Stack spacing={1.5} sx={{ mt: 2 }}>
               {data.checklist.map((item) => <Box key={item.id} sx={{ display: "flex", gap: 1.25, alignItems: "flex-start" }}>
-                {item.status === "complete" ? <CheckCircle2 color="#187255" size={20} /> : <CircleAlert color={item.status === "not_applicable" ? "#7b8794" : "#b36216"} size={20} />}
+                <Box component="span" aria-hidden="true" sx={{ display: "flex", flexShrink: 0, mt: "2px", color: item.status === "complete" ? "success.main" : item.status === "not_applicable" ? "text.secondary" : "warning.main" }}>
+                  {item.status === "complete" ? <CheckCircle2 size={20} /> : <CircleAlert size={20} />}
+                </Box>
                 <Box><Typography fontWeight={700}>{item.label}</Typography><Typography variant="body2" color="text.secondary">{item.detail}</Typography></Box>
               </Box>)}
             </Stack>
           </CardContent>
         </Card>
-        <Card elevation={0} sx={{ border: "1px solid #d6e0e9", borderRadius: 2.5 }}>
+        <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
           <CardContent>
-            <Stack direction="row" spacing={1} alignItems="center"><UsersRound size={21} color="#0d5c80" /><Typography variant="h6" fontWeight={800}>Comparable prime contractors</Typography></Stack>
+            <Stack direction="row" spacing={1} alignItems="center"><Box component="span" aria-hidden="true" sx={{ display: "flex", color: "secondary.main" }}><UsersRound size={21} /></Box><Typography variant="h6" fontWeight={800}>Comparable prime contractors</Typography></Stack>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>{data.teamingGuidance}</Typography>
             <Stack divider={<Divider flexItem />} sx={{ mt: 1.5 }}>
               {data.primeContractors.length === 0 ? <Typography variant="body2" color="text.secondary">No comparable awards were returned right now. Retry shortly or broaden the NAICS profile.</Typography> : data.primeContractors.map((prime) => <Box key={prime.name} sx={{ py: 1.25 }}>
@@ -114,7 +116,7 @@ export function UsPursuitPanel({ tenderId }: { tenderId: number }) {
             </Stack>
           </CardContent>
         </Card>
-        <Card elevation={0} sx={{ border: "1px solid #d6e0e9", borderRadius: 2.5 }}>
+        <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
           <CardContent>
             <Typography variant="h6" fontWeight={800}>Official teaming directories</Typography>
             <Stack divider={<Divider flexItem />} sx={{ mt: 1.5 }}>
