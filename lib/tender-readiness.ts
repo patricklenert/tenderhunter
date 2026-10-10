@@ -17,6 +17,11 @@ export interface TenderReadinessResult {
 
 const MIN_STRUCTURED_CONFIDENCE_FOR_READY = 0.35;
 
+export const SCORABLE_READINESS_STATUSES: readonly TenderReadinessStatus[] = ["ready", "partial"];
+
+export const isScorableReadiness = (status: string): boolean =>
+  (SCORABLE_READINESS_STATUSES as readonly string[]).includes(status);
+
 export const evaluateTenderReadiness = (input: TenderReadinessInput): TenderReadinessResult => {
   if (input.accessBlocked || input.documentAnalysis?.coverageStatus === "blocked") {
     return { status: "blocked", reason: "Dokument- oder Quellzugriff ist blockiert." };

@@ -1,8 +1,9 @@
 import { db } from "@/lib/db";
 import { scores, tenders, insights } from "@/lib/schema";
 import { json } from "@/lib/http";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, inArray } from "drizzle-orm";
 import { requirePremiumSession } from "@/lib/entitlements";
+import { SCORABLE_READINESS_STATUSES } from "@/lib/tender-readiness";
 
 export const runtime = "nodejs";
 
@@ -41,7 +42,7 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
       eq(scores.companyId, companyId),
       eq(scores.killSwitch, false),
       eq(tenders.qualityStatus, "qualified"),
-      eq(tenders.readinessStatus, "ready"),
+      inArray(tenders.readinessStatus, [...SCORABLE_READINESS_STATUSES]),
     ))
     .orderBy(desc(scores.winProbability), desc(scores.fit))
     .limit(200);
