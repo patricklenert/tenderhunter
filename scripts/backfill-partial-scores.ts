@@ -1,6 +1,6 @@
-import { and, count, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { companyProfiles, scores, tenders } from "@/lib/schema";
+import { companyProfiles, scores, structuredData, tenders } from "@/lib/schema";
 import { scoreKnownTenders } from "@/lib/discovery";
 import type { CompanyRow } from "@/lib/scoring";
 
@@ -8,12 +8,14 @@ async function main(): Promise<void> {
   const partialRows = await db
     .select({ n: count() })
     .from(tenders)
+    .innerJoin(structuredData, eq(structuredData.tenderId, tenders.id))
     .where(and(
       eq(tenders.qualityStatus, "qualified"),
       eq(tenders.readinessStatus, "partial"),
+      sql`${tenders.rawText} IS NOT NULL AND BTRIM(${tenders.rawText}) <> ''`,
     ));
   const partialTotal = Number(partialRows[0]?.n ?? 0);
-  console.log("partielle Tender gesamt:", partialTotal);
+  console.log("scorebare partielle Tender:", partialTotal);
 
   const scoredRows = await db
     .select({ companyId: scores.companyId, n: count() })
