@@ -1023,6 +1023,23 @@ export const shouldRecoverFailedPipelineStage = (
     && (!stage.finishedAt || now - stage.finishedAt.getTime() >= FAILED_PIPELINE_RECOVERY_COOLDOWN_MS))
 );
 
+export const shouldRetryLowConfidenceStructure = (
+  input: {
+    qualityStatus: string | null | undefined;
+    rawText: string | null | undefined;
+    finishedAt: Date | null | undefined;
+    confidence: number | null | undefined;
+  },
+  now = Date.now(),
+): boolean => {
+  const finishedAt = input.finishedAt?.getTime();
+  return input.qualityStatus !== "rejected"
+    && Boolean(input.rawText?.trim())
+    && finishedAt !== undefined
+    && now - finishedAt >= FAILED_PIPELINE_RECOVERY_COOLDOWN_MS
+    && (input.confidence ?? 0) < 0.35;
+};
+
 export const isTenderDocumentRefreshDue = (
   lastFetchedAt: Date | null | undefined,
   now = Date.now(),
@@ -1119,9 +1136,14 @@ export const recoverTenderProcessing = async (tenderId: number): Promise<void> =
       .from(structuredData)
       .where(eq(structuredData.tenderId, tenderId))
       .limit(1);
-    if ((structuredRows[0]?.confidence ?? 0) < 0.35) {
+    if (shouldRetryLowConfidenceStructure({
+      qualityStatus: tender.qualityStatus,
+      rawText: tender.rawText,
+      finishedAt: structureStage.finishedAt,
+      confidence: structuredRows[0]?.confidence,
+    })) {
       // A deterministic fallback can be persisted when the LLM cascade is
-      // unavailable, but it must be retried later instead of staying partial.
+      // unavailable, but only retry while usable tender text remains.
       await queueTenderStage(JOB_STRUCTURE, tenderId, { pipeline_version: tender.version }, "recovery-low-confidence");
       return;
     }

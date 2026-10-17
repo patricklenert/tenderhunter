@@ -20,6 +20,7 @@ import {
   isTerminalCacheDetailFailure,
   resolveEffectiveRawText,
   shouldRecoverFailedPipelineStage,
+  shouldRetryLowConfidenceStructure,
   isTenderDocumentRefreshDue,
   mergeUsTenderMetadata,
   pipelineVersionPayload,
@@ -82,6 +83,36 @@ assert.equal(
   shouldRecoverFailedPipelineStage({ status: "pending", finishedAt: null }, recoveryNow),
   false,
   "a pending stage is not a recovery candidate",
+);
+assert.equal(
+  shouldRetryLowConfidenceStructure({
+    qualityStatus: "rejected",
+    rawText: null,
+    finishedAt: new Date(recoveryNow - 2 * 60 * 60 * 1_000),
+    confidence: 0.14,
+  }, recoveryNow),
+  false,
+  "rejected tenders without listing text must not get low-confidence structure retries",
+);
+assert.equal(
+  shouldRetryLowConfidenceStructure({
+    qualityStatus: "qualified",
+    rawText: "  \n ",
+    finishedAt: new Date(recoveryNow - 2 * 60 * 60 * 1_000),
+    confidence: 0.14,
+  }, recoveryNow),
+  false,
+  "structure recovery requires non-empty tender text",
+);
+assert.equal(
+  shouldRetryLowConfidenceStructure({
+    qualityStatus: "qualified",
+    rawText: "Tender description and scope",
+    finishedAt: new Date(recoveryNow - 2 * 60 * 60 * 1_000),
+    confidence: 0.14,
+  }, recoveryNow),
+  true,
+  "low-confidence tenders with usable text remain eligible after cooldown",
 );
 assert.equal(isTerminalCacheDetailFailure("Detailseite vorübergehend nicht verfügbar (login_required)"), true);
 assert.equal(isTerminalCacheDetailFailure("Portal returned navigation_page without tender details"), true);
