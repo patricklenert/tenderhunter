@@ -18,6 +18,7 @@ import {
   resolveEffectiveRawText,
   shouldRecoverFailedPipelineStage,
   isTenderDocumentRefreshDue,
+  mergeUsTenderMetadata,
   pipelineVersionPayload,
   isCurrentPipelineVersion,
   type ResourceCandidateRecord,
@@ -88,6 +89,37 @@ assert.equal(
   isTenderDocumentRefreshDue(new Date(recoveryNow - 72 * 60 * 60 * 1_000), recoveryNow, 72 * 60 * 60 * 1_000),
   true,
   "completed document fetches become eligible at the configured refresh interval",
+);
+
+const usAttachmentUrl = "https://example.test/opportunity/files/bid.pdf";
+const usAnalysisMetadata = {
+  attachments: [{ name: "Bid package", url: usAttachmentUrl, status: "parsed", document_id: 9 }],
+  attachment_analysis: [{ url: usAttachmentUrl, status: "parsed", document_id: 9 }],
+  attachment_analysis_at: "2026-10-01T12:00:00.000Z",
+  discovered_at: "2026-09-01T12:00:00.000Z",
+};
+const refreshedUsMetadata = mergeUsTenderMetadata(usAnalysisMetadata, {
+  attachments: [{ name: "Bid package", url: usAttachmentUrl }],
+  discovered_at: "2026-10-05T12:00:00.000Z",
+});
+assert.deepEqual(
+  refreshedUsMetadata.attachments,
+  [{ name: "Bid package", url: usAttachmentUrl, status: "parsed", document_id: 9 }],
+  "rediscovery must not discard document status for unchanged attachments",
+);
+assert.deepEqual(
+  refreshedUsMetadata.attachment_analysis,
+  usAnalysisMetadata.attachment_analysis,
+  "rediscovery must preserve analysis metadata until the attachment set changes",
+);
+assert.equal(refreshedUsMetadata.attachment_analysis_at, usAnalysisMetadata.attachment_analysis_at);
+const changedUsMetadata = mergeUsTenderMetadata(usAnalysisMetadata, {
+  attachments: [{ name: "Updated bid package", url: "https://example.test/opportunity/files/new-bid.pdf" }],
+});
+assert.equal(
+  Object.prototype.hasOwnProperty.call(changedUsMetadata, "attachment_analysis"),
+  false,
+  "a changed attachment set must invalidate stale analysis metadata",
 );
 
 const combinedCandidate: ResourceCandidateRecord = {

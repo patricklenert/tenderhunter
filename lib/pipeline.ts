@@ -736,6 +736,50 @@ const upsertTender = async ({ source, sourceKey, url, title, externalId, metadat
   return { id: result[0].id, changed: true, inserted: true };
 };
 
+export const mergeUsTenderMetadata = (
+  existing: unknown,
+  incoming: Record<string, JsonValue>,
+): Record<string, JsonValue> => {
+  const current = metadataRecord(existing);
+  const records = (value: unknown): Record<string, unknown>[] => Array.isArray(value)
+    ? value.filter((attachment) =>
+      Boolean(attachment) && typeof attachment === "object" && !Array.isArray(attachment)) as Record<string, unknown>[]
+    : [];
+  const previousAttachments = records(current.attachments);
+  const incomingAttachments = records(incoming.attachments);
+  const previousAttachmentUrls = previousAttachments
+    .map((attachment) => attachment.url)
+    .filter((url): url is string => typeof url === "string")
+    .sort();
+  const incomingAttachmentUrls = incomingAttachments
+    .map((attachment) => attachment.url)
+    .filter((url): url is string => typeof url === "string")
+    .sort();
+  if (!sameValue(previousAttachmentUrls, incomingAttachmentUrls)) return incoming;
+
+  const previousAttachmentsByUrl = new Map(
+    previousAttachments.flatMap((attachment) =>
+      typeof attachment.url === "string" ? [[attachment.url, attachment] as const] : []),
+  );
+  return {
+    ...incoming,
+    attachments: incomingAttachments.map((attachment) => {
+      const previous = previousAttachmentsByUrl.get(attachment.url as string);
+      return {
+        ...attachment,
+        ...(typeof previous?.status === "string" ? { status: previous.status } : {}),
+        ...(typeof previous?.document_id === "number" ? { document_id: previous.document_id } : {}),
+      } as JsonValue;
+    }),
+    ...(Array.isArray(current.attachment_analysis)
+      ? { attachment_analysis: current.attachment_analysis as JsonValue[] }
+      : {}),
+    ...(typeof current.attachment_analysis_at === "string"
+      ? { attachment_analysis_at: current.attachment_analysis_at }
+      : {}),
+  };
+};
+
 const upsertUsTender = async (tender: UsExtractedTender): Promise<UpsertTenderResult> => {
   const metadata: Record<string, JsonValue> = {
     ...tender.metadata as Record<string, JsonValue>,
@@ -744,7 +788,8 @@ const upsertUsTender = async (tender: UsExtractedTender): Promise<UpsertTenderRe
       ...(contact.email ? { email: contact.email } : {}),
       ...(contact.phone ? { phone: contact.phone } : {}),
     })),
-    attachments: tender.attachments.map((attachment) => ({ name: attachment.name, url: attachment.url })),
+    attachments: dedupeUsAttachments(tender.attachments, tender.url)
+      .sort((left, right) => left.url.localeCompare(right.url)),
     discovered_at: new Date().toISOString(),
   };
   const existingByExternalId = tender.externalId
@@ -827,6 +872,7 @@ const upsertUsTender = async (tender: UsExtractedTender): Promise<UpsertTenderRe
   }
 
   const current = existing[0];
+  const mergedMetadata = mergeUsTenderMetadata(current.metadataJson, metadata);
   const changed =
     current.url !== values.url ||
     current.title !== values.title ||
@@ -841,10 +887,11 @@ const upsertUsTender = async (tender: UsExtractedTender): Promise<UpsertTenderRe
     current.contractType !== values.contractType ||
     current.category !== values.category ||
     !sameDate(current.deadlineAt, values.deadlineAt) ||
-    !sameValue(current.metadataJson, values.metadataJson);
+    !sameValue(current.metadataJson, mergedMetadata);
 
   await db.update(usTenders).set({
     ...values,
+    metadataJson: mergedMetadata,
     ...(changed ? { version: sql`${usTenders.version} + 1`, updatedAt: new Date() } : {}),
   }).where(eq(usTenders.id, current.id));
   return { id: current.id, changed, inserted: false };
