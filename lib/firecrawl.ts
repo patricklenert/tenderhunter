@@ -20,6 +20,8 @@ const SEARXNG_URL = process.env.SEARXNG_URL ?? "http://localhost:8080";
 /** CDP endpoint of the Obscura headless browser server (replaces local Chromium). */
 const OBSCURA_CDP_URL = process.env.OBSCURA_CDP_URL ?? "ws://127.0.0.1:9222";
 const BROWSER_IDLE_TIMEOUT_MS = 60_000;
+// Bound page heaps to stay within the Obscura sidecar's 1 GiB memory budget.
+const MAX_ACTIVE_BROWSER_CONTEXTS = 2;
 const MAX_CAPTURED_NETWORK_RESPONSES = 200;
 const MAX_DISCOVERED_RESOURCES = 500;
 const DEFAULT_MAX_BROWSER_RESOURCE_BYTES = 50 * 1024 * 1024;
@@ -29,7 +31,27 @@ let browserInstance: Browser | null = null;
 let browserPromise: Promise<Browser> | null = null;
 let browserIdleTimer: NodeJS.Timeout | null = null;
 let activeContexts = 0;
+const browserContextWaiters: Array<() => void> = [];
 const trackedContexts = new WeakSet<BrowserContext>();
+
+const acquireBrowserContextSlot = async (): Promise<void> => {
+  if (activeContexts < MAX_ACTIVE_BROWSER_CONTEXTS) {
+    activeContexts += 1;
+    return;
+  }
+  await new Promise<void>((resolve) => browserContextWaiters.push(resolve));
+};
+
+const releaseBrowserContextSlot = (): void => {
+  const nextWaiter = browserContextWaiters.shift();
+  if (nextWaiter) {
+    // Transfer the slot directly so a new caller cannot race the queued one.
+    nextWaiter();
+    return;
+  }
+  activeContexts = Math.max(0, activeContexts - 1);
+  scheduleBrowserShutdown();
+};
 
 function clearBrowserIdleTimer(): void {
   if (browserIdleTimer) {
@@ -226,16 +248,15 @@ export async function getBrowser(): Promise<Browser> {
 }
 
 export async function createTrackedBrowserContext(options?: BrowserContextOptions): Promise<BrowserContext> {
-  const browser = await getBrowser();
-  activeContexts += 1;
+  await acquireBrowserContextSlot();
 
   try {
+    const browser = await getBrowser();
     const context = await browser.newContext(options);
     trackedContexts.add(context);
     return context;
   } catch (error) {
-    activeContexts = Math.max(0, activeContexts - 1);
-    scheduleBrowserShutdown();
+    releaseBrowserContextSlot();
     throw error;
   }
 }
@@ -245,10 +266,7 @@ export async function closeTrackedBrowserContext(context: BrowserContext): Promi
   try {
     await closeWithTimeout(() => context.close());
   } finally {
-    if (wasTracked) {
-      activeContexts = Math.max(0, activeContexts - 1);
-      scheduleBrowserShutdown();
-    }
+    if (wasTracked) releaseBrowserContextSlot();
   }
 }
 
