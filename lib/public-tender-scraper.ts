@@ -1340,7 +1340,8 @@ async function extractDetailFromMarkdown(
   markdown: string,
   sourceUrl: string,
   source: string,
-  acceptAllCategories = false
+  acceptAllCategories = false,
+  timeoutMs?: number,
 ): Promise<ExtractedTender | null> {
   if (!markdown || markdown.trim().length < 30) return null;
   if (!isLikelyTender(sourceUrl, sourceUrl)) return null;
@@ -1361,6 +1362,7 @@ async function extractDetailFromMarkdown(
       ],
       temperature: 0.1,
       max_tokens: 1500,
+      timeoutMs,
     });
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error(`Keine valide Detail-Extraktion fuer ${sourceUrl}`);
@@ -3777,6 +3779,8 @@ export async function scrapeNetPortal(config: NetServerConfig, cursor: PublicSou
   console.log(`[public-scraper] NetServer: ${config.name} (${config.baseUrl})...`);
   const portalStartTime = Date.now();
   const PORTAL_MAX_MS = 5 * 60 * 1000;
+  // Bound the full provider cascade so this detail cannot consume the source timeout.
+  const DETAIL_LLM_TIMEOUT_MS = 60 * 1000;
   let pagesFetched = 0;
   const detailLimit = Math.min(config.limit, settings.publicDetailLimit);
   const rowByKey = new Map<string, NetServerRow>();
@@ -3826,7 +3830,7 @@ export async function scrapeNetPortal(config: NetServerConfig, cursor: PublicSou
         let extracted: ExtractedTender | null = null;
         if (openrouterKey && !["bremen", "saarland"].includes(config.name)) {
           try {
-            extracted = await extractDetailFromMarkdown(bodyText, detailUrl, config.name, true);
+            extracted = await extractDetailFromMarkdown(bodyText, detailUrl, config.name, true, DETAIL_LLM_TIMEOUT_MS);
           } catch (error) {
             console.warn(`[public-scraper] ${config.name} LLM-Detail-Fallback (${reference.key}):`, error);
           }

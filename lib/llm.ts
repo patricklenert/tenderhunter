@@ -152,6 +152,8 @@ type LlmCallOptions = {
   temperature?: number;
   max_tokens?: number;
   response_format?: { type: "json_object" };
+  /** Shared wall-clock budget across every model and provider fallback. */
+  timeoutMs?: number;
 };
 
 const formatEur = (microEur: number): string => (microEur / 1_000_000).toFixed(4);
@@ -181,12 +183,18 @@ const runModelCascade = async (
   client: OpenAI,
   models: readonly string[],
   options: LlmCallOptions,
+  deadlineAt?: number,
 ): Promise<string> => {
   const temperature = options.temperature ?? 0.1;
   let lastError: unknown = null;
   let lastRateLimitError: unknown = null;
 
   for (const model of models) {
+    const remainingTimeoutMs = deadlineAt === undefined ? undefined : deadlineAt - Date.now();
+    if (remainingTimeoutMs !== undefined && remainingTimeoutMs <= 0) {
+      lastError ??= new Error("LLM-Aufrufzeitbudget erschöpft");
+      break;
+    }
     if (unavailableModels.has(model)) continue;
     if (options.response_format && structuredOutputUnavailableModels.has(model)) continue;
     if (Date.now() < (rateLimitUntilByModel.get(model) ?? 0)) {
@@ -204,13 +212,16 @@ const runModelCascade = async (
       }
     }
     try {
-      const response = await client.chat.completions.create({
+      const request = {
         model,
         messages: options.messages,
         temperature,
         max_tokens: options.max_tokens,
         response_format: options.response_format,
-      });
+      };
+      const response = remainingTimeoutMs === undefined
+        ? await client.chat.completions.create(request)
+        : await client.chat.completions.create(request, { timeout: remainingTimeoutMs });
       if (!Array.isArray(response.choices)) {
         unavailableModels.add(model);
         throw new Error("LLM-Antwort enthält kein choices-Array");
@@ -266,16 +277,18 @@ export async function callLLM(
   if (Date.now() < providerUnavailableUntil) {
     throw Object.assign(new Error("LLM-Provider-Cooldown aktiv"), { status: 401, code: 401 });
   }
+  const deadlineAt = options.timeoutMs === undefined ? undefined : Date.now() + options.timeoutMs;
   try {
-    return await runModelCascade(client, MODEL_CASCADE, options);
+    return await runModelCascade(client, MODEL_CASCADE, options, deadlineAt);
   } catch (error) {
+    if (deadlineAt !== undefined && Date.now() >= deadlineAt) throw error;
     // OpenRouter-Free-Quoten sind tagesbudgetiert (Reset gegen Mitternacht UTC).
     // Solange ein Z.AI-Key existiert, überbrückt die Flash-Kaskade dort die
     // strukturierten Pipeline-Läufe, statt tagelang nur Deterministik zu nutzen.
     const zai = getZaiClient();
     if (!zai) throw error;
     console.warn("[llm] OpenRouter-Kaskade ausgeschöpft; weiche auf Z.AI GLM-Flash aus.");
-    return runModelCascade(zai, SMALL_VENDOR_ZAI_MODELS, options);
+    return runModelCascade(zai, SMALL_VENDOR_ZAI_MODELS, options, deadlineAt);
   }
 }
 
@@ -286,12 +299,14 @@ export async function callLLM(
 export async function callSmallVendorLLM(
   options: LlmCallOptions
 ): Promise<{ content: string; model: string }> {
+  const deadlineAt = options.timeoutMs === undefined ? undefined : Date.now() + options.timeoutMs;
   const zai = getZaiClient();
   if (zai && Date.now() >= providerUnavailableUntil) {
     try {
-      const content = await runModelCascade(zai, SMALL_VENDOR_ZAI_MODELS, options);
+      const content = await runModelCascade(zai, SMALL_VENDOR_ZAI_MODELS, options, deadlineAt);
       return { content, model: "zai" };
     } catch (error) {
+      if (deadlineAt !== undefined && Date.now() >= deadlineAt) throw error;
       console.warn("[llm] Z.AI-Kaskade fehlgeschlagen; falle auf OpenRouter zurück.", error);
     }
   }
@@ -299,6 +314,6 @@ export async function callSmallVendorLLM(
   if (Date.now() < providerUnavailableUntil) {
     throw Object.assign(new Error("LLM-Provider-Cooldown aktiv"), { status: 401, code: 401 });
   }
-  const content = await runModelCascade(openrouter, SMALL_VENDOR_OPENROUTER_MODELS, options);
+  const content = await runModelCascade(openrouter, SMALL_VENDOR_OPENROUTER_MODELS, options, deadlineAt);
   return { content, model: "openrouter" };
 }

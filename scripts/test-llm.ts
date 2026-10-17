@@ -34,6 +34,32 @@ async function main() {
   assert.equal(response, "usable response");
   assert.deepEqual(requestedModels, [...MODEL_CASCADE.slice(0, 3)]);
 
+  const originalDateNow = Date.now;
+  let fakeNow = originalDateNow();
+  Date.now = () => fakeNow;
+  try {
+    const requestTimeouts: number[] = [];
+    const timeoutClient = {
+      chat: {
+        completions: {
+          create: async (_request: { model: string }, requestOptions?: { timeout?: number }) => {
+            requestTimeouts.push(requestOptions?.timeout ?? 0);
+            if (requestTimeouts.length === 1) {
+              fakeNow += 15_000;
+              throw new Error("temporary model failure");
+            }
+            return { choices: [{ message: { content: "bounded response" } }] };
+          },
+        },
+      },
+    } as unknown as OpenAI;
+    assert.equal(await callLLM(timeoutClient, { messages: [], timeoutMs: 60_000 }), "bounded response");
+    assert.deepEqual(requestTimeouts, [60_000, 45_000]);
+  } finally {
+    Date.now = originalDateNow;
+    resetLLMCooldownsForTests();
+  }
+
   // 404 "No endpoints found" means the slug has no endpoints at all: every
   // model is tried once, then permanently skipped in later cascades.
   const notFoundModels: string[] = [];
