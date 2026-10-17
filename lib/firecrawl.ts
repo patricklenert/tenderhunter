@@ -88,15 +88,24 @@ export const readStablePageContent = async (
       if (attempt < 2) await page.waitForTimeout(250).catch(() => {});
     }
   }
-  try {
-    const fallbackHtml: unknown = await page.evaluate(() => document.documentElement?.outerHTML ?? "");
-    if (typeof fallbackHtml === "string" && fallbackHtml.trim()) return fallbackHtml;
-    if (typeof fallbackHtml !== "string") {
-      lastError ??= new Error("Browser DOM evaluation returned non-string HTML");
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    if (attempt > 0) {
+      await page.waitForLoadState("domcontentloaded", { timeout: 5_000 }).catch(() => {});
+      await page.waitForTimeout(250).catch(() => {});
     }
-  } catch (error) {
-    // Preserve the original navigation error below when the page has closed.
-    lastError ??= error;
+    try {
+      const fallbackHtml: unknown = await page.evaluate(() => document.documentElement?.outerHTML ?? "");
+      if (typeof fallbackHtml === "string" && fallbackHtml.trim()) return fallbackHtml;
+      if (typeof fallbackHtml !== "string") {
+        lastError ??= new Error("Browser DOM evaluation returned non-string HTML");
+      }
+    } catch (error) {
+      // A navigation can make the first DOM snapshot unavailable; retry once
+      // after the next document becomes interactive instead of dropping detail.
+      lastError ??= error;
+      if (attempt === 0 && /page is navigating and changing the content/iu.test(String(error))) continue;
+      break;
+    }
   }
   if (navigationResponse) {
     try {

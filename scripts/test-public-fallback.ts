@@ -34,6 +34,25 @@ const verifyStableBrowserPageReaders = async (): Promise<void> => {
   } as unknown as Page;
   assert.equal(await readStablePageContent(contentTypeErrorPage), "<html><title>Recovered after RPC error</title></html>");
 
+  let navigationEvaluateAttempts = 0;
+  const navigationFallbackPage = {
+    waitForLoadState: async () => {},
+    waitForTimeout: async () => {},
+    content: async () => { throw new Error("page.content: value: expected string, got object"); },
+    evaluate: async () => {
+      navigationEvaluateAttempts += 1;
+      if (navigationEvaluateAttempts === 1) {
+        throw new Error("Unable to retrieve content because the page is navigating and changing the content.");
+      }
+      return "<html><title>Recovered after navigation</title></html>";
+    },
+  } as unknown as Page;
+  assert.equal(
+    await readStablePageContent(navigationFallbackPage),
+    "<html><title>Recovered after navigation</title></html>",
+  );
+  assert.equal(navigationEvaluateAttempts, 2, "a transient page navigation should retry the DOM snapshot once");
+
   const invalidFallbackPage = {
     waitForLoadState: async () => {},
     waitForTimeout: async () => {},
