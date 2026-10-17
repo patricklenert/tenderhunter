@@ -1195,7 +1195,7 @@ export const recoverTenderProcessing = async (tenderId: number): Promise<void> =
   }
 
   const cacheStage = latestByStage.get(JOB_CACHE_DETAIL);
-  if (cacheStage?.status === "failed" && /participation_required|\b(?:403|404)\b|not found|nicht gefunden/iu.test(cacheStage.lastError ?? "")) {
+  if (cacheStage?.status === "failed" && isTerminalCacheDetailFailure(cacheStage.lastError)) {
     return;
   }
   if (!cacheStage) {
@@ -1245,7 +1245,7 @@ export const recoverIncompleteTenderPipelines = async (limit = 50): Promise<numb
            SELECT 1 FROM jobs terminal_cache_failure
            WHERE terminal_cache_failure.type = 'cache_detail'
              AND terminal_cache_failure.status = 'failed'
-             AND terminal_cache_failure.last_error ~* '(participation_required|403|404|not found|nicht gefunden)'
+              AND terminal_cache_failure.last_error ~* ${TERMINAL_CACHE_DETAIL_FAILURE_PATTERN}
              AND terminal_cache_failure.payload ->> 'tender_id' = ${tenders.id}::text
              AND ${currentPipelineVersionSql("terminal_cache_failure")}
              AND NOT EXISTS (
@@ -2044,6 +2044,12 @@ const retryBlockedDetail = async (
   throw new Error(`Detailseite abgelaufen oder entfernt (${detection.reason ?? "unbekannt"})`);
 };
 
+const TERMINAL_CACHE_DETAIL_FAILURE_PATTERN = "(participation_required|login_required|navigation_page|403|404|not found|nicht gefunden)";
+const TERMINAL_CACHE_DETAIL_FAILURE_REGEX = new RegExp(TERMINAL_CACHE_DETAIL_FAILURE_PATTERN, "iu");
+
+export const isTerminalCacheDetailFailure = (lastError: string | null | undefined): boolean =>
+  Boolean(lastError && TERMINAL_CACHE_DETAIL_FAILURE_REGEX.test(lastError));
+
 export const getAccessLimitedCacheResult = (
   tender: Pick<Tender, "title" | "metadataJson" | "rawText">,
   detection: AccessPageDetection,
@@ -2062,7 +2068,9 @@ export const getAccessLimitedCacheResult = (
     metadata.description,
   );
 
-  const accessLimited = metadata.access_limited === true || detection.reason === "participation_required";
+  const accessLimited = metadata.access_limited === true
+    || detection.reason === "participation_required"
+    || detection.reason === "login_required";
   if (!accessLimited) return null;
   if (!metadata.access_limited && description.length < 80) return null;
 
@@ -2705,6 +2713,15 @@ const runFetchDocuments = async (payload: Record<string, JsonValue>): Promise<Re
   };
 };
 
+export const isStoredDocumentFileMissing = (filePath: string): boolean => {
+  try {
+    return !fs.statSync(filePath).isFile();
+  } catch (error) {
+    const code = error && typeof error === "object" && "code" in error ? error.code : null;
+    return code === "ENOENT" || code === "ENOTDIR";
+  }
+};
+
 const runParseDocuments = async (payload: Record<string, JsonValue>): Promise<Record<string, JsonValue>> => {
   const tenderId = Number(payload.tender_id ?? 0);
   if (!Number.isFinite(tenderId) || tenderId <= 0) {
@@ -2793,11 +2810,15 @@ const runParseDocuments = async (payload: Record<string, JsonValue>): Promise<Re
   const parsedDocumentCandidates: ParsedTenderDocument[] = [];
   let partial = false;
   let failedDocuments = 0;
+  const missingStoredDocuments: number[] = [];
 
   for (const doc of docs) {
     let absPath: string;
+    let missingStoredObject = false;
     try {
       absPath = await ensureLocalStored(doc.storagePath);
+      missingStoredObject = isStoredDocumentFileMissing(absPath);
+      if (missingStoredObject) throw new Error(`Stored document is missing: ${doc.storagePath}`);
       const extracted = await extractTextFromFile(absPath, doc.contentType);
       const pageText = formatExtractedDocumentText(extracted).replace(/\u0000/g, "");
       const bounded = pageText.length > MAX_DOCUMENT_TEXT_CHARS
@@ -2849,18 +2870,32 @@ const runParseDocuments = async (payload: Record<string, JsonValue>): Promise<Re
       if (!persisted.current) return { skipped: true, reason: "veraltete Tender-Version" };
     } catch (error) {
       partial = true;
-      failedDocuments += 1;
+      if (missingStoredObject) missingStoredDocuments.push(doc.id);
+      else failedDocuments += 1;
       const message = sanitizeErrorMessage(error instanceof Error ? error.message : "unbekannter Parserfehler");
       // Store the error on the document row for debugging, but do NOT pollute
       // the tender's analytical rawText with error markers. A failed parse is a
       // document-level failure, not tender content.
       const persisted = await withCurrentPipelineVersion(tenderId, payload, async (tx) => {
         await tx.update(documents)
-          .set({ extractedText: doc.extractedText, parseStatus: "failed", errorMessage: message, updatedAt: new Date() })
+          .set({
+            extractedText: doc.extractedText,
+            ...(missingStoredObject ? { downloadStatus: "failed" as const } : {}),
+            parseStatus: "failed",
+            errorMessage: message,
+            updatedAt: new Date(),
+          })
           .where(eq(documents.id, doc.id));
       });
       if (!persisted.current) return { skipped: true, reason: "veraltete Tender-Version" };
     }
+  }
+
+  if (missingStoredDocuments.length > 0) {
+    if (!await ensureCurrentPipelineVersion(tenderId, payload)) return { skipped: true, reason: "veraltete Tender-Version" };
+    await queueTenderProcessing(tenderId, `missing-object-${missingStoredDocuments.join("-")}-${Date.now()}`);
+    await markCatalogDirty();
+    return { chunks: 0, documents_refetch_queued: missingStoredDocuments.length };
   }
 
   const corpusRawText = removeParsedDocumentSections(

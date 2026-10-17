@@ -4,6 +4,7 @@ import {
   isUnexpectedEmptyPublicSourceResult,
   shouldRetryFailedPublicFullRun,
   shouldSchedulePublicContinuation,
+  shouldWaitForPublicContinuations,
   type PublicDetailReference,
   type PublicSourceCursor,
 } from "../lib/public-pagination";
@@ -23,6 +24,43 @@ assert.notEqual(
 assert.equal(shouldRetryFailedPublicFullRun(new Date(now.getTime() - 60_000), now), false);
 assert.equal(shouldRetryFailedPublicFullRun(new Date(now.getTime() - 6 * 60_000), now), true);
 assert.equal(shouldRetryFailedPublicFullRun(null, now), true);
+assert.equal(shouldWaitForPublicContinuations({
+  hasActiveContinuations: true,
+  lastFullRunFinishedAt: new Date(now.getTime() - 60 * 60_000),
+  intervalHours: 48,
+  now,
+}), true, "continuations may drain while the full scrape interval has not elapsed");
+assert.equal(shouldWaitForPublicContinuations({
+  hasActiveContinuations: true,
+  lastFullRunFinishedAt: new Date(now.getTime() - 48 * 60 * 60_000),
+  intervalHours: 48,
+  now,
+}), true, "the interval boundary remains not due, matching the scheduler's strict greater-than check");
+assert.equal(shouldWaitForPublicContinuations({
+  hasActiveContinuations: true,
+  lastFullRunFinishedAt: new Date(now.getTime() - 48 * 60 * 60_000 - 1),
+  intervalHours: 48,
+  now,
+}), false, "overdue full scrapes must not be blocked by continuations");
+assert.equal(shouldWaitForPublicContinuations({
+  hasActiveContinuations: true,
+  lastFullRunFinishedAt: new Date(now.getTime() - 60 * 60_000),
+  intervalHours: 48,
+  retryFailedFullRun: true,
+  now,
+}), false, "an eligible failed-run retry must not wait for continuations");
+assert.equal(shouldWaitForPublicContinuations({
+  hasActiveContinuations: false,
+  lastFullRunFinishedAt: new Date(now.getTime() - 60 * 60_000),
+  intervalHours: 48,
+  now,
+}), false);
+assert.equal(shouldWaitForPublicContinuations({
+  hasActiveContinuations: true,
+  lastFullRunFinishedAt: null,
+  intervalHours: 48,
+  now,
+}), false, "continuations must not suppress the initial full scrape");
 
 assert.equal(isUnexpectedEmptyPublicSourceResult({
   emptyAllowed: false,

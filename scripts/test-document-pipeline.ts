@@ -15,6 +15,8 @@ import {
   shouldUseRenderedResourceDiscovery,
   findHtmlResponseDocument,
   getAccessLimitedCacheResult,
+  isStoredDocumentFileMissing,
+  isTerminalCacheDetailFailure,
   resolveEffectiveRawText,
   shouldRecoverFailedPipelineStage,
   isTenderDocumentRefreshDue,
@@ -78,6 +80,16 @@ assert.equal(
   shouldRecoverFailedPipelineStage({ status: "pending", finishedAt: null }, recoveryNow),
   false,
   "a pending stage is not a recovery candidate",
+);
+assert.equal(isTerminalCacheDetailFailure("Detailseite vorübergehend nicht verfügbar (login_required)"), true);
+assert.equal(isTerminalCacheDetailFailure("Portal returned navigation_page without tender details"), true);
+assert.equal(isTerminalCacheDetailFailure("temporary network timeout"), false);
+assert.equal(isStoredDocumentFileMissing(process.execPath), false, "an existing file must not be refetched");
+assert.equal(isStoredDocumentFileMissing(process.cwd()), true, "a directory is not a stored document file");
+assert.equal(
+  isStoredDocumentFileMissing(`${process.execPath}.missing-${process.pid}`),
+  true,
+  "missing local objects must be routed back through download",
 );
 assert.equal(isTenderDocumentRefreshDue(null, recoveryNow, 72 * 60 * 60 * 1_000), true, "a tender with no completed fetch needs document discovery");
 assert.equal(
@@ -349,6 +361,16 @@ const accessCache = getAccessLimitedCacheResult(
 assert.equal(accessCache?.summary, "Dokumentierter Leistungsumfang");
 assert.equal(accessCache?.description, "Dokumentierter Leistungsumfang");
 assert.ok(typeof accessCache?.descriptionMarkdown === "string" && accessCache.descriptionMarkdown.length > 0);
+const loginAccessCache = getAccessLimitedCacheResult(
+  {
+    title: "Straßenbau in Mainz",
+    metadataJson: { summary: richerDescription },
+    rawText: "",
+  },
+  { blocked: true, reason: "login_required", confidence: 1, signals: ["login_required"] },
+);
+assert.equal(loginAccessCache?.access_limited, true, "a login wall can retain a sufficiently detailed public listing description");
+assert.equal(loginAccessCache?.summary, richerDescription);
 
 const htmlResponseDocument = findHtmlResponseDocument(
   [{ id: 7, url: "https://example.test/eforms?-1.-form", contentType: "text/html", sha256: "x", downloadStatus: "downloaded", storagePath: "x", filename: "eforms.html", updatedAt: new Date() }],

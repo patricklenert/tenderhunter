@@ -3,7 +3,7 @@ import { settings } from "@/lib/config";
 import { processNextJob, cleanupExpiredTenders, cleanupExpiredUsTenders, recoverIncompleteTenderPipelines } from "@/lib/pipeline";
 import { enqueueJob, isCriticalJobType, PUBLIC_CONTINUATION_PRIORITY, reapStaleJobs, sanitizeErrorMessage, type JobLane } from "@/lib/queue";
 import { serializeSourceItems } from "@/lib/tender-sources";
-import { buildPublicContinuationJobKey, shouldRetryFailedPublicFullRun, shouldSchedulePublicContinuation } from "@/lib/public-pagination";
+import { buildPublicContinuationJobKey, shouldRetryFailedPublicFullRun, shouldSchedulePublicContinuation, shouldWaitForPublicContinuations } from "@/lib/public-pagination";
 import { JOB_CRAWL, JOB_SCRAPE_PUBLIC, JOB_SCRAPE_US, type JsonValue } from "@/lib/types";
 import { db } from "@/lib/db";
 import { jobs, publicScrapeRuns, publicSourceCursors } from "@/lib/schema";
@@ -51,8 +51,13 @@ const shouldEnqueuePublicScrape = async (): Promise<boolean> => {
     return false;
   }
 
-  // Don't create a new full run while continuation jobs are still active.
-  // Continuations are cheaper (single source) and should drain first.
+  const lastRun = await db
+    .select({ status: publicScrapeRuns.status, finishedAt: publicScrapeRuns.finishedAt })
+    .from(publicScrapeRuns)
+    .where(and(eq(publicScrapeRuns.isFullRun, true), isNotNull(publicScrapeRuns.finishedAt)))
+    .orderBy(desc(publicScrapeRuns.finishedAt))
+    .limit(1);
+
   const pendingContinuations = await db
     .select({ id: jobs.id })
     .from(jobs)
@@ -64,18 +69,23 @@ const shouldEnqueuePublicScrape = async (): Promise<boolean> => {
       )
     )
     .limit(1);
-
-  if (pendingContinuations.length > 0) {
-    console.log("[scheduler] Oeffentliche Ausschreibungen: ausstehende Continuation-Jobs, warte.");
+  const latestFullRun = lastRun[0];
+  const now = new Date();
+  const retryFailedFullRun = latestFullRun?.status === "failed"
+    && shouldRetryFailedPublicFullRun(latestFullRun.finishedAt, now);
+  if (shouldWaitForPublicContinuations({
+    hasActiveContinuations: pendingContinuations.length > 0,
+    lastFullRunFinishedAt: latestFullRun?.finishedAt,
+    intervalHours: settings.publicScrapeIntervalHours,
+    retryFailedFullRun,
+    now,
+  })) {
+    console.log("[scheduler] Oeffentliche Ausschreibungen: ausstehende Continuation-Jobs, Full-Run noch nicht fällig.");
     return false;
   }
-
-  const lastRun = await db
-    .select({ status: publicScrapeRuns.status, finishedAt: publicScrapeRuns.finishedAt })
-    .from(publicScrapeRuns)
-    .where(and(eq(publicScrapeRuns.isFullRun, true), isNotNull(publicScrapeRuns.finishedAt)))
-    .orderBy(desc(publicScrapeRuns.finishedAt))
-    .limit(1);
+  if (pendingContinuations.length > 0) {
+    console.log("[scheduler] Oeffentliche Ausschreibungen: Full-Run fällig trotz ausstehender Continuation-Jobs.");
+  }
 
   if (lastRun.length === 0 || !lastRun[0].finishedAt) {
     console.log("[scheduler] Oeffentliche Ausschreibungen: noch kein Job vorhanden, starte ersten Scrape.");

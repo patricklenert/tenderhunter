@@ -46,6 +46,18 @@ export const shouldRetryFailedPublicFullRun = (
     || now.getTime() - finishedAtMs >= PUBLIC_FULL_RUN_FAILURE_RETRY_MS;
 };
 
+export const shouldWaitForPublicContinuations = (input: {
+  hasActiveContinuations: boolean;
+  lastFullRunFinishedAt?: Date | null;
+  intervalHours: number;
+  retryFailedFullRun?: boolean;
+  now?: Date;
+}): boolean => {
+  if (!input.hasActiveContinuations || input.retryFailedFullRun || !input.lastFullRunFinishedAt) return false;
+  const elapsed = (input.now ?? new Date()).getTime() - input.lastFullRunFinishedAt.getTime();
+  return Number.isFinite(elapsed) && elapsed <= input.intervalHours * 60 * 60 * 1_000;
+};
+
 export const isUnexpectedEmptyPublicSourceResult = (input: {
   emptyAllowed: boolean;
   tenderCount: number;
