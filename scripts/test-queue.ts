@@ -11,6 +11,7 @@ assert.equal(shouldReuseCompletedJob("failed"), false);
 
 assert.equal(isCriticalJobType("parse_documents"), true);
 assert.equal(isCriticalJobType("structure_tender"), true);
+assert.equal(isCriticalJobType("sync_meilisearch"), false);
 assert.equal(JOB_PRIORITIES.scrape_public_tenders, 105);
 assert.equal(JOB_PRIORITIES.scrape_us_tenders, 115);
 assert.equal(JOB_PRIORITIES.cache_detail, 120);

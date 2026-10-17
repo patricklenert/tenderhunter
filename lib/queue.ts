@@ -93,6 +93,7 @@ export const sanitizeErrorMessage = (message: string): string =>
 
 const ACTIVE_JOB_STATUSES = ["pending", "running"] as const;
 
+// Keep catalog sync in the background lane so critical bursts cannot starve it.
 export const CRITICAL_JOB_TYPES = [
   JOB_CRAWL,
   JOB_SCRAPE_PUBLIC,
@@ -103,7 +104,6 @@ export const CRITICAL_JOB_TYPES = [
   JOB_STRUCTURE,
   JOB_SCORE,
   JOB_CACHE_DETAIL,
-  JOB_SYNC_MEILI,
 ] as const;
 
 export type JobLane = "critical" | "background" | "all";
