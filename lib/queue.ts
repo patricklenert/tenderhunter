@@ -93,10 +93,9 @@ export const sanitizeErrorMessage = (message: string): string =>
 
 const ACTIVE_JOB_STATUSES = ["pending", "running"] as const;
 
-// Keep catalog sync in the background lane so critical bursts cannot starve it.
+// Keep public scrapes and catalog sync in the background lane so critical bursts cannot starve them.
 export const CRITICAL_JOB_TYPES = [
   JOB_CRAWL,
-  JOB_SCRAPE_PUBLIC,
   JOB_SCRAPE_US,
   JOB_FETCH_DOCUMENTS,
   JOB_FETCH_US_DOCUMENTS,
