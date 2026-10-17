@@ -62,6 +62,52 @@ const drained = pendingOnlyResult(drainedCursor, "test-page", {
 assert.equal(drained.nextCursor?.exhausted, true, "draining the last detail must finish the listing cursor");
 assert.equal(drained.exhausted, true, "a completed listing without pending details is exhausted");
 assert.equal(drained.continuationRequired, false, "a drained listing must not schedule another listing pass");
+const blockedPending = { ...pending, blocked: true };
+const blockedWhileListing = pendingOnlyResult({
+  ...createPublicSourceCursorV2("test-page", { page: 2 }, false, [blockedPending]),
+  listingComplete: false,
+}, "test-page", {
+  tenders: [],
+  pendingDetails: [blockedPending],
+  detailAttempted: 0,
+  detailFailed: 0,
+});
+assert.deepEqual(
+  blockedWhileListing.nextCursor?.pendingDetails,
+  [blockedPending],
+  "blocked references must remain while listing pages are incomplete",
+);
+const blockedAfterListing = pendingOnlyResult({
+  ...createPublicSourceCursorV2("test-page", { page: 2 }, false, [blockedPending]),
+  listingComplete: true,
+}, "test-page", {
+  tenders: [],
+  pendingDetails: [blockedPending],
+  detailAttempted: 0,
+  detailFailed: 0,
+});
+assert.deepEqual(
+  blockedAfterListing.nextCursor?.pendingDetails,
+  [],
+  "terminal blocked references must be pruned after listing completion",
+);
+assert.equal(blockedAfterListing.exhausted, true);
+assert.equal(blockedAfterListing.continuationRequired, false);
+const retryableAfterListing = pendingOnlyResult({
+  ...createPublicSourceCursorV2("test-page", { page: 2 }, false, [pending]),
+  listingComplete: true,
+}, "test-page", {
+  tenders: [],
+  pendingDetails: [pending],
+  detailAttempted: 0,
+  detailFailed: 0,
+});
+assert.deepEqual(
+  retryableAfterListing.nextCursor?.pendingDetails,
+  [pending],
+  "retryable references must remain until they can be retried",
+);
+assert.equal(retryableAfterListing.exhausted, false);
 assert.equal(shouldCommitPublicCursor({ cursorCommit: "commit", cursorAdvanced: true }), true);
 assert.equal(
   shouldCommitPublicCursor({ cursorCommit: "commit", cursorAdvanced: true, errorMessage: "Persistenzfehler" }),

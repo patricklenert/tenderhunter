@@ -530,13 +530,16 @@ function sourceCursorResult(
   tenders: ExtractedTender[],
   options: SourceCursorResultOptions,
 ): PublicScraperResult {
-  const pendingCount = options.pendingDetails.length;
+  const pendingDetails = options.listingComplete
+    ? options.pendingDetails.filter((reference) => !reference.blocked)
+    : options.pendingDetails;
+  const pendingCount = pendingDetails.length;
   const cursorCommit = options.cursorCommit ?? "commit";
   const nextCursor = createPublicSourceCursorV2(
     options.strategy,
     options.position,
     options.listingExhausted && pendingCount === 0,
-    options.pendingDetails,
+    pendingDetails,
     {
       ...(options.cursor ?? {}),
       ...(options.extra ?? {}),
