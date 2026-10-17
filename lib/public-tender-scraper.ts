@@ -3779,8 +3779,8 @@ export async function scrapeNetPortal(config: NetServerConfig, cursor: PublicSou
   console.log(`[public-scraper] NetServer: ${config.name} (${config.baseUrl})...`);
   const portalStartTime = Date.now();
   const PORTAL_MAX_MS = 5 * 60 * 1000;
-  // Bound the full provider cascade so this detail cannot consume the source timeout.
-  const DETAIL_LLM_TIMEOUT_MS = 60 * 1000;
+  // Leave margin under the 7-minute source timeout after the 5-minute portal budget check.
+  const DETAIL_LLM_TIMEOUT_MS = 30 * 1000;
   let pagesFetched = 0;
   const detailLimit = Math.min(config.limit, settings.publicDetailLimit);
   const rowByKey = new Map<string, NetServerRow>();
