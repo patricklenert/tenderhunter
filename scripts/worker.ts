@@ -336,9 +336,7 @@ const runWorkerLoop = async (workerId: string): Promise<void> => {
   let lastPublicScheduleCheckAt = Date.now();
   let criticalStreak = 0;
   let lastCriticalType: string | null = null;
-  let criticalTypeStreak = 0;
   const criticalBurst = 5;
-  const criticalTypeBurst = 5;
   while (true) {
     if (Date.now() - lastUsScheduleCheckAt >= US_SCHEDULE_CHECK_MS) {
       lastUsScheduleCheckAt = Date.now();
@@ -356,7 +354,7 @@ const runWorkerLoop = async (workerId: string): Promise<void> => {
     try {
       result = await processNextJob(workerId, {
         lane,
-        typeOrder: getCriticalJobTypeOrder(lastCriticalType, criticalTypeStreak, criticalTypeBurst),
+        typeOrder: getCriticalJobTypeOrder(lastCriticalType),
         terminateOnTimeout: true,
       });
     } catch (error) {
@@ -366,18 +364,11 @@ const runWorkerLoop = async (workerId: string): Promise<void> => {
       continue;
     }
     if (result) {
-      if (lane === "critical" && isCriticalJobType(result.job_type)) {
-        criticalStreak += 1;
-        if (lastCriticalType === result.job_type) {
-          criticalTypeStreak += 1;
-        } else {
-          lastCriticalType = result.job_type;
-          criticalTypeStreak = 1;
-        }
+      if (isCriticalJobType(result.job_type)) {
+        criticalStreak = lane === "critical" ? criticalStreak + 1 : 0;
+        lastCriticalType = result.job_type;
       } else {
         criticalStreak = 0;
-        lastCriticalType = null;
-        criticalTypeStreak = 0;
       }
       console.log(JSON.stringify(result));
       continue;

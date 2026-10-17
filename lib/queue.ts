@@ -109,7 +109,7 @@ export type JobLane = "critical" | "background" | "all";
 
 export type ClaimJobOptions = {
   lane?: JobLane;
-  /** Rotate critical job types after one type has occupied a worker repeatedly. */
+  /** Rotate critical job types so older backlog in one type cannot starve others. */
   typeOrder?: readonly string[];
   /** Set only when the claiming process will terminate if the runtime is exceeded. */
   enforceRuntimeTimeout?: boolean;
@@ -120,10 +120,8 @@ export const isCriticalJobType = (jobType: string): boolean =>
 
 export const getCriticalJobTypeOrder = (
   lastJobType: string | null,
-  sameTypeStreak: number,
-  burst: number,
 ): readonly string[] | undefined => {
-  if (lastJobType === null || sameTypeStreak < burst) return undefined;
+  if (lastJobType === null) return undefined;
   const lastJobTypeIndex = CRITICAL_JOB_TYPES.findIndex((jobType) => jobType === lastJobType);
   if (lastJobTypeIndex < 0) return undefined;
   return [

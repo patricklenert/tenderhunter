@@ -25,9 +25,8 @@ assert.equal(getEffectiveQueuePriority(100, new Date(priorityNow - 48 * 60 * 60 
 assert.equal(getEffectiveQueuePriority(100, new Date(priorityNow), priorityNow), 100);
 assert.equal(isCriticalJobType("generate_insight"), false);
 assert.equal(isCriticalJobType("notify_company"), false);
-assert.equal(getCriticalJobTypeOrder(CRITICAL_JOB_TYPES[1], 4, 5), undefined);
-assert.equal(getCriticalJobTypeOrder(null, 5, 5), undefined);
-const criticalTypeOrder = getCriticalJobTypeOrder(CRITICAL_JOB_TYPES[1], 5, 5);
+assert.equal(getCriticalJobTypeOrder(null), undefined);
+const criticalTypeOrder = getCriticalJobTypeOrder(CRITICAL_JOB_TYPES[1]);
 assert.equal(criticalTypeOrder?.[0], CRITICAL_JOB_TYPES[2]);
 assert.equal(criticalTypeOrder?.at(-1), CRITICAL_JOB_TYPES[1]);
 assert.equal(new Set(criticalTypeOrder).size, CRITICAL_JOB_TYPES.length);
