@@ -297,7 +297,7 @@ const initialize = async (): Promise<void> => {
 };
 
 const REAPER_INTERVAL_MS = 30_000;
-const TENDER_RECOVERY_INTERVAL_MS = 60_000;
+const TENDER_RECOVERY_INTERVAL_MS = 5 * 60_000;
 
 const startReaper = (): NodeJS.Timeout => {
   return setInterval(async () => {
