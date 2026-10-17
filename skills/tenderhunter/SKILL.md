@@ -16,8 +16,25 @@ If the client supports remote MCP, connect to:
 https://DEINE-DOMAIN/api/mcp
 ```
 
-Use the `search_tenders` tool. It supports free-text search, German state,
-city, deadline filters, sorting, pagination, and a maximum page size of 30.
+Use `search_tenders` for discovery. It supports free-text search, German state,
+city, deadline filters, sorting, pagination, and a maximum page size of 30. It
+searches only qualified tenders currently in Tenderhunter's index. Known
+deadlines have not passed, but entries with unknown deadlines may be included;
+it is not a complete crawl of all German procurement portals. For an empty
+result, report the exact filters and do not infer that no suitable tender exists.
+
+Use `match_tenders` to check formal mandatory eligibility requirements against
+available tender documents. It accepts a main bidder profile and an optional,
+named partner profile, plus `query` and up to seven focused `searchQueries` for
+different service terms. For a partner, specify only planned roles:
+`subcontractor`, `capacity_provider` (Eignungsleihe), or `consortium_member`.
+Do not treat an ordinary subcontractor as a capacity provider unless that route
+is explicitly planned and permitted. Unknown supplier facts must be omitted, not guessed.
+Its `no_barrier_found` verdict is not a technical-fit, profitability, legal
+subcontracting, or award recommendation. Review original tender documents and
+the Dossier before recommending a bid. A category must be one of Tenderhunter's
+allowed values; for software/IT use `IT-Dienstleistungen` and put terms such as
+"KI" in a free-text query, not in `category`.
 
 ## Local CLI fallback
 

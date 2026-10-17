@@ -7,6 +7,7 @@ import { PROCEDURE_TYPES, getProcedureDatabaseValues } from "@/lib/procedure-typ
 import { CATEGORY_LABELS, CATEGORY_SLUGS, SLUG_TO_CATEGORY } from "@/lib/categories";
 import { TaxonomyCategoryContent } from "@/components/seo/TaxonomyCategoryContent";
 import { getListingRobots, getPageNumber, type SeoSearchParams } from "@/lib/seo-indexability";
+import { rethrowNavigationError } from "@/lib/public-route-resilience";
 import { pickValidatedPublicCandidate } from "@/lib/public-content-quality";
 import { readPublicTenderMeta } from "@/lib/tender-meta";
 
@@ -101,7 +102,7 @@ export default async function ProcedureCategoryPage({ params, searchParams }: Pa
     totalCount = countRow[0]?.count ?? 0;
     totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
-    if (currentPage > totalPages && totalCount > 0) notFound();
+    if (currentPage > totalPages) notFound();
 
     const offset = (currentPage - 1) * PAGE_SIZE;
 
@@ -161,7 +162,8 @@ export default async function ProcedureCategoryPage({ params, searchParams }: Pa
     availableCategorySlugs = categoryRows
       .map((row) => row.category ? CATEGORY_SLUGS[row.category] : null)
       .filter((slug): slug is string => Boolean(slug));
-  } catch {
+  } catch (error) {
+    rethrowNavigationError(error);
     // DB unavailable
   }
 

@@ -24,6 +24,7 @@ import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
 import { CPV_CODES, ALL_CPV_CODES } from "@/lib/cpv-codes";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 import { getListingRobots, getPageNumber, getPaginationHref, type SeoSearchParams } from "@/lib/seo-indexability";
+import { rethrowNavigationError } from "@/lib/public-route-resilience";
 import { pickValidatedPublicCandidate } from "@/lib/public-content-quality";
 import { readPublicTenderMeta } from "@/lib/tender-meta";
 
@@ -107,7 +108,7 @@ export default async function CpvPage({ params, searchParams }: PageProps) {
     totalCount = countRow[0]?.count ?? 0;
     totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
-    if (currentPage > totalPages && totalCount > 0) notFound();
+    if (currentPage > totalPages) notFound();
 
     const offset = (currentPage - 1) * PAGE_SIZE;
 
@@ -152,7 +153,8 @@ export default async function CpvPage({ params, searchParams }: PageProps) {
         slug: getCanonicalTenderSlug(row.slug, row.title, row.metadataJson),
       };
     });
-  } catch {
+  } catch (error) {
+    rethrowNavigationError(error);
     // DB unavailable
   }
 

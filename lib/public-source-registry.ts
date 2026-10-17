@@ -25,6 +25,8 @@ const FIXED_SOURCES: Record<string, PublicSourceDefinition> = {
   "net-bremen": { sourceKey: "net-bremen", label: "Bremen", emptyAllowed: false, supportsContinuation: true },
   "net-saarland": { sourceKey: "net-saarland", label: "Saarland", emptyAllowed: false, supportsContinuation: true },
   "sachsen-anhalt": { sourceKey: "sachsen-anhalt", label: "Sachsen-Anhalt", emptyAllowed: false, supportsContinuation: true },
+  "evergabe-de": { sourceKey: "evergabe-de", label: "deutsche-eVergabe (bundesweit)", emptyAllowed: false, supportsContinuation: true },
+  "it-ausschreibung": { sourceKey: "it-ausschreibung", label: "IT-Ausschreibung.de (Aggregator)", emptyAllowed: true, supportsContinuation: true },
 };
 
 const DYNAMIC_SOURCES = new Set([
@@ -78,6 +80,20 @@ const SOURCE_ALIASES: Record<string, string> = {
   "bauportal-deutschland": "bauportal",
   bundesimmobilien: "bundesimmobilien",
   niedersachsen: "niedersachsen",
+
+  // The deutsche-eVergabe platform publishes every client on one API. Bayern
+  // keeps its own scraper (BL=09); the nationwide source covers the rest.
+  "evergabe-de": "evergabe-de",
+  "deutsche-evergabe": "evergabe-de",
+  "deutsche.evergabe": "evergabe-de",
+  "deutsche evergabe": "evergabe-de",
+  "deutsche-evergabe.de": "evergabe-de",
+
+  // IT-Aggregator (republished IT tenders with public summaries; details are
+  // login-walled there, so we keep the aggregator page as the source URL).
+  "it-ausschreibung": "it-ausschreibung",
+  "it ausschreibung": "it-ausschreibung",
+  "it-ausschreibung.de": "it-ausschreibung",
 
   // Berlin's HTML listing links to RIB detail pages. Keep both labels on the
   // same scraper key so identity backfills do not split one source in two.
@@ -204,6 +220,8 @@ const HOST_SOURCE_RULES: HostSourceRule[] = [
   { domains: ["auftraege.bayern.de"], sourceKey: "bayern-api" },
   { domains: ["portal.deutsche-evergabe.de"], sourceKey: "bayern-api", path: /BL=09/ },
   { domains: ["portal.deutsche-evergabe.de"], sourceKey: "bayern-api", path: /BL=09/ },
+  { domains: ["deutsche-evergabe.de"], sourceKey: "evergabe-de" },
+  { domains: ["it-ausschreibung.de"], sourceKey: "it-ausschreibung" },
   { domains: ["hamburg.de", "vergabe-hamburg.de"], sourceKey: "hamburg-de", path: /ausschreib|vergabe/i },
   { domains: ["service.bund.de"], sourceKey: "bund-rss", path: /ausschreib/i },
   { domains: ["evergabe-online.de"], sourceKey: "evergabe-online" },

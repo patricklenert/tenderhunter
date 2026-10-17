@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { notFound } from "next/navigation";
 import { getIndexableAgency } from "../lib/agencies";
 import { matchesCpvCode } from "../lib/cpv-codes";
 import { getListingRobots, getPaginationHref, NOINDEX_FOLLOW } from "../lib/seo-indexability";
-import { dependencyUnavailableResponse, optionalPublicRows } from "../lib/public-route-resilience";
+import { dependencyUnavailableResponse, optionalPublicRows, rethrowNavigationError } from "../lib/public-route-resilience";
 import { isCanonicalTenderId } from "../lib/tender-canonical";
 import { getSiteUrl } from "../lib/site-config";
 import { decodeRouteParam } from "../lib/route-params";
@@ -77,6 +78,48 @@ for (const route of [
   assert.match(readFileSync(route, "utf8"), /export const dynamicParams = false;/, `${route} must return real 404s for unknown slugs`);
   assert.match(readFileSync(route, "utf8"), /decodeRouteParam/, `${route} must decode percent-encoded route params before map lookup`);
 }
+
+const paginatedListingRoutes = [
+  "app/ausschreibungen/[kategorie]/page.tsx",
+  "app/ausschreibungen/stadt/[slug]/page.tsx",
+  "app/ausschreibungen/stadt/[slug]/[kategorie]/page.tsx",
+  "app/ausschreibungen/region/[slug]/page.tsx",
+  "app/ausschreibungen/region/[slug]/[kategorie]/page.tsx",
+  "app/ausschreibungen/cpv/[code]/page.tsx",
+  "app/ausschreibungen/cpv/[code]/[kategorie]/page.tsx",
+  "app/ausschreibungen/verfahren/[type]/page.tsx",
+  "app/ausschreibungen/verfahren/[type]/[kategorie]/page.tsx",
+  "app/ausschreibungen/dtvp/stadt/[slug]/page.tsx",
+  "app/ausschreibungen/dtvp/region/[slug]/page.tsx",
+  "app/ausschreibungen/ted/stadt/[slug]/page.tsx",
+  "app/ausschreibungen/ted/region/[slug]/page.tsx",
+  "app/ausschreibungen/evergabe/stadt/[slug]/page.tsx",
+  "app/ausschreibungen/evergabe/region/[slug]/page.tsx",
+  "app/ausschreibungen/bauportal-deutschland/stadt/[slug]/page.tsx",
+  "app/ausschreibungen/bauportal-deutschland/region/[slug]/page.tsx",
+  "app/auftraggeber/[slug]/page.tsx",
+];
+for (const route of paginatedListingRoutes) {
+  const source = readFileSync(route, "utf8");
+  assert.match(source, /currentPage > totalPages\) notFound\(\)/, `${route} must 404 every out-of-range page, including when no results exist`);
+}
+for (const route of paginatedListingRoutes.slice(0, -1)) {
+  assert.match(
+    readFileSync(route, "utf8"),
+    /catch \(error\) \{\s*rethrowNavigationError\(error\);/,
+    `${route} must not swallow Next.js notFound signals in its database fallback`,
+  );
+}
+
+let notFoundSignal: unknown;
+try {
+  notFound();
+} catch (error) {
+  notFoundSignal = error;
+}
+assert.ok(notFoundSignal, "notFound() must produce a Next.js control-flow signal");
+assert.throws(() => rethrowNavigationError(notFoundSignal), /NEXT_HTTP_ERROR_FALLBACK;404/);
+assert.doesNotThrow(() => rethrowNavigationError(new Error("ordinary data failure")));
 
 for (const route of [
   "app/ausschreibungen/stadt/[slug]/page.tsx",

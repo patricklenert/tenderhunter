@@ -164,7 +164,7 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "Die VOB/A regelt die Vergabe von Bauleistungen. Die VgV regelt grundsätzlich Liefer- und Dienstleistungen oberhalb der EU-Schwellenwerte; § 2 VgV bestimmt aber auch ihre Anwendung bei Bauaufträgen und bei bestimmten Planungsleistungen. Deshalb ist keine pauschale Entweder-oder-Aussage richtig.",
       },
     ],
-    relatedTerms: ["vob-b", "vob-c", "vob-a-eu", "schwellenwerte", "auftragswert", "leistungsbeschreibung", "leistungsverzeichnis", "losvergabe", "vgv-vergabeverordnung", "gwb-vergaberecht", "eignungsleihe"],
+    relatedTerms: ["vob-b", "vob-c", "vob-a-eu", "schwellenwerte", "auftragswert", "leistungsbeschreibung", "leistungsverzeichnis", "losvergabe", "vgv-vergabeverordnung", "gwb-vergaberecht", "eignungsleihe", "nachforderung-unterlagen"],
     relatedCategories: ["Bauarbeiten", "Tiefbau", "TGA", "Gartenarbeiten"],
     relatedArticles: ["vob-vergabe", "schwellenwerte-vergabe"],
     sources: [
@@ -241,7 +241,7 @@ export const GLOSSARY: GlossaryEntry[] = [
       { question: "Ab wann gilt VOB/A EU?", answer: "VOB/A EU kommt bei Bauaufträgen im EU-Oberschwellenbereich zur Anwendung, wenn der geschätzte Auftragswert ohne Umsatzsteuer den einschlägigen EU-Schwellenwert erreicht oder überschreitet und keine Sonderregel greift." },
       { question: "Ist VOB/A EU dasselbe wie VgV?", answer: "Nein. VOB/A EU ist Abschnitt 2 der VOB/A. Bei Bauaufträgen gelten daneben die in § 2 VgV genannten VgV-Vorschriften sowie der vierte Teil des GWB." },
     ],
-    relatedTerms: ["vob-a", "vob-b", "vob-c", "schwellenwerte", "auftragswert", "losvergabe", "vgv-vergabeverordnung", "gwb-vergaberecht"],
+    relatedTerms: ["vob-a", "vob-b", "vob-c", "schwellenwerte", "auftragswert", "losvergabe", "vgv-vergabeverordnung", "gwb-vergaberecht", "nachforderung-unterlagen"],
     relatedCategories: ["Bauarbeiten", "Tiefbau", "TGA", "Gartenarbeiten"],
     relatedArticles: ["vob-vergabe", "schwellenwerte-vergabe"],
     sources: [
@@ -832,7 +832,48 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "Unvollständige Angebote können ausgeschlossen werden. Ob fehlende, unvollständige oder fehlerhafte Unterlagen nachgefordert, ergänzt oder erläutert werden dürfen, richtet sich nach dem anwendbaren Regelwerk, der Bekanntmachung und den Vergabeunterlagen; leistungsbezogene Angaben dürfen nicht beliebig nachgereicht werden.",
       },
     ],
-    relatedTerms: ["zuschlag", "bindefrist", "eignungskriterien"],
+    relatedTerms: ["zuschlag", "bindefrist", "eignungskriterien", "nachforderung-unterlagen"],
+  },
+  {
+    slug: "nachforderung-unterlagen",
+    term: "Nachforderung von Unterlagen",
+    category: "Vergabeprozess",
+    shortDefinition: "Bei der Nachforderung bittet der Auftraggeber einen Bewerber oder Bieter, fehlende, unvollständige oder fehlerhafte Unterlagen nachzureichen oder zu korrigieren. Ob das zulässig ist, hängt vom anwendbaren Vergaberecht und den Vergabeunterlagen ab; ein Angebot darf nicht beliebig nachgebessert werden.",
+    definition: [
+      "Eine Nachforderung ist eine Aufforderung der Vergabestelle, bestimmte Unterlagen zu übermitteln, zu ergänzen, zu erläutern oder zu korrigieren. Sie kann Teilnahmeanträge und Angebote betreffen. Für Vergaben nach der VgV regelt § 56, dass der Auftraggeber unter Wahrung von Transparenz und Gleichbehandlung fehlende, unvollständige oder fehlerhafte Unterlagen nachfordern kann. Er darf in Bekanntmachung oder Vergabeunterlagen auch festlegen, dass keine Nachforderung erfolgt.",
+      "Die Möglichkeit ist begrenzt: Nach § 56 Absatz 3 VgV sind leistungsbezogene Unterlagen, die die Bewertung nach Zuschlagskriterien betreffen, grundsätzlich von der Nachforderung ausgeschlossen. Für bestimmte unwesentliche Preisangaben enthält die Vorschrift eine eng gefasste Ausnahme. Diese Regeln lassen sich nicht pauschal auf jedes Verfahren übertragen.",
+      "Bei EU-weiten Bauaufträgen ordnet § 2 VgV die Anwendung bestimmter Teile der VgV an; im Übrigen gilt VOB/A Abschnitt 2, zu dem die VOB/A EU gehört. Deren § 16a enthält eine eigene Regelung zur Nachforderung. Planungsleistungen, die als Los eines Bauauftrags vergeben werden, unterliegen nach § 2 VgV der VgV. Auch im Unterschwellenbereich kommt es auf das für den Auftraggeber geltende Regelwerk und dessen Einführung an.",
+      "Für Bieter ist eine Nachforderung keine Einladung, das Angebot frei zu ändern. Entscheidend sind der genaue Inhalt des Schreibens, die gesetzte Frist und der vorgegebene Übermittlungsweg. Prüfen Sie außerdem, ob eine verlangte Unterlage unternehmensbezogen ist oder Angaben zur Leistung beziehungsweise Preiswertung betrifft, und reichen Sie nur das Angeforderte fristgerecht ein.",
+    ],
+    keyPoints: [
+      "Die Zulässigkeit richtet sich nach dem konkreten Vergaberegelwerk und den Vergabeunterlagen",
+      "§ 56 VgV erlaubt Nachforderungen unter Wahrung von Transparenz und Gleichbehandlung, schließt aber bestimmte leistungsbezogene Unterlagen aus",
+      "Bei EU-weiten Bauvergaben ist die besondere Regelung in § 16a EU VOB/A zusammen mit § 2 VgV zu prüfen",
+      "Eine Nachforderung erlaubt keine beliebige Änderung des Angebots; Frist und Übermittlungsweg genau einhalten",
+    ],
+    faq: [
+      {
+        question: "Kann der Auftraggeber fehlende Unterlagen immer nachfordern?",
+        answer: "Nein. Nach § 56 VgV kann der Auftraggeber bestimmte fehlende, unvollständige oder fehlerhafte Unterlagen nachfordern, darf dies aber in Bekanntmachung oder Vergabeunterlagen ausschließen. Welche Regel gilt und welche Unterlagen betroffen sind, hängt vom Verfahren ab.",
+      },
+      {
+        question: "Darf ich mit der Nachforderung mein Angebot oder den Preis ändern?",
+        answer: "Eine Nachforderung ist keine allgemeine Möglichkeit, das Angebot nachträglich zu ändern. § 56 Absatz 3 VgV schließt leistungsbezogene Unterlagen, die die Zuschlagswertung beeinflussen, grundsätzlich aus; für bestimmte unwesentliche Preisangaben gilt eine eng begrenzte Ausnahme. Maßgeblich ist das anwendbare Regelwerk.",
+      },
+      {
+        question: "Gilt § 56 VgV auch für Bauvergaben?",
+        answer: "Nicht pauschal. Bei Bauaufträgen bestimmt § 2 VgV, welche Teile der VgV gelten und wann im Übrigen VOB/A Abschnitt 2 anzuwenden ist. Für EU-weite Bauvergaben ist insbesondere § 16a EU VOB/A zu prüfen.",
+      },
+    ],
+    relatedTerms: ["angebot", "vergabeunterlagen", "eignungskriterien", "zuschlagskriterien", "e-vergabe", "teilnahmewettbewerb", "vob-a", "vob-a-eu"],
+    relatedArticles: ["angebot-oeffentliche-ausschreibung-schreiben", "wie-funktioniert-ausschreibung", "vob-vergabe"],
+    sources: [
+      { title: "§ 56 VgV – Nachforderung von Unterlagen", url: "https://www.gesetze-im-internet.de/vgv_2016/__56.html" },
+      { title: "§ 2 VgV – Vergabe von Bauaufträgen", url: "https://www.gesetze-im-internet.de/vgv_2016/__2.html" },
+      { title: "Bundesanzeiger: VOB/A Abschnitte 2 und 3, Ausgabe 2026", url: "https://www.bundesanzeiger.de/pub/publication/73xO0rpP1jfX5HRt0Ja/content/73xO0rpP1jfX5HRt0Ja/BAnz%20AT%2024.08.2026%20B6.pdf?inline" },
+      { title: "VOB/A Abschnitt 1 – Bekanntmachung vom 31. Januar 2019", url: "https://www.verwaltungsvorschriften-im-internet.de/bsvwvbund_31012019_BWI781063060120180001604634.htm" },
+    ],
+    lastReviewed: "2026-10-11",
   },
   {
     slug: "bietergemeinschaft",
@@ -919,7 +960,7 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "Eignungskriterien müssen vorab in der Bekanntmachung oder den Vergabeunterlagen definiert werden. Sie müssen transparent, nachvollziehbar und im angemessenen Verhältnis zur Leistung stehen. Typische Kriterien sind Referenzen, Zertifikate, Umsatzzahlen und personelle Ausstattung.",
       },
     ],
-    relatedTerms: ["zuschlagskriterien", "eigenerklaerung", "referenzen", "eignungsleihe"],
+    relatedTerms: ["zuschlagskriterien", "eigenerklaerung", "referenzen", "eignungsleihe", "nachforderung-unterlagen"],
   },
   {
     slug: "eignungsleihe",
@@ -992,7 +1033,7 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "Nein, der Zuschlag geht an das wirtschaftlichste Angebot. Das muss nicht das günstigste sein, wenn andere Kriterien wie Qualität, Nachhaltigkeit oder technischer Wert berücksichtigt werden. Die Gewichtung der Kriterien entscheidet.",
       },
     ],
-    relatedTerms: ["eignungskriterien", "zuschlag", "angebot"],
+    relatedTerms: ["eignungskriterien", "zuschlag", "angebot", "nachforderung-unterlagen"],
   },
   {
     slug: "eigenerklaerung",
@@ -1417,7 +1458,7 @@ export const GLOSSARY: GlossaryEntry[] = [
       { question: "Muss ein Angebot elektronisch abgegeben werden?", answer: "Ob und in welcher Form ein Angebot elektronisch einzureichen ist, ergibt sich aus dem anwendbaren Regelwerk und den konkreten Vergabeunterlagen. Bei EU-Vergaben ist die elektronische Kommunikation grundsätzlich vorgesehen; die Bekanntmachung nennt die maßgebliche Plattform und die technischen Vorgaben." },
       { question: "Was sollten Bieter bei der E-Vergabe prüfen?", answer: "Bieter sollten Registrierung, Benutzerrechte, Dateiformate, Größenlimits, erforderliche Signaturen und die tatsächliche Übermittlung vor Fristablauf prüfen. Eine bloße Speicherung als Entwurf ersetzt die erfolgreiche Einreichung nicht." },
     ],
-    relatedTerms: ["vergabeunterlagen", "teilnahmewettbewerb", "eforms", "ted", "angebot"],
+    relatedTerms: ["vergabeunterlagen", "teilnahmewettbewerb", "eforms", "ted", "angebot", "nachforderung-unterlagen"],
     relatedArticles: ["wie-funktioniert-ausschreibung", "vergabeverfahren-uebersicht", "vergabeportal-vergleich", "eu-vergabe"],
     sources: [
       { title: "§ 9 VgV – Grundsätze der Kommunikation", url: "https://www.gesetze-im-internet.de/vgv_2016/__9.html" },
@@ -1447,7 +1488,7 @@ export const GLOSSARY: GlossaryEntry[] = [
       { question: "Wo finde ich die Vergabeunterlagen?", answer: "Die Bekanntmachung nennt die zuständige Vergabeplattform und den Zugang. Bei elektronischen Verfahren werden die Unterlagen dort bereitgestellt; Bieter sollten auch spätere Antworten und Änderungen im selben Verfahren abrufen." },
       { question: "Was tun bei unklaren Vergabeunterlagen?", answer: "Unklarheiten sollten innerhalb der angegebenen Frist über den vorgesehenen Kommunikationsweg als Bieterfrage gestellt werden. Die Antwort kann für alle Bieter relevant sein und die Unterlagen ergänzen oder erläutern." },
     ],
-    relatedTerms: ["leistungsbeschreibung", "leistungsverzeichnis", "e-vergabe", "eignungskriterien", "zuschlagskriterien", "bieterfragen"],
+    relatedTerms: ["leistungsbeschreibung", "leistungsverzeichnis", "e-vergabe", "eignungskriterien", "zuschlagskriterien", "bieterfragen", "nachforderung-unterlagen"],
     relatedArticles: ["ausschreibung-schreiben", "ausschreibung-muster", "wie-funktioniert-ausschreibung", "vob-vergabe"],
     sources: [
       { title: "§ 29 VgV – Vergabeunterlagen", url: "https://www.gesetze-im-internet.de/vgv_2016/__29.html" },
@@ -1476,7 +1517,7 @@ export const GLOSSARY: GlossaryEntry[] = [
       { question: "Ist ein Teilnahmeantrag schon ein Angebot?", answer: "Nein. Der Teilnahmeantrag dient grundsätzlich der Auswahl geeigneter Bewerber. Ein Angebot wird erst in der anschließenden Angebotsphase abgegeben, wenn die Vergabestelle dazu auffordert." },
       { question: "Welche Nachweise werden im Teilnahmewettbewerb verlangt?", answer: "Verlangt werden die in der Bekanntmachung genannten Eignungsnachweise, zum Beispiel Angaben zur beruflichen Befähigung, Referenzen oder zur wirtschaftlichen Leistungsfähigkeit. Maßgeblich sind die konkreten Anforderungen des Verfahrens." },
     ],
-    relatedTerms: ["beschraenktes-verfahren", "eignungskriterien", "eigenerklaerung", "referenzen", "e-vergabe"],
+    relatedTerms: ["beschraenktes-verfahren", "eignungskriterien", "eigenerklaerung", "referenzen", "e-vergabe", "nachforderung-unterlagen"],
     relatedArticles: ["vergabeverfahren-uebersicht", "wie-funktioniert-ausschreibung", "eu-vergabe"],
     sources: [
       { title: "§ 16 VgV – Nichtoffenes Verfahren", url: "https://www.gesetze-im-internet.de/vgv_2016/__16.html" },

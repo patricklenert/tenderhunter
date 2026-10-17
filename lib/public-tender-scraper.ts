@@ -25,6 +25,7 @@ import {
   groundPublicTenderFields,
 } from "@/lib/public-content-quality";
 import { buildTenderDescriptionMarkdown, escapeMarkdownText } from "@/lib/tender-description";
+import { parseDeadlineDate } from "@/lib/date-utils";
 import {
   cursorBoolean,
   cursorNumber,
@@ -1162,7 +1163,7 @@ export function extractPublicPortalFacts(text: string): PublicPortalFacts {
   );
   const locationCandidates = [
     ...lineValues([/^(?:Haupterfüllungsort|Erfüllungsort|Ausführungsort|Hauptleistungsort|Leistungsort)\s*:?/i], 3),
-    capture(/(?:\bHaupterfüllungsort\b|\bErfüllungsort\b|\bAusführungsort\b|\bHauptleistungsort\b|\bLeistungsort\b)\s*:?\s*(.+?)(?=\s+(?:Abgabe(?:frist)?|Angebotsfrist|Vergabeart|Auftraggeber|Auftragsgegenstand|Leistungsgegenstand|Zuschlagskriterien|Nebenangebote|Angaben zu den Losen|$))/i)
+    capture(/(?:\bHaupterfüllungsort\b|\bErfüllungsort\b|\bAusführungsort\b|\bHauptleistungsort\b|\bLeistungsort\b)\s*:?\s*(.+?)(?=\s*(?:;|\.?\s*Die vollständige Leistungsbeschreibung|(?:Abgabe(?:frist)?|Angebotsfrist|Vergabeart|Auftraggeber|Auftragsgegenstand|Leistungsgegenstand|Zuschlagskriterien|Nebenangebote|Angaben zu den Losen)\b)|$)/i)
       ?.replace(/^Ort\s*/i, "").trim(),
   ];
 
@@ -1956,6 +1957,38 @@ async function scrapeDtvp(cursor: PublicSourceCursor | null): Promise<PublicScra
   }
 }
 
+// --- TED API v3 Listing (offizielle JSON-Suche; SPA-Suche bleibt Fallback) ---
+
+interface TedApiSearchResponse {
+  totalNoticeCount?: number;
+  notices?: Array<Record<string, unknown>>;
+}
+
+/** Extracts German publication numbers from a TED search API response. Exported for tests. */
+export function parseTedApiListing(payload: TedApiSearchResponse): { ids: string[]; total: number } {
+  const ids = (payload.notices ?? [])
+    .map((notice) => String(notice["publication-number"] ?? "").trim())
+    .filter((id) => /^\d+-\d+$/.test(id));
+  return { ids: Array.from(new Set(ids)), total: Number(payload.totalNoticeCount ?? 0) };
+}
+
+async function fetchTedApiListingPage(pageNumber: number, publishedFromYyyymmdd: string): Promise<{ ids: string[]; total: number }> {
+  const resp = await fetch("https://api.ted.europa.eu/v3/notices/search", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Accept": "application/json" },
+    signal: AbortSignal.timeout(30000),
+    body: JSON.stringify({
+      query: `place-of-performance=DEU AND publication-date>=${publishedFromYyyymmdd}`,
+      limit: 100,
+      page: pageNumber,
+      fields: ["publication-number"],
+      sortOrder: ["publication-date DESC"],
+    }),
+  });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  return parseTedApiListing(await resp.json() as TedApiSearchResponse);
+}
+
 async function scrapeTed(cursor: PublicSourceCursor | null): Promise<PublicScraperResult> {
   console.log("[public-scraper] Scraping ted.europa.eu Detail-Seiten...");
   const startPage = cursorBoolean(cursor, "exhausted") ? 1 : cursorNumber(cursor, "page", 1);
@@ -1995,44 +2028,69 @@ async function scrapeTed(cursor: PublicSourceCursor | null): Promise<PublicScrap
   try {
     const noticeIds: PublicDetailReference[] = [];
     const seenIds = new Set<string>();
-    for (let pageNumber = startPage; pageNumber < startPage + settings.publicPaginationPages; pageNumber++) {
-      const searchUrl = `https://ted.europa.eu/en/search/result?country=DE&page=${pageNumber}`;
-      // TED is a heavy SPA - wait for result links to appear.
-      const searchPage = await scrapeWebsite(searchUrl, {
-        onlyMainContent: false,
-        waitForSelector: "a[href*='/notice']",
-        waitMs: 3000,
-      });
-      if (!searchPage.html && !searchPage.markdown) throw new Error(`ted listing page ${pageNumber} returned no content`);
-      firstSearchPage ??= searchPage;
-      pagesFetched += 1;
+    let apiFailed = false;
 
-      // Extract notice detail links from RAW HTML.
-      const noticeRegex = /href=["']([^"']*\/notice\/[^"']*?(\d+-\d+)[^"']*)["']/gi;
-      let match;
-      while ((match = noticeRegex.exec(searchPage.html)) !== null) {
-        const noticeId = match[2];
-        if (!seenIds.has(noticeId)) {
+    // Primary listing: official TED search API (stable JSON, no SPA rendering).
+    try {
+      const publishedFrom = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000)
+        .toISOString().slice(0, 10).replace(/-/g, "");
+      for (let pageNumber = startPage; pageNumber < startPage + settings.publicPaginationPages; pageNumber++) {
+        const listing = await fetchTedApiListingPage(pageNumber, publishedFrom);
+        pagesFetched += 1;
+        for (const noticeId of listing.ids) {
+          if (seenIds.has(noticeId)) continue;
           seenIds.add(noticeId);
           noticeIds.push(publicDetailReference(`ted:notice:${noticeId}`, `https://ted.europa.eu/en/notice/-/detail/${noticeId}`, noticeId));
         }
+        hasMore = listing.total > pageNumber * 100;
+        if (!hasMore || listing.ids.length === 0) break;
       }
+      console.log(`[public-scraper] ted: ${noticeIds.length} Notice-IDs via API (page ${startPage}..${startPage + pagesFetched - 1})`);
+    } catch (error) {
+      apiFailed = true;
+      console.warn("[public-scraper] ted: API-Listing fehlgeschlagen, nutze SPA-Suche:", error);
+    }
 
-      // Fallback: also check markdown.
-      const mdRegex = /\/notice\/[^/]*?(\d+-\d+)/gi;
-      while ((match = mdRegex.exec(searchPage.markdown)) !== null) {
-        if (!seenIds.has(match[1])) {
-          seenIds.add(match[1]);
-          const noticeId = match[1];
-          noticeIds.push(publicDetailReference(`ted:notice:${noticeId}`, `https://ted.europa.eu/en/notice/-/detail/${noticeId}`, noticeId));
+    if (apiFailed) {
+      for (let pageNumber = startPage; pageNumber < startPage + settings.publicPaginationPages; pageNumber++) {
+        const searchUrl = `https://ted.europa.eu/en/search/result?country=DE&page=${pageNumber}`;
+        // TED is a heavy SPA - wait for result links to appear.
+        const searchPage = await scrapeWebsite(searchUrl, {
+          onlyMainContent: false,
+          waitForSelector: "a[href*='/notice']",
+          waitMs: 3000,
+        });
+        if (!searchPage.html && !searchPage.markdown) throw new Error(`ted listing page ${pageNumber} returned no content`);
+        firstSearchPage ??= searchPage;
+        pagesFetched += 1;
+
+        // Extract notice detail links from RAW HTML.
+        const noticeRegex = /href=["']([^"']*\/notice\/[^"']*?(\d+-\d+)[^"']*)["']/gi;
+        let match;
+        while ((match = noticeRegex.exec(searchPage.html)) !== null) {
+          const noticeId = match[2];
+          if (!seenIds.has(noticeId)) {
+            seenIds.add(noticeId);
+            noticeIds.push(publicDetailReference(`ted:notice:${noticeId}`, `https://ted.europa.eu/en/notice/-/detail/${noticeId}`, noticeId));
+          }
         }
-      }
 
-      const pageInfo = cheerio.load(searchPage.html).text().match(/Page\s+(\d+)\s+of\s+(\d+)/i);
-      hasMore = pageInfo
-        ? pageNumber < Number(pageInfo[2])
-        : noticeIds.length >= 50;
-      if (!hasMore || noticeIds.length === 0) break;
+        // Fallback: also check markdown.
+        const mdRegex = /\/notice\/[^/]*?(\d+-\d+)/gi;
+        while ((match = mdRegex.exec(searchPage.markdown)) !== null) {
+          if (!seenIds.has(match[1])) {
+            seenIds.add(match[1]);
+            const noticeId = match[1];
+            noticeIds.push(publicDetailReference(`ted:notice:${noticeId}`, `https://ted.europa.eu/en/notice/-/detail/${noticeId}`, noticeId));
+          }
+        }
+
+        const pageInfo = cheerio.load(searchPage.html).text().match(/Page\s+(\d+)\s+of\s+(\d+)/i);
+        hasMore = pageInfo
+          ? pageNumber < Number(pageInfo[2])
+          : noticeIds.length >= 50;
+        if (!hasMore || noticeIds.length === 0) break;
+      }
     }
 
     console.log(`[public-scraper] ted: ${noticeIds.length} Notice-IDs gefunden`);
@@ -4479,12 +4537,13 @@ async function scrapeBayernApi(cursor: PublicSourceCursor | null): Promise<Publi
       const detailUrl = `https://portal.deutsche-evergabe.de/Dashboards/Dashboard_off?BL=09#T_ID=${item.T_ID}`;
 
       // Description from available fields
-      const parts: string[] = [];
-      if (item.TTLongName) parts.push(`Verfahrensart: ${item.TTLongName}`);
-      if (item.VSTName) parts.push(`Vergabestelle: ${item.VSTName}`);
-      if (item.APLZ) parts.push(`PLZ: ${item.APLZ}`);
-      if (item.Aktenzeichen) parts.push(`Aktenzeichen: ${item.Aktenzeichen}`);
-      const description = parts.join(", ");
+      const description = buildListingApiDescription({
+        title,
+        procedure: item.TTLongName || null,
+        client: item.VSTName || null,
+        referenceNumber: item.Aktenzeichen || null,
+        postalCode: item.APLZ || null,
+      });
 
       // Determine category from CPV if available
       let category: TenderCategory = "Sonstiges";
@@ -4536,6 +4595,367 @@ async function scrapeBayernApi(cursor: PublicSourceCursor | null): Promise<Publi
     });
   } catch (error) {
     console.error("[public-scraper] bayern-api Fehler:", error);
+    throw error;
+  }
+}
+
+// --- deutsche-eVergabe JSON API (bundesweit, alle Plattform-Kunden außer Bayern) ---
+
+const EVERGABE_DE_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+
+const evergabeDeApiUrl = (startId: string, bundeslandCode: string): string =>
+  `https://portal.deutsche-evergabe.de/dashboards/GetPresentationTenderList?id=V&BL=${bundeslandCode}&CPV=&startid=${encodeURIComponent(startId)}&UID=`;
+
+async function fetchEvergabeDePage(startId: string, bundeslandCode: string): Promise<BayernTender[]> {
+  const resp = await fetch(evergabeDeApiUrl(startId, bundeslandCode), {
+    headers: { "User-Agent": EVERGABE_DE_UA, "Accept": "application/json" },
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  return await resp.json() as BayernTender[];
+}
+
+/**
+ * Maps one deutsche-eVergabe API page to extracted tenders. Bayern publishes on
+ * the same platform under its own scraper (bayern-api), so its tender IDs are
+ * excluded here to avoid duplicate rows. Exported for tests.
+ */
+/**
+ * Listing-APIs liefern meist nur Metadaten. Die Public-Display-Validierung
+ * verwirft „Feld: Wert“-Ketten als Portal-Boilerplate, akzeptiert aber
+ * Fließtext. Ohne validierte Beschreibung bleibt der Tender ohne Rohtext
+ * und damit für die MCP-Suche unsichtbar (searchTenders filtert auf
+ * qualityStatus='qualified').
+ */
+const buildListingApiDescription = (input: {
+  title: string;
+  procedure: string | null;
+  client: string | null;
+  referenceNumber: string | null;
+  postalCode: string | null;
+}): string => {
+  const sentences: string[] = [`Gegenstand der Ausschreibung ist ${input.title}.`];
+  sentences.push(input.procedure
+    ? `Die Ausschreibung erfolgt als ${input.procedure}.`
+    : "Die Ausschreibung erfolgt im Rahmen eines öffentlichen Vergabeverfahrens.");
+  if (input.client) sentences.push(`Vergabestelle ist ${input.client}.`);
+  if (input.referenceNumber && input.postalCode) {
+    sentences.push(`Aktenzeichen ${input.referenceNumber}, Leistungsort Postleitzahl ${input.postalCode}.`);
+  } else if (input.referenceNumber) {
+    sentences.push(`Das Aktenzeichen lautet ${input.referenceNumber}.`);
+  } else if (input.postalCode) {
+    sentences.push(`Der Leistungsort hat die Postleitzahl ${input.postalCode}.`);
+  }
+  return sentences.join(" ");
+};
+
+export function mapEvergabeDeItems(items: BayernTender[], bayernIds: ReadonlySet<string>): ExtractedTender[] {
+  const now = new Date();
+  const tenders: ExtractedTender[] = [];
+  const seenIds = new Set<string>();
+
+  for (const item of items) {
+    const id = String(item.T_ID ?? "");
+    if (!id || bayernIds.has(id) || seenIds.has(id)) continue;
+    seenIds.add(id);
+
+    let title = (item.Titel || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    title = cleanTenderTitle(title);
+    if (!title || title.length < 5) continue;
+
+    let deadline: string | null = null;
+    if (item.Bidding_DateStr && !item.Bidding_DateStr.includes("-62135596800000")) {
+      const parsed = new Date(item.Bidding_DateStr);
+      if (!Number.isNaN(parsed.getTime()) && parsed > now) deadline = parsed.toISOString();
+    }
+
+    const description = buildListingApiDescription({
+      title,
+      procedure: item.TTLongName || null,
+      client: item.VSTName || null,
+      referenceNumber: item.Aktenzeichen || null,
+      postalCode: item.APLZ || null,
+    });
+
+    const cpvCodes = (item.CPVCodes || "").split(/[,;\s]+/).filter(Boolean);
+    tenders.push(withDescriptionMarkdown({
+      title,
+      client: item.VSTName || "Unbekannt",
+      deadline,
+      description,
+      procedure: item.TTLongName || null,
+      cpvCodes,
+      referenceNumber: item.Aktenzeichen || null,
+      location: item.APLZ || null,
+      category: derivePublicTenderCategory(null, cpvCodes, title),
+      sourceUrl: `https://portal.deutsche-evergabe.de/Dashboards/Dashboard_off?BL=#T_ID=${id}`,
+      source: "evergabe-de",
+      externalId: id,
+      pdfUrls: [],
+    }));
+  }
+
+  return tenders;
+}
+
+async function scrapeEvergabeDe(cursor: PublicSourceCursor | null): Promise<PublicScraperResult> {
+  console.log("[public-scraper] deutsche-eVergabe API (bundesweit)...");
+  let startId = cursorBoolean(cursor, "exhausted") ? "" : cursorString(cursor, "startId") ?? "";
+  let pagesFetched = 0;
+  let hasMore = false;
+
+  const pendingRun = await processDetailQueue(
+    cursorPendingDetails(cursor),
+    settings.publicDetailLimit,
+    async () => ({ tender: null, blocked: true }),
+  );
+  if (shouldPauseBeforeListing(pendingRun, settings.publicDetailLimit)) {
+    return pendingOnlyResult(cursor, "evergabe-de-startid", pendingRun);
+  }
+
+  try {
+    // Bayern owns BL=09 on this platform via its own source; exclude those IDs.
+    const bayernIds = new Set((await fetchEvergabeDePage("", "09")).map((item) => String(item.T_ID)));
+
+    const dataPages: BayernTender[][] = [];
+    for (let page = 0; page < settings.publicPaginationPages; page++) {
+      const data = await fetchEvergabeDePage(startId, "");
+      pagesFetched += 1;
+      dataPages.push(data);
+      console.log(`[public-scraper] evergabe-de: Seite ${page + 1}: ${data.length} Eintraege von API`);
+      if (data.length === 0) {
+        hasMore = false;
+        break;
+      }
+      const nextStartId = String(data[data.length - 1]?.T_ID ?? "");
+      hasMore = data.length >= 100 && nextStartId.length > 0 && nextStartId !== startId;
+      if (!hasMore) break;
+      startId = nextStartId;
+    }
+    const data = dataPages.flat();
+    const tenders = mapEvergabeDeItems(data, bayernIds);
+
+    console.log(`[public-scraper] evergabe-de: ${tenders.length} Ausschreibungen (${data.length} gelistet, ${bayernIds.size} Bayern-IDs ausgenommen)`);
+    const nextStartId = hasMore ? startId : "";
+    return sourceCursorResult(tenders, {
+      cursor,
+      strategy: "evergabe-de-startid",
+      position: { startId: nextStartId },
+      listingExhausted: !hasMore,
+      listingComplete: !hasMore,
+      pendingDetails: pendingRun.pendingDetails,
+      pagesFetched,
+      paginationStrategy: "evergabe-de-startid",
+      listedCount: data.length,
+      detailAttempted: pendingRun.detailAttempted,
+      detailFailed: pendingRun.detailFailed,
+      extra: { startId: nextStartId },
+    });
+  } catch (error) {
+    console.error("[public-scraper] evergabe-de Fehler:", error);
+    throw error;
+  }
+}
+
+// --- it-ausschreibung.de (bundesweiter IT-Aggregator) ---
+// Die Liste ist öffentlich (Titel + Anreißer, sortiert nach Eintragsdatum,
+// fortlaufende IDs); Detailseiten zeigen Gegenstand, Auftragstyp, Bundesland,
+// PLZ und Frist offen, die ausführliche Beschreibung und Kontaktdaten liegen
+// hinter einem Login. Wir übernehmen nur die frei sichtbaren Felder und
+// verlinken die Detailseite als Originalquelle.
+
+const ITA_BASE_URL = "https://www.it-ausschreibung.de";
+const ITA_LISTING_PAGES_PER_RUN = 3;
+
+export interface ItAusschreibungListingRow {
+  id: string;
+  url: string;
+  title: string;
+}
+
+export function parseItAusschreibungListing(html: string): ItAusschreibungListingRow[] {
+  if (!html || html.trim().length < 100) return [];
+  const $ = cheerio.load(html);
+  const rows: ItAusschreibungListingRow[] = [];
+  const seen = new Set<string>();
+  $("a[href*='/ausschreibung/']").each((_, element) => {
+    const href = $(element).attr("href");
+    if (!href) return;
+    try {
+      const url = new URL(href, ITA_BASE_URL).href;
+      const match = url.match(/\/ausschreibung\/(\d+)(?:\/[^/?#]*)?/);
+      const id = match?.[1];
+      if (!id || seen.has(id)) return;
+      const title = cleanTenderTitle($(element).text() || "");
+      if (title.length < 5) return;
+      seen.add(id);
+      rows.push({ id, url, title });
+    } catch {
+      // Ignore malformed links.
+    }
+  });
+  return rows;
+}
+
+export interface ItAusschreibungDetail {
+  title: string;
+  description: string;
+  procedure: string | null;
+  contractType: string | null;
+  bundesland: string | null;
+  location: string | null;
+  deadlineText: string | null;
+}
+
+export function parseItAusschreibungDetail(html: string): ItAusschreibungDetail | null {
+  if (!html || html.trim().length < 300) return null;
+  const $ = cheerio.load(html);
+  $("script, style, nav, header, footer").remove();
+  const sectionAfterHeading = (heading: RegExp): string | null => {
+    const headingEl = $("h3")
+      .toArray()
+      .find((element) => heading.test(normalizePublicMarkupText($(element).text())));
+    if (!headingEl) return null;
+    return normalizePublicMarkupText($(headingEl).next("p").text()) || null;
+  };
+
+  const firstHeading = normalizePublicMarkupText($("h3").first().text());
+  const rawTitle = normalizePublicMarkupText($("h3").first().next("p").text());
+  const fallbackTitle = normalizePublicMarkupText($("h1").first().text()).replace(/^Ausschreibung für Auftrag:\s*/i, "").replace(/\s*\|\s*IT-Ausschreibung\s*$/i, "");
+  const title = cleanTenderTitle(rawTitle || fallbackTitle);
+  if (title.length < 5) return null;
+
+  const addressText = normalizePublicMarkupText($("address").first().text());
+  const deadlineMatch = html.match(/Angebotsfrist:<\/strong>\s*(\d{2}\.\d{2}\.\d{4})/);
+
+  return {
+    title,
+    description: sectionAfterHeading(/^Gegenstand der Ausschreibung/i) ?? "",
+    procedure: /^(?:Öffentliche|Beschränkte|Freihändige|Verhandlungsverfahren|Direktauftrag)/i.test(firstHeading) ? firstHeading : null,
+    contractType: sectionAfterHeading(/^Art des Auftrags/i),
+    bundesland: sectionAfterHeading(/^Erfüllungsort/i),
+    location: addressText || null,
+    deadlineText: deadlineMatch?.[1] ?? null,
+  };
+}
+
+// ITA-spezifischer IT-Signalwortschatz: Der Aggregator listet nur IT-Aufträge,
+// aber der globale Muster kennt Wörter wie „Webanwendung" oder
+// „Programmierschnittstelle" nicht. Liefer-/Hardwaretexte fallen hier durch.
+const ITA_IT_TEXT_PATTERN = /\b(?:software(?:entwicklung|lösung|lizenz|pflege)?|webanwendung(?:en)?|web(?:seite|entwicklung)|programmierschnittstelle|api(?:-entwicklung)?|ki-gestützt|künstliche intelligenz|genai|chatbot|digitalisierung|it-dienstleistungen?|app-entwicklung|datenbank|hosting|cloud)\b/i;
+
+export function mapItAusschreibungDetail(externalId: string, detail: ItAusschreibungDetail, sourceUrl: string): ExtractedTender | null {
+  const deadline = detail.deadlineText ? parseDeadlineDate(detail.deadlineText) : null;
+  const signalText = [detail.title, detail.description, detail.contractType].filter(Boolean).join(" ");
+  return withDescriptionMarkdown({
+    title: detail.title,
+    client: "Unbekannt",
+    deadline: deadline ? deadline.toISOString() : null,
+    description: detail.description,
+    procedure: detail.procedure,
+    cpvCodes: [],
+    referenceNumber: null,
+    location: detail.location,
+    category: ITA_IT_TEXT_PATTERN.test(signalText)
+      ? "IT-Dienstleistungen"
+      : derivePublicTenderCategory(null, [], signalText),
+    sourceUrl,
+    source: "it-ausschreibung",
+    externalId,
+    pdfUrls: [],
+  });
+}
+
+async function scrapeItAusschreibung(cursor: PublicSourceCursor | null): Promise<PublicScraperResult> {
+  console.log("[public-scraper] Scraping it-ausschreibung.de ...");
+
+  const detailHandler = async (reference: PublicDetailReference): Promise<DetailOutcome> => {
+    try {
+      const response = await fetch(reference.url, {
+        headers: { "User-Agent": EVERGABE_DE_UA, "Accept": "text/html" },
+        redirect: "follow",
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (!response.ok) {
+        return response.status === 404 ? { tender: null, blocked: true } : { tender: null, retryable: true };
+      }
+      const html = await readPublicResponseText(response);
+      if (!html || html.trim().length < 300) return { tender: null, retryable: true };
+      if (detectAccessPage(html, { url: reference.url }).blocked) return { tender: null, blocked: true };
+      const detail = parseItAusschreibungDetail(html);
+      if (!detail) return { tender: null, retryable: true };
+      const tender = mapItAusschreibungDetail(reference.externalId ?? "", detail, reference.url);
+      if (!tender) return { tender: null, terminal: true };
+      return { tender };
+    } catch (error) {
+      console.warn(`[public-scraper] it-ausschreibung Detail Fehler (${reference.key}):`, error);
+      return { tender: null, retryable: true };
+    }
+  };
+
+  const pendingRun = await processDetailQueue(cursorPendingDetails(cursor), settings.publicDetailLimit, detailHandler);
+  if (shouldPauseBeforeListing(pendingRun, settings.publicDetailLimit)) {
+    return pendingOnlyResult(cursor, "ita-page", pendingRun);
+  }
+
+  const maxSeenIdRaw = cursorString(cursor, "maxSeenId") ?? "";
+  const maxSeenId = Number(maxSeenIdRaw) || 0;
+  let highestId = maxSeenId;
+  let listedCount = 0;
+  let pagesFetched = 0;
+  const seenIds = new Set<string>();
+  const references: PublicDetailReference[] = [];
+
+  try {
+    for (let page = 1; page <= ITA_LISTING_PAGES_PER_RUN; page += 1) {
+      const pageUrl = page === 1 ? `${ITA_BASE_URL}/ausschreibungen` : `${ITA_BASE_URL}/ausschreibungen?page=${page}`;
+      const response = await fetch(pageUrl, {
+        headers: { "User-Agent": EVERGABE_DE_UA, "Accept": "text/html" },
+        redirect: "follow",
+        signal: AbortSignal.timeout(20_000),
+      });
+      pagesFetched += 1;
+      if (!response.ok) break;
+      const rows = parseItAusschreibungListing(await readPublicResponseText(response));
+      if (rows.length === 0) break;
+      listedCount += rows.length;
+      let newOnPage = 0;
+      for (const row of rows) {
+        const numeric = Number(row.id);
+        if (Number.isFinite(numeric) && numeric > highestId) highestId = numeric;
+        if (seenIds.has(row.id)) continue;
+        seenIds.add(row.id);
+        if (maxSeenId && Number.isFinite(numeric) && numeric <= maxSeenId) continue;
+        newOnPage += 1;
+        references.push({ key: `ita-${row.id}`, url: row.url, externalId: row.id, attempts: 0 });
+      }
+      if (newOnPage === 0) break;
+    }
+
+    const freshRun = await processDetailQueue(
+      references,
+      Math.max(0, settings.publicDetailLimit - pendingRun.detailAttempted),
+      detailHandler,
+    );
+    const tenders = [...pendingRun.tenders, ...freshRun.tenders];
+    const pendingDetails = [...pendingRun.pendingDetails, ...freshRun.pendingDetails];
+
+    console.log(`[public-scraper] it-ausschreibung: ${tenders.length} Ausschreibungen (${listedCount} gelistet, ${references.length} neu)`);
+    return sourceCursorResult(tenders, {
+      cursor,
+      strategy: "ita-page",
+      position: { maxSeenId: highestId > 0 ? String(highestId) : maxSeenIdRaw },
+      listingExhausted: true,
+      listingComplete: true,
+      pendingDetails,
+      pagesFetched,
+      paginationStrategy: "ita-page",
+      listedCount,
+      detailAttempted: pendingRun.detailAttempted + freshRun.detailAttempted,
+      detailFailed: pendingRun.detailFailed + freshRun.detailFailed,
+    });
+  } catch (error) {
+    console.error("[public-scraper] it-ausschreibung Fehler:", error);
     throw error;
   }
 }
@@ -4898,6 +5318,8 @@ export async function scrapeAllPublicTenders(
   const scrapers: Array<{ name: string; fn: PublicScraper }> = [
     { name: "berlin-html", fn: scrapeBerlinHtml },
     { name: "bayern-api", fn: scrapeBayernApi },
+    { name: "evergabe-de", fn: scrapeEvergabeDe },
+    { name: "it-ausschreibung", fn: scrapeItAusschreibung },
     { name: "hamburg-de", fn: scrapeHamburgDe },
     { name: "bund-rss", fn: scrapeBundRss },
     { name: "dtvp", fn: scrapeDtvp },

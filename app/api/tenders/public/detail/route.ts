@@ -6,7 +6,7 @@ import { auth } from "@/lib/auth";
 import { isSmallVendorTenderModeEnabled, analyzeTenderForSmallVendor } from "@/lib/small-vendor";
 import { buildTenderPipelineGroupKey, enqueueJob } from "@/lib/queue";
 import { JOB_CACHE_DETAIL } from "@/lib/types";
-import { extractPublicPortalFacts, getPublicAccessLimitedFallback, normalizePublicClient } from "@/lib/public-tender-scraper";
+import { getPublicAccessLimitedFallback } from "@/lib/public-tender-scraper";
 import { formatDeadlineDE, sanitizeTenderUrl } from "@/lib/date-utils";
 import { detectAccessPage } from "@/lib/access-page-detector";
 import { buildDocumentAnalysis, type AnalyzedDocument } from "@/lib/document-analysis";
@@ -16,11 +16,11 @@ import { projectPublicTenderDetailFallback } from "@/lib/public-tender-detail-fa
 import { normalizeResourceUrl } from "@/lib/resource-discovery";
 import { isPortalActionUrl } from "@/lib/resource-url";
 import { readPublicTenderMeta, type TenderResourceMeta } from "@/lib/tender-meta";
+import { resolvePublicTenderDeadline, resolvePublicTenderDisplayFacts } from "@/lib/public-tender-display-facts";
 import { repairKnownGermanEncoding } from "@/lib/text-normalization";
 import {
   normalizePublicDisplayCandidate,
   pickCanonicalPublicDescriptionMarkdown,
-  pickValidatedPublicProcedure,
   projectPublicTenderRecord,
 } from "@/lib/public-content-quality";
 
@@ -346,7 +346,13 @@ export async function POST(request: Request): Promise<Response> {
       sourceUrl: tender.url,
     });
     const hasUsableRawText = Boolean(tender.rawText?.trim());
-    const portalFacts = extractPublicPortalFacts(tenderMeta.description);
+    const publicFacts = resolvePublicTenderDisplayFacts({
+      title: tender.title,
+      metadata: tenderMeta,
+      deadlineAt: tender.deadlineAt,
+      procedureType: tender.procedureType,
+      hasUsableRawText,
+    });
     const accessFallback = getPublicAccessLimitedFallback({
       title: tender.title ?? "",
       factsText: tenderMeta.description,
@@ -354,14 +360,7 @@ export async function POST(request: Request): Promise<Response> {
       explicitlyAccessLimited: tenderMeta.accessLimited,
     });
     const accessLimited = accessFallback !== null;
-    const fallbackFacts = {
-      buyer: normalizePublicClient(portalFacts.client || tenderMeta.client) || null,
-      procedure: portalFacts.procedure || tenderMeta.procedure || (hasUsableRawText ? pickValidatedPublicProcedure(tender.procedureType) : null) || null,
-      deadline: portalFacts.deadline || (tender.deadlineAt ? formatDeadlineDE(tender.deadlineAt) : null),
-      location: portalFacts.location || tenderMeta.location || null,
-      summary: tenderMeta.description || null,
-      scope: portalFacts.subject || tenderMeta.subject || null,
-    };
+    const fallbackFacts = publicFacts.fallbackFacts;
     const documentsPayload = documentRows.map((document) => safeDocumentMetadata(document, tender.url));
     const resourcesPayload = buildResourceMetadata(
       tender.url,
@@ -380,7 +379,7 @@ export async function POST(request: Request): Promise<Response> {
       resourceCandidates: resourcesPayload.resources,
     };
 
-    if (tender.deadlineAt && !isActiveTender(tender.deadlineAt)) {
+    if (publicFacts.deadlineAt && !isActiveTender(publicFacts.deadlineAt)) {
       return json({ error: "Ausschreibung abgelaufen", reason: "expired" }, { status: 410 });
     }
 
@@ -434,7 +433,7 @@ export async function POST(request: Request): Promise<Response> {
                locationFallbacks: [fallbackFacts.location, cachedMeta.location, tenderMeta.location],
                summaryFallbacks: [
                   cachedAccessFallback?.description,
-                 portalFacts.subject,
+                  fallbackFacts.scope,
                ],
                descriptionMarkdownFallbacks: [descriptionMarkdownCandidate, cachedMeta.descriptionMarkdown, tenderMeta.descriptionMarkdown],
              });
@@ -448,7 +447,8 @@ export async function POST(request: Request): Promise<Response> {
             ],
              documentRows,
            );
-              const cachedDeadline = normalized.hard_facts.deadline;
+              const cachedDeadlineAt = resolvePublicTenderDeadline(publicFacts.deadlineAt, normalized.hard_facts.deadline);
+              const cachedDeadline = cachedDeadlineAt ? formatDeadlineDE(cachedDeadlineAt) : null;
             const session = await auth.api.getSession({ headers: request.headers }).catch(() => null);
             const smallVendorMode = isSmallVendorTenderModeEnabled(session?.user ?? null);
             const smallVendor = smallVendorMode
@@ -467,7 +467,7 @@ export async function POST(request: Request): Promise<Response> {
               descriptionMarkdown: cachedDescriptionMarkdown,
               client: cachedDisplay.client || "Unbekannt",
              deadline: cachedDeadline,
-             deadlineISO: tender.deadlineAt ? new Date(tender.deadlineAt).toISOString() : null,
+              deadlineISO: cachedDeadlineAt?.toISOString() ?? null,
               location: cachedDisplay.location || "",
              procedure: normalized.procurement.procedure_type,
              requirements: normalized.decision_relevant.requirements,
@@ -520,7 +520,7 @@ export async function POST(request: Request): Promise<Response> {
       source: tender.source,
       sourceUrl: tender.url,
       fallbackFacts,
-      summaryFallbacks: [accessFallback?.description, portalFacts.subject],
+       summaryFallbacks: [accessFallback?.description, fallbackFacts.scope],
       descriptionMarkdownFallbacks: [
         accessLimited ? accessFallback?.descriptionMarkdown : undefined,
         tenderMeta.descriptionMarkdown,
@@ -528,7 +528,8 @@ export async function POST(request: Request): Promise<Response> {
       accessLimited,
       accessLimitedDescriptionMarkdown: accessFallback?.descriptionMarkdown,
     });
-    const fallbackStructured = fallback.structured;
+     const fallbackStructured = fallback.structured;
+     const fallbackDeadlineAt = resolvePublicTenderDeadline(publicFacts.deadlineAt, fallbackStructured.hard_facts.deadline);
     const fallbackSession = await auth.api.getSession({ headers: request.headers }).catch(() => null);
      const fallbackSmallVendor = isSmallVendorTenderModeEnabled(fallbackSession?.user ?? null)
        ? analyzeTenderForSmallVendor(tender.title ?? "", fallbackStructured)
@@ -537,8 +538,8 @@ export async function POST(request: Request): Promise<Response> {
       const result = {
         title: fallbackDisplay.title || `Ausschreibung #${tender.id}`,
        client: fallbackDisplay.client || "Unbekannt",
-      deadline: tender.deadlineAt ? formatDeadlineDE(tender.deadlineAt) : null,
-      deadlineISO: tender.deadlineAt ? new Date(tender.deadlineAt).toISOString() : null,
+       deadline: fallbackDeadlineAt ? formatDeadlineDE(fallbackDeadlineAt) : null,
+       deadlineISO: fallbackDeadlineAt?.toISOString() ?? null,
          summary: fallbackDisplay.summary ?? "",
          description: fallbackDisplay.description ?? "",
          descriptionMarkdown: fallbackDisplay.descriptionMarkdown,

@@ -25,6 +25,7 @@ import { searchTenders } from "@/lib/meilisearch";
 import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 import { getListingRobots, getPageNumber, getPaginationHref, type SeoSearchParams } from "@/lib/seo-indexability";
+import { rethrowNavigationError } from "@/lib/public-route-resilience";
 
 // SEO: Region×Category cross pages for long-tail keywords like "gebäudereinigung ausschreibung nrw"
 export const revalidate = 3600;
@@ -123,7 +124,7 @@ export default async function RegionCategoryPage({ params, searchParams }: PageP
     totalCount = result.estimatedTotalHits;
     totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
-    if (currentPage > totalPages && totalCount > 0) notFound();
+    if (currentPage > totalPages) notFound();
 
     tendersList = result.hits.map((hit) => ({
       id: hit.id,
@@ -135,7 +136,8 @@ export default async function RegionCategoryPage({ params, searchParams }: PageP
         : null,
       slug: getCanonicalTenderSlug(hit.slug ?? null, hit.title, { client: hit.client, location: hit.location }),
     }));
-  } catch {
+  } catch (error) {
+    rethrowNavigationError(error);
     // Meilisearch unavailable — page renders empty with noindex
   }
 

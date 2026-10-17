@@ -30,8 +30,9 @@ import {
   AlertCircle,
   CheckCircle2,
 } from "lucide-react";
-import { extractPublicPortalFacts, getPublicAccessLimitedFallback } from "@/lib/public-tender-scraper";
+import { getPublicAccessLimitedFallback } from "@/lib/public-tender-scraper";
 import { normalizeStructured } from "@/lib/structurer";
+import { resolvePublicTenderDeadline, resolvePublicTenderDisplayFacts } from "@/lib/public-tender-display-facts";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 import { deriveBundesland, deriveCity, BUNDESLAND_SLUGS } from "@/lib/bundesland";
 import { CITY_SLUG_MAP } from "@/lib/cities";
@@ -147,7 +148,7 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
       row.slug,
       row.title,
       row.metadataJson,
-      row.structuredJson,
+      row.rawText?.trim() ? row.structuredJson : null,
    );
   if (!isCanonicalTenderId(id, numericId) || !slug || slug !== canonicalSlug) {
     permanentRedirect(`/ausschreibung/${numericId}/${canonicalSlug}`);
@@ -188,7 +189,12 @@ export default async function TenderDetailPage({ params }: PageProps) {
   const tender = row.tenders;
    const sd = row.structured_data;
 
-  const expectedSlug = getCanonicalTenderSlug(tender.slug, tender.title, tender.metadataJson, sd?.jsonBlob);
+  const expectedSlug = getCanonicalTenderSlug(
+    tender.slug,
+    tender.title,
+    tender.metadataJson,
+    tender.rawText?.trim() ? sd?.jsonBlob : null,
+  );
   if (!isCanonicalTenderId(id, numericId) || !slug || slug !== expectedSlug) {
     permanentRedirect(`/ausschreibung/${tender.id}/${expectedSlug}`);
   }
@@ -242,7 +248,6 @@ export default async function TenderDetailPage({ params }: PageProps) {
     .filter((document) => !isPortalActionUrl(document.url) && !isHtmlContentType(document.contentType));
   const documentAnalysis = buildDocumentAnalysis(documentRows as AnalyzedDocument[]);
 
-  const isExpired = Boolean(tender.deadlineAt && new Date(tender.deadlineAt) < new Date());
   const readinessLabel: Record<string, string> = {
     pending: "Analyse wartet",
     partial: "Analyse teilweise verfügbar",
@@ -264,22 +269,21 @@ export default async function TenderDetailPage({ params }: PageProps) {
     sourceUrl: tender.url,
   });
   const hasUsableRawText = Boolean(tender.rawText?.trim());
-  const portalFacts = extractPublicPortalFacts(tenderMeta.description);
-   const accessFallback = getPublicAccessLimitedFallback({
+  const publicFacts = resolvePublicTenderDisplayFacts({
+    title: tender.title,
+    metadata: tenderMeta,
+    deadlineAt: tender.deadlineAt,
+    procedureType: tender.procedureType,
+    hasUsableRawText,
+  });
+  const fallbackFacts = publicFacts.fallbackFacts;
+  const accessFallback = getPublicAccessLimitedFallback({
      title: tender.title ?? "",
      factsText: tenderMeta.description,
      evidenceText: tender.rawText,
      explicitlyAccessLimited: tenderMeta.accessLimited,
-   });
-   const accessLimited = accessFallback !== null;
-  const fallbackFacts = {
-    buyer: portalFacts.client || tenderMeta.client || null,
-    procedure: portalFacts.procedure || tenderMeta.procedure || (hasUsableRawText ? tender.procedureType : null) || null,
-    deadline: portalFacts.deadline || (tender.deadlineAt ? tender.deadlineAt.toLocaleString("de-DE") : null),
-    location: portalFacts.location || tenderMeta.location || null,
-    summary: tenderMeta.description || null,
-    scope: portalFacts.subject || tenderMeta.subject || null,
-  };
+  });
+  const accessLimited = accessFallback !== null;
   const structuredSource = sd?.jsonBlob ?? tender.metadataJson;
   const normalizedStructured = normalizeStructured(structuredSource, tender.title ?? "", fallbackFacts);
   const tenderCheck = buildTenderCheck({
@@ -493,7 +497,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
       tenderMeta.location,
       fallbackFacts.location,
     ],
-    summaryFallbacks: [accessFallback?.description, tenderMeta.description, portalFacts.subject],
+    summaryFallbacks: [accessFallback?.description, fallbackFacts.summary, fallbackFacts.scope],
     descriptionMarkdownFallbacks: [accessFallback?.descriptionMarkdown, normalizedStructured.descriptionMarkdown, tenderMeta.descriptionMarkdown],
   });
   const client = display.client || "";
@@ -502,7 +506,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
   const contactInfo = "";
   const estimatedValue = pickFirstClean(hardFacts.budget);
   const referenceNumber = pickFirstClean(tenderMeta.referenceNumber);
-  const procedure = pickFirstClean(normalizedStructured.procurement.procedure_type, tender.procedureType);
+  const procedure = pickFirstClean(normalizedStructured.procurement.procedure_type);
   const duration = pickFirstClean((procurement.contract_duration as Record<string, unknown> | undefined)?.months
     ? `${(procurement.contract_duration as Record<string, unknown>).months} Monate`
     : null);
@@ -519,17 +523,19 @@ export default async function TenderDetailPage({ params }: PageProps) {
   ].map(normalizePublicDisplayCandidate).filter((value, index, values): value is string => value !== null && value.length > 5 && values.indexOf(value) === index);
   const scope = pickFirstClean(
     Array.isArray(decisionRelevant.scope) ? decisionRelevant.scope.join(" ") : null,
-    portalFacts.subject,
+    fallbackFacts.scope,
   );
-  const deadline = tender.deadlineAt
-    ? new Date(tender.deadlineAt).toLocaleDateString("de-DE", {
+  const displayDeadlineAt = resolvePublicTenderDeadline(publicFacts.deadlineAt, hardFacts.deadline);
+  const isExpired = Boolean(displayDeadlineAt && displayDeadlineAt.getTime() < Date.now());
+  const deadline = displayDeadlineAt
+    ? displayDeadlineAt.toLocaleDateString("de-DE", {
         day: "2-digit",
         month: "long",
         year: "numeric",
       })
     : null;
 
-  const deadlineISO = tender.deadlineAt ? new Date(tender.deadlineAt).toISOString() : null;
+  const deadlineISO = displayDeadlineAt?.toISOString() ?? null;
   const publishedAt = tender.createdAt
     ? new Date(tender.createdAt).toLocaleDateString("de-DE", {
         day: "2-digit",
@@ -549,7 +555,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
     buildTenderDescriptionMarkdown({
       client,
       procedure,
-      deadline: typeof hardFacts.deadline === "string" ? hardFacts.deadline : deadline,
+      deadline,
       location,
       value: contractValue,
       duration,

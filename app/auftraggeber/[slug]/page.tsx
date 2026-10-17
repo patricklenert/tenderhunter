@@ -197,7 +197,7 @@ export default async function AuftraggeberPage({ params, searchParams }: PagePro
   const totalCount = countResult[0]?.count ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
-  if (currentPage > totalPages && totalCount > 0) notFound();
+  if (currentPage > totalPages) notFound();
 
   const tenderList = tenderRows.map((t) => {
     const meta = readPublicTenderMeta(t.metadataJson, {

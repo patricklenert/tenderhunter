@@ -148,6 +148,12 @@ for (const slug of ["vergabeverfahren-uebersicht", "eu-vergabe", "schwellenwerte
   if (!ARTICLES[slug]?.lastReviewed) errors.push(`${slug}.lastReviewed -> missing review date`);
 }
 
+for (const slug of ["schwellenwerte-vergabe", "eu-vergabe"]) {
+  if (!ARTICLES[slug]?.sources?.some((source) => source.url === "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32025R2487")) {
+    errors.push(`${slug}.sources -> missing primary defence and security thresholds reference`);
+  }
+}
+
 for (const slug of ["vergabeverfahren-uebersicht", "eu-vergabe"]) {
   const content = ARTICLES[slug]?.content ?? "";
   for (const value of ["140.000 €", "216.000 €", "5.404.000 €"]) {
@@ -185,6 +191,25 @@ if (!GLOSSARY_MAP["teilnahmewettbewerb"]?.relatedTerms?.includes("e-vergabe")) {
 for (const slug of ["vergabeverfahren-uebersicht", "wie-funktioniert-ausschreibung", "ausschreibung-schreiben", "vergabeportal-vergleich"]) {
   if (!ARTICLES[slug]?.relatedGlossaryTerms?.some((term) => processCluster.includes(term))) {
     errors.push(`${slug}.relatedGlossaryTerms -> missing process cluster link`);
+  }
+}
+
+const nachforderung = GLOSSARY_MAP["nachforderung-unterlagen"];
+if (!nachforderung) {
+  errors.push("process cluster -> missing glossary entry: nachforderung-unterlagen");
+} else {
+  for (const slug of ["angebot", "vergabeunterlagen", "eignungskriterien", "zuschlagskriterien", "e-vergabe", "teilnahmewettbewerb", "vob-a", "vob-a-eu"]) {
+    if (!nachforderung.relatedTerms?.includes(slug)) {
+      errors.push(`nachforderung-unterlagen.relatedTerms -> missing cluster link: ${slug}`);
+    }
+  }
+  if (!nachforderung.sources?.some((source) => source.url === "https://www.gesetze-im-internet.de/vgv_2016/__56.html")) {
+    errors.push("nachforderung-unterlagen.sources -> missing primary § 56 VgV source");
+  }
+}
+for (const slug of ["vergabeverfahren-uebersicht", "angebot-oeffentliche-ausschreibung-schreiben", "wie-funktioniert-ausschreibung", "vob-vergabe"]) {
+  if (!ARTICLES[slug]?.relatedGlossaryTerms?.includes("nachforderung-unterlagen")) {
+    errors.push(`${slug}.relatedGlossaryTerms -> missing nachforderung-unterlagen link`);
   }
 }
 

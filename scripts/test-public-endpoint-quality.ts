@@ -14,6 +14,7 @@ import {
 } from "@/lib/public-content-quality";
 import { detectAccessPage } from "@/lib/access-page-detector";
 import {
+  buildPublicAccessLimitedDescription,
   buildPublicAccessLimitedDescriptionMarkdown,
   extractPublicPortalFacts,
   getPublicAccessLimitedFallback,
@@ -22,6 +23,9 @@ import { buildTenderIndexDocument, projectTenderSearchHit } from "@/lib/meilisea
 import { normalizeStructured } from "@/lib/structurer";
 import { readPublicTenderMeta } from "@/lib/tender-meta";
 import { projectPublicTenderDetailFallback } from "@/lib/public-tender-detail-fallback";
+import { resolvePublicTenderDisplayFacts } from "@/lib/public-tender-display-facts";
+import { resolvePublicDeadlineRepair } from "@/lib/public-deadline-backfill";
+import { formatDeadlineDE, parseDeadlineDate } from "@/lib/date-utils";
 
 // Document-summary cache and generation use this shared normalization before display.
 assert.equal(normalizePublicDisplayCandidate("## Bekanntmachung"), null);
@@ -181,6 +185,297 @@ assert.deepEqual({
 assert.ok(isCanonicalPublicDescriptionMarkdown(accessFixtureFallback.descriptionMarkdown));
 assert.equal(projectedMeiliAccessHit.description, accessFixtureFallback.description);
 
+// Parsed public location facts must have the same fallback on list/index and
+// detail surfaces, even when the explicit location field is an artifact.
+const parsedLocationFallback = buildPublicAccessLimitedDescription(accessFixtureTitle, {
+  client: "Stadt Mainz",
+  procedure: null,
+  deadline: null,
+  location: "55116 Mainz",
+  subject: null,
+});
+assert.equal(extractPublicPortalFacts(parsedLocationFallback).location, "55116 Mainz");
+const parsedLocationMetadata = {
+  access_limited: true,
+  description: parsedLocationFallback,
+  client: "Stadt Mainz",
+  location: "##",
+};
+const parsedLocationStructured = { summary: "## Bekanntmachung", hard_facts: { location: "##" } };
+const parsedLocationIndex = buildTenderIndexDocument({
+  id: 903,
+  title: accessFixtureTitle,
+  source: "dtvp",
+  sourceKey: "dtvp",
+  url: "https://example.test/tender/903",
+  deadlineAt: null,
+  firstSeenAt: null,
+  category: "Bauarbeiten",
+  metadataJson: parsedLocationMetadata,
+  structuredJson: parsedLocationStructured,
+  rawText: "Um Zugriff auf dieses Modul zu erhalten müssen Sie am Vergabeverfahren teilnehmen.",
+  contractValueMax: null,
+  slug: null,
+  readinessStatus: "pending",
+});
+assert.equal(parsedLocationIndex.location, "55116 Mainz");
+const parsedLocationFacts = extractPublicPortalFacts(parsedLocationFallback);
+const normalizedParsedLocation = normalizeStructured(parsedLocationStructured, accessFixtureTitle, {
+  buyer: parsedLocationMetadata.client,
+  location: parsedLocationFacts.location,
+});
+const parsedLocationListProjection = projectPublicTenderRecord({
+  title: accessFixtureTitle,
+  metadata: parsedLocationMetadata,
+  structured: normalizedParsedLocation,
+  locationFallbacks: [parsedLocationFacts.location],
+});
+const parsedLocationModalProjection = projectPublicDisplayFields({
+  title: accessFixtureTitle,
+  client: [parsedLocationMetadata.client],
+  location: [parsedLocationMetadata.location, parsedLocationFacts.location],
+  summary: [parsedLocationStructured.summary, parsedLocationMetadata.description],
+});
+const parsedLocationDetailProjection = projectPublicTenderRecord({
+  title: accessFixtureTitle,
+  metadata: parsedLocationMetadata,
+  structured: normalizedParsedLocation,
+  locationFallbacks: [parsedLocationFacts.location],
+});
+const parsedLocationSurfaceFields = (projection: {
+  title: string | null;
+  client: string | null;
+  location: string | null;
+  description: string | null;
+}) => ({
+  title: projection.title,
+  client: projection.client,
+  location: projection.location,
+  description: projection.description,
+});
+const parsedLocationExpected = parsedLocationSurfaceFields(parsedLocationListProjection);
+assert.equal(parsedLocationExpected.location, "55116 Mainz");
+assert.deepEqual(parsedLocationSurfaceFields(parsedLocationModalProjection), parsedLocationExpected);
+assert.deepEqual(parsedLocationSurfaceFields(parsedLocationDetailProjection), parsedLocationExpected);
+assert.deepEqual({
+  title: parsedLocationIndex.title,
+  client: parsedLocationIndex.client,
+  location: parsedLocationIndex.location,
+  description: parsedLocationIndex.description,
+}, parsedLocationExpected);
+
+const staleIndexedLocation = projectTenderSearchHit({
+  ...meiliAccessHit,
+  id: 904,
+  location: "55116 Mainz",
+  city: "Mainz",
+}, {
+  title: accessFixtureTitle,
+  source: "dtvp",
+  url: "https://example.test/tender/904",
+  metadataJson: { location: "##" },
+  structuredJson: { summary: "## Bekanntmachung", hard_facts: { location: "##" } },
+});
+assert.equal(staleIndexedLocation.location, "", "a stale indexed location must not outlive the current DB projection");
+assert.equal(staleIndexedLocation.city, null);
+
+const staleIndexedFacts = projectTenderSearchHit({
+  ...meiliAccessHit,
+  id: 906,
+  client: "Veralteter Auftraggeber",
+  deadlineAt: 1,
+  hasDeadline: true,
+  procedureType: "Veraltetes Verfahren",
+}, {
+  title: accessFixtureTitle,
+  source: "dtvp",
+  url: "https://example.test/tender/906",
+  metadataJson: { client: "##", description: "##", location: "##", procedure: "##", subject: "##" },
+  structuredJson: {
+    summary: "## Bekanntmachung",
+    hard_facts: { buyer: "##", location: "##", deadline: "##" },
+    procurement: { procedure_type: "##" },
+    decision_relevant: { scope: ["--"] },
+  },
+  deadlineAt: null,
+  procedureType: "##",
+});
+assert.equal(staleIndexedFacts.client, "Unbekannt", "a stale indexed client must not replace invalid current values");
+assert.equal(staleIndexedFacts.deadlineAt, null, "a stale indexed deadline must not replace invalid current values");
+assert.equal(staleIndexedFacts.procedureType, null, "a stale indexed procedure must not replace invalid current values");
+
+// Source-labelled facts in metadata descriptions must resolve identically in
+// the live Meilisearch list, modal, and server-rendered detail projections.
+const sourceOnlyFacts = {
+  client: "Stadt Mainz",
+  procedure: "Offenes Verfahren",
+  deadline: "04.02.2030 23:59",
+  location: "55116 Mainz",
+  subject: "Erneuerung der Turnhalle",
+};
+const legacyServerTimezoneDeadline = new Date("2030-02-04T23:59:00.000Z");
+const correctedBerlinDeadline = parseDeadlineDate(sourceOnlyFacts.deadline)!;
+const sourceOnlyDescription = buildPublicAccessLimitedDescription(accessFixtureTitle, sourceOnlyFacts);
+const sourceOnlyMetadata = readPublicTenderMeta({
+  access_limited: true,
+  description: sourceOnlyDescription,
+  client: "##",
+  procedure: "--",
+  location: "##",
+  subject: "---",
+}, { title: accessFixtureTitle, source: "dtvp" });
+const sourceOnlyStructured = {
+  summary: "## Bekanntmachung",
+  hard_facts: { buyer: "##", location: "##", deadline: "##" },
+  decision_relevant: { scope: ["-", "--"] },
+  procurement: { procedure_type: "--" },
+};
+const sourceOnlyDisplayFacts = resolvePublicTenderDisplayFacts({
+  title: accessFixtureTitle,
+  metadata: sourceOnlyMetadata,
+  deadlineAt: correctedBerlinDeadline,
+  procedureType: "--",
+  hasUsableRawText: true,
+});
+assert.deepEqual(sourceOnlyDisplayFacts.fallbackFacts, {
+  buyer: sourceOnlyFacts.client,
+  procedure: sourceOnlyFacts.procedure,
+  deadline: "04.02.2030",
+  location: sourceOnlyFacts.location,
+  summary: sourceOnlyDescription,
+  scope: sourceOnlyFacts.subject,
+});
+assert.equal(sourceOnlyDisplayFacts.deadlineAt?.toISOString(), parseDeadlineDate(sourceOnlyFacts.deadline)?.toISOString());
+assert.equal(sourceOnlyDisplayFacts.deadlineAt?.toISOString(), "2030-02-04T22:59:00.000Z");
+assert.equal(formatDeadlineDE(sourceOnlyDisplayFacts.deadlineAt), "04.02.2030");
+const sourceOnlyDeadlineFallback = resolvePublicTenderDisplayFacts({
+  title: accessFixtureTitle,
+  metadata: sourceOnlyMetadata,
+});
+assert.equal(sourceOnlyDeadlineFallback.deadlineAt?.toISOString(), correctedBerlinDeadline.toISOString());
+const canonicalStoredDeadline = resolvePublicTenderDisplayFacts({
+  title: accessFixtureTitle,
+  metadata: sourceOnlyMetadata,
+  deadlineAt: new Date("2030-02-05T00:00:00.000Z"),
+});
+assert.equal(canonicalStoredDeadline.deadlineAt?.toISOString(), "2030-02-05T00:00:00.000Z");
+assert.equal(canonicalStoredDeadline.fallbackFacts.deadline, "05.02.2030");
+assert.equal(
+  resolvePublicDeadlineRepair("04.02.2030 23:59", legacyServerTimezoneDeadline)?.toISOString(),
+  "2030-02-04T22:59:00.000Z",
+);
+assert.equal(resolvePublicDeadlineRepair("04.02.2030 23:59", null), null, "do not fill missing deadlines in a timezone-only backfill");
+assert.equal(
+  resolvePublicDeadlineRepair("16.07.2030 10:30", new Date("2030-07-16T23:59:00.000Z")),
+  null,
+  "do not replace stored deadlines that do not exactly match the old UTC wall-clock parse",
+);
+assert.equal(
+  resolvePublicDeadlineRepair("04.02.2030 22:59", parseDeadlineDate("04.02.2030 22:59")),
+  null,
+  "do not rewrite already-correct Berlin deadlines",
+);
+
+const sourceOnlyAccessFallback = getPublicAccessLimitedFallback({
+  title: accessFixtureTitle,
+  factsText: sourceOnlyMetadata.description,
+  evidenceText: "Um Zugriff auf dieses Modul zu erhalten müssen Sie am Vergabeverfahren teilnehmen.",
+  explicitlyAccessLimited: true,
+});
+assert.ok(sourceOnlyAccessFallback);
+const sourceOnlyNormalized = normalizeStructured(sourceOnlyStructured, accessFixtureTitle, sourceOnlyDisplayFacts.fallbackFacts);
+assert.deepEqual(sourceOnlyNormalized.decision_relevant.scope, [sourceOnlyFacts.subject]);
+const sourceOnlyListProjection = projectPublicTenderRecord({
+  title: accessFixtureTitle,
+  metadata: sourceOnlyMetadata,
+  structured: sourceOnlyNormalized,
+  clientFallbacks: [sourceOnlyDisplayFacts.fallbackFacts.buyer],
+  locationFallbacks: [sourceOnlyDisplayFacts.fallbackFacts.location],
+  summaryFallbacks: [sourceOnlyAccessFallback.description, sourceOnlyDisplayFacts.fallbackFacts.summary, sourceOnlyDisplayFacts.fallbackFacts.scope],
+});
+const sourceOnlyDetailFallback = projectPublicTenderDetailFallback({
+  title: accessFixtureTitle,
+  metadataJson: sourceOnlyMetadata,
+  source: "dtvp",
+  fallbackFacts: sourceOnlyDisplayFacts.fallbackFacts,
+  summaryFallbacks: [sourceOnlyAccessFallback.description, sourceOnlyDisplayFacts.fallbackFacts.scope],
+  accessLimited: true,
+  accessLimitedDescriptionMarkdown: sourceOnlyAccessFallback.descriptionMarkdown,
+});
+const sourceOnlyModalProjection = projectPublicDisplayFields({
+  title: sourceOnlyDetailFallback.display.title,
+  client: [sourceOnlyDetailFallback.display.client],
+  location: [sourceOnlyDetailFallback.display.location],
+  summary: [sourceOnlyDetailFallback.display.description],
+  descriptionMarkdown: sourceOnlyDetailFallback.display.descriptionMarkdown,
+});
+const sourceOnlyIndex = buildTenderIndexDocument({
+  id: 905,
+  title: accessFixtureTitle,
+  source: "dtvp",
+  sourceKey: "dtvp",
+  url: "https://example.test/tender/905",
+  deadlineAt: correctedBerlinDeadline,
+  firstSeenAt: null,
+  category: "Bauarbeiten",
+  metadataJson: sourceOnlyMetadata,
+  structuredJson: sourceOnlyStructured,
+  rawText: "Um Zugriff auf dieses Modul zu erhalten müssen Sie am Vergabeverfahren teilnehmen.",
+  contractValueMax: null,
+  slug: null,
+  readinessStatus: "pending",
+});
+const sourceOnlySearchHit = projectTenderSearchHit({
+  ...sourceOnlyIndex,
+  deadlineAt: 1,
+  client: "Veralteter Auftraggeber",
+  procedureType: "Veraltetes Verfahren",
+}, {
+  title: accessFixtureTitle,
+  source: "dtvp",
+  url: "https://example.test/tender/905",
+  metadataJson: sourceOnlyMetadata,
+  structuredJson: sourceOnlyStructured,
+  deadlineAt: correctedBerlinDeadline,
+  procedureType: null,
+  rawText: "Um Zugriff auf dieses Modul zu erhalten müssen Sie am Vergabeverfahren teilnehmen.",
+});
+const sourceOnlySurfaceFields = (projection: {
+  title: string | null;
+  client: string | null;
+  location: string | null;
+  description: string | null;
+}) => ({
+  title: projection.title,
+  client: projection.client,
+  location: projection.location,
+  description: projection.description,
+});
+const sourceOnlyExpected = sourceOnlySurfaceFields(sourceOnlyListProjection);
+assert.deepEqual(sourceOnlySurfaceFields(sourceOnlyDetailFallback.display), sourceOnlyExpected);
+assert.deepEqual(sourceOnlySurfaceFields(sourceOnlyModalProjection), sourceOnlyExpected);
+assert.deepEqual({
+  title: sourceOnlyIndex.title,
+  client: sourceOnlyIndex.client,
+  location: sourceOnlyIndex.location,
+  description: sourceOnlyIndex.description,
+}, sourceOnlyExpected);
+assert.deepEqual({
+  title: sourceOnlySearchHit.title,
+  client: sourceOnlySearchHit.client,
+  location: sourceOnlySearchHit.location,
+  description: sourceOnlySearchHit.description,
+}, sourceOnlyExpected);
+assert.equal(sourceOnlyIndex.deadlineAt, Math.floor(sourceOnlyDisplayFacts.deadlineAt!.getTime() / 1000));
+assert.equal(sourceOnlySearchHit.deadlineAt, sourceOnlyIndex.deadlineAt);
+assert.equal(sourceOnlySearchHit.procedureType, sourceOnlyFacts.procedure);
+
+const invalidDateFacts = resolvePublicTenderDisplayFacts({
+  title: "Beschaffung in Mainz",
+  metadata: readPublicTenderMeta({ description: "Angebotsfrist: 31.02.2099" }, { title: "Beschaffung in Mainz" }),
+});
+assert.equal(invalidDateFacts.deadlineAt, null, "an impossible source date is not displayed as a deadline");
+
 // An expired structured row is still a normalized public fallback, after the
 // current metadata candidates have been validated and rejected.
 const detailFallbackTitle = "Energetische Sanierung der Grundschule Mainz";
@@ -265,9 +560,16 @@ const listRouteSource = readFileSync("app/api/tenders/public/list/route.ts", "ut
 const detailRouteSource = readFileSync("app/api/tenders/public/detail/route.ts", "utf8");
 const ssrPageSource = readFileSync("app/ausschreibung/[...params]/page.tsx", "utf8");
 const detailModalSource = readFileSync("components/AusschreibungenSection.tsx", "utf8");
+const searchRouteSource = readFileSync("app/api/tenders/search/route.ts", "utf8");
+const pipelineSource = readFileSync("lib/pipeline.ts", "utf8");
 assert.match(listRouteSource, /getPublicAccessLimitedFallback/);
+assert.match(listRouteSource, /resolvePublicTenderDisplayFacts\(/);
 assert.match(detailRouteSource, /getPublicAccessLimitedFallback/);
+assert.match(detailRouteSource, /resolvePublicTenderDisplayFacts\(/);
 assert.match(ssrPageSource, /getPublicAccessLimitedFallback/);
+assert.match(ssrPageSource, /resolvePublicTenderDisplayFacts\(/);
 assert.match(detailModalSource, /projectPublicDisplayFields/);
+assert.match(searchRouteSource, /searchTenders\(/);
+assert.match(pipelineSource, /parseDeadlineDate\(tender\.deadline\)/);
 
 console.log("Public endpoint quality tests passed.");

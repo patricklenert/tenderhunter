@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import {
+  buildMatchRetryHint,
   documentTextInputSchema,
+  getMatchSearchStatus,
   matchTendersInputSchema,
   rankMatchItems,
+  resolveMatchSearchQueries,
   tenderDossierInputSchema,
 } from "../lib/mcp/analysis";
 import { mcpTenderSearchSchema } from "../lib/mcp/tenders";
@@ -13,16 +16,37 @@ const matchDefaults = matchTendersInputSchema.parse({ profile: bidderOnly });
 assert.equal(matchDefaults.candidatePool, 40);
 assert.equal(matchDefaults.limit, 5);
 assert.equal(matchDefaults.deadlineFilter, "all");
+assert.deepEqual(matchDefaults.searchQueries, []);
 
 assert.throws(() => matchTendersInputSchema.parse({ profile: bidderOnly, candidatePool: 0 }));
 assert.throws(() => matchTendersInputSchema.parse({ profile: bidderOnly, candidatePool: 101 }));
 assert.throws(() => matchTendersInputSchema.parse({ profile: bidderOnly, limit: 0 }));
 assert.throws(() => matchTendersInputSchema.parse({ profile: bidderOnly, limit: 11 }));
+assert.throws(() => matchTendersInputSchema.parse({
+  profile: bidderOnly,
+  searchQueries: ["a", "b", "c", "d", "e", "f", "g", "h"],
+}));
 assert.throws(() => matchTendersInputSchema.parse({ profile: bidderOnly, category: "Bau\" OR x" }));
 
 assert.throws(() => matchTendersInputSchema.parse({ profile: { bidder: {}, partner: { inGermany: true } } }));
 assert.throws(() => matchTendersInputSchema.parse({ profile: {} }));
 assert.throws(() => matchTendersInputSchema.parse({ profile: { bidder: { foundedOn: "01.02.2020" } } }));
+
+assert.deepEqual(resolveMatchSearchQueries({
+  query: " API-Entwicklung ",
+  searchQueries: ["RAG-Assistent", "API-Entwicklung"],
+}), ["API-Entwicklung", "RAG-Assistent"]);
+assert.deepEqual(resolveMatchSearchQueries({ query: "", searchQueries: [] }), [""]);
+assert.equal(getMatchSearchStatus(0, 0, 0, false), "no_candidates");
+assert.equal(getMatchSearchStatus(3, 0, 3, false), "evaluation_failed");
+assert.equal(getMatchSearchStatus(3, 2, 0, true), "partial");
+assert.equal(getMatchSearchStatus(3, 3, 0, false), "completed");
+
+assert.equal(buildMatchRetryHint("completed", 3, 3), null);
+assert.ok(buildMatchRetryHint("partial", 0, 20)?.includes("get_tender_dossier"));
+assert.ok(buildMatchRetryHint("partial", 5, 15)?.includes("5 von 15"));
+assert.ok(buildMatchRetryHint("evaluation_failed", 0, 18)?.includes("Portal"));
+assert.ok(buildMatchRetryHint("no_candidates", 0, 0)?.includes("ohne Kategorie-Filter"));
 
 const revenue = matchTendersInputSchema.parse({
   profile: { bidder: { revenueByYearEur: { "2024": 1_250_000 } } },
@@ -30,11 +54,17 @@ const revenue = matchTendersInputSchema.parse({
 assert.equal(revenue.profile.bidder.revenueByYearEur?.["2024"], 1_250_000);
 
 const partner = matchTendersInputSchema.parse({
-  profile: { bidder: {}, partner: { name: "Partner GmbH", inGermany: true } },
+  profile: { bidder: {}, partner: { name: "Partner GmbH", inGermany: true, roles: ["subcontractor"] } },
 });
 assert.equal(partner.profile.partner?.name, "Partner GmbH");
+assert.deepEqual(partner.profile.partner?.roles, ["subcontractor"]);
+assert.throws(() => matchTendersInputSchema.parse({
+  profile: { bidder: {}, partner: { name: "Partner GmbH", roles: [] } },
+}));
 
 assert.equal(mcpTenderSearchSchema.parse({ sort: "smallVendorFit" }).sort, "smallVendorFit");
+assert.equal(mcpTenderSearchSchema.parse({ category: "it-dienstleistungen" }).category, "IT-Dienstleistungen");
+assert.throws(() => mcpTenderSearchSchema.parse({ category: "KI" }));
 assert.throws(() => mcpTenderSearchSchema.parse({ sort: "foo" }));
 assert.equal(mcpTenderSearchSchema.parse({ smallVendorFitMin: 0 }).smallVendorFitMin, 0);
 assert.throws(() => mcpTenderSearchSchema.parse({ smallVendorFitMin: 101 }));

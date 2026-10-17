@@ -5,6 +5,7 @@ import { CITIES } from "@/lib/cities";
 import { searchTenders } from "@/lib/meilisearch";
 import { PortalLocationContent } from "@/components/seo/PortalLocationContent";
 import { getListingRobots, getPageNumber, type SeoSearchParams } from "@/lib/seo-indexability";
+import { rethrowNavigationError } from "@/lib/public-route-resilience";
 
 import { getSiteUrl } from "@/lib/site-config";
 
@@ -77,7 +78,7 @@ export default async function DtvpCityPage({ params, searchParams }: PageProps) 
     const result = await searchTenders({ source: portal.sourceValues, city: city.label, query: "", limit: PAGE_SIZE, page: currentPage });
     totalCount = result.estimatedTotalHits;
     totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-    if (currentPage > totalPages && totalCount > 0) notFound();
+    if (currentPage > totalPages) notFound();
 
     tenders = result.hits.map((hit) => ({
       id: hit.id,
@@ -91,7 +92,8 @@ export default async function DtvpCityPage({ params, searchParams }: PageProps) 
       category: hit.category ?? null,
       slug: hit.slug ?? null,
     }));
-  } catch {
+  } catch (error) {
+    rethrowNavigationError(error);
     // Meilisearch unavailable
   }
 

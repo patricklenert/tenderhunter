@@ -121,6 +121,26 @@ check("Referenzen: Partnerroute nur mit zulässiger Eignungsleihe, sonst barrier
   assert.equal(statusOf(run([references], profile), "references"), "unclear");
 });
 
+check("Ein Nachunternehmer wird nicht automatisch als Eignungsleiher gewertet", () => {
+  const references = finding("references", { count: 3, quote: "Mindestens drei vergleichbare Referenzen." });
+  const partnerProfile: MatchProfile = {
+    bidder: { referenceCount: 0 },
+    partner: { name: "Beispiel LLC", referenceCount: 3, roles: ["subcontractor"] },
+  };
+  const subcontractOnly = run([references, capacityRule("third_party_capacity", "allowed")], partnerProfile);
+  assert.equal(statusOf(subcontractOnly, "references"), "unclear");
+  assert.equal(checkOf(subcontractOnly, "references").reason, "Partnerrolle (Nachunternehmer) deckt dieses Kriterium nicht automatisch ab");
+
+  const capacityProfile: MatchProfile = {
+    bidder: { referenceCount: 0 },
+    partner: { name: "Beispiel LLC", referenceCount: 3, roles: ["subcontractor", "capacity_provider"] },
+  };
+  assert.equal(
+    statusOf(run([references, capacityRule("third_party_capacity", "allowed")], capacityProfile), "references"),
+    "via_partner",
+  );
+});
+
 check("Zertifikat: Name ohne Groß- und Leerzeichen vergleichen, Partnerroute über Nachunternehmer", () => {
   const certificate = finding("certificate", {
     certificate: "ISO 27001",

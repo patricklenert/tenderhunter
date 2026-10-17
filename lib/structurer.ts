@@ -540,7 +540,7 @@ export function normalizeStructured(raw: unknown, fallbackTitle: string, fallbac
     const rawScopeText = Array.isArray(rawScope)
       ? rawScope.filter((value): value is string | number => typeof value === "string" || typeof value === "number").map(String).join(" ")
       : typeof rawScope === "string" || typeof rawScope === "number" ? String(rawScope) : "";
-    const normalizedScope = firstValidStructuredValue(
+    const structuredScope = firstValidStructuredValue(
       [obj.decision_relevant, obj.decisionRelevant],
       ["scope", "subject"],
       (value) => {
@@ -548,8 +548,11 @@ export function normalizeStructured(raw: unknown, fallbackTitle: string, fallbac
         return normalized.length > 0 ? normalized : null;
       },
     ) ?? [];
-    const scopeIsDocumentArtifact = normalizedScope.length === 0
+    const scopeIsDocumentArtifact = structuredScope.length === 0
       && Boolean(rawScopeText && isPublicDocumentArtifact(rawScopeText));
+    const normalizedScope = structuredScope.length > 0
+      ? structuredScope
+      : normalizePublicTextList(fallbackFacts.scope);
     const structuredBuyer = firstValidStructuredValue(
       [obj.hard_facts, obj.hardFacts],
       ["buyer", "client", "authority", "contractingAuthority"],
@@ -681,9 +684,12 @@ export function normalizeStructured(raw: unknown, fallbackTitle: string, fallbac
     (value) => pickValidatedPublicProcedure(value) || null,
   ) ?? "";
   const fallbackProcedure = pickValidatedPublicProcedure(fallbackFacts.procedure);
+  const fallbackScope = pickValidatedPublicCandidate(fallbackFacts.scope);
   const scopeWords = scopeStr && scopeStr.toLocaleLowerCase("de-DE") !== titleStr.toLocaleLowerCase("de-DE")
     ? scopeStr.split(/\s+/).filter((word) => word.length > 3)
-    : [];
+    : fallbackScope && fallbackScope.toLocaleLowerCase("de-DE") !== titleStr.toLocaleLowerCase("de-DE")
+      ? [fallbackScope]
+      : [];
 
   const normalized = {
     title: titleStr,
@@ -727,7 +733,7 @@ export function normalizeStructured(raw: unknown, fallbackTitle: string, fallbac
       duration: firstStructuredValue(flat, ["duration", "contractDuration", "contract_duration"]),
       reference: firstStructuredValue(flat, ["referenceNumber", "reference_number"]),
       summary: normalized.summary,
-      scope: scopeStr,
+      scope: scopeStr || fallbackScope,
       requirements: reqArr,
       awardCriteria: awardArr,
       cpv: firstValidTextList([flat], ["cpvCodes", "cpv_codes"]),

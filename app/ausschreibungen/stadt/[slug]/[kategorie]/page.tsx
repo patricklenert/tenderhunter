@@ -24,6 +24,7 @@ import { BUNDESLAND_SLUGS } from "@/lib/bundesland";
 import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 import { getListingRobots, getPageNumber, getPaginationHref, type SeoSearchParams } from "@/lib/seo-indexability";
+import { rethrowNavigationError } from "@/lib/public-route-resilience";
 
 // SEO: Auto-generated FAQ for city×category pages — targets long-tail queries like "Ausschreibungen München IT"
 function generateCityCategoryFaq(cityLabel: string, categoryLabel: string): Array<{ question: string; answer: string }> {
@@ -121,7 +122,7 @@ export default async function CityCategoryPage({ params, searchParams }: PagePro
     totalCount = result.estimatedTotalHits;
     totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
-    if (currentPage > totalPages && totalCount > 0) notFound();
+    if (currentPage > totalPages) notFound();
 
     tendersList = result.hits.map((hit) => ({
       id: hit.id,
@@ -133,7 +134,8 @@ export default async function CityCategoryPage({ params, searchParams }: PagePro
         : null,
       slug: getCanonicalTenderSlug(hit.slug ?? null, hit.title, { client: hit.client, location: hit.location }),
     }));
-  } catch {
+  } catch (error) {
+    rethrowNavigationError(error);
     // Meilisearch unavailable — page renders empty with noindex
   }
 

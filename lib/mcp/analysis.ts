@@ -5,6 +5,7 @@ import {
   categoryInput,
   dateInput,
   mapMcpTenders,
+  MCP_SEARCH_SCOPE_NOTE,
   reserveMcpQuota,
   smallVendorFitMinInput,
   type McpQuota,
@@ -25,7 +26,7 @@ import { loadTenderDocumentText, loadTenderDossier } from "@/lib/tender-dossier-
 
 const MEILI_PAGE_SIZE = 30;
 const MATCH_CONCURRENCY = 4;
-const MATCH_TIME_BUDGET_MS = 25_000;
+const MATCH_TIME_BUDGET_MS = 60_000;
 const VERDICT_ORDER: Record<TenderFitVerdict, number> = { no_barrier_found: 0, unclear: 1, barrier: 2 };
 
 const bidderSchema = z.object({
@@ -45,12 +46,16 @@ const bidderSchema = z.object({
 
 export const matchProfileSchema = z.object({
   bidder: bidderSchema,
-  partner: bidderSchema.extend({ name: z.string().trim().min(1).max(200) }).optional(),
+  partner: bidderSchema.extend({
+    name: z.string().trim().min(1).max(200),
+    roles: z.array(z.enum(["subcontractor", "capacity_provider", "consortium_member"])).min(1).max(3).optional(),
+  }).optional(),
   asOf: dateInput,
 });
 
 export const matchTendersInputSchema = z.object({
   query: z.string().trim().max(200).default(""),
+  searchQueries: z.array(z.string().trim().min(1).max(200)).max(7).default([]),
   bundesland: z.string().trim().max(100).optional(),
   category: categoryInput,
   smallVendorFitMin: smallVendorFitMinInput,
@@ -97,7 +102,27 @@ export interface McpCapacityRule {
 }
 
 export interface McpMatchItem
-  extends Pick<McpTender, "id" | "title" | "client" | "bundesland" | "city" | "deadlineISO" | "sourceUrl" | "source" | "smallVendorFit"> {
+  extends Pick<
+    McpTender,
+    | "id"
+    | "title"
+    | "client"
+    | "bundesland"
+    | "city"
+    | "category"
+    | "deadlineISO"
+    | "sourceUrl"
+    | "source"
+    | "smallVendorFit"
+    | "contractValueMin"
+    | "contractValueMax"
+    | "procedureType"
+    | "lowEntryBarrier"
+    | "remoteFriendly"
+    | "isItDomain"
+    | "isLot"
+  > {
+  descriptionPreview: string;
   verdict: TenderFitVerdict;
   barrierCount: number;
   unclearCount: number;
@@ -108,36 +133,160 @@ export interface McpMatchItem
   limitations: string[];
 }
 
+export type MatchSearchStatus = "no_candidates" | "evaluation_failed" | "partial" | "completed";
+
+export interface McpMatchSearchQuery {
+  query: string | null;
+  estimatedTotalHits: number | null;
+  pagesRead: number;
+  candidatesAdded: number;
+  hasMore: boolean | null;
+}
+
+export interface McpMatchSearchDiagnostics {
+  status: MatchSearchStatus;
+  scopeNote: string;
+  category: string | null;
+  bundesland: string | null;
+  deadlineFilter: MatchTendersInput["deadlineFilter"];
+  candidatePoolRequested: number;
+  candidatePoolLimitReached: boolean;
+  candidatesFound: number;
+  candidatesEvaluated: number;
+  candidatesFailed: number;
+  timedOut: boolean;
+  queries: McpMatchSearchQuery[];
+}
+
 export interface McpMatchResult {
   items: McpMatchItem[];
   evaluated: number;
   pool: number;
+  searchDiagnostics: McpMatchSearchDiagnostics;
+  assessmentScope: string;
+  /** Concrete next step for the calling agent when the run is incomplete. */
+  retryHint: string | null;
   quota: McpQuota;
   notFoundNote: string;
   limitations: string[];
 }
 
-async function collectCandidates(input: MatchTendersInput): Promise<McpTender[]> {
-  const candidates: McpTender[] = [];
+export function resolveMatchSearchQueries(
+  input: Pick<MatchTendersInput, "query" | "searchQueries">,
+): string[] {
+  const queries = [...new Set([input.query, ...input.searchQueries].map((query) => query.trim()).filter(Boolean))];
+  return queries.length > 0 ? queries : [""];
+}
+
+export function getMatchSearchStatus(
+  candidatesFound: number,
+  candidatesEvaluated: number,
+  candidatesFailed: number,
+  timedOut: boolean,
+): MatchSearchStatus {
+  if (candidatesFound === 0) return "no_candidates";
+  if (candidatesEvaluated === 0 && candidatesFailed > 0) return "evaluation_failed";
+  if (timedOut || candidatesFailed > 0 || candidatesEvaluated + candidatesFailed < candidatesFound) return "partial";
+  return "completed";
+}
+
+/**
+ * Turns an incomplete run into one concrete instruction instead of a bare
+ * status: the calling agent should never report "partial" without knowing
+ * what to do next.
+ */
+export function buildMatchRetryHint(
+  status: MatchSearchStatus,
+  candidatesEvaluated: number,
+  candidatesFound: number,
+): string | null {
+  switch (status) {
+    case "partial":
+      if (candidatesEvaluated === 0) {
+        return `Zeitbudget verbraucht, bevor ein Kandidat bewertet werden konnte (0/${candidatesFound}) – Portale antworten langsam oder sind blockiert. Prüfe zuerst EINEN Kandidaten per get_tender_dossier, um eine Portal-Blockade zu isolieren, und wiederhole dann den Lauf mit kleinerem candidatePool (z. B. 8).`;
+      }
+      return `Unvollständig geprüft: ${candidatesEvaluated} von ${candidatesFound} Kandidaten. Prüfe die verbleibenden Top-Kandidaten einzeln per get_tender_dossier oder wiederhole den Lauf mit engeren Filtern – berichte "unvollständig geprüft (x von y)", nie "kein Fit".`;
+    case "evaluation_failed":
+      return `Kein Kandidat bewertbar (${candidatesFound} gefunden, Quelldaten nicht lesbar) – Portalzugriffe schlagen fehl. Nenne je Kandidat Portal-URL und spieglé Quellen (deutsche-eVergabe, TED), statt den Lauf als ergebnislos zu melden.`;
+    case "no_candidates":
+      return "Keine Kandidaten für diese Filter. Wiederhole den Lauf ohne Kategorie-Filter und mit breiteren Suchphrasen, bevor du 'keine Kandidaten' berichtest.";
+    case "completed":
+      return null;
+  }
+}
+
+interface CandidateSearchState {
+  query: string;
+  nextPage: number;
+  estimatedTotalHits: number | null;
+  pagesRead: number;
+  candidatesAdded: number;
+  exhausted: boolean;
+  pending: McpTender[];
+}
+
+interface CollectedCandidates {
+  candidates: McpTender[];
+  queries: McpMatchSearchQuery[];
+}
+
+async function collectCandidates(input: MatchTendersInput): Promise<CollectedCandidates> {
+  const candidates = new Map<number, McpTender>();
+  const states: CandidateSearchState[] = resolveMatchSearchQueries(input).map((query) => ({
+    query,
+    nextPage: 1,
+    estimatedTotalHits: null,
+    pagesRead: 0,
+    candidatesAdded: 0,
+    exhausted: false,
+    pending: [],
+  }));
   const deadlineBounds = resolveTenderDeadlineFilter(input.deadlineFilter);
 
-  for (let page = 1; candidates.length < input.candidatePool; page += 1) {
+  const loadNextPage = async (state: CandidateSearchState): Promise<void> => {
     const result = await searchTenders({
-      query: input.query,
+      query: state.query,
       bundesland: input.bundesland ?? null,
       category: input.category ?? null,
       smallVendorFitMin: input.smallVendorFitMin,
       sort: "smallVendorFit",
       limit: MEILI_PAGE_SIZE,
-      page,
+      page: state.nextPage,
       ...deadlineBounds,
     });
-    if (result.hits.length === 0) break;
-    candidates.push(...(await mapMcpTenders(result.hits)));
-    if (page * MEILI_PAGE_SIZE >= result.estimatedTotalHits) break;
+    state.estimatedTotalHits = result.estimatedTotalHits;
+    state.pagesRead += 1;
+    state.nextPage += 1;
+    state.pending.push(...(await mapMcpTenders(result.hits)));
+    state.exhausted = result.hits.length === 0 || state.pagesRead * MEILI_PAGE_SIZE >= result.estimatedTotalHits;
+  };
+
+  while (candidates.size < input.candidatePool && states.some((state) => state.pending.length > 0 || !state.exhausted)) {
+    let progressed = false;
+    for (const state of states) {
+      if (candidates.size >= input.candidatePool) break;
+      if (state.pending.length === 0 && !state.exhausted) await loadNextPage(state);
+      const tender = state.pending.shift();
+      if (!tender) continue;
+      progressed = true;
+      if (!candidates.has(tender.id)) {
+        candidates.set(tender.id, tender);
+        state.candidatesAdded += 1;
+      }
+    }
+    if (!progressed) break;
   }
 
-  return candidates.slice(0, input.candidatePool);
+  return {
+    candidates: [...candidates.values()],
+    queries: states.map((state) => ({
+      query: state.query || null,
+      estimatedTotalHits: state.estimatedTotalHits,
+      pagesRead: state.pagesRead,
+      candidatesAdded: state.candidatesAdded,
+      hasMore: state.pagesRead === 0 ? null : state.pending.length > 0 || !state.exhausted,
+    })),
+  };
 }
 
 function serializeEvidence(findings: CriterionFinding[]): McpMatchEvidence[] {
@@ -167,10 +316,19 @@ function toMatchItem(tender: McpTender, fit: TenderMatchResult): McpMatchItem {
     client: tender.client,
     bundesland: tender.bundesland,
     city: tender.city,
+    category: tender.category,
     deadlineISO: tender.deadlineISO,
     sourceUrl: tender.sourceUrl,
     source: tender.source,
+    descriptionPreview: tender.description.slice(0, 800),
     smallVendorFit: tender.smallVendorFit,
+    contractValueMin: tender.contractValueMin,
+    contractValueMax: tender.contractValueMax,
+    procedureType: tender.procedureType,
+    lowEntryBarrier: tender.lowEntryBarrier,
+    remoteFriendly: tender.remoteFriendly,
+    isItDomain: tender.isItDomain,
+    isLot: tender.isLot,
     verdict: fit.verdict,
     barrierCount: fit.barrierCount,
     unclearCount: fit.unclearCount,
@@ -238,19 +396,40 @@ export function rankMatchItems<T extends Pick<McpMatchItem, "verdict" | "smallVe
 export async function matchTendersForMcp(input: MatchTendersInput, access: McpRequestAccess): Promise<McpMatchResult> {
   const deadlineAt = Date.now() + MATCH_TIME_BUDGET_MS;
   const normalized = matchTendersInputSchema.parse(input);
-  const candidates = await collectCandidates(normalized);
+  const { candidates, queries } = await collectCandidates(normalized);
   const { items, failures, timedOut } = await evaluateCandidates(candidates, normalized.profile, deadlineAt);
   const ranked = rankMatchItems(items).slice(0, normalized.limit);
+  const searchStatus = getMatchSearchStatus(candidates.length, items.length, failures.length, timedOut);
+  const assessmentScope = "Die Bewertung prüft nur erkannte Muss-Eignungskriterien in den verfügbaren Unterlagen. Sie bestätigt weder technischen Leistungsfit noch Wirtschaftlichkeit, Datenstandort, rechtliche Zulässigkeit der Partnerrolle oder einen Zuschlag. no_barrier_found ist keine Bewerbungsempfehlung.";
 
   return {
     items: ranked,
     evaluated: items.length,
     pool: candidates.length,
+    searchDiagnostics: {
+      status: searchStatus,
+      scopeNote: MCP_SEARCH_SCOPE_NOTE,
+      category: normalized.category ?? null,
+      bundesland: normalized.bundesland ?? null,
+      deadlineFilter: normalized.deadlineFilter,
+      candidatePoolRequested: normalized.candidatePool,
+      candidatePoolLimitReached: candidates.length >= normalized.candidatePool,
+      candidatesFound: candidates.length,
+      candidatesEvaluated: items.length,
+      candidatesFailed: failures.length,
+      timedOut,
+      queries,
+    },
+    assessmentScope,
+    retryHint: buildMatchRetryHint(searchStatus, items.length, candidates.length),
     quota: await reserveMcpQuota(ranked.length, access.unlimitedQuota),
     notFoundNote: "not_found bedeutet: in den je Treffer genannten Dokumenten (documentsSearched) nicht gefunden – nicht 'nicht erforderlich'.",
-    limitations: timedOut
-      ? ["Zeitbudget erreicht: nur die bis dahin bewerteten Kandidaten wurden gerankt.", ...failures]
-      : failures,
+    limitations: [
+      MCP_SEARCH_SCOPE_NOTE,
+      assessmentScope,
+      ...(timedOut ? ["Zeitbudget erreicht: nur die bis dahin bewerteten Kandidaten wurden gerankt."] : []),
+      ...failures,
+    ],
   };
 }
 

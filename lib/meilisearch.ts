@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { structuredData, tenders } from "@/lib/schema";
 import { and, eq, gt, inArray, isNull, or } from "drizzle-orm";
 import { getPublicAccessLimitedFallback } from "@/lib/public-tender-scraper";
+import { resolvePublicTenderDeadline, resolvePublicTenderDisplayFacts } from "@/lib/public-tender-display-facts";
 import { deriveBundesland, deriveCity } from "@/lib/bundesland";
 import { getPublicSourceBundesland } from "@/lib/public-source-registry";
 import {
@@ -15,7 +16,6 @@ import { analyzeTenderForSmallVendor, toCompact } from "@/lib/small-vendor";
 import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
 import { normalizeStructured } from "@/lib/structurer";
 import { readPublicTenderMeta } from "@/lib/tender-meta";
-import { formatDeadlineDE } from "@/lib/date-utils";
 
 const MEILI_HOST = process.env.MEILI_HOST ?? "http://localhost:7700";
 const MEILI_KEY = process.env.MEILI_MASTER_KEY ?? "";
@@ -105,28 +105,29 @@ export const buildTenderIndexDocument = (item: TenderIndexInput): TenderDocument
     source: item.source,
     sourceUrl: item.url,
   });
+  const publicFacts = resolvePublicTenderDisplayFacts({
+    title: item.title,
+    metadata: publicMeta,
+    deadlineAt: item.deadlineAt,
+    procedureType: item.procedureType,
+    hasUsableRawText: Boolean(item.rawText?.trim()),
+  });
   const accessFallback = getPublicAccessLimitedFallback({
     title: item.title ?? "",
     factsText: publicMeta.description,
     evidenceText: item.rawText,
     explicitlyAccessLimited: publicMeta.accessLimited,
   });
-  const fallbackFacts = {
-    buyer: publicMeta.client,
-    procedure: publicMeta.procedure || (item.rawText?.trim() ? pickValidatedPublicProcedure(item.procedureType) : null),
-    deadline: item.deadlineAt ? formatDeadlineDE(item.deadlineAt) : null,
-    location: publicMeta.location,
-    summary: publicMeta.description,
-    scope: publicMeta.subject,
-  };
+  const fallbackFacts = publicFacts.fallbackFacts;
   const normalizedStructured = normalizeStructured(structured, item.title ?? "", fallbackFacts);
+  const deadlineAt = resolvePublicTenderDeadline(publicFacts.deadlineAt, normalizedStructured.hard_facts.deadline);
   const baseDisplay = projectPublicTenderRecord({
     title: item.title,
     metadata: meta,
     structured: normalizedStructured,
-    clientFallbacks: [publicMeta.client],
-    locationFallbacks: [publicMeta.location],
-    summaryFallbacks: [accessFallback?.description, publicMeta.description],
+    clientFallbacks: [fallbackFacts.buyer],
+    locationFallbacks: [fallbackFacts.location],
+    summaryFallbacks: [accessFallback?.description, fallbackFacts.summary, fallbackFacts.scope],
   });
   const title = baseDisplay.title || `Ausschreibung #${item.id}`;
   const client = baseDisplay.client || "Unbekannt";
@@ -160,9 +161,9 @@ export const buildTenderIndexDocument = (item: TenderIndexInput): TenderDocument
     location,
     source: item.source,
     sourceUrl: item.url,
-    deadlineAt: item.deadlineAt ? item.deadlineAt.getTime() / 1000 : null,
+    deadlineAt: deadlineAt ? Math.floor(deadlineAt.getTime() / 1000) : null,
     firstSeenAt: item.firstSeenAt ? Math.floor(item.firstSeenAt.getTime() / 1000) : null,
-    hasDeadline: item.deadlineAt !== null,
+    hasDeadline: deadlineAt !== null,
     pdfCount: pdfUrls.length,
     readinessStatus: item.readinessStatus,
     contractValueMax: item.contractValueMax,
@@ -418,6 +419,8 @@ export const projectTenderSearchHit = (
     url: string;
     metadataJson: unknown;
     structuredJson: unknown;
+    deadlineAt?: Date | null;
+    procedureType?: string | null;
     rawText?: string | null;
   },
 ): TenderDocument => {
@@ -426,31 +429,33 @@ export const projectTenderSearchHit = (
     source: current.source,
     sourceUrl: current.url,
   });
+  const publicFacts = resolvePublicTenderDisplayFacts({
+    title: current.title,
+    metadata: publicMeta,
+    deadlineAt: current.deadlineAt,
+    procedureType: current.procedureType,
+    hasUsableRawText: Boolean(current.rawText?.trim()),
+  });
   const accessFallback = getPublicAccessLimitedFallback({
     title: current.title ?? "",
     factsText: publicMeta.description,
     evidenceText: current.rawText,
     explicitlyAccessLimited: publicMeta.accessLimited,
   });
-  const normalizedStructured = normalizeStructured(current.structuredJson, current.title ?? "", {
-    buyer: publicMeta.client,
-    procedure: publicMeta.procedure,
-    location: publicMeta.location,
-    summary: publicMeta.description,
-    scope: publicMeta.subject,
-  });
+  const normalizedStructured = normalizeStructured(current.structuredJson, current.title ?? "", publicFacts.fallbackFacts);
+  const deadlineAt = resolvePublicTenderDeadline(publicFacts.deadlineAt, normalizedStructured.hard_facts.deadline);
   const currentDisplay = projectPublicTenderRecord({
     title: current.title,
     metadata: current.metadataJson,
     structured: normalizedStructured,
-    summaryFallbacks: [accessFallback?.description, publicMeta.description],
-    clientFallbacks: [publicMeta.client],
-    locationFallbacks: [publicMeta.location],
+    summaryFallbacks: [accessFallback?.description, publicFacts.fallbackFacts.summary, publicFacts.fallbackFacts.scope],
+    clientFallbacks: [publicFacts.fallbackFacts.buyer],
+    locationFallbacks: [publicFacts.fallbackFacts.location],
   });
   const display = projectPublicDisplayFields({
     title: [currentDisplay.title, hit.title],
-    client: [currentDisplay.client, hit.client],
-    location: [currentDisplay.location, hit.location, hit.city],
+    client: [currentDisplay.client],
+    location: [currentDisplay.location],
     summary: [currentDisplay.description],
   });
 
@@ -461,7 +466,9 @@ export const projectTenderSearchHit = (
     location: display.location || "",
     city: display.location ? deriveCity(display.location) : null,
     description: display.description || "",
-    procedureType: pickValidatedPublicProcedure(hit.procedureType) || null,
+    deadlineAt: deadlineAt ? Math.floor(deadlineAt.getTime() / 1000) : null,
+    hasDeadline: deadlineAt !== null,
+    procedureType: normalizedStructured.procurement.procedure_type || null,
   };
 };
 
@@ -557,6 +564,8 @@ export async function searchTenders(
         url: tenders.url,
         metadataJson: tenders.metadataJson,
         structuredJson: structuredData.jsonBlob,
+        deadlineAt: tenders.deadlineAt,
+        procedureType: tenders.procedureType,
         rawText: tenders.rawText,
       })
       .from(tenders)

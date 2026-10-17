@@ -19,7 +19,6 @@ export const MODEL_CASCADE = [
   "google/gemma-4-31b-it:free",
   "nvidia/nemotron-3.5-lightning:free",
   "google/gemma-4-26b-a4b-it:free",
-  "inclusionai/ling-3.0-flash-sante:free",
   // Paid OpenRouter models, kept disabled:
   // "inclusionai/ling-3.0-flash",
   // "meta/muse-spark-1.3-contributor",
@@ -112,7 +111,7 @@ const isNoLongerFreeError = (error: unknown): boolean => {
   const candidate = error as { status?: unknown; code?: unknown; message?: unknown };
   return (candidate.status === 404 || candidate.code === 404)
     && typeof candidate.message === "string"
-    && /(?:no longer available as a free model|unavailable for free|not available as a free model)/iu.test(candidate.message);
+    && /(?:no longer available as a free model|unavailable for free|not available as a free model|no endpoints found)/iu.test(candidate.message);
 };
 
 const isStructuredOutputUnsupportedError = (error: unknown): boolean => {
@@ -246,7 +245,7 @@ const runModelCascade = async (
       }
       if (isNoLongerFreeError(error)) {
         unavailableModels.add(model);
-        console.warn(`[llm] ${model} ist kostenlos nicht mehr verfügbar; überspringe Modell.`);
+        console.warn(`[llm] ${model} ist nicht (mehr) verfügbar; überspringe Modell dauerhaft.`);
       }
       if (isPolicyBlockedError(error)) {
         unavailableModels.add(model);
@@ -267,7 +266,17 @@ export async function callLLM(
   if (Date.now() < providerUnavailableUntil) {
     throw Object.assign(new Error("LLM-Provider-Cooldown aktiv"), { status: 401, code: 401 });
   }
-  return runModelCascade(client, MODEL_CASCADE, options);
+  try {
+    return await runModelCascade(client, MODEL_CASCADE, options);
+  } catch (error) {
+    // OpenRouter-Free-Quoten sind tagesbudgetiert (Reset gegen Mitternacht UTC).
+    // Solange ein Z.AI-Key existiert, überbrückt die Flash-Kaskade dort die
+    // strukturierten Pipeline-Läufe, statt tagelang nur Deterministik zu nutzen.
+    const zai = getZaiClient();
+    if (!zai) throw error;
+    console.warn("[llm] OpenRouter-Kaskade ausgeschöpft; weiche auf Z.AI GLM-Flash aus.");
+    return runModelCascade(zai, SMALL_VENDOR_ZAI_MODELS, options);
+  }
 }
 
 /**

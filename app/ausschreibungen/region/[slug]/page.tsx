@@ -24,6 +24,7 @@ import { searchTenders } from "@/lib/meilisearch";
 import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 import { getListingRobots, getPageNumber, getPaginationHref, type SeoSearchParams } from "@/lib/seo-indexability";
+import { rethrowNavigationError } from "@/lib/public-route-resilience";
 
 // SEO: Bundesland landing pages for regional long-tail keywords like "Ausschreibungen Bayern"
 export const revalidate = 3600;
@@ -120,7 +121,7 @@ export default async function RegionPage({ params, searchParams }: PageProps) {
     totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
     // Return 404 for page numbers beyond total pages
-    if (currentPage > totalPages && totalCount > 0) notFound();
+    if (currentPage > totalPages) notFound();
 
     tenders = result.hits.map((hit) => ({
       id: hit.id,
@@ -133,7 +134,8 @@ export default async function RegionPage({ params, searchParams }: PageProps) {
         : null,
       slug: getCanonicalTenderSlug(hit.slug ?? null, hit.title, { client: hit.client, location: hit.location }),
     }));
-  } catch {
+  } catch (error) {
+    rethrowNavigationError(error);
     // Meilisearch unavailable — page renders empty with noindex
   }
 

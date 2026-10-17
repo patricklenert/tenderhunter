@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-@theme {
+@theme static {
   --color-brand-primary: oklch(31.5% 0.08 252);
   --color-brand-signal: oklch(58% 0.13 35);
   --color-brand-signal-soft: oklch(92.8% 0.034 35);
@@ -76,5 +76,25 @@
       scroll-behavior: auto !important;
       transition-duration: 0.01ms !important;
     }
+  }
+}
+
+@layer components {
+  .public-footer-link {
+    display: inline-flex;
+    width: fit-content;
+    color: var(--color-text-secondary);
+    font-size: 0.85rem;
+    text-decoration: none;
+  }
+
+  .public-footer-link:hover {
+    text-decoration: underline;
+  }
+
+  .public-footer-brand-link {
+    display: inline-flex;
+    border-radius: 4px;
+    text-decoration: none;
   }
 }

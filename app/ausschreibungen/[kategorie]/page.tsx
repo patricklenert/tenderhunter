@@ -28,6 +28,7 @@ import { SiteFooter } from "@/components/seo/SiteFooter";
 import { getListingRobots, getPageNumber, getPaginationHref, type SeoSearchParams } from "@/lib/seo-indexability";
 import { pickValidatedPublicCandidate } from "@/lib/public-content-quality";
 import { readPublicTenderMeta } from "@/lib/tender-meta";
+import { rethrowNavigationError } from "@/lib/public-route-resilience";
 
 // SEO: Pagination for category pages — 20 tenders per page
 const PAGE_SIZE = 20;
@@ -144,7 +145,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
     totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
     // Return 404 for page numbers beyond total pages (avoids empty indexable pages)
-    if (currentPage > totalPages && totalCount > 0) notFound();
+    if (currentPage > totalPages) notFound();
 
     const offset = (currentPage - 1) * PAGE_SIZE;
 
@@ -215,7 +216,8 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
         count: Number(r.count),
       }))
       .sort((a, b) => b.count - a.count);
-  } catch {
+  } catch (error) {
+    rethrowNavigationError(error);
     // DB unavailable
   }
 

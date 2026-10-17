@@ -22,7 +22,7 @@ Do not use weapon, target, camouflage, militaristic, neon, cyber, glass, decorat
 
 ## Semantic Tokens
 
-The implementation lives in `app/globals.css` for Tailwind, `lib/brand-tokens.ts` for shared public values, and `lib/theme.ts` for MUI. The shared MUI app-router wrapper is `components/ThemeRegistry.tsx`; keep `AppRouterCacheProvider` above MUI surfaces so Emotion styles are emitted to `<head>` during server rendering and the initial client render stays aligned. Prefer these names over raw values or generic color aliases in new product work.
+The implementation lives in `app/globals.css` for Tailwind, `lib/brand-tokens.ts` for shared public values, and `lib/theme.ts` for MUI. Keep the Tailwind theme static so CSS variables referenced directly by global rules and components are emitted even when no utility class requests them. The shared MUI app-router wrapper is `components/ThemeRegistry.tsx`; keep `AppRouterCacheProvider` above MUI surfaces so Emotion styles are emitted to `<head>` during server rendering and the initial client render stays aligned. Prefer these names over raw values or generic color aliases in new product work.
 
 | Token | Role |
 | --- | --- |
@@ -48,6 +48,7 @@ Legacy aliases remain available while existing surfaces migrate. New code should
 `components/BrandMark.tsx` is the shared, single-color mark. It combines a focused scan, an upward signal, and a point of resolution. It is used in the app shell, favicon, Apple icon, and social preview images. Keep the mark recognizable at small sizes and do not introduce per-surface logo variants.
 
 `components/BrandLockup.tsx` is the shared wordmark treatment for public metadata images and product entry points. Use it instead of the legacy `public/logo.webp` asset or locally recreated logo boxes.
+The public `SiteFooter` uses the shared lockup and the semantic surface/text roles as a recurring brand touchpoint across public pages.
 
 ## Core Decision Surfaces
 

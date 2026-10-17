@@ -7,16 +7,34 @@ import { normalizePublicClient, pickValidatedPublicCandidate, pickValidatedPubli
 import { pickPublicDescription } from "@/lib/public-tender-scraper";
 import { sanitizeTenderUrl } from "@/lib/date-utils";
 import { tenders } from "@/lib/schema";
+import { CATEGORY_LABELS, SLUG_TO_CATEGORY } from "@/lib/categories";
 import { getMcpDailyQuota, getUtcQuotaWindow, McpQuotaExceededError, reserveMcpTenderQuota, type McpQuotaState } from "@/lib/mcp/quota";
 
 export const dateInput = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional();
 export const smallVendorFitMinInput = z.number().int().min(0).max(100).optional();
-export const categoryInput = z
-  .string()
-  .trim()
-  .max(100)
-  .regex(/^[^"\\]*$/, "Die Kategorie darf keine Anführungszeichen oder Backslashes enthalten.")
-  .optional();
+const CATEGORY_ACCEPTED: Record<string, string> = Object.fromEntries([
+  ...Object.entries(CATEGORY_LABELS).map(([label, value]) => [label.toLowerCase(), value] as const),
+  ...Object.entries(SLUG_TO_CATEGORY).map(([slug, category]) => [slug.toLowerCase(), category] as const),
+]);
+
+const CATEGORY_VALUES = Object.values(CATEGORY_LABELS);
+
+export const categoryInput = z.preprocess(
+  (value) => {
+    if (typeof value !== "string") return value;
+    const trimmed = value.trim();
+    if (!trimmed) return undefined;
+    return CATEGORY_ACCEPTED[trimmed.toLowerCase()] ?? trimmed;
+  },
+  z
+    .string()
+    .max(100)
+    .refine(
+      (value) => CATEGORY_VALUES.includes(value),
+      { message: `Ungültige Kategorie. Gültige Werte: ${CATEGORY_VALUES.join(", ")}` },
+    )
+    .optional(),
+);
 
 export const mcpTenderSearchSchema = z.object({
   query: z.string().trim().max(200).default(""),
@@ -32,6 +50,9 @@ export const mcpTenderSearchSchema = z.object({
   deadlineTo: dateInput,
   sort: z.enum(["deadline", "newest", "smallVendorFit"]).default("deadline"),
 });
+
+export const MCP_SEARCH_SCOPE_NOTE =
+  "Durchsucht nur qualifizierte Ausschreibungen im aktuellen Tenderhunter-Index. Bekannte Fristen sind nicht abgelaufen; Einträge ohne bekannte Frist können enthalten sein. Keine Vollständigkeitsgarantie für alle Vergabeportale.";
 
 export type McpTenderSearchInput = z.infer<typeof mcpTenderSearchSchema>;
 
@@ -54,6 +75,10 @@ export interface McpTender {
   contractValueMax: number | null;
   contractValueMin: number | null;
   smallVendorFit: number | null;
+  lowEntryBarrier: boolean;
+  remoteFriendly: boolean;
+  isItDomain: boolean;
+  isLot: boolean;
   procedureType: string | null;
   externalId: string | null;
 }
@@ -63,6 +88,7 @@ export interface McpTenderSearchResult {
   total: number;
   returned: number;
   processingTimeMs: number;
+  scopeNote: string;
   quota:
     | {
         limit: number;
@@ -152,6 +178,10 @@ function mapTender(hit: TenderSearchHit, details: McpTenderDetails | undefined):
     contractValueMax: hit.contractValueMax,
     contractValueMin: details?.contractValueMin ?? null,
     smallVendorFit: hit.smallVendorFit ?? null,
+    lowEntryBarrier: hit.lowEntryBarrier,
+    remoteFriendly: hit.remoteFriendly,
+    isItDomain: hit.isItDomain,
+    isLot: hit.isLot,
     procedureType: pickValidatedPublicProcedure(details?.procedureType) || null,
     externalId: details?.externalId ?? null,
   };
@@ -202,6 +232,7 @@ export async function searchMcpTenders(
         total: result.estimatedTotalHits,
         returned: items.length,
         processingTimeMs: result.processingTimeMs,
+        scopeNote: MCP_SEARCH_SCOPE_NOTE,
         quota: await reserveMcpQuota(items.length, unlimitedQuota),
       };
     } catch (error) {

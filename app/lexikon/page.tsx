@@ -55,6 +55,7 @@ const PROCESS_CLUSTER = [
   { slug: "vergabeunterlagen", label: "Vergabeunterlagen" },
   { slug: "teilnahmewettbewerb", label: "Teilnahmewettbewerb" },
   { slug: "bieterfragen", label: "Bieterfragen" },
+  { slug: "nachforderung-unterlagen", label: "Nachforderung von Unterlagen" },
   { slug: "angebot", label: "Angebot" },
 ];
 

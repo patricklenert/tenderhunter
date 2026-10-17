@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { and, asc, eq, ne, isNotNull, isNull, lt, inArray, or, sql } from "drizzle-orm";
 import { settings } from "@/lib/config";
+import { parseDeadlineDate } from "@/lib/date-utils";
 import { discoverTendersFromSource } from "@/lib/crawler";
 import { db } from "@/lib/db";
 import {
@@ -4318,37 +4319,6 @@ const runNotifyCompany = async (payload: Record<string, JsonValue>): Promise<Rec
   return { notified: true };
 };
 
-const parseDeadline = (value: string | null): Date | null => {
-  if (!value) return null;
-
-  // Handle German date format: "DD.MM.YYYY, HH:MM" or "DD.MM.YYYY HH:MM"
-  const germanMatch = value.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4}),?\s*(\d{1,2}):(\d{2})$/);
-  if (germanMatch) {
-    const [, day, month, year, hour, minute] = germanMatch;
-    const date = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute));
-    return Number.isNaN(date.getTime()) ? null : date;
-  }
-
-  // Also handle "DD.MM.YYYY" without time
-  const germanDateOnly = value.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
-  if (germanDateOnly) {
-    const [, day, month, year] = germanDateOnly;
-    const date = new Date(Number(year), Number(month) - 1, Number(day), 23, 59);
-    return Number.isNaN(date.getTime()) ? null : date;
-  }
-
-  // Date-only ISO deadlines apply through the end of that local calendar day.
-  const isoDateOnly = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (isoDateOnly) {
-    const [, year, month, day] = isoDateOnly;
-    const date = new Date(Number(year), Number(month) - 1, Number(day), 23, 59, 59, 999);
-    return Number.isNaN(date.getTime()) ? null : date;
-  }
-
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
-};
-
 const runScrapePublicTenders = async (payload: Record<string, JsonValue>): Promise<Record<string, JsonValue>> => {
   const jobId = Number(payload.__job_id ?? 0) || null;
   const requestedSource = typeof payload.source === "string" && payload.source.trim() ? payload.source.trim() : undefined;
@@ -4386,7 +4356,7 @@ const runScrapePublicTenders = async (payload: Record<string, JsonValue>): Promi
     const result = await scrapeAllPublicTenders(async (sourceKey, tenders) => {
       const changes = changesBySource.get(sourceKey) ?? { accepted: 0, inserted: 0, updated: 0 };
       for (const tender of tenders) {
-      const deadline = parseDeadline(tender.deadline);
+      const deadline = parseDeadlineDate(tender.deadline);
       if (deadline && deadline.getTime() < Date.now()) {
         skipped += 1;
         continue;

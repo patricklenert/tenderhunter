@@ -35,6 +35,18 @@ export const TENDER_SOURCE_DEFINITIONS: readonly TenderSourceDefinition[] = [
     aliases: ["evergabe-online.de", "www.evergabe-online.de"],
   },
   {
+    key: "evergabe-de",
+    name: "deutsche-eVergabe",
+    defaultUrl: "https://portal.deutsche-evergabe.de",
+    aliases: ["deutsche-evergabe.de", "portal.deutsche-evergabe.de", "evergabe-de"],
+  },
+  {
+    key: "it-ausschreibung",
+    name: "IT-Ausschreibung.de",
+    defaultUrl: "https://www.it-ausschreibung.de/ausschreibungen",
+    aliases: ["it-ausschreibung.de", "it-ausschreibung"],
+  },
+  {
     key: "net-bremen",
     name: "Vergabeplattform Bremen",
     defaultUrl: "https://vergabe.bremen.de/NetServer/",

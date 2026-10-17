@@ -24,6 +24,7 @@ import { BUNDESLAND_SLUGS } from "@/lib/bundesland";
 import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 import { getListingRobots, getPageNumber, getPaginationHref, type SeoSearchParams } from "@/lib/seo-indexability";
+import { rethrowNavigationError } from "@/lib/public-route-resilience";
 
 // SEO: City landing pages for long-tail keywords like "Ausschreibungen München"
 export const revalidate = 3600;
@@ -98,7 +99,7 @@ export default async function CityPage({ params, searchParams }: PageProps) {
     totalCount = result.estimatedTotalHits;
     totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
-    if (currentPage > totalPages && totalCount > 0) notFound();
+    if (currentPage > totalPages) notFound();
 
     tenders = result.hits.map((hit) => ({
       id: hit.id,
@@ -111,7 +112,8 @@ export default async function CityPage({ params, searchParams }: PageProps) {
         : null,
       slug: getCanonicalTenderSlug(hit.slug ?? null, hit.title, { client: hit.client, location: hit.location }),
     }));
-  } catch {
+  } catch (error) {
+    rethrowNavigationError(error);
     // Meilisearch unavailable — page renders empty with noindex
   }
 

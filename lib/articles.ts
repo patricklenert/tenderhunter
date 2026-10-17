@@ -27,7 +27,7 @@ export const ARTICLES: Record<string, Article> = {
     dateModified: "2026-09-29",
     relatedCategories: ["Bauarbeiten", "IT-Dienstleistungen", "Planungsleistungen"],
     relatedArticles: ["vob-vergabe", "schwellenwerte-vergabe", "wie-funktioniert-ausschreibung", "oeffentliche-auftraege-finden"],
-     relatedGlossaryTerms: ["offenes-verfahren", "beschraenktes-verfahren", "verhandlungsverfahren", "teilnahmewettbewerb", "vergabeunterlagen", "e-vergabe", "vgv-vergabeverordnung", "uvgo", "vob-a", "vob-a-eu", "schwellenwerte", "auftragswert"],
+    relatedGlossaryTerms: ["offenes-verfahren", "beschraenktes-verfahren", "verhandlungsverfahren", "teilnahmewettbewerb", "vergabeunterlagen", "e-vergabe", "vgv-vergabeverordnung", "uvgo", "vob-a", "vob-a-eu", "schwellenwerte", "auftragswert", "nachforderung-unterlagen"],
     sources: [
       { title: "§ 119 GWB – Verfahrensarten", url: "https://www.gesetze-im-internet.de/gwb/__119.html" },
       { title: "BMWE: Vergabeübersicht und Rechtsgrundlagen", url: "https://www.bundeswirtschaftsministerium.de/Redaktion/DE/Artikel/Wirtschaft/vergabe-uebersicht-und-rechtsgrundlagen.html" },
@@ -113,7 +113,7 @@ Unterhalb des jeweils einschlägigen Werts gelten die nationalen Regeln des Auft
     lastReviewed: "2026-10-08",
     relatedCategories: ["Bauarbeiten", "Tiefbau", "TGA", "Planungsleistungen"],
     relatedArticles: ["vergabeverfahren-uebersicht", "schwellenwerte-vergabe", "ausschreibung-muster", "bietergemeinschaft-gruenden"],
-    relatedGlossaryTerms: ["vob-a", "vob-b", "vob-c", "vob-a-eu", "schwellenwerte", "auftragswert", "losvergabe", "leistungsbeschreibung", "leistungsverzeichnis", "vgv-vergabeverordnung", "gwb-vergaberecht", "eignungsleihe"],
+    relatedGlossaryTerms: ["vob-a", "vob-b", "vob-c", "vob-a-eu", "schwellenwerte", "auftragswert", "losvergabe", "leistungsbeschreibung", "leistungsverzeichnis", "vgv-vergabeverordnung", "gwb-vergaberecht", "eignungsleihe", "nachforderung-unterlagen"],
     sources: [
       { title: "Bundesanzeiger: VOB/A-Änderung vom 22. Juli 2026 (BAnz AT 24.08.2026 B6)", url: "https://www.bundesanzeiger.de/pub/publication/73xO0rpP1jfX5HRt0Ja/content/73xO0rpP1jfX5HRt0Ja/BAnz%20AT%2024.08.2026%20B6.pdf?inline" },
       { title: "VOB/A, Bekanntmachung vom 31. Januar 2019 (BAnz AT 19.02.2019 B2)", url: "https://www.verwaltungsvorschriften-im-internet.de/bsvwvbund_31012019_BWI781063060120180001604634.htm" },
@@ -294,7 +294,7 @@ Nicht jedes Angebot führt zum Zuschlag. Nutzen Sie Ablehnungen als Lernchance:
     dateModified: "2026-09-13",
     relatedCategories: ["Bauarbeiten", "IT-Dienstleistungen", "Facility Management"],
      relatedArticles: ["vergabeverfahren-uebersicht", "oeffentliche-auftraege-finden", "ausschreibung-gewinnen"],
-     relatedGlossaryTerms: ["vergabeunterlagen", "e-vergabe", "bieterfragen", "leistungsbeschreibung", "angebot"],
+    relatedGlossaryTerms: ["vergabeunterlagen", "e-vergabe", "bieterfragen", "leistungsbeschreibung", "angebot", "nachforderung-unterlagen"],
     // SEO: HowTo steps extracted from H2 headings — enables HowTo rich snippet in Google SERP
     howToSteps: [
       { name: "Bedarfsfeststellung und Leistungsbeschreibung", text: "Der öffentliche Auftraggeber definiert seinen Bedarf und erstellt eine detaillierte Leistungsbeschreibung mit Umfang, Fristen und Formalien." },
@@ -516,8 +516,8 @@ Eine Bietergemeinschaft ist ein mächtiges Instrument, um bei großen öffentlic
     description:
       "EU-Schwellenwerte für öffentliche Aufträge 2026 und 2027: Bauaufträge, Lieferungen, Dienstleistungen und Konzessionen nach Auftraggeber und Leistungsart eingeordnet.",
     datePublished: "2025-06-01",
-    dateModified: "2026-09-29",
-    lastReviewed: "2026-09-29",
+    dateModified: "2026-10-11",
+    lastReviewed: "2026-10-11",
     relatedCategories: ["Bauarbeiten", "IT-Dienstleistungen", "Lieferung"],
     relatedArticles: ["vergabeverfahren-uebersicht", "vob-vergabe", "eu-vergabe", "ausschreibung-muster"],
     relatedGlossaryTerms: ["schwellenwerte", "auftragswert", "vob-a", "vob-a-eu", "vgv-vergabeverordnung", "gwb-vergaberecht"],
@@ -527,6 +527,7 @@ Eine Bietergemeinschaft ist ein mächtiges Instrument, um bei großen öffentlic
       { title: "Delegierte Verordnung (EU) 2025/2152", url: "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32025R2152" },
       { title: "Delegierte Verordnung (EU) 2025/2151 für Konzessionen", url: "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32025R2151" },
       { title: "Delegierte Verordnung (EU) 2025/2150 für Sektorenauftraggeber", url: "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32025R2150" },
+      { title: "Delegierte Verordnung (EU) 2025/2487 für Verteidigung und Sicherheit", url: "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32025R2487" },
     ],
     content: `
 ## Was sind Schwellenwerte in der Vergabe?
@@ -1106,6 +1107,7 @@ Das Nachprüfungsverfahren ist ein starkes Instrument für Bieter bei Vergabefeh
     dateModified: "2026-07-05",
     relatedCategories: ["Bauarbeiten", "IT-Dienstleistungen", "Facility Management", "Lieferung"],
     relatedArticles: ["wie-funktioniert-ausschreibung", "ausschreibung-gewinnen", "vob-vergabe"],
+    relatedGlossaryTerms: ["angebot", "vergabeunterlagen", "e-vergabe", "eignungskriterien", "zuschlagskriterien", "nachforderung-unterlagen"],
     howToSteps: [
       { name: "Ausschreibungsunterlagen sorgfältig lesen", text: "Lesen Sie die Leistungsbeschreibung, Vergabeunterlagen und Zuschlagskriterien vollständig. Notieren Sie alle Formalien, Fristen und Eignungsanforderungen." },
       { name: "Eignungsnachweise zusammenstellen", text: "Stellen Sie alle geforderten Nachweise zusammen: Handelsregister, Gewerbeanmeldung, Unbedenklichkeitsbescheinigungen, Referenzen, Bilanzen und Versicherungen." },
@@ -1379,7 +1381,7 @@ Das Vergaberecht ist komplex, aber durchsichtig. Wer die grundlegenden Regeln ke
     description:
       "EU-Vergabe erklärt: Schwellenwerte, TED-Suche, Vergabeverfahren in der EU, Rechtsschutz und Tipps für deutsche Unternehmen bei europaweiten Ausschreibungen.",
     datePublished: "2025-02-15",
-    dateModified: "2026-09-29",
+    dateModified: "2026-10-11",
     relatedCategories: ["IT-Dienstleistungen", "Planungsleistungen", "Lieferung"],
     relatedArticles: ["vergabeverfahren-uebersicht", "schwellenwerte-vergabe", "vob-vergabe", "vergaberecht-leitfaden", "oeffentliche-auftraege-finden"],
     relatedGlossaryTerms: ["schwellenwerte", "auftragswert", "vob-a-eu", "vgv-vergabeverordnung", "gwb-vergaberecht", "ted"],
@@ -1389,8 +1391,9 @@ Das Vergaberecht ist komplex, aber durchsichtig. Wer die grundlegenden Regeln ke
       { title: "Delegierte Verordnung (EU) 2025/2152", url: "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32025R2152" },
       { title: "Delegierte Verordnung (EU) 2025/2151 für Konzessionen", url: "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32025R2151" },
       { title: "Delegierte Verordnung (EU) 2025/2150 für Sektorenauftraggeber", url: "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32025R2150" },
+      { title: "Delegierte Verordnung (EU) 2025/2487 für Verteidigung und Sicherheit", url: "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32025R2487" },
     ],
-    lastReviewed: "2026-09-29",
+    lastReviewed: "2026-10-11",
     content: `
 ## Was ist EU-Vergabe?
 

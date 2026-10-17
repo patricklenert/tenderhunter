@@ -40,12 +40,19 @@ assert.equal(cpvCategoryKeys.has("34000000\0Sonstiges"), false);
 const legacyStructured = { hard_facts: { location: "10115 Berlin" } };
 const legacyRawText = "   ";
 const routeSlug = getCanonicalTenderSlug(null, row.title, { client: "Stadt Beispiel", location: "" }, null);
+const unguardedRouteSlug = getCanonicalTenderSlug(
+  null,
+  row.title,
+  { client: "Stadt Beispiel", location: "" },
+  legacyStructured,
+);
 const sitemapSlug = getCanonicalTenderSlug(
   null,
   row.title,
   { client: "Stadt Beispiel", location: "" },
   legacyRawText.trim() ? legacyStructured : null,
 );
+assert.notEqual(unguardedRouteSlug, routeSlug, "structured-only locations can produce a conflicting canonical slug");
 assert.equal(sitemapSlug, routeSlug, "sitemap and detail route must discard structured location without raw text");
 
 assert.match(
@@ -74,6 +81,17 @@ assert.match(
   proxySource,
   /getCanonicalTenderSlug\(\s*row\.slug,\s*row\.title,\s*row\.metadataJson,\s*row\.rawText\?\.trim\(\) \? row\.structuredJson : null,\s*\)/,
   "proxy canonical redirects must match the detail route's rawText-aware slug",
+);
+const detailSource = readFileSync("app/ausschreibung/[...params]/page.tsx", "utf8");
+assert.match(
+  detailSource,
+  /getCanonicalTenderSlug\(\s*row\.slug,\s*row\.title,\s*row\.metadataJson,\s*row\.rawText\?\.trim\(\) \? row\.structuredJson : null,\s*\)/,
+  "detail metadata canonical must match sitemap and proxy when rawText is missing",
+);
+assert.match(
+  detailSource,
+  /getCanonicalTenderSlug\(\s*tender\.slug,\s*tender\.title,\s*tender\.metadataJson,\s*tender\.rawText\?\.trim\(\) \? sd\?\.jsonBlob : null,\s*\)/,
+  "detail route redirects must use the same rawText-aware canonical slug as its metadata",
 );
 
 assert.match(

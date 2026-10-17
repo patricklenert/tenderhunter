@@ -7,6 +7,7 @@ import { normalizeStructured } from "@/lib/structurer";
 import { pickValidatedPublicProcedure, projectPublicTenderRecord } from "@/lib/public-content-quality";
 import { formatDeadlineDE, sanitizeTenderUrl } from "@/lib/date-utils";
 import { getPublicAccessLimitedFallback } from "@/lib/public-tender-scraper";
+import { resolvePublicTenderDeadline, resolvePublicTenderDisplayFacts } from "@/lib/public-tender-display-facts";
 
 export const runtime = "nodejs";
 
@@ -85,33 +86,34 @@ export async function GET(request: Request): Promise<Response> {
            source: item.source,
            sourceUrl: item.url,
            });
-          const accessFallback = getPublicAccessLimitedFallback({
+           const publicFacts = resolvePublicTenderDisplayFacts({
+             title: item.title,
+             metadata: meta,
+             deadlineAt: item.deadlineAt,
+             procedureType: item.procedureType,
+             hasUsableRawText: Boolean(item.rawText?.trim()),
+           });
+           const accessFallback = getPublicAccessLimitedFallback({
             title: item.title ?? "",
             factsText: meta.description,
             evidenceText: item.rawText,
             explicitlyAccessLimited: meta.accessLimited,
           });
           const hasUsableRawText = Boolean(item.rawText?.trim());
-         const fallbackFacts = {
-           buyer: meta.client,
-            procedure: meta.procedure || (hasUsableRawText ? pickValidatedPublicProcedure(item.procedureType) : null),
-          location: meta.location,
-          summary: meta.description,
-          scope: meta.subject,
-          deadline: item.deadlineAt ? formatDeadlineDE(item.deadlineAt) : null,
-         };
+          const fallbackFacts = publicFacts.fallbackFacts;
           const structured = normalizeStructured(
             item.structuredJson ?? item.metadataJson,
             item.title ?? "",
             fallbackFacts,
           );
+          const deadlineAt = resolvePublicTenderDeadline(publicFacts.deadlineAt, structured.hard_facts.deadline);
           const display = projectPublicTenderRecord({
             title: item.title,
             metadata: item.metadataJson,
             structured,
-            clientFallbacks: [meta.client],
+            clientFallbacks: [fallbackFacts.buyer],
             locationFallbacks: [fallbackFacts.location],
-            summaryFallbacks: [accessFallback?.description, meta.description],
+            summaryFallbacks: [accessFallback?.description, fallbackFacts.summary, fallbackFacts.scope],
           });
           const title = display.title || `Ausschreibung #${item.id}`;
           const client = display.client || "Unbekannt";
@@ -121,8 +123,8 @@ export async function GET(request: Request): Promise<Response> {
           title,
           client,
            location: display.location || "",
-          deadline: item.deadlineAt ? formatDeadlineDE(item.deadlineAt) : null,
-          deadlineISO: item.deadlineAt ? new Date(item.deadlineAt).toISOString() : null,
+          deadline: deadlineAt ? formatDeadlineDE(deadlineAt) : null,
+          deadlineISO: deadlineAt?.toISOString() ?? null,
           category: item.category ?? "Sonstiges",
            description: display.description || "",
           referenceNumber: meta.referenceNumber,
@@ -140,6 +142,8 @@ export async function GET(request: Request): Promise<Response> {
         };
       })
       .filter((item) => {
+        const deadlineTime = item.deadlineISO ? Date.parse(item.deadlineISO) : Number.NaN;
+        if (Number.isFinite(deadlineTime) && deadlineTime <= Date.now()) return false;
         if (item.category === "Sonstiges") {
           return item.deadline || (item.client && item.client !== "Unbekannt");
         }

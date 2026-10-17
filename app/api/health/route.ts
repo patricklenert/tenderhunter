@@ -118,7 +118,8 @@ export async function GET(): Promise<Response> {
             AND (
               (
                 jsonb_array_length(COALESCE(public_source_cursors.cursor_json -> 'pendingDetails', '[]'::jsonb)) = 0
-                AND public_source_cursors.last_status = 'success'
+                AND public_source_cursors.last_status IN ('success', 'partial')
+                AND public_source_cursors.last_error IS NULL
               )
               OR EXISTS (
                 SELECT 1

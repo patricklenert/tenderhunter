@@ -11,7 +11,6 @@ assert.deepEqual([...MODEL_CASCADE], [
   "google/gemma-4-31b-it:free",
   "nvidia/nemotron-3.5-lightning:free",
   "google/gemma-4-26b-a4b-it:free",
-  "inclusionai/ling-3.0-flash-sante:free",
 ]);
 
 assert.equal(MODEL_CASCADE[0], "inclusionai/ling-3.1-flash");
@@ -35,7 +34,8 @@ async function main() {
   assert.equal(response, "usable response");
   assert.deepEqual(requestedModels, [...MODEL_CASCADE.slice(0, 3)]);
 
-  // 404 errors should be skipped like other non-rate-limit errors
+  // 404 "No endpoints found" means the slug has no endpoints at all: every
+  // model is tried once, then permanently skipped in later cascades.
   const notFoundModels: string[] = [];
   const notFoundClient = {
     chat: {
@@ -48,6 +48,7 @@ async function main() {
     },
   } as unknown as OpenAI;
   await assert.rejects(() => callLLM(notFoundClient, { messages: [] }), { status: 404 });
+  await assert.rejects(() => callLLM(notFoundClient, { messages: [] }), { message: /Alle Modelle/ });
   assert.deepEqual(notFoundModels, [...MODEL_CASCADE]);
   resetLLMCooldownsForTests();
 
@@ -60,7 +61,7 @@ async function main() {
           if (model === MODEL_CASCADE[6]) {
             throw Object.assign(new Error("0 endpoints available: filtered by guardrail and data policy"), { status: 404, code: 404 });
           }
-          throw Object.assign(new Error("No endpoints found"), { status: 404, code: 404 });
+          throw Object.assign(new Error("Model not found"), { status: 404, code: 404 });
         },
       },
     },
@@ -115,7 +116,7 @@ async function main() {
               { status: 404, code: 404 },
             );
           }
-          throw Object.assign(new Error("No endpoints found"), { status: 404, code: 404 });
+          throw Object.assign(new Error("Model not found"), { status: 404, code: 404 });
         },
       },
     },

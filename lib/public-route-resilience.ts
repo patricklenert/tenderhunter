@@ -1,3 +1,5 @@
+import { unstable_rethrow } from "next/navigation";
+
 export function dependencyUnavailableResponse(): Response {
   return new Response("Public tender data is temporarily unavailable.", {
     status: 503,
@@ -6,6 +8,11 @@ export function dependencyUnavailableResponse(): Response {
       "X-Robots-Tag": "noindex, follow",
     },
   });
+}
+
+/** Preserve Next.js control-flow signals when broad data fallbacks catch errors. */
+export function rethrowNavigationError(error: unknown): void {
+  unstable_rethrow(error);
 }
 
 /** Optional detail-page data must not turn an otherwise renderable tender into a 5xx. */

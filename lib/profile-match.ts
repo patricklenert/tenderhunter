@@ -15,8 +15,11 @@ export interface BidderProfile {
   available24x7?: boolean | null;
 }
 
+export type PartnerEngagementRole = "subcontractor" | "capacity_provider" | "consortium_member";
+
 export interface PartnerProfile extends BidderProfile {
   name: string;
+  roles?: PartnerEngagementRole[];
 }
 
 export interface MatchProfile {
@@ -71,6 +74,18 @@ const CAPACITY_NOUNS: Record<CapacityKind, string> = {
   third_party_capacity: "Eignungsleihe",
   subcontracting: "Nachunternehmer",
   consortium: "Bietergemeinschaft",
+};
+
+const PARTNER_ROLE_BY_CAPACITY: Record<CapacityKind, PartnerEngagementRole> = {
+  subcontracting: "subcontractor",
+  third_party_capacity: "capacity_provider",
+  consortium: "consortium_member",
+};
+
+const PARTNER_ROLE_LABELS: Record<PartnerEngagementRole, string> = {
+  subcontractor: "Nachunternehmer",
+  capacity_provider: "Eignungsleihe",
+  consortium_member: "Mitglied der Bietergemeinschaft",
 };
 
 const ROUTE_SOURCES: Partial<Record<CriterionKind, CapacityKind[]>> = {
@@ -226,7 +241,15 @@ const capacityRuleSummary = (kind: CapacityKind, criteria: CriteriaResult): Capa
 };
 
 const partnerRoute = (kind: CriterionKind, partner: PartnerProfile, criteria: CriteriaResult): Outcome => {
-  const source = (ROUTE_SOURCES[kind] ?? []).find((candidate) => criteria.findings.some((finding) => finding.kind === candidate));
+  const possibleSources = ROUTE_SOURCES[kind] ?? [];
+  const roleSources = partner.roles
+    ? possibleSources.filter((source) => partner.roles?.includes(PARTNER_ROLE_BY_CAPACITY[source]))
+    : possibleSources;
+  if (partner.roles && roleSources.length === 0) {
+    const roles = partner.roles.map((role) => PARTNER_ROLE_LABELS[role]).join(", ");
+    return outcome("unclear", `Partnerrolle (${roles}) deckt dieses Kriterium nicht automatisch ab`);
+  }
+  const source = roleSources.find((candidate) => criteria.findings.some((finding) => finding.kind === candidate));
   if (source === undefined) {
     return outcome("unclear", `Regel zu Eignungsleihe bzw. Nachunternehmern nicht gefunden; Partner ${partner.name} erfüllt das Kriterium`);
   }
