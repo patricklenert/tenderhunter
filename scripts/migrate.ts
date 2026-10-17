@@ -794,6 +794,7 @@ async function main() {
 
      await client`CREATE INDEX IF NOT EXISTS idx_jobs_status_priority_run_after ON jobs(status, priority, run_after)`;
      await client`CREATE INDEX IF NOT EXISTS idx_jobs_type_status_created ON jobs(type, status, created_at)`;
+     await client`CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_jobs_type_tender_id_id ON jobs(type, (payload ->> 'tender_id'), id)`;
      await client`CREATE INDEX IF NOT EXISTS idx_jobs_running_heartbeat ON jobs(status, heartbeat_at)`;
      await client`CREATE INDEX IF NOT EXISTS idx_api_jobs_status ON api_jobs(status)`;
      await client`CREATE INDEX IF NOT EXISTS idx_catalog_state_revision ON catalog_state(revision, synced_revision)`;
