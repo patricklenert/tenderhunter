@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import type { Page } from "playwright";
-import { readStablePageContent, readStablePageTitle } from "@/lib/firecrawl";
+import { isRecoverableBrowserError, readStablePageContent, readStablePageTitle, retryOnceOnRecoverableBrowserError } from "@/lib/firecrawl";
 import { extractBasicDetailFromHtml, extractPublicPortalFacts, searchOeffentlicheVergabeByTitle } from "@/lib/public-tender-scraper";
 
 const item = extractBasicDetailFromHtml(
@@ -60,6 +60,46 @@ const verifyStableBrowserPageReaders = async (): Promise<void> => {
     evaluate: async () => ({ unexpected: true }),
   } as unknown as Page;
   await assert.rejects(readStablePageContent(invalidFallbackPage), /page\.content: value: expected string, got object/u);
+
+  const closedDuringFallbackPage = {
+    waitForLoadState: async () => {},
+    waitForTimeout: async () => {},
+    content: async () => { throw new Error("page.content: value: expected string, got object"); },
+    evaluate: async () => { throw new Error("Target page, context or browser has been closed"); },
+    locator: () => ({ innerText: async () => { throw new Error("Target page, context or browser has been closed"); } }),
+  } as unknown as Page;
+  await assert.rejects(readStablePageContent(closedDuringFallbackPage), /Target page, context or browser has been closed/u);
+
+  const browserClosedError = new Error("Target page, context or browser has been closed");
+  assert.equal(isRecoverableBrowserError(browserClosedError), true);
+  assert.equal(isRecoverableBrowserError(new Error("ordinary selector timeout")), false);
+  let retryAttempts = 0;
+  let retryCallbacks = 0;
+  const retryResult = await retryOnceOnRecoverableBrowserError(
+    async () => {
+      retryAttempts += 1;
+      if (retryAttempts === 1) throw browserClosedError;
+      return "retried";
+    },
+    () => { retryCallbacks += 1; },
+  );
+  assert.equal(retryResult, "retried");
+  assert.equal(retryAttempts, 2);
+  assert.equal(retryCallbacks, 1);
+
+  let nonrecoverableAttempts = 0;
+  await assert.rejects(retryOnceOnRecoverableBrowserError(async () => {
+    nonrecoverableAttempts += 1;
+    throw new Error("ordinary selector timeout");
+  }), /ordinary selector timeout/u);
+  assert.equal(nonrecoverableAttempts, 1, "ordinary page errors should not be retried");
+
+  let failedRetryAttempts = 0;
+  await assert.rejects(retryOnceOnRecoverableBrowserError(async () => {
+    failedRetryAttempts += 1;
+    throw browserClosedError;
+  }), /Target page, context or browser has been closed/u);
+  assert.equal(failedRetryAttempts, 2, "a recoverable browser error should be retried only once");
 
   const responseFallbackPage = {
     waitForLoadState: async () => {},

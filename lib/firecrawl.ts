@@ -1,4 +1,4 @@
-import { chromium, type Browser, type BrowserContext, type Page, type Response as PlaywrightResponse } from "playwright";
+import { chromium, type Browser, type BrowserContext, type BrowserContextOptions, type Page, type Response as PlaywrightResponse } from "playwright";
 import { Readability } from "@mozilla/readability";
 import { JSDOM } from "jsdom";
 import { decodeHtmlEntities } from "@/lib/text-normalization";
@@ -29,6 +29,7 @@ let browserInstance: Browser | null = null;
 let browserPromise: Promise<Browser> | null = null;
 let browserIdleTimer: NodeJS.Timeout | null = null;
 let activeContexts = 0;
+const trackedContexts = new WeakSet<BrowserContext>();
 
 function clearBrowserIdleTimer(): void {
   if (browserIdleTimer) {
@@ -102,7 +103,7 @@ export const readStablePageContent = async (
     } catch (error) {
       // A navigation can make the first DOM snapshot unavailable; retry once
       // after the next document becomes interactive instead of dropping detail.
-      lastError ??= error;
+      lastError = isRecoverableBrowserError(error) ? error : (lastError ?? error);
       if (attempt === 0 && /page is navigating and changing the content/iu.test(String(error))) continue;
       break;
     }
@@ -111,8 +112,9 @@ export const readStablePageContent = async (
     try {
       const responseHtml: unknown = await navigationResponse.text();
       if (typeof responseHtml === "string" && responseHtml.trim()) return responseHtml;
-    } catch {
+    } catch (error) {
       // Preserve the page-content error if the main response is also unavailable.
+      if (isRecoverableBrowserError(error)) lastError = error;
     }
   }
   try {
@@ -124,8 +126,9 @@ export const readStablePageContent = async (
         .replace(/>/gu, "&gt;");
       return `<html><body><pre>${escapedText}</pre></body></html>`;
     }
-  } catch {
+  } catch (error) {
     // Preserve the original page-content error if visible text is unavailable.
+    if (isRecoverableBrowserError(error)) lastError = error;
   }
   throw lastError ?? new Error("Page content unavailable");
 };
@@ -151,7 +154,7 @@ export const readStablePageTitle = async (page: Page): Promise<string> => {
  * panic triggered by a broken portal page). A retry after a short backoff then
  * lands on the freshly restarted server.
  */
-const isRecoverableBrowserError = (error: unknown): boolean => {
+export const isRecoverableBrowserError = (error: unknown): boolean => {
   const message = String(error);
   return message.includes("has been closed")
     || message.includes("ECONNREFUSED")
@@ -161,9 +164,26 @@ const isRecoverableBrowserError = (error: unknown): boolean => {
     || message.includes("Browser closed");
 };
 
+export async function retryOnceOnRecoverableBrowserError<T>(
+  operation: () => Promise<T>,
+  onRetry?: (error: unknown) => void,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!isRecoverableBrowserError(error)) throw error;
+    onRetry?.(error);
+    return operation();
+  }
+}
+
 /** Shared Obscura CDP connection; reused across scrapes, disconnected when idle. */
 export async function getBrowser(): Promise<Browser> {
   clearBrowserIdleTimer();
+  if (browserInstance && !browserInstance.isConnected()) {
+    browserInstance = null;
+    browserPromise = null;
+  }
   // If a connection is already in flight, wait for it
   if (browserPromise) return browserPromise;
   // If we have a connected instance, use it
@@ -203,6 +223,33 @@ export async function getBrowser(): Promise<Browser> {
   });
 
   return browserPromise;
+}
+
+export async function createTrackedBrowserContext(options?: BrowserContextOptions): Promise<BrowserContext> {
+  const browser = await getBrowser();
+  activeContexts += 1;
+
+  try {
+    const context = await browser.newContext(options);
+    trackedContexts.add(context);
+    return context;
+  } catch (error) {
+    activeContexts = Math.max(0, activeContexts - 1);
+    scheduleBrowserShutdown();
+    throw error;
+  }
+}
+
+export async function closeTrackedBrowserContext(context: BrowserContext): Promise<void> {
+  const wasTracked = trackedContexts.delete(context);
+  try {
+    await closeWithTimeout(() => context.close());
+  } finally {
+    if (wasTracked) {
+      activeContexts = Math.max(0, activeContexts - 1);
+      scheduleBrowserShutdown();
+    }
+  }
 }
 
 export interface ScrapedPage {
@@ -314,14 +361,11 @@ export async function fetchResourceWithBrowserSession(
 ): Promise<BrowserResourceFetch> {
   const timeoutMs = options?.timeoutMs ?? 30_000;
   const maxBodyBytes = options?.maxBodyBytes ?? DEFAULT_MAX_BROWSER_RESOURCE_BYTES;
-  const browser = await getBrowser();
-  const context = await browser.newContext({
+  const context = await createTrackedBrowserContext({
     userAgent: options?.userAgent
       ?? "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36",
     viewport: { width: 1280, height: 800 },
   });
-  activeContexts += 1;
-
   try {
     const page = await context.newPage();
     await page.goto(sourcePageUrl, {
@@ -376,9 +420,7 @@ export async function fetchResourceWithBrowserSession(
       };
     }
   } finally {
-    await closeWithTimeout(() => context.close());
-    activeContexts = Math.max(0, activeContexts - 1);
-    scheduleBrowserShutdown();
+    await closeTrackedBrowserContext(context);
   }
 }
 
@@ -388,17 +430,14 @@ export async function scrapeWebsite(
 ): Promise<ScrapedPage> {
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const browser = await getBrowser();
       let context: BrowserContext | null = null;
       let onAbort: (() => void) | undefined;
       try {
-        context = await browser.newContext({
+        context = await createTrackedBrowserContext({
           userAgent:
             "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
           viewport: { width: 1280, height: 800 },
         });
-        activeContexts += 1;
-
         if (options?.signal) {
           if (options.signal.aborted) {
             throw new Error("Scraping aborted");
@@ -500,15 +539,11 @@ export async function scrapeWebsite(
           options.signal.removeEventListener("abort", onAbort);
         }
         if (context) {
-          await closeWithTimeout(() => context!.close());
-          activeContexts = Math.max(0, activeContexts - 1);
+          await closeTrackedBrowserContext(context);
         }
-        scheduleBrowserShutdown();
       }
     } catch (e) {
       if (attempt === 0 && isRecoverableBrowserError(e)) {
-        browserInstance = null;
-        browserPromise = null;
         continue;
       }
       throw e;

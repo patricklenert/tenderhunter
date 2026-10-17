@@ -1,7 +1,6 @@
 import * as cheerio from "cheerio";
 import type { AnyNode } from "domhandler";
-import type { Browser } from "playwright";
-import { getBrowser, readStablePageContent } from "@/lib/firecrawl";
+import { closeTrackedBrowserContext, createTrackedBrowserContext, readStablePageContent } from "@/lib/firecrawl";
 import { dedupeUsAttachments, normalizeUsDate, type UsContact, type UsExtractedTender } from "@/lib/us/types";
 
 const MFMP_URL = "https://vendor.myfloridamarketplace.com/search/bids";
@@ -90,24 +89,24 @@ export const parseFloridaMfmpDetailAttachments = (html: string, baseUrl: string)
 };
 
 const captureFloridaDetail = async (
-  browser: Browser,
   listing: FloridaMfmpListing,
 ): Promise<{ detail: FloridaMfmpDetail; attachments: Array<{ name: string; url: string }> }> => {
-  const page = await browser.newPage();
+  const context = await createTrackedBrowserContext();
   const attachmentNames = new Map<string, string>();
   let activeDocumentName = "Attachment";
 
-  await page.route("**/*", async (route) => {
-    const url = route.request().url();
-    if (/\/mfmp\/bids\/detail\/attachment\/download(?:\?|\/)/i.test(url)) {
-      attachmentNames.set(url, activeDocumentName);
-      await route.abort();
-      return;
-    }
-    await route.continue();
-  });
-
   try {
+    const page = await context.newPage();
+    await page.route("**/*", async (route) => {
+      const url = route.request().url();
+      if (/\/mfmp\/bids\/detail\/attachment\/download(?:\?|\/)/i.test(url)) {
+        attachmentNames.set(url, activeDocumentName);
+        await route.abort();
+        return;
+      }
+      await route.continue();
+    });
+
     await page.goto(listing.url, { waitUntil: "networkidle", timeout: 30_000 });
     await page.waitForTimeout(500);
     const html = await readStablePageContent(page);
@@ -125,15 +124,15 @@ const captureFloridaDetail = async (
       attachments: dedupeUsAttachments([...domAttachments, ...capturedAttachments], listing.url),
     };
   } finally {
-    await page.close().catch(() => {});
+    await closeTrackedBrowserContext(context);
   }
 };
 
 export async function fetchFloridaMfmpOpportunities(): Promise<UsExtractedTender[]> {
-  const browser = await getBrowser();
-  const page = await browser.newPage();
+  const context = await createTrackedBrowserContext();
 
   try {
+    const page = await context.newPage();
     await page.goto(MFMP_URL, { waitUntil: "networkidle", timeout: 30_000 });
     const statusPanel = page.locator("mat-expansion-panel-header", { hasText: "Ad Status" }).first();
     if (await statusPanel.count()) {
@@ -148,7 +147,7 @@ export async function fetchFloridaMfmpOpportunities(): Promise<UsExtractedTender
 
     for (const listing of listings) {
       try {
-        enriched.set(listing.externalId, await captureFloridaDetail(browser, listing));
+        enriched.set(listing.externalId, await captureFloridaDetail(listing));
       } catch {
         // Keep the public listing when an individual detail page is unavailable.
       }
@@ -183,8 +182,6 @@ export async function fetchFloridaMfmpOpportunities(): Promise<UsExtractedTender
       } satisfies UsExtractedTender;
     });
   } finally {
-    await page.close().catch(() => {});
-    // Shared Obscura CDP connection: closing the browser would disconnect
-    // every other scraper; the idle timer in firecrawl.ts handles it.
+    await closeTrackedBrowserContext(context);
   }
 }

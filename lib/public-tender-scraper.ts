@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import * as cheerio from "cheerio";
-import { getBrowser, readStablePageContent, scrapeWebsite, htmlToBasicMarkdown, type ScrapedPage } from "@/lib/firecrawl";
+import { closeTrackedBrowserContext, createTrackedBrowserContext, isRecoverableBrowserError, readStablePageContent, retryOnceOnRecoverableBrowserError, scrapeWebsite, htmlToBasicMarkdown, type ScrapedPage } from "@/lib/firecrawl";
 import { callLLM } from "@/lib/llm";
 import { detectAccessPage, hasPositiveAccessLimitedEvidence, isParticipationWallText } from "@/lib/access-page-detector";
 import { stripSessionId } from "@/lib/tender-identity";
@@ -2504,10 +2504,9 @@ async function scrapeEvergabeOnline(cursor: PublicSourceCursor | null): Promise<
     const seenIds = new Set<string>();
 
     let startPage = Math.max(1, cursorBoolean(cursor, "exhausted") ? 1 : cursorNumber(cursor, "page", 1));
-    const browser = await getBrowser();
-    let context: Awaited<ReturnType<typeof browser.newContext>> | null = null;
+    let context: Awaited<ReturnType<typeof createTrackedBrowserContext>> | null = null;
     try {
-      context = await browser.newContext({
+      context = await createTrackedBrowserContext({
         userAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36",
       });
       const page = await context.newPage();
@@ -2586,7 +2585,7 @@ async function scrapeEvergabeOnline(cursor: PublicSourceCursor | null): Promise<
         pageNumber += 1;
       }
     } finally {
-      await context?.close().catch(() => {});
+      if (context) await closeTrackedBrowserContext(context);
     }
 
     console.log(`[public-scraper] evergabe-online: ${detailRefs.length} Detail-Links gefunden`);
@@ -3184,8 +3183,7 @@ async function scrapeNrwPortal(config: NrwPortalConfig, cursor: PublicSourceCurs
     if (cpvCodes.length === 0) {
       // Fallback: Try Playwright for JS-rendered portals (e.g. stadt-koeln)
       try {
-        const browser = await getBrowser();
-        const context = await browser.newContext();
+        const context = await createTrackedBrowserContext();
         try {
           const page = await context.newPage();
           await page.goto(overviewUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
@@ -3198,7 +3196,7 @@ async function scrapeNrwPortal(config: NrwPortalConfig, cursor: PublicSourceCurs
           }
           console.log(`[public-scraper] ${config.name}: ${cpvCodes.length} CPV-Kategorien (Playwright)`);
         } finally {
-          await context.close().catch(() => {});
+          await closeTrackedBrowserContext(context);
         }
       } catch (e) {
         console.warn(`[public-scraper] ${config.name} Playwright Fallback fehlgeschlagen:`, e);
@@ -5521,6 +5519,18 @@ export async function searchOeffentlicheVergabeByTitle(title: string): Promise<{
   if (!title) return null;
 
   try {
+    return await retryOnceOnRecoverableBrowserError(
+      () => searchOeffentlicheVergabeByTitleAttempt(title),
+      () => console.warn("[oeffvergabe] Browser-Verbindung unterbrochen; wiederhole Suche."),
+    );
+  } catch (error) {
+    console.warn("[oeffvergabe] Suche fehlgeschlagen:", error);
+    return null;
+  }
+}
+
+async function searchOeffentlicheVergabeByTitleAttempt(title: string): Promise<{ noticeId: string; evergabeUrl: string | null } | null> {
+  try {
     const cleanTitle = title.replace(/\s+/g, " ").trim().slice(0, 100);
     if (cleanTitle.length < 10) return null;
     const accessTitle = detectAccessPage("", { title: cleanTitle });
@@ -5530,18 +5540,20 @@ export async function searchOeffentlicheVergabeByTitle(title: string): Promise<{
     }
     console.log(`[oeffvergabe] Suche nach: ${cleanTitle.slice(0, 60)}...`);
 
-    const browser = await getBrowser();
-    let context: Awaited<ReturnType<typeof browser.newContext>> | null = null;
+    let context: Awaited<ReturnType<typeof createTrackedBrowserContext>> | null = null;
 
     try {
-      context = await browser.newContext({
+      context = await createTrackedBrowserContext({
         userAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
       });
       const page = await context.newPage();
 
       await page.goto("https://oeffentlichevergabe.de/ui/en/search", { waitUntil: "networkidle", timeout: 30000 });
 
-      const searchInput = await page.waitForSelector("input[type='text'], input[type='search'], input.search-input, input[placeholder*='search'], input[placeholder*='Such']", { timeout: 10000 }).catch(() => null);
+      const searchInput = await page.waitForSelector("input[type='text'], input[type='search'], input.search-input, input[placeholder*='search'], input[placeholder*='Such']", { timeout: 10000 }).catch((error) => {
+        if (isRecoverableBrowserError(error)) throw error;
+        return null;
+      });
 
       if (!searchInput) {
         console.warn("[oeffvergabe] Suchfeld nicht gefunden");
@@ -5573,6 +5585,7 @@ export async function searchOeffentlicheVergabeByTitle(title: string): Promise<{
       try {
         content = await readStablePageContent(page);
       } catch (error) {
+        if (isRecoverableBrowserError(error)) throw error;
         console.warn(`[oeffvergabe] HTML-Auslesen fehlgeschlagen; versuche DOM-Links: ${String(error)}`);
       }
       const noticeIdRegex = /noticeId=([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/gi;
@@ -5586,7 +5599,10 @@ export async function searchOeffentlicheVergabeByTitle(title: string): Promise<{
       if (!noticeId) {
         const rawLinks: unknown = await page.$$eval("a[href*='noticeId']", (els) =>
           els.map((el) => (el as HTMLAnchorElement).href).slice(0, 5)
-        ).catch(() => []);
+        ).catch((error) => {
+          if (isRecoverableBrowserError(error)) throw error;
+          return [];
+        });
         const links = Array.isArray(rawLinks) ? rawLinks.filter((link): link is string => typeof link === "string") : [];
         for (const link of links) {
           const m = link.match(/noticeId=([a-f0-9-]+)/i);
@@ -5658,14 +5674,16 @@ export async function searchOeffentlicheVergabeByTitle(title: string): Promise<{
           }
         }
       } catch (detailError) {
+        if (isRecoverableBrowserError(detailError)) throw detailError;
         console.warn("[oeffvergabe] Detail-Seite Fehler:", detailError);
       }
 
       return { noticeId, evergabeUrl };
     } finally {
-      await context?.close().catch(() => {});
+      if (context) await closeTrackedBrowserContext(context);
     }
   } catch (error) {
+    if (isRecoverableBrowserError(error)) throw error;
     console.warn("[oeffvergabe] Suche fehlgeschlagen:", error);
     return null;
   }
