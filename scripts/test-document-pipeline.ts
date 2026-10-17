@@ -15,6 +15,7 @@ import {
   shouldUseRenderedResourceDiscovery,
   findHtmlResponseDocument,
   getAccessLimitedCacheResult,
+  isMissingStoredDocumentError,
   isStoredDocumentFileMissing,
   isTerminalCacheDetailFailure,
   resolveEffectiveRawText,
@@ -25,6 +26,7 @@ import {
   isCurrentPipelineVersion,
   type ResourceCandidateRecord,
 } from "../lib/pipeline";
+import { ColdStorageError } from "../lib/object-store-cold";
 import { buildSafeRequestHeaders, isDocumentTooLargeError } from "../lib/storage";
 import { readResponseBodyBounded } from "../lib/firecrawl";
 import { decodeTextBuffer } from "../lib/text-normalization";
@@ -91,6 +93,15 @@ assert.equal(
   true,
   "missing local objects must be routed back through download",
 );
+assert.equal(isMissingStoredDocumentError({ code: "NotFound" }), true);
+assert.equal(isMissingStoredDocumentError({ code: "NoSuchKey" }), true);
+assert.equal(
+  isMissingStoredDocumentError(new ColdStorageError("Hydration abgeschlossen, Datei fehlt weiterhin: tenders/1/doc.pdf")),
+  true,
+);
+assert.equal(isMissingStoredDocumentError(new ColdStorageError("Hydration abgebrochen: Lock-Timeout")), false);
+assert.equal(isMissingStoredDocumentError(new ColdStorageError("SHA256 des Archivs stimmt nicht überein")), false);
+assert.equal(isMissingStoredDocumentError({ code: "ECONNRESET", statusCode: 503 }), false);
 assert.equal(isTenderDocumentRefreshDue(null, recoveryNow, 72 * 60 * 60 * 1_000), true, "a tender with no completed fetch needs document discovery");
 assert.equal(
   isTenderDocumentRefreshDue(new Date(recoveryNow - 71 * 60 * 60 * 1_000), recoveryNow, 72 * 60 * 60 * 1_000),

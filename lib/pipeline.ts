@@ -35,7 +35,7 @@ import { decodeTextBuffer, repairKnownGermanEncoding } from "@/lib/text-normaliz
 import { buildJobKey, buildTenderPipelineGroupKey, claimNextJob, enqueueJob, getJobMaxRuntimeMs, heartbeatJob, markDone, markFailed, PUBLIC_CONTINUATION_PRIORITY, sanitizeErrorMessage, type ClaimJobOptions } from "@/lib/queue";
 import { buildTenderMatchDocument, computeScores, getDomainEligibility, getLocationEligibility, llmBatchDomainMatch, type CompanyRow } from "@/lib/scoring";
 import { ensureExtension, fetchAndStore, objectAbsolutePath, suggestedFilename } from "@/lib/storage";
-import { ensureLocalStored } from "@/lib/object-store-cold";
+import { ColdStorageError, ensureLocalStored } from "@/lib/object-store-cold";
 import { buildStructuredDescriptionMarkdown, extractStructuredData, normalizeStructured, type StructuredData } from "@/lib/structurer";
 import { assessTenderQuality } from "@/lib/tender-quality";
 import { resolveSourceItem } from "@/lib/tender-sources";
@@ -2722,6 +2722,14 @@ export const isStoredDocumentFileMissing = (filePath: string): boolean => {
   }
 };
 
+export const isMissingStoredDocumentError = (error: unknown): boolean => {
+  if (error instanceof ColdStorageError) {
+    return error.message.startsWith("Hydration abgeschlossen, Datei fehlt weiterhin:");
+  }
+  if (!error || typeof error !== "object" || !("code" in error)) return false;
+  return error.code === "NotFound" || error.code === "NoSuchKey";
+};
+
 const runParseDocuments = async (payload: Record<string, JsonValue>): Promise<Record<string, JsonValue>> => {
   const tenderId = Number(payload.tender_id ?? 0);
   if (!Number.isFinite(tenderId) || tenderId <= 0) {
@@ -2816,7 +2824,13 @@ const runParseDocuments = async (payload: Record<string, JsonValue>): Promise<Re
     let absPath: string;
     let missingStoredObject = false;
     try {
-      absPath = await ensureLocalStored(doc.storagePath);
+      try {
+        absPath = await ensureLocalStored(doc.storagePath);
+      } catch (error) {
+        if (!isMissingStoredDocumentError(error)) throw error;
+        missingStoredObject = true;
+        throw new Error(`Stored document is missing: ${doc.storagePath}`);
+      }
       missingStoredObject = isStoredDocumentFileMissing(absPath);
       if (missingStoredObject) throw new Error(`Stored document is missing: ${doc.storagePath}`);
       const extracted = await extractTextFromFile(absPath, doc.contentType);
