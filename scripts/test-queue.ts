@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { buildJobKey, getEffectiveQueuePriority, getJobMaxRuntimeMs, isCriticalJobType, isJobRuntimeStale, JOB_PRIORITIES, PUBLIC_CONTINUATION_PRIORITY, shouldReapJobForRuntimeTimeout, shouldReuseCompletedJob } from "../lib/queue";
+import { buildJobKey, getDeprioritizedJobType, getEffectiveQueuePriority, getJobMaxRuntimeMs, isCriticalJobType, isJobRuntimeStale, JOB_PRIORITIES, PUBLIC_CONTINUATION_PRIORITY, shouldReapJobForRuntimeTimeout, shouldReuseCompletedJob } from "../lib/queue";
 
 assert.equal(buildJobKey("parse_documents", 42), "parse_documents:42");
 assert.equal(buildJobKey("parse_documents", 42, "refresh"), "parse_documents:42:refresh");
@@ -25,6 +25,9 @@ assert.equal(getEffectiveQueuePriority(100, new Date(priorityNow - 48 * 60 * 60 
 assert.equal(getEffectiveQueuePriority(100, new Date(priorityNow), priorityNow), 100);
 assert.equal(isCriticalJobType("generate_insight"), false);
 assert.equal(isCriticalJobType("notify_company"), false);
+assert.equal(getDeprioritizedJobType("structure_tender", 4, 5), undefined);
+assert.equal(getDeprioritizedJobType("structure_tender", 5, 5), "structure_tender");
+assert.equal(getDeprioritizedJobType(null, 5, 5), undefined);
 
 assert.equal(getJobMaxRuntimeMs("fetch_documents"), 20 * 60 * 1_000);
 assert.equal(getJobMaxRuntimeMs("scrape_public_tenders"), 300 * 60 * 1_000);

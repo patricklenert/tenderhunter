@@ -109,12 +109,20 @@ export type JobLane = "critical" | "background" | "all";
 
 export type ClaimJobOptions = {
   lane?: JobLane;
+  /** Prefer other job types after one type has occupied a worker repeatedly. */
+  deprioritizeType?: string;
   /** Set only when the claiming process will terminate if the runtime is exceeded. */
   enforceRuntimeTimeout?: boolean;
 };
 
 export const isCriticalJobType = (jobType: string): boolean =>
   (CRITICAL_JOB_TYPES as readonly string[]).includes(jobType);
+
+export const getDeprioritizedJobType = (
+  lastJobType: string | null,
+  sameTypeStreak: number,
+  burst: number,
+): string | undefined => lastJobType !== null && sameTypeStreak >= burst ? lastJobType : undefined;
 
 export const shouldReuseCompletedJob = (
   status: string | null | undefined,
@@ -299,6 +307,9 @@ export async function claimNextJob(workerId: string, options: ClaimJobOptions = 
         .from(jobs)
         .where(and(...conditions))
         .orderBy(
+          ...(options.deprioritizeType
+            ? [sql`CASE WHEN ${jobs.type} = ${options.deprioritizeType} THEN 1 ELSE 0 END ASC`]
+            : []),
           sql`(
             GREATEST(
               ${jobs.priority},

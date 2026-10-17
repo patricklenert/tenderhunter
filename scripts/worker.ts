@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { settings } from "@/lib/config";
 import { processNextJob, cleanupExpiredTenders, cleanupExpiredUsTenders, recoverIncompleteTenderPipelines } from "@/lib/pipeline";
-import { enqueueJob, isCriticalJobType, PUBLIC_CONTINUATION_PRIORITY, reapStaleJobs, sanitizeErrorMessage, type JobLane } from "@/lib/queue";
+import { enqueueJob, getDeprioritizedJobType, isCriticalJobType, PUBLIC_CONTINUATION_PRIORITY, reapStaleJobs, sanitizeErrorMessage, type JobLane } from "@/lib/queue";
 import { serializeSourceItems } from "@/lib/tender-sources";
 import { buildPublicContinuationJobKey, shouldRetryFailedPublicFullRun, shouldSchedulePublicContinuation, shouldWaitForPublicContinuations } from "@/lib/public-pagination";
 import { JOB_CRAWL, JOB_SCRAPE_PUBLIC, JOB_SCRAPE_US, type JsonValue } from "@/lib/types";
@@ -335,7 +335,10 @@ const runWorkerLoop = async (workerId: string): Promise<void> => {
   let lastUsScheduleCheckAt = Date.now();
   let lastPublicScheduleCheckAt = Date.now();
   let criticalStreak = 0;
+  let lastCriticalType: string | null = null;
+  let criticalTypeStreak = 0;
   const criticalBurst = 5;
+  const criticalTypeBurst = 5;
   while (true) {
     if (Date.now() - lastUsScheduleCheckAt >= US_SCHEDULE_CHECK_MS) {
       lastUsScheduleCheckAt = Date.now();
@@ -351,7 +354,11 @@ const runWorkerLoop = async (workerId: string): Promise<void> => {
     const lane: JobLane = criticalStreak < criticalBurst ? "critical" : "background";
     let result: Awaited<ReturnType<typeof processNextJob>>;
     try {
-      result = await processNextJob(workerId, { lane, terminateOnTimeout: true });
+      result = await processNextJob(workerId, {
+        lane,
+        deprioritizeType: getDeprioritizedJobType(lastCriticalType, criticalTypeStreak, criticalTypeBurst),
+        terminateOnTimeout: true,
+      });
     } catch (error) {
       const message = sanitizeErrorMessage(error instanceof Error ? error.message : "Unbekannter Fehler");
       console.error(`[worker] Job-Verarbeitung konnte nicht abgeschlossen werden: ${message}`);
@@ -361,8 +368,16 @@ const runWorkerLoop = async (workerId: string): Promise<void> => {
     if (result) {
       if (lane === "critical" && isCriticalJobType(result.job_type)) {
         criticalStreak += 1;
+        if (lastCriticalType === result.job_type) {
+          criticalTypeStreak += 1;
+        } else {
+          lastCriticalType = result.job_type;
+          criticalTypeStreak = 1;
+        }
       } else {
         criticalStreak = 0;
+        lastCriticalType = null;
+        criticalTypeStreak = 0;
       }
       console.log(JSON.stringify(result));
       continue;
