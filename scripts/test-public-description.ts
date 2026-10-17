@@ -432,10 +432,24 @@ if (pickValidatedPublicLocationForTender("Wetterwarte Görlitz", "Bundesrepublik
 if (pickValidatedPublicLocationForTender("Erneuerung Energiezentrale in Bautzen", "Stadt Bautzen", "Erneuerung Energiezentrale in Bautzen", "02625 Bautzen") !== "02625 Bautzen") {
   throw new Error("Ungültiger erster Standortkandidat blockiert keinen gültigen Fallback");
 }
-for (const invalidLocation of ["00023 Anzahl Lose", "85435 NUTS-3-Code", "Ort der Leistungserbringung ist Dessau-Roßlau. 6.", "94469 Deggendorf Bayern Karte anschauen Hinweis: service.bund.de"]) {
+for (const invalidLocation of [
+  "00023 Anzahl Lose",
+  "85435 NUTS-3-Code",
+  "Ort der Leistungserbringung ist Dessau-Roßlau. 6.",
+  "94469 Deggendorf Bayern Karte anschauen Hinweis: service.bund.de",
+  "hat die Postleitzahl 30625.",
+  "Postleitzahl 30625",
+]) {
   if (pickValidatedPublicLocation(invalidLocation) !== "") {
     throw new Error(`Ungültiger Standort wurde akzeptiert: ${invalidLocation}`);
   }
+}
+const postalCodeFallbackFacts = extractPublicPortalFacts("Der Leistungsort hat die Postleitzahl 30625.");
+const postalCodeFallbackProjection = projectPublicDisplayFields({
+  location: [postalCodeFallbackFacts.location, "30625"],
+});
+if (postalCodeFallbackFacts.location !== null || postalCodeFallbackProjection.location !== "30625") {
+  throw new Error("Postleitzahl-Fallbackphrase wurde als Standort angezeigt statt den belegten Postleitzahlwert zu verwenden");
 }
 if (pickValidatedPublicLocation("00023 NUTS-3-Code", "55116 Mainz") !== "55116 Mainz") {
   throw new Error("Standort-Fallback wählt keinen gültigen Kandidaten");

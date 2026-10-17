@@ -975,7 +975,7 @@ export const pickValidatedPublicProcedure = (...candidates: unknown[]): string =
   return "";
 };
 
-const LOCATION_ARTIFACTS = /(?:karte\s+anschauen|anzahl\s+lose|nuts(?:-\d+)?[-\s]code|ort\s+der\s+(?:leistung(?:serbringung)?|ausfuehrung|ausführung)|erfuellungsort|erfüllungsort|hinweis\s*:|zu\s+(?:richten|senden|uebermitteln|übermitteln)\b)/iu;
+const LOCATION_ARTIFACTS = /(?:karte\s+anschauen|anzahl\s+lose|nuts(?:-\d+)?[-\s]code|ort\s+der\s+(?:leistung(?:serbringung)?|ausfuehrung|ausführung)|erfuellungsort|erfüllungsort|postleitzahl|hinweis\s*:|zu\s+(?:richten|senden|uebermitteln|übermitteln)\b)/iu;
 
 /** Location fields need stricter checks because portals expose labels as values. */
 export const pickValidatedPublicLocation = (...candidates: unknown[]): string => {
