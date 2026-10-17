@@ -109,8 +109,8 @@ export type JobLane = "critical" | "background" | "all";
 
 export type ClaimJobOptions = {
   lane?: JobLane;
-  /** Prefer other job types after one type has occupied a worker repeatedly. */
-  deprioritizeType?: string;
+  /** Rotate critical job types after one type has occupied a worker repeatedly. */
+  typeOrder?: readonly string[];
   /** Set only when the claiming process will terminate if the runtime is exceeded. */
   enforceRuntimeTimeout?: boolean;
 };
@@ -118,11 +118,19 @@ export type ClaimJobOptions = {
 export const isCriticalJobType = (jobType: string): boolean =>
   (CRITICAL_JOB_TYPES as readonly string[]).includes(jobType);
 
-export const getDeprioritizedJobType = (
+export const getCriticalJobTypeOrder = (
   lastJobType: string | null,
   sameTypeStreak: number,
   burst: number,
-): string | undefined => lastJobType !== null && sameTypeStreak >= burst ? lastJobType : undefined;
+): readonly string[] | undefined => {
+  if (lastJobType === null || sameTypeStreak < burst) return undefined;
+  const lastJobTypeIndex = CRITICAL_JOB_TYPES.findIndex((jobType) => jobType === lastJobType);
+  if (lastJobTypeIndex < 0) return undefined;
+  return [
+    ...CRITICAL_JOB_TYPES.slice(lastJobTypeIndex + 1),
+    ...CRITICAL_JOB_TYPES.slice(0, lastJobTypeIndex + 1),
+  ];
+};
 
 export const shouldReuseCompletedJob = (
   status: string | null | undefined,
@@ -302,14 +310,19 @@ export async function claimNextJob(workerId: string, options: ClaimJobOptions = 
           )
       )`);
 
+      const typeOrder = options.typeOrder?.length
+        ? sql`CASE ${jobs.type} ${sql.join(
+            options.typeOrder.map((type, index) => sql`WHEN ${type} THEN ${index}`),
+            sql` `,
+          )} ELSE ${options.typeOrder.length} END ASC`
+        : undefined;
+
       return tx
         .select()
         .from(jobs)
         .where(and(...conditions))
         .orderBy(
-          ...(options.deprioritizeType
-            ? [sql`CASE WHEN ${jobs.type} = ${options.deprioritizeType} THEN 1 ELSE 0 END ASC`]
-            : []),
+          ...(typeOrder ? [typeOrder] : []),
           sql`(
             GREATEST(
               ${jobs.priority},

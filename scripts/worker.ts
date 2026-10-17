@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { settings } from "@/lib/config";
 import { processNextJob, cleanupExpiredTenders, cleanupExpiredUsTenders, recoverIncompleteTenderPipelines } from "@/lib/pipeline";
-import { enqueueJob, getDeprioritizedJobType, isCriticalJobType, PUBLIC_CONTINUATION_PRIORITY, reapStaleJobs, sanitizeErrorMessage, type JobLane } from "@/lib/queue";
+import { enqueueJob, getCriticalJobTypeOrder, isCriticalJobType, PUBLIC_CONTINUATION_PRIORITY, reapStaleJobs, sanitizeErrorMessage, type JobLane } from "@/lib/queue";
 import { serializeSourceItems } from "@/lib/tender-sources";
 import { buildPublicContinuationJobKey, shouldRetryFailedPublicFullRun, shouldSchedulePublicContinuation, shouldWaitForPublicContinuations } from "@/lib/public-pagination";
 import { JOB_CRAWL, JOB_SCRAPE_PUBLIC, JOB_SCRAPE_US, type JsonValue } from "@/lib/types";
@@ -356,7 +356,7 @@ const runWorkerLoop = async (workerId: string): Promise<void> => {
     try {
       result = await processNextJob(workerId, {
         lane,
-        deprioritizeType: getDeprioritizedJobType(lastCriticalType, criticalTypeStreak, criticalTypeBurst),
+        typeOrder: getCriticalJobTypeOrder(lastCriticalType, criticalTypeStreak, criticalTypeBurst),
         terminateOnTimeout: true,
       });
     } catch (error) {

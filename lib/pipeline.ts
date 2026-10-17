@@ -5235,7 +5235,7 @@ export const processNextJob = async (workerId: string, options: ProcessJobOption
   const attemptWorkerId = `${workerId}:${randomUUID()}`;
   const job = await claimNextJob(attemptWorkerId, {
     lane: options.lane,
-    deprioritizeType: options.deprioritizeType,
+    typeOrder: options.typeOrder,
     enforceRuntimeTimeout: options.terminateOnTimeout ?? false,
   });
   if (!job) {
