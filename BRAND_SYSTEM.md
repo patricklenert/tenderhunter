@@ -1,7 +1,7 @@
 # Tenderhunter Brand System
 
 Status: active
-Last updated: 2026-10-10
+Last updated: 2026-10-17
 
 This is the product-wide source of truth for Tenderhunter's brand behavior. Campaign production tasks remain in `marketing/backlog.md`; product brand decisions and follow-up work belong in `BRAND_BACKLOG.md`.
 
@@ -16,13 +16,13 @@ Tenderhunter is the intelligent public-procurement scout for German Mittelstand 
 
 ## Visual Language
 
-The product is a quiet working tool for bid and business-development teams. Use off-white surfaces, slate text, restrained borders, controlled radii, and one clear signal color. Navy establishes trust and orientation; coral marks action and brand presence. Green means a positive match, amber means a deadline or warning, and red means a real error.
+The product is a quiet working tool for bid and business-development teams. Use off-white surfaces, slate text, restrained borders, controlled radii, and one clear signal color. Navy establishes trust and orientation; coral marks brand presence, with a darker coral shade for filled actions. Green means a positive match, amber means a deadline or warning, and red means a real error.
 
 Do not use weapon, target, camouflage, militaristic, neon, cyber, glass, decorative gradient, or cartoon language in the product UI. Radar and scan references should be sparse and functional.
 
 ## Semantic Tokens
 
-The implementation lives in `app/globals.css` for Tailwind, `lib/brand-tokens.ts` for shared public values, and `lib/theme.ts` for MUI. Keep the Tailwind theme static so CSS variables referenced directly by global rules and components are emitted even when no utility class requests them. The shared MUI app-router wrapper is `components/ThemeRegistry.tsx`; keep `AppRouterCacheProvider` above MUI surfaces so Emotion styles are emitted to `<head>` during server rendering and the initial client render stays aligned. Prefer these names over raw values or generic color aliases in new product work.
+The implementation lives in `app/globals.css` for Tailwind, `lib/brand-tokens.ts` for shared public values, and `lib/theme.ts` for MUI. Matching semantic colors in those files must stay aligned; `npm run test:brand-tokens` checks their parity and contrast. `action-primary` uses a darker signal shade so white action labels meet WCAG AA; `brand-signal` remains the brighter identity color, and `brand-signal-dark` supports hover and readable text on tinted signal surfaces. Keep the Tailwind theme static so CSS variables referenced directly by global rules and components are emitted even when no utility class requests them. The shared MUI app-router wrapper is `components/ThemeRegistry.tsx`; keep `AppRouterCacheProvider` above MUI surfaces so Emotion styles are emitted to `<head>` during server rendering and the initial client render stays aligned. Prefer these names over raw values or generic color aliases in new product work.
 
 | Token | Role |
 | --- | --- |
@@ -39,6 +39,8 @@ The implementation lives in `app/globals.css` for Tailwind, `lib/brand-tokens.ts
 | `status-success` | Positive result or strong match |
 | `status-warning` | Deadline, caution, or pending state |
 | `status-danger` | Actual error or destructive state |
+| `status-info` | Neutral information or in-progress state |
+| `brand-signal-dark` | High-contrast signal text and interaction state |
 | `fit-high`, `fit-medium`, `fit-low` | Match confidence levels |
 
 Legacy aliases remain available while existing surfaces migrate. New code should use the semantic names directly.

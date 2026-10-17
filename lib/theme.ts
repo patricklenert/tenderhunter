@@ -9,7 +9,7 @@ const theme = createTheme({
   palette: {
     mode: "light",
     primary: {
-      main: colors.brandSignal,
+      main: colors.actionPrimary,
       light: colors.brandSignalSoft,
       dark: colors.brandSignalDark,
       contrastText: colors.onBrand,

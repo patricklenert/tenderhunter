@@ -30,6 +30,7 @@
     "test:us-market": "tsx scripts/test-us-market.ts",
     "test:us-tender-meta": "tsx scripts/test-us-tender-meta.ts",
     "test:billing": "tsx scripts/test-billing.ts",
+    "test:brand-tokens": "tsx scripts/test-brand-tokens.ts",
     "test:today-new": "tsx scripts/test-today-new.ts",
     "test:deadline-filters": "tsx scripts/test-deadline-filters.ts",
     "test:bid-pack": "tsx scripts/test-bid-pack.ts",

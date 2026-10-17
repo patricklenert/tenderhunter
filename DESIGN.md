@@ -21,10 +21,18 @@ Restrained: getoente Neutrale plus eine klare Akzentfarbe. Statusfarben erschein
 - Text primary: `oklch(27.5% 0.028 240)`
 - Text muted: `oklch(45.3% 0.022 240)`
 - Border: `oklch(84% 0.012 236)`
-- Accent: `oklch(58% 0.13 35)`
-- Accent soft: `oklch(92.8% 0.034 35)`
-- Success: `oklch(58% 0.12 152)`
-- Risk: `oklch(56.2% 0.18 25)`
+- Brand navy: `oklch(31.5% 0.08 252)`
+- Brand signal: `oklch(58% 0.13 35)`
+- Brand signal soft: `oklch(92.8% 0.034 35)`
+- Brand signal dark: `oklch(51.6684% 0.126553 31.10595)`
+- Primary action: `oklch(56.6228% 0.13084 33.62389)`
+- Secondary action: `oklch(31.5% 0.08 252)`
+- Success: `oklch(50% 0.12 152)`
+- Warning: `oklch(52.9456% 0.117582 63.3553)`
+- Danger: `oklch(49% 0.18 25)`
+- Info: `oklch(49.52% 0.036 248.56)`
+
+The Tailwind tokens in `app/globals.css` and the shared MUI/public values in `lib/brand-tokens.ts` mirror the same semantic colors. Keep that parity covered by `npm run test:brand-tokens`. The brighter brand signal is for the mark and identity cues; filled primary actions use the darker signal shade so white labels meet WCAG AA.
 
 ## Typography
 
