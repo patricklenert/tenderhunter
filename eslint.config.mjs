@@ -11,6 +11,10 @@ export default defineConfig([
     "graphify-out/**",
   ]),
   {
+    plugins: {
+      react: nextVitals[0].plugins.react,
+      "react-hooks": nextVitals[0].plugins["react-hooks"],
+    },
     rules: {
       "@typescript-eslint/no-explicit-any": "warn",
       "@typescript-eslint/no-require-imports": "warn",
