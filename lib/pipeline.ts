@@ -287,6 +287,23 @@ export const pipelineVersionPayload = (payload: unknown): Record<string, JsonVal
 export const isCurrentPipelineVersion = (payload: unknown, currentVersion: number): boolean =>
   pipelineVersionFromPayload(payload) === currentVersion;
 
+export const isPipelineJobCompatibleWithVersion = (payload: unknown, currentVersion: number): boolean => {
+  const jobVersion = pipelineVersionFromPayload(payload);
+  // Legacy jobs without a version read the current tender row when they run.
+  return jobVersion === null || jobVersion === currentVersion;
+};
+
+export const buildTenderStageJobKey = (
+  jobType: JobType,
+  tenderId: number,
+  pipelineVersion: number,
+  keySuffix?: string,
+): string => buildJobKey(
+  jobType,
+  tenderId,
+  `v${pipelineVersion}${keySuffix ? `:${keySuffix}` : ""}`,
+);
+
 const scoringInputSignature = (value: Record<string, unknown>): string => {
   const hardFacts = value.hard_facts as Record<string, unknown> | undefined;
   const decisionRelevant = value.decision_relevant as Record<string, unknown> | undefined;
@@ -904,11 +921,12 @@ const queueTenderStage = async (
   keySuffix?: string,
 ): Promise<number> => {
   const tender = await getTender(tenderId);
+  const pipelineVersion = pipelineVersionFromPayload(payload) ?? tender.version;
   return enqueueJob(
     jobType,
-    { tender_id: tenderId, ...payload, pipeline_version: pipelineVersionFromPayload(payload) ?? tender.version },
+    { tender_id: tenderId, ...payload, pipeline_version: pipelineVersion },
     {
-      jobKey: buildJobKey(jobType, tenderId, keySuffix),
+      jobKey: buildTenderStageJobKey(jobType, tenderId, pipelineVersion, keySuffix),
       groupKey: buildTenderPipelineGroupKey(tenderId),
       // A completed stage only describes the input generation it processed.
       // Active jobs are still coalesced by jobKey, but a later fetch or
@@ -925,10 +943,8 @@ const queueTenderProcessing = async (tenderId: number, retryKey?: string): Promi
   const baseJobKey = buildFetchDocumentsJobKey(tenderId, resourceFingerprint, tender.version);
   const jobKey = retryKey ? `${baseJobKey}:retry-${retryKey}` : baseJobKey;
 
-  // Resource/version keys detect changed work, but repeated updates can leave
-  // several pending fetches for the same tender. Fetching reads the current
-  // tender row, so keep one pending job and let newer work follow an older
-  // running attempt.
+  // Resource/version keys detect changed work. Coalesce pending jobs for the
+  // current generation, but let newer work follow an older running attempt.
   const activeFetchJobs = await db
     .select({ id: jobs.id, status: jobs.status, payload: jobs.payload })
     .from(jobs)
@@ -940,9 +956,14 @@ const queueTenderProcessing = async (tenderId: number, retryKey?: string): Promi
     .orderBy(sql`${jobs.id} DESC`);
   const runningFetch = activeFetchJobs.find((job) => job.status === "running");
   const pendingFetches = activeFetchJobs.filter((job) => job.status === "pending");
-  // Keep the newest pending generation even when an older attempt is running;
-  // that pending job reads the current tender row when it starts.
-  const redundantPendingIds = pendingFetches.slice(1).map((job) => job.id);
+  // Reuse only a pending job for this tender version (or a legacy job without
+  // a version, which reads the current row). Older versioned jobs will skip.
+  const currentPendingFetch = pendingFetches.find((job) =>
+    isPipelineJobCompatibleWithVersion(job.payload, tender.version),
+  );
+  const redundantPendingIds = pendingFetches
+    .filter((job) => job.id !== currentPendingFetch?.id)
+    .map((job) => job.id);
   if (redundantPendingIds.length > 0) {
     // Re-check the status so a worker claiming between the read and delete is
     // never removed together with its attempt history.
@@ -952,11 +973,9 @@ const queueTenderProcessing = async (tenderId: number, retryKey?: string): Promi
     ));
   }
 
-  if (pendingFetches.length > 0) return;
+  if (currentPendingFetch) return;
   if (runningFetch) {
-    const runningPayload = runningFetch.payload as Record<string, JsonValue>;
-    const runningVersion = Number(runningPayload.pipeline_version ?? 0);
-    if (!Number.isFinite(runningVersion) || runningVersion >= tender.version) return;
+    if (isPipelineJobCompatibleWithVersion(runningFetch.payload, tender.version)) return;
   }
 
   await enqueueJob(

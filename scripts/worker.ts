@@ -256,7 +256,12 @@ const initialize = async (): Promise<void> => {
     console.warn("[reaper] Fehler beim Aufräumen stale Jobs:", error);
   }
 
-  await enqueueUsScrapeIfDue();
+  try {
+    await enqueueUsScrapeIfDue();
+  } catch (error) {
+    const message = sanitizeErrorMessage(error instanceof Error ? error.message : "Unbekannter Fehler");
+    console.warn(`[scheduler] US-Scrape-Check beim Start fehlgeschlagen: ${message}`);
+  }
   await enqueuePublicContinuationsIfNeeded();
 
   // Cleanup expired tenders on startup
@@ -340,13 +345,23 @@ const runWorkerLoop = async (workerId: string): Promise<void> => {
   while (true) {
     if (Date.now() - lastUsScheduleCheckAt >= US_SCHEDULE_CHECK_MS) {
       lastUsScheduleCheckAt = Date.now();
-      await enqueueUsScrapeIfDue();
+      try {
+        await enqueueUsScrapeIfDue();
+      } catch (error) {
+        const message = sanitizeErrorMessage(error instanceof Error ? error.message : "Unbekannter Fehler");
+        console.warn(`[scheduler] US-Scrape-Check fehlgeschlagen: ${message}`);
+      }
     }
 
     if (Date.now() - lastPublicScheduleCheckAt >= PUBLIC_SCHEDULE_CHECK_MS) {
       lastPublicScheduleCheckAt = Date.now();
       await enqueuePublicContinuationsIfNeeded();
-      await enqueuePublicScrapeIfDue();
+      try {
+        await enqueuePublicScrapeIfDue();
+      } catch (error) {
+        const message = sanitizeErrorMessage(error instanceof Error ? error.message : "Unbekannter Fehler");
+        console.warn(`[scheduler] Public-Scrape-Check fehlgeschlagen: ${message}`);
+      }
     }
 
     const lane: JobLane = criticalStreak < criticalBurst ? "critical" : "background";

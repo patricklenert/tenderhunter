@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import {
+  buildTenderStageJobKey,
   buildFetchDocumentsJobKey,
   buildResourceFingerprint,
   hasResourceSnapshotChanged,
@@ -25,6 +26,7 @@ import {
   mergeUsTenderMetadata,
   pipelineVersionPayload,
   isCurrentPipelineVersion,
+  isPipelineJobCompatibleWithVersion,
   type ResourceCandidateRecord,
 } from "../lib/pipeline";
 import { ColdStorageError } from "../lib/object-store-cold";
@@ -47,6 +49,14 @@ assert.deepEqual(
 assert.deepEqual(pipelineVersionPayload({ pipeline_version: 0 }), {}, "invalid generations are not propagated");
 assert.equal(isCurrentPipelineVersion({ pipeline_version: "7" }, 7), true, "numeric generation strings compare correctly");
 assert.equal(isCurrentPipelineVersion({ pipeline_version: 6 }, 7), false, "stale generations are rejected");
+assert.equal(isPipelineJobCompatibleWithVersion({ pipeline_version: 7 }, 7), true, "current fetch jobs may be reused");
+assert.equal(isPipelineJobCompatibleWithVersion({ pipeline_version: 6 }, 7), false, "stale pending fetch jobs must not suppress the current generation");
+assert.equal(isPipelineJobCompatibleWithVersion({}, 7), true, "legacy unversioned fetch jobs read the current tender row");
+assert.notEqual(
+  buildTenderStageJobKey("parse_documents", 42, 6),
+  buildTenderStageJobKey("parse_documents", 42, 7),
+  "analysis stages from different tender versions must not share an active job key",
+);
 assert.equal(
   hasResourceSnapshotChanged(
     "https://example.test/tender/1",
