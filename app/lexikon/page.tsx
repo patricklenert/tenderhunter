@@ -112,6 +112,9 @@ export default function LexikonHubPage() {
                   <Chip clickable label={item.label} variant="outlined" sx={{ fontWeight: 500 }} />
                 </Link>
               ))}
+              <Link href="/wissen/vob-vergabe" style={{ textDecoration: "none" }}>
+                <Chip clickable label="VOB-Vergabe: Ratgeber für Bieter" variant="outlined" sx={{ fontWeight: 500 }} />
+              </Link>
             </Stack>
           </Paper>
 

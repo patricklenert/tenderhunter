@@ -135,6 +135,25 @@ for (const slug of ["vob-b", "vob-c", "vob-a-eu"]) {
   }
 }
 
+const vobAEu = GLOSSARY_MAP["vob-a-eu"];
+if (!vobAEu?.definition.some((paragraph) => paragraph.includes("5.404.000 Euro netto") && paragraph.includes("2026 und 2027"))) {
+  errors.push("vob-a-eu.definition -> missing qualified 2026/2027 construction threshold");
+}
+if (!vobAEu?.faq.some((item) => item.question === "Welcher EU-Schwellenwert gilt für Bauaufträge?")) {
+  errors.push("vob-a-eu.faq -> missing scoped construction-threshold question");
+}
+if (!vobAEu?.sources?.some((source) => source.url === "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32025R2152")) {
+  errors.push("vob-a-eu.sources -> missing primary 2026/2027 thresholds regulation");
+}
+for (const slug of ["offenes-verfahren", "beschraenktes-verfahren"]) {
+  if (!vobAEu?.relatedTerms?.includes(slug)) {
+    errors.push(`vob-a-eu.relatedTerms -> missing relevant procedure link: ${slug}`);
+  }
+  if (!GLOSSARY_MAP[slug]?.relatedTerms?.includes("vob-a-eu")) {
+    errors.push(`${slug}.relatedTerms -> missing reciprocal VOB/A EU link`);
+  }
+}
+
 for (const [slug, target] of [["vob-b", "nachunternehmer"], ["nachunternehmer", "vob-b"], ["auftragswert", "vob-a"]]) {
   if (!GLOSSARY_MAP[slug]?.relatedTerms?.includes(target)) {
     errors.push(`${slug}.relatedTerms -> missing relevant cluster link: ${target}`);
