@@ -732,15 +732,34 @@ export const groundPublicTenderFields = <T extends Record<string, unknown>>(fiel
     if (value !== null && value !== undefined
       && (typeof value !== "string" || !isSourceBackedPublicValue(value, sourceText, field))) {
       grounded[key] = emptyValue;
+      continue;
     }
+
+    if (typeof value !== "string") continue;
+    const normalized = key === "client"
+      ? normalizePublicClient(value)
+      : key === "procedure"
+        ? normalizePublicProcedureCandidate(value)
+        : key === "location"
+          ? pickValidatedPublicLocationForTender(grounded.title, grounded.client, value)
+          : normalizePublicDisplayCandidate(value);
+    grounded[key] = normalized || emptyValue;
   }
-  for (const key of ["requirements", "awardCriteria", "cpvCodes", "pdfUrls"]) {
+  for (const key of ["requirements", "awardCriteria", "cpvCodes"]) {
     const value = grounded[key];
     if (Array.isArray(value)) {
-      grounded[key] = value.filter((item) =>
-        typeof item === "string" && isSourceBackedPublicValue(item, sourceText),
-      );
+      grounded[key] = value.flatMap((item) => {
+        if (typeof item !== "string" || !isSourceBackedPublicValue(item, sourceText)) return [];
+        const normalized = normalizePublicDisplayCandidate(item);
+        return normalized ? [normalized] : [];
+      });
     }
+  }
+  const pdfUrls = grounded.pdfUrls;
+  if (Array.isArray(pdfUrls)) {
+    grounded.pdfUrls = pdfUrls.filter((item) =>
+      typeof item === "string" && isSourceBackedPublicValue(item, sourceText),
+    );
   }
   return grounded as T;
 };

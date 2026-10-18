@@ -120,6 +120,9 @@ if (normalizePublicDisplayCandidate("Öffentliche Ausschreibung für Kl&#228;ran
 if (normalizePublicDisplayCandidate("&Uuml;berarbeitung der Au&szlig;enanlagen") !== "Überarbeitung der Außenanlagen") {
   throw new Error("Benannte HTML-Entitäten wurden nicht vollständig dekodiert");
 }
+if (normalizePublicDisplayCandidate("Die st�dtischen Gebäude werden saniert.") !== "Die städtischen Gebäude werden saniert.") {
+  throw new Error("Bekannte deutsche Mojibake-Sequenz wurde nicht repariert");
+}
 if (!isPdfFormBoilerplate("VHB-Bund-Ausgabe 2019 Eigenerklärung zur Eignung und rechtsverbindliche Unterschrift")) {
   throw new Error("PDF-Formularboilerplate wurde nicht erkannt");
 }
@@ -777,6 +780,25 @@ if (unsupportedFacts.title !== ""
   || unsupportedFacts.location !== null
   || JSON.stringify(unsupportedFacts.requirements) !== "[]") {
   throw new Error("Nicht belegte LLM-Fakten wurden nicht sicher in leere Werte zurückgewiesen");
+}
+const portalNoise = "SERVICE.BUND.DEHaupt-Navigations-MenüMeta-NavigationAndere Ausschreibungen im Bereich";
+const groundedPortalNoise = groundPublicTenderFields({
+  title: "Lieferung von Schulungsmaterial für Schulen",
+  description: portalNoise,
+  scope: "## Bekanntmachung",
+  location: "##",
+  requirements: [
+    "Meta-Navigation",
+    "Anmelden erforderlich, um Zugriff zu erhalten",
+    "VHB-Bund-Ausgabe 2019 Eigenerklärung zur Eignung und rechtsverbindliche Unterschrift",
+    "Lieferung von Schulungsmaterial für Schulen.",
+  ],
+}, `${groundedSource}\nLeistungsort: ##\n${portalNoise}\nAnmelden erforderlich, um Zugriff zu erhalten\nVHB-Bund-Ausgabe 2019 Eigenerklärung zur Eignung und rechtsverbindliche Unterschrift`);
+if (groundedPortalNoise.description !== ""
+  || groundedPortalNoise.scope !== ""
+  || groundedPortalNoise.location !== null
+  || JSON.stringify(groundedPortalNoise.requirements) !== JSON.stringify(["Lieferung von Schulungsmaterial für Schulen."])) {
+  throw new Error("Quellgestützte Navigation/Boilerplate wurde vor der Persistierung nicht aus LLM-Feldern entfernt");
 }
 const unsafeCanonicalHints = [
   "SERVICE.BUND.DE - Aktuelle Ausschreibungen",

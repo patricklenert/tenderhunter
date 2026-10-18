@@ -185,6 +185,88 @@ assert.deepEqual({
 assert.ok(isCanonicalPublicDescriptionMarkdown(accessFixtureFallback.descriptionMarkdown));
 assert.equal(projectedMeiliAccessHit.description, accessFixtureFallback.description);
 
+// A non-null but invalid metadata description must not shadow valid structured
+// prose in the index, list/detail projection, or modal's shared projection.
+const qualityFixtureTitle = "Energetische Sanierung der Grundschule Mainz";
+const qualityFixtureSummary = "Die Grundschule erhält eine neue Heizungsanlage und eine verbesserte Wärmedämmung.";
+const invalidPortalSummary = "SERVICE.BUND.DE Haupt-Navigations-Menü Meta-Navigation Andere Ausschreibungen im Bereich";
+const qualityFixtureMetadata = { description: invalidPortalSummary, location: "##", client: "Stadt Mainz" };
+const qualityFixtureStructured = {
+  summary: qualityFixtureSummary,
+  hard_facts: { buyer: "Stadt Mainz", location: "55116 Mainz" },
+  decision_relevant: { scope: ["Energetische Sanierung der Grundschule"] },
+};
+const qualityFixtureNormalized = normalizeStructured(qualityFixtureStructured, qualityFixtureTitle);
+const qualityFixtureList = projectPublicTenderRecord({
+  title: qualityFixtureTitle,
+  metadata: qualityFixtureMetadata,
+  structured: qualityFixtureNormalized,
+});
+const qualityFixtureDetail = projectPublicTenderDetailFallback({
+  title: qualityFixtureTitle,
+  metadataJson: qualityFixtureMetadata,
+  staleStructuredJson: qualityFixtureStructured,
+  fallbackFacts: {},
+}).display;
+const qualityFixtureModal = projectPublicDisplayFields({
+  title: qualityFixtureDetail.title,
+  client: qualityFixtureDetail.client,
+  location: qualityFixtureDetail.location,
+  summary: qualityFixtureDetail.description,
+});
+const qualityFixtureIndex = buildTenderIndexDocument({
+  id: 907,
+  title: qualityFixtureTitle,
+  source: "dtvp",
+  sourceKey: "dtvp",
+  url: "https://example.test/tender/907",
+  deadlineAt: null,
+  firstSeenAt: null,
+  category: "Bauarbeiten",
+  metadataJson: qualityFixtureMetadata,
+  structuredJson: qualityFixtureStructured,
+  rawText: qualityFixtureSummary,
+  contractValueMax: null,
+  slug: null,
+  readinessStatus: "pending",
+});
+const qualityFixtureSearchHit = projectTenderSearchHit(qualityFixtureIndex, {
+  title: qualityFixtureTitle,
+  source: "dtvp",
+  url: "https://example.test/tender/907",
+  metadataJson: qualityFixtureMetadata,
+  structuredJson: qualityFixtureStructured,
+  rawText: qualityFixtureSummary,
+});
+const publicFields = (projection: {
+  title: string | null;
+  client: string | null;
+  location: string | null;
+  description: string | null;
+}) => ({
+  title: projection.title,
+  client: projection.client,
+  location: projection.location,
+  description: projection.description,
+});
+const qualityFixtureExpected = publicFields(qualityFixtureList);
+assert.equal(qualityFixtureExpected.location, "55116 Mainz");
+assert.equal(qualityFixtureExpected.description, qualityFixtureSummary);
+assert.deepEqual(publicFields(qualityFixtureDetail), qualityFixtureExpected);
+assert.deepEqual(publicFields(qualityFixtureModal), qualityFixtureExpected);
+assert.deepEqual(publicFields(qualityFixtureIndex), qualityFixtureExpected);
+assert.deepEqual(publicFields(qualityFixtureSearchHit), qualityFixtureExpected);
+assert.equal(normalizePublicDisplayCandidate("- Verfahren - - - Lose - Ergebnisse - Verträge - - - -"), null);
+assert.equal(normalizePublicDisplayCandidate("## Bekanntmachung"), null);
+assert.equal(
+  projectPublicDisplayFields({
+    location: ["##", "55116 Mainz"],
+    summary: ["- Verfahren - - - Lose - Ergebnisse - Verträge - - - -", qualityFixtureSummary],
+  }).description,
+  qualityFixtureSummary,
+  "invalid first candidates must not block a valid later fallback",
+);
+
 // Parsed public location facts must have the same fallback on list/index and
 // detail surfaces, even when the explicit location field is an artifact.
 const parsedLocationFallback = buildPublicAccessLimitedDescription(accessFixtureTitle, {
