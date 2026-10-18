@@ -502,6 +502,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
   });
   const client = display.client || "";
   const location = display.location || "";
+  const displayLocation = location || "–";
   const description = display.description || "";
   const contactInfo = "";
   const estimatedValue = pickFirstClean(hardFacts.budget);
@@ -877,14 +878,12 @@ export default async function TenderDetailPage({ params }: PageProps) {
                     </Typography>
                   </Stack>
                 )}
-                {location && (
-                  <Stack direction="row" spacing={0.65} alignItems="center" sx={{ minWidth: 0 }}>
-                    <MapPin size={16} color="var(--color-text-secondary)" aria-hidden="true" />
-                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600, overflowWrap: "anywhere" }}>
-                      {location}
-                    </Typography>
-                  </Stack>
-                )}
+                <Stack direction="row" spacing={0.65} alignItems="center" sx={{ minWidth: 0 }}>
+                  <MapPin size={16} color="var(--color-text-secondary)" aria-hidden="true" />
+                  <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600, overflowWrap: "anywhere" }}>
+                    {displayLocation}
+                  </Typography>
+                </Stack>
                 {deadline && (
                   <Stack direction="row" spacing={0.65} alignItems="center">
                     <Calendar size={16} color="var(--color-status-warning)" aria-hidden="true" />

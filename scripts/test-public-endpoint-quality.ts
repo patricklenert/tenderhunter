@@ -267,6 +267,67 @@ assert.equal(
   "invalid first candidates must not block a valid later fallback",
 );
 
+// A source portal's Bundesland is not evidence of the tender's performance
+// location and must not leak into the list/modal display as one.
+const portalRegionOnlyTitle = "Rahmenzeitvertragsarbeiten 2027 - 2030";
+const portalRegionOnlySummary = "Instandhaltungsarbeiten an Gebäuden und technischen Anlagen.";
+const portalRegionOnlyMetadata = { description: portalRegionOnlySummary, location: "##" };
+const portalRegionOnlyStructured = { summary: portalRegionOnlySummary, hard_facts: { location: "##" } };
+const portalRegionOnlyIndex = buildTenderIndexDocument({
+  id: 906,
+  title: portalRegionOnlyTitle,
+  source: "brandenburg",
+  sourceKey: "brandenburg",
+  url: "https://example.test/tender/906",
+  deadlineAt: null,
+  firstSeenAt: null,
+  category: "Bauarbeiten",
+  metadataJson: portalRegionOnlyMetadata,
+  structuredJson: portalRegionOnlyStructured,
+  rawText: portalRegionOnlySummary,
+  contractValueMax: null,
+  slug: null,
+  readinessStatus: "partial",
+});
+const portalRegionOnlySearchHit = projectTenderSearchHit(portalRegionOnlyIndex, {
+  title: portalRegionOnlyTitle,
+  source: "brandenburg",
+  url: "https://example.test/tender/906",
+  metadataJson: portalRegionOnlyMetadata,
+  structuredJson: portalRegionOnlyStructured,
+  rawText: portalRegionOnlySummary,
+});
+const portalRegionOnlyDetail = projectPublicTenderDetailFallback({
+  title: portalRegionOnlyTitle,
+  metadataJson: portalRegionOnlyMetadata,
+  staleStructuredJson: portalRegionOnlyStructured,
+  source: "brandenburg",
+  sourceUrl: "https://example.test/tender/906",
+  fallbackFacts: {},
+});
+const portalRegionOnlyList = projectPublicDisplayFields({
+  title: portalRegionOnlySearchHit.title,
+  client: portalRegionOnlySearchHit.client,
+  location: portalRegionOnlySearchHit.location,
+  summary: portalRegionOnlySearchHit.description,
+});
+const portalRegionOnlyModal = projectPublicDisplayFields({
+  title: portalRegionOnlyDetail.display.title,
+  client: portalRegionOnlyDetail.display.client,
+  location: [portalRegionOnlyDetail.display.location, portalRegionOnlySearchHit.location],
+  summary: portalRegionOnlyDetail.display.description,
+});
+const portalRegionOnlySsr = projectPublicTenderRecord({
+  title: portalRegionOnlyTitle,
+  metadata: portalRegionOnlyMetadata,
+  structured: normalizeStructured(portalRegionOnlyStructured, portalRegionOnlyTitle),
+});
+assert.equal(portalRegionOnlyIndex.bundesland, "Brandenburg");
+assert.equal(portalRegionOnlySearchHit.location, "");
+assert.equal(portalRegionOnlyList.location, null);
+assert.equal(portalRegionOnlyModal.location, null);
+assert.equal(portalRegionOnlySsr.location, null);
+
 // Parsed public location facts must have the same fallback on list/index and
 // detail surfaces, even when the explicit location field is an artifact.
 const parsedLocationFallback = buildPublicAccessLimitedDescription(accessFixtureTitle, {
@@ -651,6 +712,13 @@ assert.match(detailRouteSource, /resolvePublicTenderDisplayFacts\(/);
 assert.match(ssrPageSource, /getPublicAccessLimitedFallback/);
 assert.match(ssrPageSource, /resolvePublicTenderDisplayFacts\(/);
 assert.match(detailModalSource, /projectPublicDisplayFields/);
+assert.match(detailModalSource, /location:\s*tender\.location,/);
+assert.match(detailModalSource, /location:\s*\[d\.location,\s*t\.location\]/);
+assert.doesNotMatch(detailModalSource, /location:\s*\[tender\.location,\s*tender\.city,\s*tender\.bundesland\]/);
+assert.doesNotMatch(detailModalSource, /location:\s*\[d\.location,\s*t\.location,\s*t\.city,\s*t\.bundesland\]/);
+assert.match(detailModalSource, /const displayLocation = display\.location \?\? "–";/);
+assert.match(detailModalSource, /const location = display\.location \?\? "–";/);
+assert.match(ssrPageSource, /const displayLocation = location \|\| "–";/);
 assert.match(searchRouteSource, /searchTenders\(/);
 assert.match(pipelineSource, /parseDeadlineDate\(tender\.deadline\)/);
 

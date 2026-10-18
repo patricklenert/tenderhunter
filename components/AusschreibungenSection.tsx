@@ -105,7 +105,7 @@ interface ApiTender {
 const projectTenderDisplay = (tender: ApiTender) => projectPublicDisplayFields({
   title: tender.title,
   client: tender.client,
-  location: [tender.location, tender.city, tender.bundesland],
+  location: tender.location,
   summary: tender.description,
 });
 
@@ -1120,13 +1120,13 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
             const display = projectPublicDisplayFields({
               title: t.title,
               client: [d.client, t.client],
-              location: [d.location, t.location, t.city, t.bundesland],
+              location: [d.location, t.location],
               summary: [d.summary, d.description, t.description],
               descriptionMarkdown: d.descriptionMarkdown,
             });
             const title = display.title ?? "";
             const client = display.client ?? "";
-            const location = display.location ?? "";
+            const location = display.location ?? "–";
             const deadline = pickValidatedPublicCandidate(d.deadline, t.deadline);
             const deadlineISO = pickValidatedPublicCandidate(d.deadlineISO, t.deadlineISO);
             const description = display.description ?? "";
@@ -1252,16 +1252,14 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                       </Typography>
                     </Box>
                   )}
-                  {location && (
-                    <Box>
-                      <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 0.5, lineHeight: 1.2, color: "text.secondary", fontSize: "0.75rem" }}>
-                        Standort
-                      </Typography>
-                      <Typography variant="h6" fontWeight={600} sx={{ fontSize: "1rem", lineHeight: 1.3, color: "text.primary" }}>
-                        {location}
-                      </Typography>
-                    </Box>
-                  )}
+                  <Box>
+                    <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 0.5, lineHeight: 1.2, color: "text.secondary", fontSize: "0.75rem" }}>
+                      Standort
+                    </Typography>
+                    <Typography variant="h6" fontWeight={600} sx={{ fontSize: "1rem", lineHeight: 1.3, color: "text.primary" }}>
+                      {location}
+                    </Typography>
+                  </Box>
                   {procedure && (
                     <Box>
                       <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 0.5, lineHeight: 1.2, color: "text.secondary", fontSize: "0.75rem" }}>
@@ -1528,7 +1526,7 @@ function TenderCard({ tender, onDetailClick, distance }: { tender: ApiTender; on
   const title = display.title ?? "–";
   const client = display.client ?? "–";
   const description = display.description ?? "–";
-  const displayLocation = display.location ?? "";
+  const displayLocation = display.location ?? "–";
   const smallVendor = tender.smallVendor;
   const smallVendorHighlight = Boolean(smallVendor && smallVendor.fit >= 75);
 
@@ -1651,12 +1649,10 @@ function TenderCard({ tender, onDetailClick, distance }: { tender: ApiTender; on
               </Typography>
             </Box>
           )}
-          {displayLocation && (
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-              <MapPin size={18} style={{ opacity: 0.5 }} />
-              <Typography variant="body2" sx={{ color: "text.secondary", fontSize: "0.8125rem" }}>{displayLocation}</Typography>
-            </Box>
-          )}
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+            <MapPin size={18} style={{ opacity: 0.5 }} />
+            <Typography variant="body2" sx={{ color: "text.secondary", fontSize: "0.8125rem" }}>{displayLocation}</Typography>
+          </Box>
           <Box sx={{ ml: { xs: 1, sm: 2 } }}>
             <DeadlineDisplay value={tender.deadlineISO ?? tender.deadline} />
           </Box>
