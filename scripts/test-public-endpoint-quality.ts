@@ -41,6 +41,15 @@ assert.equal(
   normalizePublicDisplayCandidate("Die Unterlagen beschreiben die auszuführenden Bauarbeiten."),
   "Die Unterlagen beschreiben die auszuführenden Bauarbeiten.",
 );
+const serviceBundOfferSubmissionTemplateFragment = "Zugelassene Angebotsabgabe elektronisch in Textform mit fortgeschrittener/m Signatur/Siegel. mit qualifizierter/m Signatur/Siegel. schriftlich; Maßnahmen zum Schutz vertraulicher Informationen: Abgabe Verschwiegenheitserklärung";
+const liveTemplateMarkdown = `- **Anforderungen:** ${serviceBundOfferSubmissionTemplateFragment}`;
+const cleanTenderMarkdown = "- **Leistungsumfang:** Lieferung von Schulungsmaterial an Schulen.\n- **Anforderungen:** Mindestens drei vergleichbare Referenzen sind mit dem Angebot vorzulegen.";
+const liveDetailMarkdownProjection = projectPublicDisplayFields({
+  descriptionMarkdown: [liveTemplateMarkdown, cleanTenderMarkdown],
+});
+assert.equal(normalizePublicDisplayCandidate(serviceBundOfferSubmissionTemplateFragment), null);
+assert.equal(liveDetailMarkdownProjection.descriptionMarkdown, cleanTenderMarkdown);
+assert.doesNotMatch(liveDetailMarkdownProjection.descriptionMarkdown ?? "", /fortgeschrittener\/m|qualifizierter\/m|Verschwiegenheitserklärung/);
 assert.equal(normalizePublicProcedureCandidate("Offenes Verfahren (sangaben)"), "Offenes Verfahren");
 assert.equal(normalizePublicProcedureCandidate("Verhandlungsvergabe mit öffentlichem"), "Verhandlungsvergabe");
 assert.equal(

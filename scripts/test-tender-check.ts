@@ -39,6 +39,7 @@ const structured = {
 };
 
 const serviceBundPdfTemplateFragment = "Auftragsbekanntmachung © Ausgabe 03/2020 Seite 2 von 2 Vergabeunterlagen werden elektronisch zur Verfügung gestellt. Maßnahmen zum Schutz vertraulicher Informationen";
+const serviceBundOfferSubmissionTemplateFragment = "Zugelassene Angebotsabgabe elektronisch in Textform mit fortgeschrittener/m Signatur/Siegel. mit qualifizierter/m Signatur/Siegel. schriftlich; Maßnahmen zum Schutz vertraulicher Informationen: Abgabe Verschwiegenheitserklärung";
 const templateAndTenderDocument: AnalyzedDocument & { filename: string } = {
   id: 105,
   filename: "Bekanntmachung.pdf",
@@ -47,7 +48,7 @@ const templateAndTenderDocument: AnalyzedDocument & { filename: string } = {
   parseStatus: "parsed",
   downloadStatus: "downloaded",
   errorMessage: null,
-  extractedText: `[Seite 1]\nLeistungsumfang: ${serviceBundPdfTemplateFragment}\n[Seite 2]\nAbgabefrist: 30.06.2027, 10:00 Uhr. Leistungsbeschreibung: Wartung der Heizungsanlage an drei Standorten. Mindestanforderung: Mindestens drei vergleichbare Referenzen sind mit dem Angebot vorzulegen. Formblatt 1 ist einzureichen.`,
+  extractedText: `[Seite 1]\nLeistungsumfang: ${serviceBundPdfTemplateFragment}\nAnforderungen: ${serviceBundOfferSubmissionTemplateFragment}\n[Seite 2]\nAbgabefrist: 30.06.2027, 10:00 Uhr. Leistungsbeschreibung: Wartung der Heizungsanlage an drei Standorten. Mindestanforderung: Mindestens drei vergleichbare Referenzen sind mit dem Angebot vorzulegen. Formblatt 1 ist einzureichen.`,
   pageCount: 2,
   roleConfidence: 0.9,
 };
@@ -70,10 +71,11 @@ const filteredTemplateCheck = buildTenderCheck({
   tenderDeadlineAt: null,
   structured: {
     decision_relevant: {
-      mandatory_documents: ["Formblatt 1", serviceBundPdfTemplateFragment, { text: "Ungeprüfte Pflichtunterlage" }, 42],
+      mandatory_documents: ["Formblatt 1", serviceBundPdfTemplateFragment, serviceBundOfferSubmissionTemplateFragment, { text: "Ungeprüfte Pflichtunterlage" }, 42],
       requirements: [
         "Mindestens drei vergleichbare Referenzen sind mit dem Angebot vorzulegen.",
         serviceBundPdfTemplateFragment,
+        serviceBundOfferSubmissionTemplateFragment,
         { text: "Ungeprüfte Anforderung" },
       ],
     },
@@ -84,9 +86,12 @@ const filteredTitles = filteredTemplateCheck.checklist.map((item) => item.title)
 assert.ok(filteredTitles.includes("Formblatt 1"), "a contextually valid standalone form remains a checklist item");
 assert.ok(filteredTitles.includes("Mindestens drei vergleichbare Referenzen sind mit dem Angebot vorzulegen."));
 assert.ok(!filteredTitles.some((item) => item.includes("Auftragsbekanntmachung © Ausgabe 03/2020")));
+assert.ok(!filteredTitles.includes(serviceBundOfferSubmissionTemplateFragment));
 assert.ok(!filteredTitles.includes("Ungeprüfte Pflichtunterlage") && !filteredTitles.includes("Ungeprüfte Anforderung"));
 assert.ok(filteredTemplateCheck.events.some((event) => event.type === "submission" && event.source?.quote.includes("30.06.2027")));
 assert.ok(filteredTemplateCheck.checklist.every((item) => !item.source?.quote.includes("Auftragsbekanntmachung © Ausgabe 03/2020")));
+assert.ok(filteredTemplateCheck.checklist.every((item) => !item.source?.quote.includes(serviceBundOfferSubmissionTemplateFragment)));
+assert.ok(filteredTemplateCheck.checklist.every((item) => !/fortgeschrittener\/m|qualifizierter\/m|Abgabe Verschwiegenheitserklärung/iu.test(item.source?.quote ?? "")));
 
 const quoteOnlyDocument = {
   ...templateAndTenderDocument,
@@ -114,6 +119,33 @@ const unvalidatedEvidenceCheck = buildTenderCheck({
   documentAnalysis: analysisWithUnvalidatedQuote,
 });
 assert.equal(unvalidatedEvidenceCheck.checklist[0]?.source, null, "unvalidated boilerplate quotes cannot become visible evidence");
+
+const offerTemplateQuoteDocument = {
+  ...templateAndTenderDocument,
+  id: 109,
+  extractedText: `[Seite 1]\n${serviceBundOfferSubmissionTemplateFragment}\n[Seite 2]\nAbgabefrist: 30.06.2027. Auftraggeber: Stadt Mainz.`,
+};
+const analysisWithOfferTemplateQuote = {
+  ...buildDocumentAnalysis([offerTemplateQuoteDocument]),
+  evidence: [{
+    field: "requirements" as const,
+    value: null,
+    documentId: offerTemplateQuoteDocument.id,
+    role: "bekanntmachung" as const,
+    page: 1,
+    quote: serviceBundOfferSubmissionTemplateFragment,
+    confidence: 0.9,
+    source: "parsed_document" as const,
+  }],
+};
+const offerTemplateEvidenceCheck = buildTenderCheck({
+  tenderId: 109,
+  tenderDeadlineAt: null,
+  structured: { decision_relevant: { requirements: ["Mindestens drei vergleichbare Referenzen"] } },
+  documents: [offerTemplateQuoteDocument],
+  documentAnalysis: analysisWithOfferTemplateQuote,
+});
+assert.equal(offerTemplateEvidenceCheck.checklist[0]?.source, null, "Service-Bund signatory boilerplate cannot become a source quote");
 
 const ungroundedQuoteDocument = {
   ...templateAndTenderDocument,

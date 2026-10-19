@@ -76,6 +76,25 @@ assert.ok(scopeEvidence);
 assert.match(scopeEvidence.quote, /elektronische Abgabe/);
 assert.doesNotMatch(scopeEvidence.quote, /^tronische Abgabe/);
 
+const serviceBundOfferSubmissionTemplateFragment = "Zugelassene Angebotsabgabe elektronisch in Textform mit fortgeschrittener/m Signatur/Siegel. mit qualifizierter/m Signatur/Siegel. schriftlich; Maßnahmen zum Schutz vertraulicher Informationen: Abgabe Verschwiegenheitserklärung";
+const mixedTemplateAnalysis = buildDocumentAnalysis([{
+  id: 8,
+  role: "bekanntmachung",
+  roles: ["bekanntmachung", "leistungsbeschreibung"],
+  parseStatus: "parsed",
+  downloadStatus: "downloaded",
+  errorMessage: null,
+  extractedText: `[Seite 1]\nAnforderungen: ${serviceBundOfferSubmissionTemplateFragment}\n[Seite 2]\nAbgabefrist: 14.08.2027\nLeistungsbeschreibung: Lieferung von Schulungsmaterial an Schulen.\nMindestanforderung: Mindestens drei vergleichbare Referenzen sind mit dem Angebot vorzulegen.`,
+  pageCount: 2,
+  roleConfidence: 0.9,
+}]);
+assert.equal(mixedTemplateAnalysis.coverage.parsed, 1, "a PDF with the form fragment and tender facts remains usable");
+assert.ok(mixedTemplateAnalysis.evidence.some((evidence) => evidence.field === "deadline" && /14\.08\.2027/.test(evidence.quote)));
+assert.ok(mixedTemplateAnalysis.evidence.some((evidence) => evidence.field === "scope" && evidence.page === 2));
+assert.ok(mixedTemplateAnalysis.evidence.some((evidence) => evidence.field === "requirements" && evidence.page === 2));
+assert.ok(mixedTemplateAnalysis.evidence.every((evidence) => !evidence.quote.includes(serviceBundOfferSubmissionTemplateFragment)));
+assert.ok(mixedTemplateAnalysis.evidence.every((evidence) => !/fortgeschrittener\/m|qualifizierter\/m|Abgabe Verschwiegenheitserklärung/iu.test(evidence.quote)));
+
 const enriched = withEvidenceValues(analysis, { deadline: "15.08.2026" });
 assert.equal(enriched.evidence.find((evidence) => evidence.field === "deadline")?.value, "15.08.2026");
 

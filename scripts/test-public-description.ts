@@ -41,6 +41,7 @@ import { pickPublicTenderDescription, readPublicTenderMeta } from "@/lib/tender-
 const rawPortalText = "(Bekanntmachung Öffentliche Ausschreibung) a)Öffentlicher Auftraggeber (Vergabestelle) NameGrün und Gruga StraßeLührmannstraße 82 Telefon0201 Fax0201";
 const cleanText = "Die Stadt beauftragt die Ausführung von Wegebauarbeiten im öffentlichen Raum.";
 const serviceBundPdfTemplateFragment = "Auftragsbekanntmachung © Ausgabe 03/2020 Seite 2 von 2 Vergabeunterlagen werden elektronisch zur Verfügung gestellt. Maßnahmen zum Schutz vertraulicher Informationen";
+const serviceBundOfferSubmissionTemplateFragment = "Zugelassene Angebotsabgabe elektronisch in Textform mit fortgeschrittener/m Signatur/Siegel. mit qualifizierter/m Signatur/Siegel. schriftlich; Maßnahmen zum Schutz vertraulicher Informationen: Abgabe Verschwiegenheitserklärung";
 const participationWallText =
   "Um Zugriff auf dieses Modul zu erhalten müssen Sie am Vergabeverfahren teilnehmen. Bestätigen Sie die Teilnahme am Verfahren um folgende Vorteile nutzen zu können. Vergabeart: Offenes Verfahren. Abgabefrist 03.08.2026.";
 const legitTeilnahmeText =
@@ -136,9 +137,20 @@ if (!isPdfFormBoilerplateFragment(serviceBundPdfTemplateFragment)
   || normalizePublicDisplayCandidate(serviceBundPdfTemplateFragment) !== null) {
   throw new Error("Bekanntes Service-Bund-PDF-Templatefragment wurde als Beschreibung akzeptiert");
 }
+if (!isPdfFormBoilerplateFragment(serviceBundOfferSubmissionTemplateFragment)
+  || !isPdfFormBoilerplateFragment("Maßnahmen zum Schutz vertraulicher Informationen: Abgabe Verschwiegenheitserklärung")
+  || normalizePublicDisplayCandidate(serviceBundOfferSubmissionTemplateFragment) !== null) {
+  throw new Error("Service-Bund-Angebotsabgabe-/Signatur-Templatefragment wurde als Beschreibung akzeptiert");
+}
+const validTenderSubmissionRequirement = "Für dieses Verfahren muss die elektronische Angebotsabgabe mit einer qualifizierten Signatur erfolgen; zum Zugriff auf vertrauliche Unterlagen ist eine Verschwiegenheitserklärung vorzulegen.";
+if (isPdfFormBoilerplateFragment(validTenderSubmissionRequirement)
+  || normalizePublicDisplayCandidate(validTenderSubmissionRequirement) !== validTenderSubmissionRequirement) {
+  throw new Error("Echte tender-spezifische Angebots- und Vertraulichkeitsanforderung wurde verworfen");
+}
 if (normalizePublicDisplayCandidate("Formblatt 1") !== null
   || JSON.stringify(normalizePublicTextList([
     serviceBundPdfTemplateFragment,
+    serviceBundOfferSubmissionTemplateFragment,
     "Formblatt 1",
     "Mindestens drei vergleichbare Referenzen sind mit dem Angebot vorzulegen.",
   ])) !== JSON.stringify([
@@ -740,13 +752,17 @@ const filteredRequirementMarkdown = buildTenderDescriptionMarkdown({
   summary: cleanText,
   requirements: [
     serviceBundPdfTemplateFragment,
+    serviceBundOfferSubmissionTemplateFragment,
+    "Formblatt 1 ist mit dem Angebot einzureichen.",
     "Mindestens drei vergleichbare Referenzen sind mit dem Angebot vorzulegen.",
   ],
 });
 if (filteredRequirementMarkdown.includes(serviceBundPdfTemplateFragment)
+  || filteredRequirementMarkdown.includes(serviceBundOfferSubmissionTemplateFragment)
+  || !filteredRequirementMarkdown.includes("Formblatt 1 ist mit dem Angebot einzureichen.")
   || !filteredRequirementMarkdown.includes("Mindestens drei vergleichbare Referenzen sind mit dem Angebot vorzulegen.")
   || !isCanonicalPublicDescriptionMarkdown(filteredRequirementMarkdown)) {
-  throw new Error("Beschreibung-Markdown filtert das Service-Bund-Template nicht auf Kandidatenebene");
+  throw new Error("Beschreibung-Markdown filtert Service-Bund-Fragmente nicht, oder verwirft gültige Form-/Anforderungswerte");
 }
 const escapedMarkdown = buildTenderDescriptionMarkdown({ client: "Stadt < 5 `A` ~~B~~" });
 if (!escapedMarkdown.includes("Stadt \\< 5 \\`A\\` \\~\\~B\\~\\~")
