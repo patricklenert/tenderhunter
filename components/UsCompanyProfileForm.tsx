@@ -92,7 +92,7 @@ export function UsCompanyProfileForm() {
               {SOCIO_ECONOMIC_OPTIONS.map(([value, label]) => <FormControlLabel key={value} control={<Checkbox checked={socioEconomic.includes(value)} onChange={() => toggleStatus(value)} />} label={label} />)}
             </FormGroup>
           </Box>
-          <Button type="submit" variant="contained" color="primary" disabled={saving || !name.trim()} sx={{ alignSelf: "flex-start", px: 3, bgcolor: "primary.dark" }}>{saving ? "Saving profile" : "Save U.S. profile"}</Button>
+          <Button type="submit" variant="contained" color="primary" disabled={saving || !name.trim()} sx={{ alignSelf: "flex-start", px: 3 }}>{saving ? "Saving profile" : "Save U.S. profile"}</Button>
         </Stack>
       </CardContent>
     </Card>

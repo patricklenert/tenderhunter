@@ -28,6 +28,7 @@
     "test:scoring": "tsx scripts/test-scoring.ts",
     "test:small-vendor": "tsx scripts/test-small-vendor.ts",
     "test:us-market": "tsx scripts/test-us-market.ts",
+    "test:us-profile:browser": "tsx scripts/test-us-profile-browser.ts",
     "test:us-tender-meta": "tsx scripts/test-us-tender-meta.ts",
     "test:billing": "tsx scripts/test-billing.ts",
     "test:brand-tokens": "tsx scripts/test-brand-tokens.ts",
