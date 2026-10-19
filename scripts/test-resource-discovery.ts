@@ -92,10 +92,27 @@ const genericPortalResources = extractResourcesFromLinks(
     { href: "/service/vergabemarktplatz-kontakt", text: "Kontakt" },
     { href: "https://buyer.example.test/", text: "Homepage des Auftraggebers" },
     { href: "/logo", text: "Abbildung zeigt das Logo des Landes Brandenburg" },
+    { href: "/VMPSatellite/", text: "Abbildung zeigt das Logo des Vergabemarktplatz Brandenburg" },
+    { href: "/VMPCenter/", text: "Zur Vergabeplattform" },
   ],
   baseUrl,
 );
 assert.deepEqual(genericPortalResources, [], "generic portal navigation and footer links are not discovered resources");
+assert.equal(isGenericPortalNavigationResource({
+  url: "https://example.test/VMPSatellite/",
+  label: "Abbildung zeigt das Logo des Vergabemarktplatz Brandenburg",
+  resourceType: "page",
+}), true);
+assert.equal(isGenericPortalNavigationResource({
+  url: "https://example.test/VMPCenter/",
+  label: "Zur Vergabeplattform",
+  resourceType: "page",
+}), true);
+assert.equal(isGenericPortalNavigationResource({
+  url: "/branding",
+  label: "Logo der Vergabeplattform Brandenburg",
+  resourceType: "image",
+}), true, "generic Brandenburg platform logo-alt variants are filtered");
 assert.equal(
   extractResourcesFromHtml('<a href="/brand"><img alt="Abbildung zeigt das Logo des Landes Brandenburg"></a>', baseUrl).length,
   0,
@@ -103,6 +120,7 @@ assert.equal(
 );
 const tenderSpecificResources = extractResourcesFromLinks(
   [
+    { href: "/tender/overview", text: "Übersicht" },
     { href: "/tender/teilnahmeunterlagen", text: "Teilnahmeunterlagen" },
     { href: "/tender/verfahrensangaben", text: "Verfahrensangaben" },
     { href: "/tender/kommunikation", text: "Kommunikation" },
@@ -111,7 +129,8 @@ const tenderSpecificResources = extractResourcesFromLinks(
   ],
   baseUrl,
 );
-assert.equal(tenderSpecificResources.length, 5, "tender pages, project-specific contact routes and document downloads remain");
+assert.equal(tenderSpecificResources.length, 6, "tender pages, project-specific contact routes and document downloads remain");
+assert.ok(tenderSpecificResources.some((resource) => resource.url.endsWith("/overview")));
 assert.ok(tenderSpecificResources.some((resource) => resource.url.endsWith("/teilnahmeunterlagen")));
 assert.ok(tenderSpecificResources.some((resource) => resource.url.endsWith("/verfahrensangaben")));
 assert.ok(tenderSpecificResources.some((resource) => resource.url.endsWith("/kommunikation")));

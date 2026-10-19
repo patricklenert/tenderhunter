@@ -68,6 +68,7 @@ const GENERIC_PORTAL_NAVIGATION_LABELS = new Set([
 ]);
 
 const GENERIC_FOOTER_PATH = /(?:^|\/)(?:vergabemarktplatz-(?:impressum|datenschutz|nutzungsbedingungen|kontakt)|impressum|datenschutz|datenschutzerklärung|datenschutzerklaerung|nutzungsbedingungen)(?:\.html?|\.do)?(?:\/|$)/i;
+const GENERIC_PORTAL_ROOT_PATH = /^\/?(?:VMPSatellite|VMPCenter)$/i;
 
 /** Identifies portal chrome without suppressing tender pages or real downloads. */
 export function isGenericPortalNavigationResource({
@@ -96,8 +97,9 @@ export function isGenericPortalNavigationResource({
     .trim();
   if (
     GENERIC_PORTAL_NAVIGATION_LABELS.has(normalizedLabel)
-    || /^(?:abbildung zeigt )?(?:das )?logo des landes brandenburg$/.test(normalizedLabel)
+    || /^(?:abbildung zeigt )?(?:das )?logo(?: des| der| von)? (?:(?:landes|vergabemarktplatz(?:es)?|vergabeplattform|vergabeportals?) )?brandenburg$/.test(normalizedLabel)
   ) return true;
 
-  return paths.some((path) => GENERIC_FOOTER_PATH.test(path)) || urls.some(isBareRootUrl);
+  return paths.some((path) => GENERIC_FOOTER_PATH.test(path) || GENERIC_PORTAL_ROOT_PATH.test(path))
+    || urls.some(isBareRootUrl);
 }
