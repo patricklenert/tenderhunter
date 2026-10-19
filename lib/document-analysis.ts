@@ -1,7 +1,10 @@
 import type { DocumentRole } from "./schema";
 import type { RoleHint } from "./document-classifier";
 import { deduplicateDocumentRows, isHtmlContentType } from "./document-identity";
-import { isPdfFormBoilerplate } from "./public-content-quality";
+import {
+  isPdfFormBoilerplate,
+  isPdfFormBoilerplateFragment,
+} from "./public-content-quality";
 
 export type DocumentCoverageStatus = "complete" | "partial" | "unknown" | "blocked";
 
@@ -120,19 +123,28 @@ const quoteFromText = (text: string, patterns: RegExp[]): { quote: string; page:
 
   for (const page of pages) {
     for (const pattern of patterns) {
-      const match = page.text.match(pattern);
-      if (!match || match.index === undefined) continue;
-      const rawStart = Math.max(0, match.index - 80);
-      const leadingFragment = page.text.slice(0, rawStart).match(/\S+$/)?.[0];
-      const start = leadingFragment ? rawStart - leadingFragment.length : rawStart;
-      const rawEnd = Math.min(page.text.length, match.index + Math.max(match[0].length, 220));
-      const trailingFragment = page.text.slice(rawEnd).match(/^\S*/)?.[0];
-      const end = trailingFragment ? rawEnd + trailingFragment.length : rawEnd;
-      const normalizedQuote = page.text.slice(start, end).replace(/\s+/g, " ").trim();
-      const quote = normalizedQuote.length > 420
-        ? normalizedQuote.slice(0, 420).replace(/\s+\S*$/, "").trim()
-        : normalizedQuote;
-      if (quote.length >= 20) return { quote: quote.slice(0, 420), page: page.page };
+      const globalPattern = new RegExp(
+        pattern.source,
+        pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`,
+      );
+      let match: RegExpExecArray | null;
+      while ((match = globalPattern.exec(page.text)) !== null) {
+        if (match.index === undefined) continue;
+        const rawStart = Math.max(0, match.index - 80);
+        const leadingFragment = page.text.slice(0, rawStart).match(/\S+$/)?.[0];
+        const start = leadingFragment ? rawStart - leadingFragment.length : rawStart;
+        const rawEnd = Math.min(page.text.length, match.index + Math.max(match[0].length, 220));
+        const trailingFragment = page.text.slice(rawEnd).match(/^\S*/)?.[0];
+        const end = trailingFragment ? rawEnd + trailingFragment.length : rawEnd;
+        const normalizedQuote = page.text.slice(start, end).replace(/\s+/g, " ").trim();
+        const quote = normalizedQuote.length > 420
+          ? normalizedQuote.slice(0, 420).replace(/\s+\S*$/, "").trim()
+          : normalizedQuote;
+        if (quote.length >= 20 && !isPdfFormBoilerplateFragment(quote)) {
+          return { quote: quote.slice(0, 420), page: page.page };
+        }
+        if (match[0].length === 0) globalPattern.lastIndex += 1;
+      }
     }
   }
   return null;

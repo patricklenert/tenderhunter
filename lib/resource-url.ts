@@ -65,10 +65,27 @@ const GENERIC_PORTAL_NAVIGATION_LABELS = new Set([
   "homepage des käufers",
   "website des käufers",
   "webseite des käufers",
+  "karte anschauen",
+  "facebook",
+  "twitter",
+  "information per e-mail weiterempfehlen",
 ]);
 
 const GENERIC_FOOTER_PATH = /(?:^|\/)(?:vergabemarktplatz-(?:impressum|datenschutz|nutzungsbedingungen|kontakt)|impressum|datenschutz|datenschutzerklärung|datenschutzerklaerung|nutzungsbedingungen)(?:\.html?|\.do)?(?:\/|$)/i;
 const GENERIC_PORTAL_ROOT_PATH = /^\/?(?:VMPSatellite|VMPCenter)$/i;
+const GENERIC_SOCIAL_SHARE_PATH = /(?:^|\/)(?:sharer\/sharer\.php|intent\/tweet|sharing\/share-offsite)(?:\/|$)/i;
+
+const isServiceBundNavigationUrl = (value: string): boolean => {
+  try {
+    const parsed = new URL(value);
+    if (!/(?:^|\.)service\.bund\.de$/i.test(parsed.hostname)) return false;
+    const path = resourcePath(value);
+    return /\/Content\//i.test(path)
+      || /\/IMPORTE\/Ausschreibungen\/[^/]+\/\d{4}\/\d{2}\/IMPORTE\/Ausschreibungen\//i.test(path);
+  } catch {
+    return false;
+  }
+};
 
 /** Identifies portal chrome without suppressing tender pages or real downloads. */
 export function isGenericPortalNavigationResource({
@@ -100,6 +117,9 @@ export function isGenericPortalNavigationResource({
     || /^(?:abbildung zeigt )?(?:das )?logo(?: des| der| von)? (?:(?:landes|vergabemarktplatz(?:es)?|vergabeplattform|vergabeportals?) )?brandenburg$/.test(normalizedLabel)
   ) return true;
 
-  return paths.some((path) => GENERIC_FOOTER_PATH.test(path) || GENERIC_PORTAL_ROOT_PATH.test(path))
+  return paths.some((path) => GENERIC_FOOTER_PATH.test(path)
+      || GENERIC_PORTAL_ROOT_PATH.test(path)
+      || GENERIC_SOCIAL_SHARE_PATH.test(path))
+    || urls.some(isServiceBundNavigationUrl)
     || urls.some(isBareRootUrl);
 }

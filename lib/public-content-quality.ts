@@ -49,6 +49,7 @@ const OBVIOUS_FORM_DUMP_MARKERS = [
   /\beforms?\s*[-–—:]\s*(?:auftrags)?bekanntmachung\b/iu,
   /\b(?:auftrags)?bekanntmachung\s*[-–—:]\s*eforms?\b/iu,
 ];
+const SERVICE_BUND_PUBLICATION_TEMPLATE_FRAGMENT = /\bauftragsbekanntmachung\b[\s\S]{0,120}\bausgabe\s+\d{1,2}\/\d{4}\s+seite\s+\d+\s+von\s+\d+[\s\S]{0,1000}\bvergabeunterlagen\s+werden\s+elektronisch\s+zur\s+verfügung\s+gestellt\b[\s\S]{0,1000}\bmaßnahmen\s+zum\s+schutz\s+vertraulicher\s+informationen\b/iu;
 
 const NAVIGATION_MARKERS = [
   "service.bund.de - aktuelle ausschreibungen",
@@ -333,10 +334,26 @@ export const isPublicNavigationSummary = (value: string): boolean => {
 export const isPdfFormBoilerplate = (value: string): boolean => {
   if (!value) return false;
   const normalized = normalizePublicQualityText(value);
-  if (isPublicDocumentArtifact(normalized)) return true;
-  if (normalized.length < 30) return false;
-  return OBVIOUS_FORM_DUMP_MARKERS.some((pattern) => pattern.test(normalized))
-    || PDF_FORM_MARKERS.filter((pattern) => pattern.test(normalized)).length >= 2;
+  const withoutServiceBundTemplate = normalized.replace(
+    new RegExp(SERVICE_BUND_PUBLICATION_TEMPLATE_FRAGMENT.source, `${SERVICE_BUND_PUBLICATION_TEMPLATE_FRAGMENT.flags}g`),
+    " ",
+  ).trim();
+  // Ignore this known fragment for whole-document checks only if other text remains.
+  const documentText = withoutServiceBundTemplate.length >= 30 ? withoutServiceBundTemplate : normalized;
+  if (isPublicDocumentArtifact(documentText)) return true;
+  if (documentText.length < 30) return false;
+  return OBVIOUS_FORM_DUMP_MARKERS.some((pattern) => pattern.test(documentText))
+    || PDF_FORM_MARKERS.filter((pattern) => pattern.test(documentText)).length >= 2;
+};
+
+/** Detect a known service.bund.de notice template when it appears as a field value or quote. */
+export const isPdfFormBoilerplateFragment = (value: string): boolean => {
+  if (!value) return false;
+  const normalized = repairPublicEncoding(decodePublicHtmlEntities(value))
+    .replace(/\u00ad/gu, "")
+    .replace(/\s+/gu, " ")
+    .trim();
+  return isPdfFormBoilerplate(normalized) || SERVICE_BUND_PUBLICATION_TEMPLATE_FRAGMENT.test(normalized);
 };
 
 const isLoginOrParticipationWall = (value: string): boolean =>
@@ -610,7 +627,7 @@ const normalizePublicDisplayCandidateInternal = (value: unknown, allowInlineMark
   if (FIELD_ONLY_ARTIFACT.test(candidate) || FORM_FRAGMENT.test(candidate)) return null;
   if (
     isPublicNavigationSummary(candidate)
-    || isPdfFormBoilerplate(candidate)
+    || isPdfFormBoilerplateFragment(candidate)
     || (isLoginOrParticipationWall(candidate) && !isGeneratedAccessLimitedSummary(candidate))
   ) return null;
   if (isRawPortalDescription(candidate)) return null;

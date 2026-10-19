@@ -5,6 +5,11 @@ import {
   type DocumentAnalysis,
 } from "@/lib/document-analysis";
 import { isHtmlContentType } from "@/lib/document-identity";
+import {
+  isPdfFormBoilerplate,
+  isPdfFormBoilerplateFragment,
+  normalizePublicDisplayCandidate,
+} from "@/lib/public-content-quality";
 
 export type TenderCheckStatus = "complete" | "partial" | "unknown" | "blocked";
 export type ChecklistCategory = "submit" | "proof" | "review";
@@ -100,7 +105,7 @@ const asRecord = (value: unknown): Record<string, unknown> =>
 
 const stringList = (value: unknown): string[] =>
   Array.isArray(value)
-    ? value.map((item) => typeof item === "string" ? item.trim() : String(item ?? "").trim()).filter(Boolean)
+    ? value.filter((item): item is string => typeof item === "string").map((item) => item.trim()).filter(Boolean)
     : [];
 
 const normalizeKey = (value: string): string => value
@@ -118,13 +123,25 @@ const titleText = (value: string): string => value
   .trim()
   .slice(0, 320);
 
+const checklistTitle = (value: string): string | null => {
+  const title = titleText(value);
+  const normalized = normalizePublicDisplayCandidate(title);
+  if (normalized) return normalized;
+  // A standalone form name is useful in a tender checklist, even though it is
+  // too ambiguous as a public description candidate.
+  return /^formblatt\s+\d+$/iu.test(title) && !isPdfFormBoilerplateFragment(title)
+    ? title
+    : null;
+};
+
 const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const isUsableDocument = (document: TenderCheckDocument): boolean =>
   document.parseStatus === "parsed" &&
   !isHtmlContentType(document.contentType) &&
   typeof document.extractedText === "string" &&
-  document.extractedText.trim().length >= 20;
+  document.extractedText.trim().length >= 20 &&
+  !isPdfFormBoilerplate(document.extractedText);
 
 const pagesOf = (text: string): PageText[] => {
   const pages: PageText[] = [];
@@ -149,16 +166,26 @@ const sourceFromText = (
 ): TenderCheckSource | null => {
   if (!isUsableDocument(document) || !document.extractedText) return null;
   for (const page of pagesOf(document.extractedText)) {
-    const match = page.text.match(pattern);
-    if (!match || match.index === undefined) continue;
-    return {
-      type: sourceType,
-      documentId: document.id,
-      filename: document.filename ?? null,
-      page: page.page,
-      quote: quoteFromMatch(page.text, match.index, match[0].length),
-      available: document.downloadStatus === "downloaded",
-    };
+    const globalPattern = new RegExp(
+      pattern.source,
+      pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`,
+    );
+    let match: RegExpExecArray | null;
+    while ((match = globalPattern.exec(page.text)) !== null) {
+      if (match.index === undefined) continue;
+      const quote = quoteFromMatch(page.text, match.index, match[0].length);
+      if (!isPdfFormBoilerplateFragment(quote)) {
+        return {
+          type: sourceType,
+          documentId: document.id,
+          filename: document.filename ?? null,
+          page: page.page,
+          quote,
+          available: document.downloadStatus === "downloaded",
+        };
+      }
+      if (match[0].length === 0) globalPattern.lastIndex += 1;
+    }
   }
   return null;
 };
@@ -167,8 +194,22 @@ const sourceFromEvidence = (
   evidence: DocumentAnalysis["evidence"][number] | undefined,
   documents: TenderCheckDocument[],
 ): TenderCheckSource | null => {
-  if (!evidence) return null;
+  if (
+    !evidence
+    || !Number.isInteger(evidence.documentId)
+    || typeof evidence.quote !== "string"
+    || !evidence.quote.trim()
+    || isPdfFormBoilerplateFragment(evidence.quote)
+  ) return null;
   const document = documents.find((candidate) => candidate.id === evidence.documentId);
+  const normalizedQuote = evidence.quote.replace(/\s+/g, " ").trim();
+  const normalizedDocumentText = document?.extractedText?.replace(/\s+/g, " ").trim() ?? "";
+  if (
+    !document
+    || !isUsableDocument(document)
+    || !normalizedQuote
+    || !normalizedDocumentText.includes(normalizedQuote)
+  ) return null;
   return {
     type: "document",
     documentId: evidence.documentId,
@@ -240,7 +281,8 @@ const structuredChecklist = (
 
   for (const seed of seeds) {
     for (const rawTitle of stringList(seed.values)) {
-      const title = titleText(rawTitle);
+      const title = checklistTitle(rawTitle);
+      if (!title) continue;
       const normalized = normalizeKey(title);
       if (normalized.length < 6 || seen.has(`${seed.category}:${normalized}`)) continue;
       seen.add(`${seed.category}:${normalized}`);
@@ -277,18 +319,21 @@ const explicitDocumentChecklist = (
         const candidate = titleText(match[1])
           .replace(/\s+(?:Es sind folgende|Vom Auftraggeber geforderte|Wirtschaftliche und finanzielle|Technische und berufliche|Vergabe unterlagen|Wesentliche Zahlungsbedingungen|Zusätzliche Angaben|Nachforderung)\b[\s\S]*$/i, "")
           .trim();
+        const checkedCandidate = checklistTitle(candidate);
         const context = page.text.slice(Math.max(0, match.index - 280), match.index);
-        if (candidate.length < 10 || candidate.length > 320 || !requirementContext.test(context) || !requirementWords.test(candidate)) continue;
-        const normalized = normalizeKey(candidate);
+        if (!checkedCandidate || checkedCandidate.length < 10 || checkedCandidate.length > 320 || !requirementContext.test(context) || !requirementWords.test(checkedCandidate)) continue;
+        const quote = quoteFromMatch(page.text, match.index, match[0].length);
+        if (isPdfFormBoilerplateFragment(quote)) continue;
+        const normalized = normalizeKey(checkedCandidate);
         if (normalized.length < 10 || seen.has(normalized)) continue;
         seen.add(normalized);
-        const category: ChecklistCategory = /nachweis|referenz|formblatt|bescheinigung|zertifikat|versicherung|eigenerklär|eignung|fachkunde|bietererklärung|qualifiziert/i.test(candidate)
+        const category: ChecklistCategory = /nachweis|referenz|formblatt|bescheinigung|zertifikat|versicherung|eigenerklär|eignung|fachkunde|bietererklärung|qualifiziert/i.test(checkedCandidate)
           ? "proof"
           : "submit";
         items.push({
           key: `${category}:${normalized}`,
           category,
-          title: candidate,
+          title: checkedCandidate,
           mandatory: true,
           certainty: "confirmed",
           source: {
@@ -296,7 +341,7 @@ const explicitDocumentChecklist = (
             documentId: document.id,
             filename: document.filename ?? null,
             page: page.page,
-            quote: quoteFromMatch(page.text, match.index, match[0].length),
+            quote,
             available: document.downloadStatus === "downloaded",
           },
         });
@@ -358,6 +403,8 @@ const extractDateFacts = (documents: TenderCheckDocument[]): DateFact[] => {
         if (!date) continue;
         const type = dateTypeFromContext(contextBefore);
         if (!type) continue;
+        const quote = quoteFromMatch(page.text, match.index, match[0].length);
+        if (isPdfFormBoilerplateFragment(quote)) continue;
         facts.push({
           type,
           date,
@@ -367,7 +414,7 @@ const extractDateFacts = (documents: TenderCheckDocument[]): DateFact[] => {
             documentId: document.id,
             filename: document.filename ?? null,
             page: page.page,
-            quote: quoteFromMatch(page.text, match.index, match[0].length),
+            quote,
             available: document.downloadStatus === "downloaded",
           },
         });
@@ -387,6 +434,8 @@ const extractNumericFacts = (documents: TenderCheckDocument[]): NumericFact[] =>
     for (const page of pagesOf(document.extractedText)) {
       let match: RegExpExecArray | null;
       while ((match = durationPattern.exec(page.text)) !== null) {
+        const quote = quoteFromMatch(page.text, match.index ?? 0, match[0].length);
+        if (isPdfFormBoilerplateFragment(quote)) continue;
         facts.push({
           type: "duration",
           value: `${match[1]} ${match[2].toLocaleLowerCase("de-DE")}`,
@@ -395,7 +444,7 @@ const extractNumericFacts = (documents: TenderCheckDocument[]): NumericFact[] =>
             documentId: document.id,
             filename: document.filename ?? null,
             page: page.page,
-            quote: quoteFromMatch(page.text, match.index ?? 0, match[0].length),
+            quote,
             available: document.downloadStatus === "downloaded",
           },
         });

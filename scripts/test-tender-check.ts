@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { buildDocumentAnalysis, type AnalyzedDocument } from "../lib/document-analysis";
 import { buildTenderCheck } from "../lib/tender-check";
 import { buildTenderCalendarIcs, calendarFilename } from "../lib/tender-calendar";
 
@@ -36,6 +37,110 @@ const structured = {
     participation_requirements: ["Mindestens drei Referenzen"],
   },
 };
+
+const serviceBundPdfTemplateFragment = "Auftragsbekanntmachung © Ausgabe 03/2020 Seite 2 von 2 Vergabeunterlagen werden elektronisch zur Verfügung gestellt. Maßnahmen zum Schutz vertraulicher Informationen";
+const templateAndTenderDocument: AnalyzedDocument & { filename: string } = {
+  id: 105,
+  filename: "Bekanntmachung.pdf",
+  role: "bekanntmachung",
+  roles: ["bekanntmachung", "leistungsbeschreibung"],
+  parseStatus: "parsed",
+  downloadStatus: "downloaded",
+  errorMessage: null,
+  extractedText: `[Seite 1]\nLeistungsumfang: ${serviceBundPdfTemplateFragment}\n[Seite 2]\nAbgabefrist: 30.06.2027, 10:00 Uhr. Leistungsbeschreibung: Wartung der Heizungsanlage an drei Standorten. Mindestanforderung: Mindestens drei vergleichbare Referenzen sind mit dem Angebot vorzulegen. Formblatt 1 ist einzureichen.`,
+  pageCount: 2,
+  roleConfidence: 0.9,
+};
+const templateDocumentAnalysis = buildDocumentAnalysis([templateAndTenderDocument]);
+assert.equal(templateDocumentAnalysis.coverage.parsed, 1, "a tender document containing a template fragment remains usable");
+assert.equal(buildDocumentAnalysis([{
+  ...templateAndTenderDocument,
+  id: 107,
+  extractedText: `[Seite 2] ${serviceBundPdfTemplateFragment}`,
+}]).coverage.parsed, 0, "a template-only PDF remains classified as boilerplate");
+const templateScopeEvidence = templateDocumentAnalysis.evidence.find((evidence) => evidence.field === "scope");
+assert.ok(templateScopeEvidence);
+assert.equal(templateScopeEvidence.page, 2, "boilerplate evidence is skipped in favor of substantive evidence elsewhere in the document");
+assert.match(templateScopeEvidence.quote, /Leistungsbeschreibung: Wartung der Heizungsanlage/);
+assert.doesNotMatch(templateScopeEvidence.quote, /Auftragsbekanntmachung © Ausgabe 03\/2020/);
+assert.ok(templateDocumentAnalysis.evidence.some((evidence) => evidence.field === "deadline" && /30\.06\.2027/.test(evidence.quote)));
+
+const filteredTemplateCheck = buildTenderCheck({
+  tenderId: 105,
+  tenderDeadlineAt: null,
+  structured: {
+    decision_relevant: {
+      mandatory_documents: ["Formblatt 1", serviceBundPdfTemplateFragment, { text: "Ungeprüfte Pflichtunterlage" }, 42],
+      requirements: [
+        "Mindestens drei vergleichbare Referenzen sind mit dem Angebot vorzulegen.",
+        serviceBundPdfTemplateFragment,
+        { text: "Ungeprüfte Anforderung" },
+      ],
+    },
+  },
+  documents: [templateAndTenderDocument],
+});
+const filteredTitles = filteredTemplateCheck.checklist.map((item) => item.title);
+assert.ok(filteredTitles.includes("Formblatt 1"), "a contextually valid standalone form remains a checklist item");
+assert.ok(filteredTitles.includes("Mindestens drei vergleichbare Referenzen sind mit dem Angebot vorzulegen."));
+assert.ok(!filteredTitles.some((item) => item.includes("Auftragsbekanntmachung © Ausgabe 03/2020")));
+assert.ok(!filteredTitles.includes("Ungeprüfte Pflichtunterlage") && !filteredTitles.includes("Ungeprüfte Anforderung"));
+assert.ok(filteredTemplateCheck.events.some((event) => event.type === "submission" && event.source?.quote.includes("30.06.2027")));
+assert.ok(filteredTemplateCheck.checklist.every((item) => !item.source?.quote.includes("Auftragsbekanntmachung © Ausgabe 03/2020")));
+
+const quoteOnlyDocument = {
+  ...templateAndTenderDocument,
+  id: 106,
+  extractedText: `[Seite 2] ${serviceBundPdfTemplateFragment}`,
+};
+const analysisWithUnvalidatedQuote = {
+  ...buildDocumentAnalysis([quoteOnlyDocument]),
+  evidence: [{
+    field: "requirements" as const,
+    value: null,
+    documentId: quoteOnlyDocument.id,
+    role: "bekanntmachung" as const,
+    page: 1,
+    quote: serviceBundPdfTemplateFragment,
+    confidence: 0.9,
+    source: "parsed_document" as const,
+  }],
+};
+const unvalidatedEvidenceCheck = buildTenderCheck({
+  tenderId: 106,
+  tenderDeadlineAt: null,
+  structured: { decision_relevant: { requirements: ["Eine technische Mindestanforderung"] } },
+  documents: [quoteOnlyDocument],
+  documentAnalysis: analysisWithUnvalidatedQuote,
+});
+assert.equal(unvalidatedEvidenceCheck.checklist[0]?.source, null, "unvalidated boilerplate quotes cannot become visible evidence");
+
+const ungroundedQuoteDocument = {
+  ...templateAndTenderDocument,
+  id: 108,
+  extractedText: "Allgemeine Angaben ohne passende Stelle für dieses Verfahren.",
+};
+const analysisWithUngroundedQuote = {
+  ...buildDocumentAnalysis([ungroundedQuoteDocument]),
+  evidence: [{
+    field: "requirements" as const,
+    value: null,
+    documentId: ungroundedQuoteDocument.id,
+    role: "bekanntmachung" as const,
+    page: 1,
+    quote: "Nicht belegter, aber formal sauberer Belegtext.",
+    confidence: 0.9,
+    source: "parsed_document" as const,
+  }],
+};
+const ungroundedEvidenceCheck = buildTenderCheck({
+  tenderId: 108,
+  tenderDeadlineAt: null,
+  structured: { decision_relevant: { requirements: ["Eine technische Mindestanforderung"] } },
+  documents: [ungroundedQuoteDocument],
+  documentAnalysis: analysisWithUngroundedQuote,
+});
+assert.equal(ungroundedEvidenceCheck.checklist[0]?.source, null, "quotes not present in a parsed document cannot become visible evidence");
 
 const check = buildTenderCheck({
   tenderId: 1,

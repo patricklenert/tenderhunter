@@ -21,7 +21,9 @@ import {
 import {
   isCanonicalPublicDescriptionMarkdown,
   isPdfFormBoilerplate,
+  isPdfFormBoilerplateFragment,
   normalizePublicDisplayCandidate,
+  normalizePublicTextList,
   normalizePublicProcedureCandidate,
   isPublicNavigationSummary as isSharedPublicNavigationSummary,
   pickValidatedPublicClient,
@@ -38,6 +40,7 @@ import { pickPublicTenderDescription, readPublicTenderMeta } from "@/lib/tender-
 
 const rawPortalText = "(Bekanntmachung Öffentliche Ausschreibung) a)Öffentlicher Auftraggeber (Vergabestelle) NameGrün und Gruga StraßeLührmannstraße 82 Telefon0201 Fax0201";
 const cleanText = "Die Stadt beauftragt die Ausführung von Wegebauarbeiten im öffentlichen Raum.";
+const serviceBundPdfTemplateFragment = "Auftragsbekanntmachung © Ausgabe 03/2020 Seite 2 von 2 Vergabeunterlagen werden elektronisch zur Verfügung gestellt. Maßnahmen zum Schutz vertraulicher Informationen";
 const participationWallText =
   "Um Zugriff auf dieses Modul zu erhalten müssen Sie am Vergabeverfahren teilnehmen. Bestätigen Sie die Teilnahme am Verfahren um folgende Vorteile nutzen zu können. Vergabeart: Offenes Verfahren. Abgabefrist 03.08.2026.";
 const legitTeilnahmeText =
@@ -128,6 +131,21 @@ if (!isPdfFormBoilerplate("VHB-Bund-Ausgabe 2019 Eigenerklärung zur Eignung und
 }
 if (normalizePublicDisplayCandidate("VHB-Bund-Ausgabe 2019 Eigenerklärung zur Eignung und rechtsverbindliche Unterschrift") !== null) {
   throw new Error("PDF-Formularboilerplate wurde als Beschreibung akzeptiert");
+}
+if (!isPdfFormBoilerplateFragment(serviceBundPdfTemplateFragment)
+  || normalizePublicDisplayCandidate(serviceBundPdfTemplateFragment) !== null) {
+  throw new Error("Bekanntes Service-Bund-PDF-Templatefragment wurde als Beschreibung akzeptiert");
+}
+if (normalizePublicDisplayCandidate("Formblatt 1") !== null
+  || JSON.stringify(normalizePublicTextList([
+    serviceBundPdfTemplateFragment,
+    "Formblatt 1",
+    "Mindestens drei vergleichbare Referenzen sind mit dem Angebot vorzulegen.",
+  ])) !== JSON.stringify([
+    "Formblatt 1",
+    "Mindestens drei vergleichbare Referenzen sind mit dem Angebot vorzulegen.",
+  ])) {
+  throw new Error("Kandidatenfilter verwirft Templatefragmente, ohne kontextuelle Formular-/Anforderungslisten zu erhalten");
 }
 const observedVhbNrwFormDump = "[Seite 3] VHB NRW Formular 412a 01/2020 Auftragsbekanntmachung Teilnahmewettbewerb ... Bekanntmachungs-ID ... BMS ...";
 if (!isPdfFormBoilerplate(observedVhbNrwFormDump)
@@ -717,6 +735,18 @@ if (markdown.includes("](https://example.test)")) {
 }
 if (!isCanonicalPublicDescriptionMarkdown(markdown)) {
   throw new Error("Generiertes Markdown wird nicht als kanonische Anzeige erkannt");
+}
+const filteredRequirementMarkdown = buildTenderDescriptionMarkdown({
+  summary: cleanText,
+  requirements: [
+    serviceBundPdfTemplateFragment,
+    "Mindestens drei vergleichbare Referenzen sind mit dem Angebot vorzulegen.",
+  ],
+});
+if (filteredRequirementMarkdown.includes(serviceBundPdfTemplateFragment)
+  || !filteredRequirementMarkdown.includes("Mindestens drei vergleichbare Referenzen sind mit dem Angebot vorzulegen.")
+  || !isCanonicalPublicDescriptionMarkdown(filteredRequirementMarkdown)) {
+  throw new Error("Beschreibung-Markdown filtert das Service-Bund-Template nicht auf Kandidatenebene");
 }
 const escapedMarkdown = buildTenderDescriptionMarkdown({ client: "Stadt < 5 `A` ~~B~~" });
 if (!escapedMarkdown.includes("Stadt \\< 5 \\`A\\` \\~\\~B\\~\\~")

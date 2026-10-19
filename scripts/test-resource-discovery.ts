@@ -118,6 +118,34 @@ assert.equal(
   0,
   "logo alt text on a linked image is treated as generic portal navigation",
 );
+const serviceBundBase = "https://www.service.bund.de/";
+const serviceBundContentUrl = "https://www.service.bund.de/Content/DE/Service/Navigation/Content-Seite.html";
+const duplicateServiceBundListingUrl = "https://www.service.bund.de/IMPORTE/Ausschreibungen/BE/2026/06/IMPORTE/Ausschreibungen/BE/2026/06/notice-1.html";
+const serviceBundResources = extractResourcesFromLinks(
+  [
+    { href: serviceBundContentUrl, text: "Content-Seite" },
+    { href: duplicateServiceBundListingUrl, text: "Bekanntmachung" },
+    { href: "https://www.facebook.com/sharer/sharer.php?u=https%3A%2F%2Fservice.bund.de", text: "Facebook" },
+    { href: "https://twitter.com/intent/tweet?url=https%3A%2F%2Fservice.bund.de", text: "Twitter" },
+    { href: "/Content/Karte", text: "Karte anschauen" },
+    { href: "/Content/Weiterempfehlen", text: "Information per E-Mail weiterempfehlen" },
+    { href: "/IMPORTE/Ausschreibungen/BE/2026/06/notice-1.html", text: "Bekanntmachung" },
+    { href: "/IMPORTE/Ausschreibungen/BE/2026/06/notice-1/Unterlagen.pdf", text: "Vergabeunterlagen" },
+  ],
+  serviceBundBase,
+);
+assert.equal(serviceBundResources.length, 2, "generic service.bund.de pages and social/map links are not discovered resources");
+assert.ok(serviceBundResources.some((resource) => resource.url.endsWith("/notice-1.html")), "tender-specific service.bund.de detail pages remain");
+assert.ok(serviceBundResources.some((resource) => resource.type === "document" && resource.url.endsWith("/Unterlagen.pdf")), "real tender PDFs remain");
+assert.equal(isGenericPortalNavigationResource({ url: serviceBundContentUrl, resourceType: "page" }), true);
+assert.equal(isGenericPortalNavigationResource({ url: duplicateServiceBundListingUrl, resourceType: "page" }), true);
+assert.equal(isGenericPortalNavigationResource({ url: serviceBundContentUrl, resourceType: "document" }), false, "document resources bypass generic path suppression");
+assert.equal(isGenericPortalNavigationResource({ url: duplicateServiceBundListingUrl, resourceType: "download" }), false, "download resources bypass generic path suppression");
+assert.equal(isGenericPortalNavigationResource({ url: serviceBundContentUrl, filename: "notice.pdf", resourceType: "page" }), false, "PDF filenames bypass generic path suppression");
+assert.equal(isGenericPortalNavigationResource({ url: "/map", label: "Karte anschauen", resourceType: "page" }), true);
+assert.equal(isGenericPortalNavigationResource({ url: "/share", label: "Facebook", resourceType: "page" }), true);
+assert.equal(isGenericPortalNavigationResource({ url: "/share", label: "Twitter", resourceType: "page" }), true);
+assert.equal(isGenericPortalNavigationResource({ url: "/forward", label: "Information per E-Mail weiterempfehlen", resourceType: "page" }), true);
 const tenderSpecificResources = extractResourcesFromLinks(
   [
     { href: "/tender/overview", text: "Übersicht" },
