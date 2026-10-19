@@ -472,6 +472,105 @@ export const projectTenderSearchHit = (
   };
 };
 
+const matchesTenderSearchQuery = (document: TenderDocument, query: string): boolean => {
+  const terms = query.toLocaleLowerCase("de-DE").match(/[\p{L}\p{N}]+/gu) ?? [];
+  if (terms.length === 0) return true;
+
+  const searchableText = [document.title, document.description, document.client, document.category]
+    .join(" ")
+    .toLocaleLowerCase("de-DE");
+  return terms.every((term) => searchableText.includes(term));
+};
+
+const compareNullableNumbers = (left: number | null, right: number | null, direction: "asc" | "desc"): number => {
+  if (left === null) return right === null ? 0 : 1;
+  if (right === null) return -1;
+  return direction === "asc" ? left - right : right - left;
+};
+
+/** Apply the same public-index filters, sort and page to DB-built index documents. */
+export const selectTenderSearchFallbackResults = (
+  params: MeilisearchParams,
+  documents: readonly TenderDocument[],
+  nowUnix = Math.floor(Date.now() / 1000),
+): { hits: TenderDocument[]; estimatedTotalHits: number } => {
+  const query = params.query?.trim() ?? "";
+  const sources = params.source == null ? null : Array.isArray(params.source) ? params.source : [params.source];
+  const filtered = documents.filter((document) => {
+    if (document.deadlineAt !== null && document.deadlineAt <= nowUnix) return false;
+    if (params.bundesland && document.bundesland !== params.bundesland) return false;
+    if (params.city && document.city !== params.city) return false;
+    if (params.category && document.category !== params.category) return false;
+    if (params.source && (!sources?.length || !sources.includes(document.source))) return false;
+    if (params.firstSeenAtFrom !== undefined
+      && (document.firstSeenAt === null || document.firstSeenAt < params.firstSeenAtFrom)) return false;
+    if (params.firstSeenAtTo !== undefined
+      && (document.firstSeenAt === null || document.firstSeenAt >= params.firstSeenAtTo)) return false;
+    if (params.hasDeadline !== undefined && document.hasDeadline !== params.hasDeadline) return false;
+    if (params.deadlineAtFrom !== undefined
+      && (document.deadlineAt === null || document.deadlineAt < params.deadlineAtFrom)) return false;
+    if (params.deadlineAtTo !== undefined
+      && (document.deadlineAt === null || document.deadlineAt >= params.deadlineAtTo)) return false;
+    if (params.smallVendorFitMin !== undefined
+      && (document.smallVendorFit === null || document.smallVendorFit < params.smallVendorFitMin)) return false;
+    return matchesTenderSearchQuery(document, query);
+  });
+
+  filtered.sort((left, right) => {
+    if (params.sort === "newest") {
+      return compareNullableNumbers(left.firstSeenAt, right.firstSeenAt, "desc") || left.id - right.id;
+    }
+    if (params.sort === "smallVendorFit") {
+      return compareNullableNumbers(left.smallVendorFit, right.smallVendorFit, "desc")
+        || Number(right.hasDeadline) - Number(left.hasDeadline)
+        || compareNullableNumbers(left.deadlineAt, right.deadlineAt, "asc")
+        || left.id - right.id;
+    }
+    return Number(right.hasDeadline) - Number(left.hasDeadline)
+      || compareNullableNumbers(left.deadlineAt, right.deadlineAt, "asc")
+      || left.id - right.id;
+  });
+
+  const limit = Math.min(Math.max(params.limit ?? 24, 1), 30);
+  const page = Math.max(params.page ?? 1, 1);
+  const offset = (page - 1) * limit;
+  return {
+    hits: filtered.slice(offset, offset + limit),
+    estimatedTotalHits: filtered.length,
+  };
+};
+
+const searchTenderDatabaseFallback = async (
+  params: MeilisearchParams,
+): Promise<{ hits: TenderDocument[]; estimatedTotalHits: number; processingTimeMs: number }> => {
+  const startedAt = Date.now();
+  const nowUnix = Math.floor(startedAt / 1000);
+  const rows = await db
+    .select({
+      id: tenders.id,
+      title: tenders.title,
+      source: tenders.source,
+      sourceKey: tenders.sourceKey,
+      url: tenders.url,
+      deadlineAt: tenders.deadlineAt,
+      firstSeenAt: tenders.firstSeenAt,
+      category: tenders.category,
+      metadataJson: tenders.metadataJson,
+      structuredJson: structuredData.jsonBlob,
+      procedureType: tenders.procedureType,
+      rawText: tenders.rawText,
+      contractValueMax: tenders.contractValueMax,
+      slug: tenders.slug,
+      readinessStatus: tenders.readinessStatus,
+    })
+    .from(tenders)
+    .leftJoin(structuredData, eq(structuredData.tenderId, tenders.id))
+    .where(eq(tenders.qualityStatus, "qualified"));
+  const documents = rows.map(buildTenderIndexDocument);
+  const result = selectTenderSearchFallbackResults(params, documents, nowUnix);
+  return { ...result, processingTimeMs: Date.now() - startedAt };
+};
+
 export async function searchTenders(
   params: MeilisearchParams,
 ): Promise<{ hits: TenderDocument[]; estimatedTotalHits: number; processingTimeMs: number }> {
@@ -549,10 +648,14 @@ export async function searchTenders(
       ? ["firstSeenAt:desc"]
       : ["hasDeadline:desc", "deadlineAt:asc"];
 
-  const response: SearchResponse<TenderDocument> = await index.search(
-    params.query ?? "",
-    searchParams,
-  );
+  let response: SearchResponse<TenderDocument>;
+  try {
+    response = await index.search(params.query ?? "", searchParams);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`[meilisearch] Suche fehlgeschlagen; verwende DB-Fallback: ${message}`);
+    return searchTenderDatabaseFallback(params);
+  }
 
   const hits = response.hits ?? [];
   const currentTenders = hits.length > 0
@@ -579,6 +682,14 @@ export async function searchTenders(
       const current = currentTendersById.get(hit.id)!;
       return projectTenderSearchHit(hit, current);
     });
+
+  // DB-built documents recover a sparse page when stale or unqualified index
+  // records were removed. The fallback preserves filters and sort, but its
+  // text matching is necessarily lexical and cannot reproduce Meili typo or
+  // hybrid-vector ranking.
+  if (visibleHits.length === 0 || visibleHits.length < hits.length) {
+    return searchTenderDatabaseFallback(params);
+  }
 
   return {
     hits: visibleHits,

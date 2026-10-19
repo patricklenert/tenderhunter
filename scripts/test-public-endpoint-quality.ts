@@ -19,7 +19,11 @@ import {
   extractPublicPortalFacts,
   getPublicAccessLimitedFallback,
 } from "@/lib/public-tender-scraper";
-import { buildTenderIndexDocument, projectTenderSearchHit } from "@/lib/meilisearch";
+import {
+  buildTenderIndexDocument,
+  projectTenderSearchHit,
+  selectTenderSearchFallbackResults,
+} from "@/lib/meilisearch";
 import { normalizeStructured } from "@/lib/structurer";
 import { readPublicTenderMeta } from "@/lib/tender-meta";
 import { projectPublicTenderDetailFallback } from "@/lib/public-tender-detail-fallback";
@@ -266,6 +270,59 @@ assert.equal(
   qualityFixtureSummary,
   "invalid first candidates must not block a valid later fallback",
 );
+
+const fallbackSearchDocument = (
+  overrides: Partial<typeof qualityFixtureIndex>,
+) => ({
+  ...qualityFixtureIndex,
+  deadlineAt: 5_000,
+  firstSeenAt: 200,
+  hasDeadline: true,
+  bundesland: "Rheinland-Pfalz",
+  city: "Mainz",
+  category: "Bauarbeiten",
+  source: "dtvp",
+  smallVendorFit: 60,
+  ...overrides,
+});
+const fallbackSearchDocuments = [
+  fallbackSearchDocument({ id: 920, firstSeenAt: 300, deadlineAt: 900, smallVendorFit: 80 }),
+  fallbackSearchDocument({ id: 921, firstSeenAt: 250, deadlineAt: 950, smallVendorFit: 70, source: "service-bund" }),
+  fallbackSearchDocument({ id: 922, firstSeenAt: 250, deadlineAt: 950, smallVendorFit: 95, city: "Koblenz" }),
+  fallbackSearchDocument({ id: 923, firstSeenAt: 250, deadlineAt: 700, smallVendorFit: 95 }),
+  fallbackSearchDocument({ id: 924, firstSeenAt: 250, deadlineAt: 950, smallVendorFit: 95, source: "other" }),
+];
+const fallbackSearchParams = {
+  query: "Grundschule Mainz",
+  bundesland: "Rheinland-Pfalz",
+  city: "Mainz",
+  category: "Bauarbeiten",
+  source: ["dtvp", "service-bund"],
+  firstSeenAtFrom: 200,
+  firstSeenAtTo: 400,
+  hasDeadline: true,
+  deadlineAtFrom: 800,
+  deadlineAtTo: 1_000,
+  smallVendorFitMin: 65,
+  sort: "smallVendorFit" as const,
+  limit: 1,
+  page: 1,
+};
+const fallbackSearchPage = selectTenderSearchFallbackResults(
+  fallbackSearchParams,
+  fallbackSearchDocuments,
+  100,
+);
+assert.equal(fallbackSearchPage.estimatedTotalHits, 2);
+assert.equal(fallbackSearchPage.hits[0]?.id, 920);
+assert.equal(fallbackSearchPage.hits[0]?.description, qualityFixtureSummary);
+assert.equal(fallbackSearchPage.hits[0]?.location, "55116 Mainz");
+const fallbackSearchPageTwo = selectTenderSearchFallbackResults(
+  { ...fallbackSearchParams, page: 2 },
+  fallbackSearchDocuments,
+  100,
+);
+assert.equal(fallbackSearchPageTwo.hits[0]?.id, 921, "DB fallback applies the same ordering and page offset");
 
 // A source portal's Bundesland is not evidence of the tender's performance
 // location and must not leak into the list/modal display as one.
