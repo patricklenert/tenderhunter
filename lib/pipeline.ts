@@ -92,7 +92,7 @@ import {
   type ResourceSource,
   type ResourceType,
 } from "@/lib/resource-discovery";
-import { isPortalActionUrl } from "@/lib/resource-url";
+import { isGenericPortalNavigationResource, isPortalActionUrl } from "@/lib/resource-url";
 import { documentIdentityKey, isHtmlContentType } from "@/lib/document-identity";
 import { processCompanyUrlPreview } from "@/lib/preview";
 import { getCatalogState, markCatalogDirty, releaseCatalogSync } from "@/lib/catalog";
@@ -1790,7 +1790,8 @@ export const shouldUseRenderedResourceDiscovery = (
 ): boolean => !candidates.some(isFetchableResourceCandidate);
 
 const isPersistableResourceCandidate = (candidate: ResourceCandidateRecord): boolean =>
-  isFetchableResourceCandidate(candidate) || ["api", "page", "unknown"].includes(candidate.resourceType);
+  !isGenericPortalNavigationResource(candidate)
+  && (isFetchableResourceCandidate(candidate) || ["api", "page", "unknown"].includes(candidate.resourceType));
 
 const isSameOriginCandidate = (candidate: ResourceCandidateRecord, baseUrl: string): boolean => {
   try {
@@ -2567,7 +2568,8 @@ const runFetchDocuments = async (payload: Record<string, JsonValue>): Promise<Re
   const tender = await getTender(tenderId);
 
   const metadata = parseRecord(tender.metadataJson as string);
-  const candidates = await discoverTenderResources(tender, metadata);
+  const candidates = (await discoverTenderResources(tender, metadata))
+    .filter((candidate) => !isGenericPortalNavigationResource(candidate));
   if (!await ensureCurrentPipelineVersion(tenderId, payload)) {
     return { skipped: true, reason: "veraltete Tender-Version" };
   }

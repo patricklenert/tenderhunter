@@ -48,7 +48,7 @@ import { buildDocumentAnalysis, documentAnalysisFieldLabel, type AnalyzedDocumen
 import { buildTenderCheck } from "@/lib/tender-check";
 import { ROLE_LABELS_DE } from "@/lib/document-classifier";
 import { normalizeResourceUrl } from "@/lib/resource-discovery";
-import { isPortalActionUrl } from "@/lib/resource-url";
+import { isGenericPortalNavigationResource, isPortalActionUrl } from "@/lib/resource-url";
 import { deduplicateDocumentRows, documentIdentityKey, isHtmlContentType, isHtmlDocumentResource } from "@/lib/document-identity";
 import { optionalPublicRows } from "@/lib/public-route-resilience";
 import { repairKnownGermanEncoding } from "@/lib/text-normalization";
@@ -311,7 +311,16 @@ export default async function TenderDetailPage({ params }: PageProps) {
     })
     .from(tenderResources)
     .where(eq(tenderResources.tenderId, tender.id))))
-    .filter((resource) => !isPortalActionUrl(resource.url));
+    .filter((resource) =>
+      !isPortalActionUrl(resource.url)
+      && !isGenericPortalNavigationResource({
+        url: resource.url,
+        canonicalUrl: resource.canonicalUrl,
+        label: resource.label,
+        filename: resource.filename,
+        resourceType: resource.resourceType,
+      }),
+    );
   const structuredMeta = readPublicTenderMeta(normalizedStructured, {
     title: tender.title,
     source: tender.source,
@@ -432,6 +441,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
   const allResources = [...resourceByUrl.values()]
     .filter((resource) => resource.url && resource.url !== resourceUrl(tender.url))
     .filter((resource) => !isPortalActionUrl(resource.url))
+    .filter((resource) => !isGenericPortalNavigationResource(resource))
     .filter((resource) => !isHtmlDocumentResource(resource))
     .slice(0, 40);
   const downloadableResources = allResources.filter((resource) =>

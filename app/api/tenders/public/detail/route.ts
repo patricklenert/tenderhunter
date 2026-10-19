@@ -14,7 +14,7 @@ import { deduplicateDocumentRows, documentIdentityKey, isHtmlContentType, isHtml
 import { normalizeStructured } from "@/lib/structurer";
 import { projectPublicTenderDetailFallback } from "@/lib/public-tender-detail-fallback";
 import { normalizeResourceUrl } from "@/lib/resource-discovery";
-import { isPortalActionUrl } from "@/lib/resource-url";
+import { isGenericPortalNavigationResource, isPortalActionUrl } from "@/lib/resource-url";
 import { readPublicTenderMeta, type TenderResourceMeta } from "@/lib/tender-meta";
 import { resolvePublicTenderDeadline, resolvePublicTenderDisplayFacts } from "@/lib/public-tender-display-facts";
 import { repairKnownGermanEncoding } from "@/lib/text-normalization";
@@ -185,6 +185,7 @@ const buildResourceMetadata = (
       isHtmlDocumentResource(row)
       || isPortalActionUrl(row.url)
       || isPortalActionUrl(row.canonicalUrl)
+      || isGenericPortalNavigationResource(row)
     ) continue;
     const url = safeResourceUrl(row.url, tenderUrl);
     const canonicalUrl = safeResourceUrl(row.canonicalUrl, tenderUrl) ?? url;
@@ -217,6 +218,7 @@ const buildResourceMetadata = (
       isHtmlDocumentResource(candidate)
       || isPortalActionUrl(candidate.url)
       || isPortalActionUrl(candidate.canonicalUrl)
+      || isGenericPortalNavigationResource(candidate)
     ) continue;
     const url = safeResourceUrl(candidate.url, tenderUrl);
     const canonicalUrl = safeResourceUrl(candidate.canonicalUrl, tenderUrl) ?? url;

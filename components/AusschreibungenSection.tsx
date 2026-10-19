@@ -66,7 +66,7 @@ import {
 import { PdfDocumentLink } from "@/components/PdfDocumentLink";
 import { documentAnalysisFieldLabel } from "@/lib/document-analysis";
 import { documentIdentityKey } from "@/lib/document-identity";
-import { isPortalActionUrl } from "@/lib/resource-url";
+import { isGenericPortalNavigationResource, isPortalActionUrl } from "@/lib/resource-url";
 import { SafeMarkdown } from "@/components/SafeMarkdown";
 import { ResourceState } from "@/components/ResourceState";
 import { ResponsiveTableFrame } from "@/components/ResponsiveTableFrame";
@@ -1153,6 +1153,13 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
               : [];
             const resourceRows = Array.isArray(d.resources)
               ? d.resources.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object" && !Array.isArray(item)))
+                .filter((resource) => !isGenericPortalNavigationResource({
+                  url: typeof resource.url === "string" ? resource.url : null,
+                  canonicalUrl: typeof resource.canonicalUrl === "string" ? resource.canonicalUrl : null,
+                  label: typeof resource.label === "string" ? resource.label : null,
+                  filename: typeof resource.filename === "string" ? resource.filename : null,
+                  resourceType: typeof resource.resourceType === "string" ? resource.resourceType : null,
+                }))
               : [];
             const documentLinks = [
               ...documentRows.map((document) => ({

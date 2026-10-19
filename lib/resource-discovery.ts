@@ -1,7 +1,8 @@
 import { JSDOM } from "jsdom";
 import { decodeHtmlEntities, repairKnownGermanEncoding } from "@/lib/text-normalization";
 import { documentIdentityKey } from "@/lib/document-identity";
-export { isPortalActionUrl } from "@/lib/resource-url";
+import { isGenericPortalNavigationResource } from "@/lib/resource-url";
+export { isGenericPortalNavigationResource, isPortalActionUrl } from "@/lib/resource-url";
 
 const DEFAULT_MAX_RESOURCES = 500;
 const DEFAULT_MAX_SUBPAGE_CANDIDATES = 20;
@@ -429,6 +430,13 @@ const makeResource = (
     attribute: input.attribute,
   });
   const canonicalUrl = documentIdentityKey({ url, contentType, resourceType: type }) ?? url;
+  if (isGenericPortalNavigationResource({
+    url,
+    canonicalUrl,
+    label,
+    filename: typeof input.filename === "string" ? input.filename : null,
+    resourceType: type,
+  })) return null;
 
   return {
     url,
@@ -534,6 +542,7 @@ const elementText = (element: Element): string => {
     element.getAttribute("aria-label"),
     element.getAttribute("title"),
     element.getAttribute("alt"),
+    element.querySelector("img[alt]")?.getAttribute("alt"),
   ]) {
     const text = boundedText(value);
     if (text) return text;

@@ -5,6 +5,7 @@ import {
   extractResourcesFromHtml,
   extractResourcesFromLinks,
   extractResourcesFromNetworkMetadata,
+  isGenericPortalNavigationResource,
   isPortalActionUrl,
   normalizeResourceUrl,
   rankSubpageCandidates,
@@ -76,6 +77,49 @@ assert.equal(isPortalActionUrl("https://example.test/VMPCenter/public/company/pr
 assert.equal(isPortalActionUrl("https://example.test/VMPSatellite/mandator/sf_security_check"), true);
 assert.equal(isPortalActionUrl("/VMPSatellite/mandator/sf_security_check?continue=documents"), true);
 assert.equal(isPortalActionUrl("https://example.test/files/notice.pdf"), false);
+const genericPortalResources = extractResourcesFromLinks(
+  [
+    { href: "/", text: "cosinex GmbH" },
+    { href: "/service", text: "SERVICE.BUND.DE" },
+    { href: "/navigation", text: "Haupt-Navigations-Menü" },
+    { href: "/meta", text: "Meta-Navigation" },
+    { href: "/other-notices", text: "Andere Ausschreibungen im Bereich" },
+    { href: "/service/vergabemarktplatz-impressum", text: "Impressum" },
+    { href: "/service/vergabemarktplatz-impressum.do", text: "" },
+    { href: "/service/vergabemarktplatz-datenschutz", text: "Datenschutz" },
+    { href: "/service/vergabemarktplatz-datenschutzerklaerung", text: "Datenschutzerklärung" },
+    { href: "/service/vergabemarktplatz-nutzungsbedingungen", text: "Nutzungsbedingungen" },
+    { href: "/service/vergabemarktplatz-kontakt", text: "Kontakt" },
+    { href: "https://buyer.example.test/", text: "Homepage des Auftraggebers" },
+    { href: "/logo", text: "Abbildung zeigt das Logo des Landes Brandenburg" },
+  ],
+  baseUrl,
+);
+assert.deepEqual(genericPortalResources, [], "generic portal navigation and footer links are not discovered resources");
+assert.equal(
+  extractResourcesFromHtml('<a href="/brand"><img alt="Abbildung zeigt das Logo des Landes Brandenburg"></a>', baseUrl).length,
+  0,
+  "logo alt text on a linked image is treated as generic portal navigation",
+);
+const tenderSpecificResources = extractResourcesFromLinks(
+  [
+    { href: "/tender/teilnahmeunterlagen", text: "Teilnahmeunterlagen" },
+    { href: "/tender/verfahrensangaben", text: "Verfahrensangaben" },
+    { href: "/tender/kommunikation", text: "Kommunikation" },
+    { href: "/buyer/project/kontakt", text: "Kontakt" },
+    { href: "/service/vergabemarktplatz-impressum.pdf", text: "Impressum" },
+  ],
+  baseUrl,
+);
+assert.equal(tenderSpecificResources.length, 5, "tender pages, project-specific contact routes and document downloads remain");
+assert.ok(tenderSpecificResources.some((resource) => resource.url.endsWith("/teilnahmeunterlagen")));
+assert.ok(tenderSpecificResources.some((resource) => resource.url.endsWith("/verfahrensangaben")));
+assert.ok(tenderSpecificResources.some((resource) => resource.url.endsWith("/kommunikation")));
+assert.ok(tenderSpecificResources.some((resource) => resource.url.endsWith("/project/kontakt")));
+assert.ok(tenderSpecificResources.some((resource) => resource.type === "document" && resource.url.endsWith("/vergabemarktplatz-impressum.pdf")));
+assert.equal(isGenericPortalNavigationResource({ url: "/notice/42", label: "Kommunikation", resourceType: "page" }), false);
+assert.equal(isGenericPortalNavigationResource({ url: "/files/notice.pdf", label: "Impressum", resourceType: "document" }), false);
+assert.equal(isGenericPortalNavigationResource({ url: "/?notice=42", resourceType: "page" }), false);
 assert.equal(classifyResourceType({ url: "https://example.test/api/notices", resourceType: "fetch" }), "api");
 assert.equal(
   classifyResourceType({ url: "https://example.test/file", contentType: "application/pdf", contentDisposition: null }),
