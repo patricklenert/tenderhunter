@@ -121,14 +121,29 @@ const isMvRegierungNavigationUrl = (value: string, label: string): boolean => {
       return parsed.searchParams.get("language") === "en_US" && label === "english";
     }
     if (path === "/NetServer/PublicationSearchControllerServlet") {
-      return label === "liefer- und dienstleistungen";
+      return label === "liefer- und dienstleistungen"
+        || (
+          parsed.searchParams.get("function") === "SearchPublications"
+          && parsed.searchParams.get("Gesetzesgrundlage") === "All"
+          && parsed.searchParams.get("Category") === "InvitationToTender"
+          && parsed.searchParams.get("thContext") === "publications"
+        );
     }
     if (path === "/NetServer/LoginControllerServlet") {
       return parsed.searchParams.get("function") === "LoginForm" && label === "registrierung";
     }
     return path === "/NetServer/index.jsp"
-      && parsed.searchParams.get("function") === "Generic"
-      && /^hint_11_3_vgv/i.test(parsed.searchParams.get("Page") ?? "");
+      && (
+        (
+          parsed.searchParams.get("function") === "Generic"
+          && parsed.searchParams.get("Page") === "hintOfferSubmission"
+          && parsed.searchParams.get("thContext") === "home"
+        )
+        || (
+          parsed.searchParams.get("function") === "Generic"
+          && /^hint_11_3_vgv/i.test(parsed.searchParams.get("Page") ?? "")
+        )
+      );
   } catch {
     return false;
   }
@@ -140,6 +155,7 @@ const isMvRegierungChromeOrActionUrl = (value: string): boolean => {
     return parsed.hostname === "vergabe.mv-regierung.de"
       && (
         /^\/NetServer\/_commonfiles\/css\/[^/]+\.css$/.test(parsed.pathname)
+        || parsed.pathname === "/NetServer/_commonfiles/css/jquery-ui/jquery-ui.min.css"
         || parsed.pathname === "/NetServer/_images/img/favicon.ico"
         || parsed.pathname === "/NetServer/ParticipationControllerServlet"
       );

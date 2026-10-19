@@ -176,6 +176,21 @@ assert.equal(isGenericPortalNavigationResource({
   resourceType: "page",
 }), true);
 assert.equal(isGenericPortalNavigationResource({
+  url: `${mvPortal}/NetServer/PublicationSearchControllerServlet?Category=InvitationToTender&thContext=publications&Gesetzesgrundlage=All&function=SearchPublications`,
+  label: "Alle Vergabeverfahren",
+  resourceType: "page",
+}), true, "the generic M-V invitation listing is filtered regardless of query parameter order");
+assert.equal(isGenericPortalNavigationResource({
+  url: `${mvPortal}/NetServer/PublicationSearchControllerServlet?function=Other&Gesetzesgrundlage=All&Category=InvitationToTender&thContext=publications`,
+  label: "Alle Vergabeverfahren",
+  resourceType: "page",
+}), false, "M-V publication search filtering requires the exact function parameter");
+assert.equal(isGenericPortalNavigationResource({
+  url: `https://other.example.test/NetServer/PublicationSearchControllerServlet?function=SearchPublications&Gesetzesgrundlage=All&Category=InvitationToTender&thContext=publications`,
+  label: "Alle Vergabeverfahren",
+  resourceType: "page",
+}), false, "M-V publication search filtering is host-scoped");
+assert.equal(isGenericPortalNavigationResource({
   url: `${mvPortal}/NetServer/LoginControllerServlet?function=LoginForm`, label: "Registrierung", resourceType: "page",
 }), true);
 assert.equal(isGenericPortalNavigationResource({
@@ -183,6 +198,26 @@ assert.equal(isGenericPortalNavigationResource({
   label: "Allgemeine Informationen zur VgV",
   resourceType: "page",
 }), true);
+assert.equal(isGenericPortalNavigationResource({
+  url: `${mvPortal}/NetServer/index.jsp?thContext=home&Page=hintOfferSubmission&function=Generic`,
+  label: "Hinweis zur Angebotsabgabe",
+  resourceType: "page",
+}), true, "the generic M-V offer-submission help page is filtered independent of parameter order");
+assert.equal(isGenericPortalNavigationResource({
+  url: `${mvPortal}/NetServer/index.jsp?function=Generic&Page=anotherHint&thContext=home`,
+  label: "Hinweis zur Angebotsabgabe",
+  resourceType: "page",
+}), false, "M-V offer-submission help filtering requires the exact Page parameter");
+assert.equal(isGenericPortalNavigationResource({
+  url: `${mvPortal}/NetServer/index.jsp?function=Other&Page=hintOfferSubmission&thContext=home`,
+  label: "Hinweis zur Angebotsabgabe",
+  resourceType: "page",
+}), false, "M-V offer-submission help filtering requires the exact function parameter");
+assert.equal(isGenericPortalNavigationResource({
+  url: `${mvPortal}/NetServer/index.jsp?function=Generic&Page=hintOfferSubmission&thContext=other`,
+  label: "Hinweis zur Angebotsabgabe",
+  resourceType: "page",
+}), false, "M-V offer-submission help filtering requires the exact context parameter");
 assert.equal(isGenericPortalNavigationResource({
   url: "http://www.service.m-v.de/cms/DLP_prod/DLP/Lebenslagen/Unternehmen/Oeffentliche_Auftraege/index.jsp",
   label: "Infoportal - Lebenslage öffentliche Aufträge in M-V",
@@ -196,6 +231,7 @@ assert.equal(isGenericPortalNavigationResource({
 
 for (const assetUrl of [
   `${mvPortal}/NetServer/_commonfiles/css/base.css`,
+  `${mvPortal}/NetServer/_commonfiles/css/jquery-ui/jquery-ui.min.css`,
   `${mvPortal}/NetServer/_images/img/favicon.ico`,
 ]) {
   assert.equal(isGenericPortalNavigationResource({
@@ -219,6 +255,16 @@ assert.equal(isGenericPortalNavigationResource({
   label: "",
   resourceType: "unknown",
 }), false, "M-V asset filtering is scoped to the observed CSS path");
+assert.equal(isGenericPortalNavigationResource({
+  url: `${mvPortal}/NetServer/_commonfiles/css/jquery-ui/theme.css`,
+  label: "",
+  resourceType: "stylesheet",
+}), false, "nested M-V CSS filtering is limited to the observed stylesheet pathname");
+assert.equal(isGenericPortalNavigationResource({
+  url: `https://other.example.test/NetServer/_commonfiles/css/jquery-ui/jquery-ui.min.css`,
+  label: "",
+  resourceType: "stylesheet",
+}), false, "nested M-V CSS filtering is host-scoped");
 assert.equal(isGenericPortalNavigationResource({
   url: `${mvPortal}/NetServer/_commonfiles/css/Unterlagen.pdf`,
   label: "",
