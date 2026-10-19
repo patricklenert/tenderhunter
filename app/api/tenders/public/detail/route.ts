@@ -181,7 +181,11 @@ const buildResourceMetadata = (
   };
 
   for (const row of rows) {
-    if (isHtmlDocumentResource(row)) continue;
+    if (
+      isHtmlDocumentResource(row)
+      || isPortalActionUrl(row.url)
+      || isPortalActionUrl(row.canonicalUrl)
+    ) continue;
     const url = safeResourceUrl(row.url, tenderUrl);
     const canonicalUrl = safeResourceUrl(row.canonicalUrl, tenderUrl) ?? url;
     if (!url && !canonicalUrl) continue;
@@ -209,7 +213,11 @@ const buildResourceMetadata = (
   }
 
   for (const candidate of candidates) {
-    if (isHtmlDocumentResource(candidate)) continue;
+    if (
+      isHtmlDocumentResource(candidate)
+      || isPortalActionUrl(candidate.url)
+      || isPortalActionUrl(candidate.canonicalUrl)
+    ) continue;
     const url = safeResourceUrl(candidate.url, tenderUrl);
     const canonicalUrl = safeResourceUrl(candidate.canonicalUrl, tenderUrl) ?? url;
     if (!url && !canonicalUrl) continue;
