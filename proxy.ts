@@ -98,6 +98,16 @@ export async function proxy(request: NextRequest): Promise<NextResponse | Respon
   const hasTrailingSlash = pathname.length > 1 && pathname.endsWith("/");
 
   if (
+    pathname === "/"
+    && request.nextUrl.searchParams.size === 1
+    && request.nextUrl.searchParams.get("q") === "{search_term_string}"
+  ) {
+    const destination = new URL(request.url);
+    destination.search = "";
+    return NextResponse.redirect(destination, 301);
+  }
+
+  if (
     (resource === "ausschreibungen" || resource === "auftraggeber")
     &&
     request.nextUrl.searchParams.size === 1

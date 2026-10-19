@@ -101,6 +101,11 @@ async function main(): Promise<void> {
   assert.equal(pathFromUrl(pageOne.response.headers.get("location") ?? ""), "/ausschreibungen/bauarbeiten");
   assert.equal(new URL(pageOne.response.headers.get("location") ?? baseUrl, base).search, "");
 
+  const searchPlaceholder = await fetchPage("/?q=%7Bsearch_term_string%7D");
+  assert.equal(searchPlaceholder.response.status, 301, "the obsolete WebSite search placeholder must redirect to the homepage");
+  assert.equal(pathFromUrl(searchPlaceholder.response.headers.get("location") ?? ""), "/");
+  assert.equal(new URL(searchPlaceholder.response.headers.get("location") ?? baseUrl, base).search, "");
+
   await assertNoindex("/ausschreibungen/bauarbeiten?page=2", "pagination URL");
   await assertNoindex("/impressum", "impressum");
 

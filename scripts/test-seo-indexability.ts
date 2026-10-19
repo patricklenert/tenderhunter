@@ -148,6 +148,7 @@ const layoutSource = readFileSync("app/layout.tsx", "utf8");
 assert.doesNotMatch(layoutSource, /SearchAction|search_term_string|potentialAction/, "WebSite JSON-LD must not advertise the noindex homepage search URL");
 
 const proxySource = readFileSync("proxy.ts", "utf8");
+assert.match(proxySource, /pathname === "\/"[\s\S]*searchParams\.size === 1[\s\S]*searchParams\.get\("q"\) === "\{search_term_string\}"[\s\S]*NextResponse\.redirect\(destination, 301\)/, "the obsolete WebSite search placeholder must redirect directly to the clean homepage");
 assert.match(proxySource, /searchParams\.size === 1[\s\S]*searchParams\.get\("page"\) === "1"[\s\S]*NextResponse\.redirect\(destination, 301\)/, "standalone page=1 URLs must directly redirect to the clean listing URL");
 assert.match(proxySource, /NextResponse\.redirect\(destination,\s*301\)/, "canonical tender redirects must use a direct permanent 301");
 assert.match(proxySource, /pathname\.endsWith\("\/"\)/, "trailing-slash URLs must be normalized in the proxy");
