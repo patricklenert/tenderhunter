@@ -74,6 +74,18 @@ const GENERIC_PORTAL_NAVIGATION_LABELS = new Set([
 const GENERIC_FOOTER_PATH = /(?:^|\/)(?:vergabemarktplatz-(?:impressum|datenschutz|nutzungsbedingungen|kontakt)|impressum|datenschutz|datenschutzerklärung|datenschutzerklaerung|nutzungsbedingungen)(?:\.html?|\.do)?(?:\/|$)/i;
 const GENERIC_PORTAL_ROOT_PATH = /^\/?(?:VMPSatellite|VMPCenter)$/i;
 const GENERIC_SOCIAL_SHARE_PATH = /(?:^|\/)(?:sharer\/sharer\.php|intent\/tweet|sharing\/share-offsite)(?:\/|$)/i;
+const MV_PUBLIC_PROCUREMENT_INFO_LABELS = new Set([
+  "informationen zur öffentlichen auftragsvergabe",
+  "öffentliche auftragsvergabe",
+  "vergabe öffentlicher aufträge",
+  "infoportal - lebenslage öffentliche aufträge in m-v",
+]);
+const MV_CURRENT_PROCEDURES_LABELS = new Set([
+  "aktuelle ausschreibungen",
+  "aktuelle vergabeverfahren",
+  "aktuelle verfahren",
+  "laufende und abgeschlossene vergabeverfahren im land",
+]);
 
 const isServiceBundNavigationUrl = (value: string): boolean => {
   try {
@@ -82,6 +94,66 @@ const isServiceBundNavigationUrl = (value: string): boolean => {
     const path = resourcePath(value);
     return /\/Content\//i.test(path)
       || /\/IMPORTE\/Ausschreibungen\/[^/]+\/\d{4}\/\d{2}\/IMPORTE\/Ausschreibungen\//i.test(path);
+  } catch {
+    return false;
+  }
+};
+
+const isBundProcessFormNavigationUrl = (value: string): boolean => {
+  try {
+    const parsed = new URL(value);
+    return parsed.hostname === "www.bund.de"
+      && parsed.pathname === "/Content/DE/Ausschreibungen/Suche/Formular.html"
+      && parsed.searchParams.get("view") === "processForm";
+  } catch {
+    return false;
+  }
+};
+
+const isMvRegierungNavigationUrl = (value: string, label: string): boolean => {
+  try {
+    const parsed = new URL(value);
+    if (parsed.hostname !== "vergabe.mv-regierung.de") return false;
+    const path = parsed.pathname.replace(/\/+$/, "") || "/";
+
+    if (path === "/NetServer") return label === "zur startseite";
+    if (path === "/NetServer/LanguageSelectServlet") {
+      return parsed.searchParams.get("language") === "en_US" && label === "english";
+    }
+    if (path === "/NetServer/PublicationSearchControllerServlet") {
+      return label === "liefer- und dienstleistungen";
+    }
+    if (path === "/NetServer/LoginControllerServlet") {
+      return parsed.searchParams.get("function") === "LoginForm" && label === "registrierung";
+    }
+    return path === "/NetServer/index.jsp"
+      && parsed.searchParams.get("function") === "Generic"
+      && /^hint_11_3_vgv/i.test(parsed.searchParams.get("Page") ?? "");
+  } catch {
+    return false;
+  }
+};
+
+const isMvRegierungChromeOrActionUrl = (value: string): boolean => {
+  try {
+    const parsed = new URL(value);
+    return parsed.hostname === "vergabe.mv-regierung.de"
+      && (
+        /^\/NetServer\/_commonfiles\/css\/[^/]+\.css$/.test(parsed.pathname)
+        || parsed.pathname === "/NetServer/_images/img/favicon.ico"
+        || parsed.pathname === "/NetServer/ParticipationControllerServlet"
+      );
+  } catch {
+    return false;
+  }
+};
+
+const isOtherMvNavigationUrl = (value: string, label: string): boolean => {
+  try {
+    const hostname = new URL(value).hostname;
+    return ((hostname === "service.m-v.de" || hostname === "www.service.m-v.de")
+        && MV_PUBLIC_PROCUREMENT_INFO_LABELS.has(label))
+      || (hostname === "lxwww2.mvnet.de" && MV_CURRENT_PROCEDURES_LABELS.has(label));
   } catch {
     return false;
   }
@@ -117,7 +189,11 @@ export function isGenericPortalNavigationResource({
     || /^(?:abbildung zeigt )?(?:das )?logo(?: des| der| von)? (?:(?:landes|vergabemarktplatz(?:es)?|vergabeplattform|vergabeportals?) )?brandenburg$/.test(normalizedLabel)
   ) return true;
 
-  return paths.some((path) => GENERIC_FOOTER_PATH.test(path)
+  return urls.some((value) => isBundProcessFormNavigationUrl(value)
+      || isMvRegierungNavigationUrl(value, normalizedLabel)
+      || isMvRegierungChromeOrActionUrl(value)
+      || isOtherMvNavigationUrl(value, normalizedLabel))
+    || paths.some((path) => GENERIC_FOOTER_PATH.test(path)
       || GENERIC_PORTAL_ROOT_PATH.test(path)
       || GENERIC_SOCIAL_SHARE_PATH.test(path))
     || urls.some(isServiceBundNavigationUrl)

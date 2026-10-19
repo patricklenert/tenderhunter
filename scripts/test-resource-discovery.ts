@@ -146,6 +146,114 @@ assert.equal(isGenericPortalNavigationResource({ url: "/map", label: "Karte ansc
 assert.equal(isGenericPortalNavigationResource({ url: "/share", label: "Facebook", resourceType: "page" }), true);
 assert.equal(isGenericPortalNavigationResource({ url: "/share", label: "Twitter", resourceType: "page" }), true);
 assert.equal(isGenericPortalNavigationResource({ url: "/forward", label: "Information per E-Mail weiterempfehlen", resourceType: "page" }), true);
+const bundProcessFormUrl = "https://www.bund.de/Content/DE/Ausschreibungen/Suche/Formular.html?view=processForm&nn=4642046";
+assert.equal(isGenericPortalNavigationResource({
+  url: bundProcessFormUrl,
+  label: "Vergabeverfahren - Bundesweit",
+  resourceType: "page",
+}), true, "the generic Bund search form is not a tender resource");
+assert.equal(isGenericPortalNavigationResource({
+  url: "https://www.bund.de/Content/DE/Ausschreibungen/Suche/Formular.html?view=processForm&nn=1234567",
+  label: "Vergabeverfahren - Bundesweit",
+  resourceType: "page",
+}), true, "Bund search-form suppression does not depend on incidental nn navigation context");
+assert.equal(isGenericPortalNavigationResource({
+  url: "https://www.bund.de/Content/DE/Ausschreibungen/notice.html",
+  label: "Bekanntmachung",
+  resourceType: "page",
+}), false, "tender-specific Bund pages are not suppressed");
+
+const mvPortal = "https://vergabe.mv-regierung.de";
+assert.equal(isGenericPortalNavigationResource({
+  url: `${mvPortal}/NetServer/`, label: "Zur Startseite", resourceType: "page",
+}), true);
+assert.equal(isGenericPortalNavigationResource({
+  url: `${mvPortal}/NetServer/LanguageSelectServlet?language=en_US`, label: "English", resourceType: "page",
+}), true);
+assert.equal(isGenericPortalNavigationResource({
+  url: `${mvPortal}/NetServer/PublicationSearchControllerServlet?function=SearchPublications&Category=InvitationToTender`,
+  label: "Liefer- und Dienstleistungen",
+  resourceType: "page",
+}), true);
+assert.equal(isGenericPortalNavigationResource({
+  url: `${mvPortal}/NetServer/LoginControllerServlet?function=LoginForm`, label: "Registrierung", resourceType: "page",
+}), true);
+assert.equal(isGenericPortalNavigationResource({
+  url: `${mvPortal}/NetServer/index.jsp?function=Generic&Page=hint_11_3_vgv_123`,
+  label: "Allgemeine Informationen zur VgV",
+  resourceType: "page",
+}), true);
+assert.equal(isGenericPortalNavigationResource({
+  url: "http://www.service.m-v.de/cms/DLP_prod/DLP/Lebenslagen/Unternehmen/Oeffentliche_Auftraege/index.jsp",
+  label: "Infoportal - Lebenslage öffentliche Aufträge in M-V",
+  resourceType: "page",
+}), true, "the M-V public-procurement information link is generic navigation");
+assert.equal(isGenericPortalNavigationResource({
+  url: "http://lxwww2.mvnet.de/vlwg/user/index.php?&sortfield=frist&sortorder=down&state=1",
+  label: "Laufende und abgeschlossene Vergabeverfahren im Land",
+  resourceType: "page",
+}), true, "the M-V current-procedures listing is generic navigation");
+
+for (const assetUrl of [
+  `${mvPortal}/NetServer/_commonfiles/css/base.css`,
+  `${mvPortal}/NetServer/_images/img/favicon.ico`,
+]) {
+  assert.equal(isGenericPortalNavigationResource({
+    url: assetUrl,
+    label: "",
+    resourceType: assetUrl.endsWith(".css") ? "stylesheet" : "image",
+  }), true, `unlabelled M-V portal chrome asset is filtered: ${assetUrl}`);
+}
+assert.equal(isGenericPortalNavigationResource({
+  url: `${mvPortal}/NetServer/ParticipationControllerServlet`,
+  label: "",
+  resourceType: "api",
+}), true, "the M-V participation action is filtered without relying on a label");
+assert.equal(isGenericPortalNavigationResource({
+  url: "https://other.example.test/NetServer/_commonfiles/css/base.css",
+  label: "",
+  resourceType: "unknown",
+}), false, "M-V portal chrome filtering is host-scoped");
+assert.equal(isGenericPortalNavigationResource({
+  url: `${mvPortal}/NetServer/_commonfiles/css/base.js`,
+  label: "",
+  resourceType: "unknown",
+}), false, "M-V asset filtering is scoped to the observed CSS path");
+assert.equal(isGenericPortalNavigationResource({
+  url: `${mvPortal}/NetServer/_commonfiles/css/Unterlagen.pdf`,
+  label: "",
+  resourceType: "document",
+}), false, "real documents under M-V portal asset paths remain");
+assert.equal(isGenericPortalNavigationResource({
+  url: `${mvPortal}/NetServer/_commonfiles/css/base.css`,
+  label: "",
+  resourceType: "document",
+}), false, "document resources are preserved even at an observed M-V asset URL");
+assert.equal(isGenericPortalNavigationResource({
+  url: `${mvPortal}/NetServer/ParticipationControllerServlet?function=Download&TOID=MV-123`,
+  label: "",
+  resourceType: "download",
+}), false, "real downloads at an M-V action path remain");
+
+const mvTenderDetailUrl = `${mvPortal}/NetServer/PublicationControllerServlet?function=Detail&TOID=MV-123`;
+const mvProcedureDetailsUrl = `${mvPortal}/NetServer/TenderingProcedureDetails?function=_Details&TenderOID=MV-123`;
+assert.equal(isGenericPortalNavigationResource({
+  url: mvTenderDetailUrl, label: "Bekanntmachung", resourceType: "page",
+}), false, "M-V tender-specific publication details remain");
+assert.equal(isGenericPortalNavigationResource({
+  url: mvProcedureDetailsUrl, label: "Verfahrensdetails", resourceType: "page",
+}), false, "M-V tender-specific procedure details remain");
+assert.equal(isGenericPortalNavigationResource({
+  url: `${mvPortal}/NetServer/PublicationDocumentServlet?function=Download&TOID=MV-123`,
+  label: "Unterlagen zur Ansicht herunterladen",
+  resourceType: "download",
+}), false, "tender-specific M-V downloads remain");
+assert.equal(isGenericPortalNavigationResource({
+  url: `${mvPortal}/NetServer/downloads/Unterlagen.pdf`,
+  label: "Unterlagen zur Ansicht herunterladen",
+  resourceType: "document",
+}), false, "tender-specific M-V PDFs remain");
+
 const tenderSpecificResources = extractResourcesFromLinks(
   [
     { href: "/tender/overview", text: "Übersicht" },
