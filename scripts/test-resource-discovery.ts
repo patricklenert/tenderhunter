@@ -186,6 +186,11 @@ assert.equal(isGenericPortalNavigationResource({
   resourceType: "page",
 }), true, "the M-V VOB listing is filtered independent of its search facets and label");
 assert.equal(isGenericPortalNavigationResource({
+  url: `${mvPortal}/NetServer/PublicationSearchControllerServlet?function=SearchPublications&Category=ContractAward&thContext=awardPublications`,
+  label: "Alle vergebenen Aufträge",
+  resourceType: "page",
+}), true, "the live M-V contract-awards listing is filtered");
+assert.equal(isGenericPortalNavigationResource({
   url: `${mvPortal}/NetServer/PublicationSearchControllerServlet?function=Other&Gesetzesgrundlage=All&Category=InvitationToTender&thContext=publications`,
   label: "Alle Vergabeverfahren",
   resourceType: "page",
@@ -212,7 +217,7 @@ assert.equal(isGenericPortalNavigationResource({
   url: `${mvPortal}/NetServer/index.jsp?function=Generic&Page=impressum&thContext=home`,
   label: "Impressum / Datenschutz",
   resourceType: "page",
-}), true, "the M-V legal navigation link is filtered by its exact page route");
+}), true, "M-V Generic portal pages are filtered regardless of Page");
 assert.equal(isGenericPortalNavigationResource({
   url: `${mvPortal}/NetServer/index.jsp?function=Other&Page=impressum&thContext=home`,
   label: "Impressum / Datenschutz",
@@ -222,12 +227,12 @@ assert.equal(isGenericPortalNavigationResource({
   url: `${mvPortal}/NetServer/index.jsp?function=Generic&Page=datenschutz&thContext=home`,
   label: "Impressum / Datenschutz",
   resourceType: "page",
-}), false, "M-V legal navigation filtering requires the exact Page parameter");
+}), true, "M-V Generic privacy pages are filtered");
 assert.equal(isGenericPortalNavigationResource({
   url: `${mvPortal}/NetServer/index.jsp?function=Generic&Page=anotherHint&thContext=home`,
   label: "Hinweis zur Angebotsabgabe",
   resourceType: "page",
-}), false, "M-V offer-submission help filtering requires the exact Page parameter");
+}), true, "M-V Generic pages are filtered regardless of Page");
 assert.equal(isGenericPortalNavigationResource({
   url: `${mvPortal}/NetServer/index.jsp?function=Other&Page=hintOfferSubmission&thContext=home`,
   label: "Hinweis zur Angebotsabgabe",
@@ -237,7 +242,22 @@ assert.equal(isGenericPortalNavigationResource({
   url: `${mvPortal}/NetServer/index.jsp?function=Generic&Page=hintOfferSubmission&thContext=other`,
   label: "Hinweis zur Angebotsabgabe",
   resourceType: "page",
-}), false, "M-V offer-submission help filtering requires the exact context parameter");
+}), true, "M-V Generic pages are filtered regardless of context");
+assert.equal(isGenericPortalNavigationResource({
+  url: `${mvPortal}/NetServer/index.jsp?function=Generic&Page=frequentQuestions&thContext=home`,
+  label: "Häufige Fragen",
+  resourceType: "page",
+}), true, "the live M-V FAQ portal page is filtered");
+assert.equal(isGenericPortalNavigationResource({
+  url: `${mvPortal}/NetServer/index.jsp?function=Other&Page=frequentQuestions&thContext=home`,
+  label: "Häufige Fragen",
+  resourceType: "page",
+}), false, "M-V index pages with other functions remain");
+assert.equal(isGenericPortalNavigationResource({
+  url: `https://other.example.test/NetServer/index.jsp?function=Generic&Page=frequentQuestions&thContext=home`,
+  label: "Häufige Fragen",
+  resourceType: "page",
+}), false, "M-V Generic page filtering is host-scoped");
 assert.equal(isGenericPortalNavigationResource({
   url: "http://www.service.m-v.de/cms/DLP_prod/DLP/Lebenslagen/Unternehmen/Oeffentliche_Auftraege/index.jsp",
   label: "Infoportal - Lebenslage öffentliche Aufträge in M-V",

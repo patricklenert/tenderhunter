@@ -121,32 +121,13 @@ const isMvRegierungNavigationUrl = (value: string, label: string): boolean => {
       return parsed.searchParams.get("language") === "en_US" && label === "english";
     }
     if (path === "/NetServer/PublicationSearchControllerServlet") {
-      return label === "liefer- und dienstleistungen"
-        || (
-          parsed.searchParams.get("function") === "SearchPublications"
-          && parsed.searchParams.get("thContext") === "publications"
-        );
+      return parsed.searchParams.get("function") === "SearchPublications";
     }
     if (path === "/NetServer/LoginControllerServlet") {
       return parsed.searchParams.get("function") === "LoginForm" && label === "registrierung";
     }
     return path === "/NetServer/index.jsp"
-      && (
-        (
-          parsed.searchParams.get("function") === "Generic"
-          && parsed.searchParams.get("Page") === "hintOfferSubmission"
-          && parsed.searchParams.get("thContext") === "home"
-        )
-        || (
-          parsed.searchParams.get("function") === "Generic"
-          && parsed.searchParams.get("Page") === "impressum"
-          && parsed.searchParams.get("thContext") === "home"
-        )
-        || (
-          parsed.searchParams.get("function") === "Generic"
-          && /^hint_11_3_vgv/i.test(parsed.searchParams.get("Page") ?? "")
-        )
-      );
+      && parsed.searchParams.get("function") === "Generic";
   } catch {
     return false;
   }
