@@ -176,10 +176,15 @@ assert.equal(isGenericPortalNavigationResource({
   resourceType: "page",
 }), true);
 assert.equal(isGenericPortalNavigationResource({
-  url: `${mvPortal}/NetServer/PublicationSearchControllerServlet?Category=InvitationToTender&thContext=publications&Gesetzesgrundlage=All&function=SearchPublications`,
+  url: `${mvPortal}/NetServer/PublicationSearchControllerServlet?Category=InvitationToTender&thContext=publications&Gesetzesgrundlage=All&function=SearchPublications&Start=100&Order=desc`,
   label: "Alle Vergabeverfahren",
   resourceType: "page",
 }), true, "the generic M-V invitation listing is filtered regardless of query parameter order");
+assert.equal(isGenericPortalNavigationResource({
+  url: `${mvPortal}/NetServer/PublicationSearchControllerServlet?Gesetzesgrundlage=VOB&Start=0&function=SearchPublications&thContext=publications&Category=InvitationToTender&OrderBy=PublicationDate`,
+  label: "Bauleistungen",
+  resourceType: "page",
+}), true, "the M-V VOB listing is filtered independent of its search facets and label");
 assert.equal(isGenericPortalNavigationResource({
   url: `${mvPortal}/NetServer/PublicationSearchControllerServlet?function=Other&Gesetzesgrundlage=All&Category=InvitationToTender&thContext=publications`,
   label: "Alle Vergabeverfahren",
@@ -203,6 +208,21 @@ assert.equal(isGenericPortalNavigationResource({
   label: "Hinweis zur Angebotsabgabe",
   resourceType: "page",
 }), true, "the generic M-V offer-submission help page is filtered independent of parameter order");
+assert.equal(isGenericPortalNavigationResource({
+  url: `${mvPortal}/NetServer/index.jsp?function=Generic&Page=impressum&thContext=home`,
+  label: "Impressum / Datenschutz",
+  resourceType: "page",
+}), true, "the M-V legal navigation link is filtered by its exact page route");
+assert.equal(isGenericPortalNavigationResource({
+  url: `${mvPortal}/NetServer/index.jsp?function=Other&Page=impressum&thContext=home`,
+  label: "Impressum / Datenschutz",
+  resourceType: "page",
+}), false, "M-V legal navigation filtering requires the exact function parameter");
+assert.equal(isGenericPortalNavigationResource({
+  url: `${mvPortal}/NetServer/index.jsp?function=Generic&Page=datenschutz&thContext=home`,
+  label: "Impressum / Datenschutz",
+  resourceType: "page",
+}), false, "M-V legal navigation filtering requires the exact Page parameter");
 assert.equal(isGenericPortalNavigationResource({
   url: `${mvPortal}/NetServer/index.jsp?function=Generic&Page=anotherHint&thContext=home`,
   label: "Hinweis zur Angebotsabgabe",

@@ -124,8 +124,6 @@ const isMvRegierungNavigationUrl = (value: string, label: string): boolean => {
       return label === "liefer- und dienstleistungen"
         || (
           parsed.searchParams.get("function") === "SearchPublications"
-          && parsed.searchParams.get("Gesetzesgrundlage") === "All"
-          && parsed.searchParams.get("Category") === "InvitationToTender"
           && parsed.searchParams.get("thContext") === "publications"
         );
     }
@@ -137,6 +135,11 @@ const isMvRegierungNavigationUrl = (value: string, label: string): boolean => {
         (
           parsed.searchParams.get("function") === "Generic"
           && parsed.searchParams.get("Page") === "hintOfferSubmission"
+          && parsed.searchParams.get("thContext") === "home"
+        )
+        || (
+          parsed.searchParams.get("function") === "Generic"
+          && parsed.searchParams.get("Page") === "impressum"
           && parsed.searchParams.get("thContext") === "home"
         )
         || (
