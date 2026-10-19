@@ -73,6 +73,8 @@ assert.deepEqual(assignRoleHints("Unterlagen: Bekanntmachung und Leistungsbeschr
 ]);
 assert.equal(classifyResourceType("https://example.test/download?id=1"), "download");
 assert.equal(isPortalActionUrl("https://example.test/VMPCenter/public/company/projectForwarding.do?pid=42"), true);
+assert.equal(isPortalActionUrl("https://example.test/VMPSatellite/mandator/sf_security_check"), true);
+assert.equal(isPortalActionUrl("/VMPSatellite/mandator/sf_security_check?continue=documents"), true);
 assert.equal(isPortalActionUrl("https://example.test/files/notice.pdf"), false);
 assert.equal(classifyResourceType({ url: "https://example.test/api/notices", resourceType: "fetch" }), "api");
 assert.equal(
