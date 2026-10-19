@@ -127,7 +127,7 @@ const isMvRegierungNavigationUrl = (value: string, label: string): boolean => {
       return parsed.searchParams.get("function") === "LoginForm" && label === "registrierung";
     }
     return path === "/NetServer/index.jsp"
-      && parsed.searchParams.get("function") === "Generic";
+      && ["Generic", "Search"].includes(parsed.searchParams.get("function") ?? "");
   } catch {
     return false;
   }

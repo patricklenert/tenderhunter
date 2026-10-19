@@ -248,16 +248,37 @@ assert.equal(isGenericPortalNavigationResource({
   label: "Häufige Fragen",
   resourceType: "page",
 }), true, "the live M-V FAQ portal page is filtered");
+const mvGenericSearchUrl = `${mvPortal}/NetServer/index.jsp?function=Search&OrderBy=Publishing&Order=desc`;
+assert.equal(isGenericPortalNavigationResource({
+  url: mvGenericSearchUrl,
+  label: "Erschienen am",
+  resourceType: "page",
+}), true, "the M-V publication sort facet is a generic search page");
+assert.equal(isGenericPortalNavigationResource({
+  url: `${mvPortal}/NetServer/index.jsp?Order=desc&function=Search&OrderBy=Publishing&Category=ContractAward`,
+  label: "Andere Suchauswahl",
+  resourceType: "page",
+}), true, "M-V generic search page filtering is independent of query order and search facets");
 assert.equal(isGenericPortalNavigationResource({
   url: `${mvPortal}/NetServer/index.jsp?function=Other&Page=frequentQuestions&thContext=home`,
   label: "Häufige Fragen",
   resourceType: "page",
 }), false, "M-V index pages with other functions remain");
 assert.equal(isGenericPortalNavigationResource({
+  url: `${mvPortal}/NetServer/index.jsp?function=Other&OrderBy=Publishing&Order=desc`,
+  label: "Erschienen am",
+  resourceType: "page",
+}), false, "M-V generic search filtering requires a search function");
+assert.equal(isGenericPortalNavigationResource({
   url: `https://other.example.test/NetServer/index.jsp?function=Generic&Page=frequentQuestions&thContext=home`,
   label: "Häufige Fragen",
   resourceType: "page",
 }), false, "M-V Generic page filtering is host-scoped");
+assert.equal(isGenericPortalNavigationResource({
+  url: `https://other.example.test/NetServer/index.jsp?function=Search&OrderBy=Publishing&Order=desc`,
+  label: "Erschienen am",
+  resourceType: "page",
+}), false, "M-V generic search filtering is host-scoped");
 assert.equal(isGenericPortalNavigationResource({
   url: "http://www.service.m-v.de/cms/DLP_prod/DLP/Lebenslagen/Unternehmen/Oeffentliche_Auftraege/index.jsp",
   label: "Infoportal - Lebenslage öffentliche Aufträge in M-V",
@@ -329,6 +350,16 @@ assert.equal(isGenericPortalNavigationResource({
 assert.equal(isGenericPortalNavigationResource({
   url: mvProcedureDetailsUrl, label: "Verfahrensdetails", resourceType: "page",
 }), false, "M-V tender-specific procedure details remain");
+assert.equal(isGenericPortalNavigationResource({
+  url: "https://www.vergabemarktplatz-mv.de/NetServer/TenderingProcedureDetails?function=_Details&TenderOID=54321-Tender-123",
+  label: "Verfahrensdetails",
+  resourceType: "page",
+}), false, "tender-specific procedure pages on the alternate M-V host remain");
+assert.equal(isGenericPortalNavigationResource({
+  url: mvGenericSearchUrl,
+  label: "Erschienen am",
+  resourceType: "document",
+}), false, "document resources bypass generic M-V search suppression");
 assert.equal(isGenericPortalNavigationResource({
   url: `${mvPortal}/NetServer/PublicationDocumentServlet?function=Download&TOID=MV-123`,
   label: "Unterlagen zur Ansicht herunterladen",
