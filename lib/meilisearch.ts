@@ -140,7 +140,7 @@ export const buildTenderIndexDocument = (item: TenderIndexInput): TenderDocument
     item.rawText?.trim() ? item.structuredJson : null,
   );
   const bundesland = deriveBundesland(location)
-    ?? getPublicSourceBundesland(item.sourceKey ?? item.source, item.url);
+    ?? (location.trim() ? null : getPublicSourceBundesland(item.sourceKey ?? item.source, item.url));
   const pdfUrls = [
     ...(Array.isArray(meta.pdf_urls) ? meta.pdf_urls : []),
     ...(Array.isArray(meta.pdfUrls) ? meta.pdfUrls : []),
@@ -458,15 +458,16 @@ export const projectTenderSearchHit = (
     location: [currentDisplay.location],
     summary: [currentDisplay.description],
   });
+  const location = display.location || "";
 
   return {
     ...hit,
     title: display.title || `Ausschreibung #${hit.id}`,
     client: display.client || "Unbekannt",
-    bundesland: deriveBundesland(display.location)
-      ?? getPublicSourceBundesland(current.source, current.url),
-    location: display.location || "",
-    city: display.location ? deriveCity(display.location) : null,
+    bundesland: deriveBundesland(location)
+      ?? (location.trim() ? null : getPublicSourceBundesland(current.source, current.url)),
+    location,
+    city: location ? deriveCity(location) : null,
     description: display.description || "",
     deadlineAt: deadlineAt ? Math.floor(deadlineAt.getTime() / 1000) : null,
     hasDeadline: deadlineAt !== null,

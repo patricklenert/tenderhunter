@@ -540,6 +540,68 @@ const brandenburgSearchPage = selectTenderSearchFallbackResults(
 assert.deepEqual(mecklenburgVorpommernSearchPage.hits.map(({ id }) => id), [14706]);
 assert.deepEqual(brandenburgSearchPage.hits, []);
 
+const mvRegionSource = {
+  title: "Erneuerung der Ausstattung",
+  source: "net-mecklenburg-vorpommern",
+  sourceKey: "net-mecklenburg-vorpommern",
+  url: "https://vergabe.mv-regierung.de/tender/location-regression",
+  deadlineAt: null,
+  firstSeenAt: null,
+  category: "Bauarbeiten",
+  contractValueMax: null,
+  slug: null,
+  readinessStatus: "pending",
+};
+const buildMvRegionIndex = (id: number, location: string | null) => buildTenderIndexDocument({
+  ...mvRegionSource,
+  id,
+  metadataJson: location ? { location } : {},
+  structuredJson: location ? { hard_facts: { location } } : {},
+  rawText: location ? `Ausführungsort: ${location}` : null,
+});
+const reprojectMvRegionHit = (
+  hit: ReturnType<typeof buildTenderIndexDocument>,
+  location: string | null,
+  staleBundesland: string | null,
+) => projectTenderSearchHit({
+  ...hit,
+  bundesland: staleBundesland,
+}, {
+  title: mvRegionSource.title,
+  source: mvRegionSource.source,
+  url: mvRegionSource.url,
+  metadataJson: location ? { location } : {},
+  structuredJson: location ? { hard_facts: { location } } : {},
+  rawText: location ? `Ausführungsort: ${location}` : null,
+});
+
+const wittenbergeIndex = buildMvRegionIndex(14707, "19322 Wittenberge");
+assert.equal(wittenbergeIndex.location, "19322 Wittenberge");
+assert.equal(wittenbergeIndex.bundesland, "Brandenburg");
+assert.equal(
+  reprojectMvRegionHit(wittenbergeIndex, "19322 Wittenberge", "Mecklenburg-Vorpommern").bundesland,
+  "Brandenburg",
+  "a current city location must override a stale region and the portal region",
+);
+
+const ambiguousPostalIndex = buildMvRegionIndex(14708, "19322");
+assert.equal(ambiguousPostalIndex.location, "19322");
+assert.equal(ambiguousPostalIndex.bundesland, null);
+assert.equal(
+  reprojectMvRegionHit(ambiguousPostalIndex, "19322", "Brandenburg").bundesland,
+  null,
+  "an ambiguous current location must not inherit a portal region or stale indexed region",
+);
+
+const absentLocationIndex = buildMvRegionIndex(14709, null);
+assert.equal(absentLocationIndex.location, "");
+assert.equal(absentLocationIndex.bundesland, "Mecklenburg-Vorpommern");
+assert.equal(
+  reprojectMvRegionHit(absentLocationIndex, null, "Brandenburg").bundesland,
+  "Mecklenburg-Vorpommern",
+  "a trusted source may supply a region when the current location is absent",
+);
+
 const staleIndexedFacts = projectTenderSearchHit({
   ...meiliAccessHit,
   id: 906,

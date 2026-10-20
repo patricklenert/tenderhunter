@@ -119,6 +119,7 @@ const CITY_TO_BUNDESLAND: Record<string, Bundesland> = {
 
   Potsdam: "Brandenburg",
   Cottbus: "Brandenburg",
+  Wittenberge: "Brandenburg",
   "Frankfurt (Oder)": "Brandenburg",
   "Frankfurt/Oder": "Brandenburg",
 
@@ -143,6 +144,7 @@ const CITY_TO_BUNDESLAND: Record<string, Bundesland> = {
   Greifswald: "Mecklenburg-Vorpommern",
   Güstrow: "Mecklenburg-Vorpommern",
   Wismar: "Mecklenburg-Vorpommern",
+  "Zarrentin am Schaalsee": "Mecklenburg-Vorpommern",
   Waren: "Mecklenburg-Vorpommern",
   Malchin: "Mecklenburg-Vorpommern",
   Penzlin: "Mecklenburg-Vorpommern",
@@ -260,9 +262,8 @@ const PLZ_PREFIX_TO_BUNDESLAND: Array<{ prefix: number; bundesland: Bundesland }
   { prefix: 14, bundesland: "Brandenburg" },
   { prefix: 15, bundesland: "Brandenburg" },
   { prefix: 16, bundesland: "Brandenburg" },
-  // 17xxx spans both Brandenburg and Mecklenburg-Vorpommern.
+  // 17xxx and 19xxx span multiple Bundesländer.
   { prefix: 18, bundesland: "Mecklenburg-Vorpommern" },
-  { prefix: 19, bundesland: "Mecklenburg-Vorpommern" },
   { prefix: 20, bundesland: "Hamburg" },
   { prefix: 22, bundesland: "Hamburg" },
   { prefix: 23, bundesland: "Schleswig-Holstein" },

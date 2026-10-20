@@ -55,6 +55,9 @@ assert.equal(deriveBundesland("54"), null, "A postal prefix alone is not a posta
 assert.equal(deriveBundesland("Neubrandenburg"), "Mecklenburg-Vorpommern");
 assert.equal(deriveBundesland("17033 Neubrandenburg"), "Mecklenburg-Vorpommern");
 assert.equal(deriveBundesland("17033"), null, "An ambiguous postal code must not infer a Bundesland");
+assert.equal(deriveBundesland("19322 Wittenberge"), "Brandenburg");
+assert.equal(deriveBundesland("19246 Zarrentin am Schaalsee"), "Mecklenburg-Vorpommern");
+assert.equal(deriveBundesland("19322"), null, "An ambiguous postal code must not infer a Bundesland");
 assert.equal(deriveBundesland("Brandenburg"), "Brandenburg");
 assert.equal(deriveBundesland("Brandenburg an der Havel"), "Brandenburg");
 
