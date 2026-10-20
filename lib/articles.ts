@@ -1102,153 +1102,97 @@ Das Nachprüfungsverfahren ist ein starkes Instrument für Bieter bei Vergabefeh
     slug: "angebot-oeffentliche-ausschreibung-schreiben",
     title: "Angebot bei öffentlicher Ausschreibung schreiben: Anleitung und Checkliste",
     description:
-      "Angebot bei öffentlichen Ausschreibungen schreiben: Struktur, Preisermittlung, Formblätter, Eignungsnachweise und Checkliste. Schritt-für-Schritt für Bieter bei VOB- und VOL-Vergaben.",
+      "So erstellen Sie ein Angebot für eine öffentliche Ausschreibung: Vergabeunterlagen prüfen, geforderte Nachweise zusammenstellen, Preise kalkulieren und fristgerecht über den vorgegebenen Weg einreichen.",
     datePublished: "2026-07-05",
-    dateModified: "2026-07-05",
+    dateModified: "2026-10-20",
     relatedCategories: ["Bauarbeiten", "IT-Dienstleistungen", "Facility Management", "Lieferung"],
     relatedArticles: ["wie-funktioniert-ausschreibung", "ausschreibung-gewinnen", "vob-vergabe"],
-    relatedGlossaryTerms: ["angebot", "vergabeunterlagen", "e-vergabe", "eignungskriterien", "zuschlagskriterien", "nachforderung-unterlagen"],
+    relatedGlossaryTerms: ["angebot", "vergabeunterlagen", "e-vergabe", "eignungskriterien", "zuschlagskriterien", "nachforderung-unterlagen", "leistungsbeschreibung", "vob-a", "vob-a-eu", "uvgo"],
     howToSteps: [
-      { name: "Ausschreibungsunterlagen sorgfältig lesen", text: "Lesen Sie die Leistungsbeschreibung, Vergabeunterlagen und Zuschlagskriterien vollständig. Notieren Sie alle Formalien, Fristen und Eignungsanforderungen." },
-      { name: "Eignungsnachweise zusammenstellen", text: "Stellen Sie alle geforderten Nachweise zusammen: Handelsregister, Gewerbeanmeldung, Unbedenklichkeitsbescheinigungen, Referenzen, Bilanzen und Versicherungen." },
-      { name: "Preis kalkulieren", text: "Kalkulieren Sie den Preis realistisch: Material, Personal (inkl. Mindestlohn), Lohnnebenkosten, Overhead und Marge. Berücksichtigen Sie Tariftreue und Nachhaltigkeitsanforderungen." },
-      { name: "Angebot formatieren und einreichen", text: "Formatieren Sie das Angebot nach den Vorgaben der Ausschreibung. Reichen Sie elektronisch und vor Fristende ein. Verspätete Angebote werden nach den anwendbaren Vorschriften grundsätzlich nicht gewertet." },
+      { name: "Bekanntmachung und Unterlagen prüfen", text: "Prüfen Sie Leistungsbeschreibung, Lose, Vertragsbedingungen, Zuschlagskriterien, Frist und Übermittlungsweg. Berücksichtigen Sie Antworten auf Bieterfragen und Änderungen der Vergabestelle." },
+      { name: "Eignung und geforderte Nachweise abgleichen", text: "Vergleichen Sie Ihre Eignung mit den konkreten Anforderungen. Stellen Sie nur die verlangten Erklärungen und Nachweise zusammen und klären Sie rechtzeitig, ob Sie Unterstützung oder eine Bietergemeinschaft benötigen." },
+      { name: "Angebot auf den Auftrag zuschneiden", text: "Nutzen Sie die vorgegebenen Formblätter und beantworten Sie alle geforderten Leistungspositionen, Erklärungen und Konzepte. Ändern Sie die Vergabeunterlagen nicht und fügen Sie nichts als verbindliche Zusage hinzu, was Sie nicht leisten können." },
+      { name: "Preis nachvollziehbar kalkulieren", text: "Kalkulieren Sie anhand der geforderten Mengen, Einheiten und Preisfelder. Berücksichtigen Sie Ihre tatsächlichen Kosten und die Vorgaben des Auftrags; eine branchenweit gültige Marge gibt es nicht." },
+      { name: "Fristgerecht übermitteln und Eingang prüfen", text: "Reichen Sie das finale Angebot über den vorgegebenen Kanal vor Ablauf der konkreten Angebotsfrist ein. Prüfen Sie Upload, Dateiversionen und die Eingangsbestätigung der Plattform." },
     ],
     content: `
-## Warum ein gutes Angebot über den Zuschlag entscheidet
+## Was für Ihr Angebot maßgeblich ist
 
-Bei öffentlichen Ausschreibungen gewinnt nicht das billigste Angebot — sondern das wirtschaftlichste. Das bedeutet: Wer ein vollständiges, formal korrektes und strategisch kalkuliertes Angebot abgibt, hat die besten Chancen auf den Zuschlag. Dieser Artikel erklärt, wie Sie ein Angebot bei öffentlichen Ausschreibungen Schritt für Schritt erstellen.
+Die Bekanntmachung und die zugehörigen Vergabeunterlagen bestimmen, was Sie einreichen müssen und wie die Vergabestelle Ihr Angebot bewertet. Dazu gehören je nach Verfahren etwa Leistungsbeschreibung, Vertragsbedingungen, Preisblätter, Formulare, Eignungskriterien, Zuschlagskriterien und der zugelassene Übermittlungsweg. Prüfen Sie auch Antworten auf Bieterfragen und nachträgliche Änderungen.
 
-## Schritt 1: Die Ausschreibung verstehen
+Es gibt keine allgemeingültige Liste von Anlagen, Unterschriften oder Zertifikaten für jedes öffentliche Angebot. Reichen Sie die verlangten Angaben vollständig in der geforderten Form ein. Eine zusätzliche Referenz, ein ISO-Zertifikat oder ein Nachhaltigkeitsnachweis verschafft nicht automatisch einen Wertungsvorteil; maßgeblich sind die bekannt gemachten Anforderungen und Zuschlagskriterien.
 
-Bevor Sie mit der Angebotserstellung beginnen, müssen Sie die Ausschreibung vollständig verstehen:
+## Eignung und geforderte Nachweise abgleichen
 
-### Leistungsbeschreibung studieren
-- Was genau wird gefordert? (Umfang, Qualität, Menge)
-- Welche technischen Anforderungen gelten? (Normen, Standards)
-- Welche Fristen sind vorgegeben? (Ausführungsfrist, Liefertermin)
-- Welche Formalien sind einzuhalten? (Format, Unterschrift, Anlagen)
+Prüfen Sie für jedes Los, ob Ihr Unternehmen die geforderten Eignungskriterien erfüllt und welche Nachweise vorzulegen sind. Das können je nach Auftrag Eigenerklärungen, Referenzen, Angaben zu Personal und Ausstattung oder Nachweise zu wirtschaftlicher und beruflicher Leistungsfähigkeit sein. Handelsregisterauszüge, Bescheinigungen, Bilanzen und Zertifikate sind nicht pauschal bei jedem Angebot erforderlich.
 
-### Zuschlagskriterien analysieren
-- **Niedrigstes Angebot:** Preis allein entscheidet
-- **Wirtschaftlichstes Angebot:** Preis und Qualität (z.B. 70% Preis, 30% Qualität)
+Verwenden Sie die Formulare der Vergabestelle und prüfen Sie, ob Erklärungen von Nachunternehmen oder Mitgliedern einer Bietergemeinschaft benötigt werden. Klären Sie offene Punkte innerhalb der vorgesehenen Frist und über den in den Unterlagen genannten Kommunikationsweg.
 
-**Tipp:** Bei wirtschaftlichstem Angebot lohnt es sich, mehr in Qualität zu investieren — der Preisvorteil eines Konkurrenten kann durch bessere Qualität ausgeglichen werden.
+## Angebot und Preis auf den Auftrag zuschneiden
 
-### Eignungsanforderungen prüfen
-- Welche Nachweise werden gefordert?
-- Erfüllen Sie alle Anforderungen?
-- Können Sie die Nachweise fristgerecht besorgen?
+Beantworten Sie die Leistungsbeschreibung vollständig und nutzen Sie die vorgegebenen Preisblätter und Einheiten. Prüfen Sie Mengen, Rechenwege, Loszuordnung, Optionen und geforderte Konzepte. Ändern Sie die Vergabeunterlagen nicht und bieten Sie keine abweichende Leistung an, sofern Nebenangebote nicht ausdrücklich zugelassen sind und deren Bedingungen eingehalten werden.
 
-## Schritt 2: Eignungsnachweise zusammenstellen
+Kalkulieren Sie auf Grundlage Ihrer tatsächlichen Kosten, der ausgeschriebenen Leistung, der Laufzeit und der verlangten Preisstruktur. Es gibt keine verlässliche, branchenweit gültige Standardmarge. Berücksichtigen Sie gesetzliche, tarifliche und landesrechtliche Vorgaben, soweit sie für den konkreten Auftrag gelten. In einem Verfahren nach VgV kann ein ungewöhnlich niedriger Preis eine Aufklärung nach § 60 VgV auslösen; ein niedriger Preis führt nicht ohne Prüfung automatisch zum Ausschluss.
 
-Halten Sie folgende Unterlagen immer aktuell und griffbereit:
+Der Zuschlag richtet sich nach den vorab bekannt gemachten Zuschlagskriterien. Das kann der Preis allein sein oder das beste Preis-Leistungs-Verhältnis anhand der veröffentlichten Kriterien. Zusätzliche Qualitätsversprechen oder Nachweise helfen nur, wenn sie zulässig sind und nach diesen Kriterien bewertet werden.
 
-| Nachweis | Gültigkeit | Bezugsquelle |
-|----------|-----------|--------------|
-| Handelsregisterauszug | Aktuell | Amtsgericht |
-| Gewerbeanmeldung | Aktuell | Gewerbeamt |
-| Unbedenklichkeitsbescheinigung Finanzamt | Aktuell | Finanzamt |
-| Unbedenklichkeitsbescheinigung Krankenkasse | Aktuell | Krankenkasse |
-| Berufsgenossenschaft | Aktuell | BG |
-| Jahresabschlüsse | Letzte 2-3 Jahre | Steuerberater |
-| Referenzliste | Letzte 3-5 Jahre | Intern |
-| Berufshaftpflicht | Aktuell | Versicherer |
-| ISO-Zertifikate | Gültig | Zertifizierungsstelle |
+## Form, Signatur und elektronische Abgabe
 
-**Tipp:** Führen Sie ein Eignungs-Dossier, das Sie bei jeder Ausschreibung aktualisieren. Viele Bieter verlieren Aufträge, weil sie Nachweise nicht aktuell haben.
+Nutzen Sie den in der Bekanntmachung oder den Vergabeunterlagen vorgeschriebenen Übermittlungsweg und das verlangte Dateiformat. Legen Sie keine zusätzliche Unterschrift oder Signaturart zugrunde, ohne die konkreten Vorgaben zu prüfen.
 
-## Schritt 3: Preis kalkulieren
+Für Verfahren im Anwendungsbereich der VgV werden Angebote nach § 53 VgV grundsätzlich in Textform mit elektronischen Mitteln übermittelt. Eine fortgeschrittene oder qualifizierte elektronische Signatur beziehungsweise ein entsprechendes Siegel kann die Vergabestelle verlangen, wenn dies wegen erhöhter Sicherheitsanforderungen erforderlich ist. Ausnahmen von der elektronischen Übermittlung sind gesetzlich geregelt. Bei Liefer- und Dienstleistungsaufträgen unterhalb der EU-Schwellenwerte kann je nach Auftraggeber die eingeführte UVgO gelten. Für Bauleistungen im nationalen Bereich ist grundsätzlich VOB/A Abschnitt 1 einschlägig. Oberhalb der EU-Schwellenwerte bestimmen § 2 VgV und VOB/A Abschnitt 2, welche Regeln bei Bauaufträgen gelten; bei Planungsleistungen als Los eines Bauauftrags ist ebenfalls die VgV zu beachten. Prüfen Sie daher immer das konkrete Verfahren.
 
-Die Preisermittlung ist der sensibelste Teil der Angebotserstellung. Kalkulieren Sie realistisch:
+## Angebotsfrist, Eingang und Nachforderungen
 
-### Kostenbestandteile
-1. **Materialkosten:** Rohstoffe, Verbrauchsgüter, Betriebsstoffe
-2. **Personalkosten:** Brutto-Lohn + Lohnnebenkosten (AG-Anteil SV, BG, Urlaubs-/Weihnachtsgeld)
-3. **Overhead:** Verwaltung, IT, Miete, Fuhrpark
-4. **Marge:** Gewinnzuschlag (üblich: 5-15% je nach Branche)
+Maßgeblich ist die Angebotsfrist aus der Bekanntmachung und den aktuellen Vergabeunterlagen. Sie hängt vom Verfahren und dem anwendbaren Regelwerk ab. Im offenen Verfahren im Anwendungsbereich der VgV sieht § 15 grundsätzlich 35 Tage vor; bei akzeptierter elektronischer Übermittlung kann die Frist um fünf Tage verkürzt werden. Weitere gesetzliche Verkürzungen setzen besondere Voraussetzungen voraus. Verlassen Sie sich deshalb nicht auf eine pauschale Frist und prüfen Sie Änderungen der Vergabestelle.
 
-### Wichtige Hinweise
-- **Mindestlohn:** Kalkulieren Sie den jeweils geltenden gesetzlichen Mindestlohn sowie einschlägige tarifliche oder landesrechtliche Vorgaben ein; die konkreten Vergabeunterlagen sind maßgeblich
-- **Tariftreue:** Viele Vergabestellen fordern Tariflohn — prüfen Sie die AVR, TVöD oder TV-L
-- **Materialpreise:** Bei langfristigen Verträgen (Rahmenvereinbarungen) Preissteigerungen einkalkulieren
-- **Nachhaltigkeit:** Zertifizierte Materialien (EU-Blume, Blauer Engel) können Mehrkosten verursachen, aber den Zuschlag sichern
+Planen Sie ausreichend Zeit für Registrierung, Upload und technische Prüfung ein. Senden Sie die endgültigen Dateien über die vorgeschriebene Plattform oder den ausdrücklich zugelassenen anderen Weg. Kontrollieren Sie vor Fristablauf, ob die Plattform den Eingang bestätigt und die übermittelten Dateien vollständig und lesbar sind. Eine begonnene, aber nicht abgeschlossene Übermittlung ist keine Eingangsbestätigung.
 
-### Preis-Plus-Qualität-Strategie
-Bei wirtschaftlichstem Angebot (Preis + Qualität):
-- Kalkulieren Sie den Preis nicht zu niedrig — das wirkt unseriös
-- Investieren Sie in ein überzeugendes Qualitätskonzept
-- Dokumentieren Sie Referenzen, Zertifikate und besondere Qualifikationen
+Fehlende Unterlagen können nicht automatisch nach Fristablauf ergänzt werden. Nach § 56 VgV kann die Vergabestelle unter bestimmten Bedingungen eine Nachforderung zulassen oder in den Vergabeunterlagen ausschließen. Leistungsbezogene Unterlagen, die die Zuschlagswertung beeinflussen, dürfen grundsätzlich nicht nachgefordert werden. Für VOB/A-Verfahren gelten eigene Regeln. Reagieren Sie auf eine konkrete Nachforderung nur im verlangten Umfang, über den geforderten Weg und innerhalb der gesetzten Frist.
 
-## Schritt 4: Angebot formatieren
+## Checkliste vor dem Absenden
 
-Das Angebot muss den Formalien der Ausschreibung entsprechen:
+- Bekanntmachung, Vergabeunterlagen und spätere Änderungen geprüft
+- Angebotsfrist, Kommunikationsweg und Abgabeformat notiert
+- Eignungskriterien für das relevante Los abgeglichen
+- Alle verlangten Formulare, Erklärungen und Nachweise beigefügt
+- Leistungsbeschreibung und Preisfelder vollständig beantwortet
+- Rechenwege, Summen und geforderte Preisangaben geprüft
+- Signatur nur in der verlangten Form ergänzt
+- Finale Dateien über den vorgeschriebenen Weg fristgerecht übermittelt
+- Eingangsbestätigung und übermittelte Dateien kontrolliert
 
-### Typische Formalien
-- **Format:** PDF oder Word (vorgegeben)
-- **Unterschrift:** Eigenhändig oder elektronisch (QES)
-- **Seitenzahl:** Paginierung vorgeschrieben
-- **Anlagen:** Nummeriert und referenziert
-- **Umschlag:** Bei postalischer Einreichung versiegelt
+## Häufige Fragen
 
-### Elektronische Einreichung
-Viele Vergaben erfolgen elektronisch über evergabe, DTVP oder vergabio:
-- Registrieren Sie sich rechtzeitig auf der Plattform
-- Testen Sie den Upload-Prozess vor Fristende
-- Hochladen dauert länger als gedacht — nicht auf die letzte Minute warten
+### Muss jedes Angebot qualifiziert elektronisch signiert werden?
 
-### Angebotsinhalt
-Das Angebot sollte enthalten:
-1. **Deckblatt:** Firmenname, Ansprechpartner, Aktenzeichen
-2. **Preisübersicht:** Nach Losen oder Leistungspositionen
-3. **Eignungsnachweise:** Als Anlagen
-4. **Qualitätskonzept:** Bei wirtschaftlichstem Angebot
-5. **Referenzliste:** Vergleichbare Projekte
-6. **Erklärungen:** Keine Korruption, keine Kartellabsprachen
+Nein. Im Anwendungsbereich der VgV ist grundsätzlich Textform mit elektronischer Übermittlung vorgesehen. Eine fortgeschrittene oder qualifizierte Signatur beziehungsweise ein entsprechendes Siegel ist nur erforderlich, wenn die Vergabestelle dies wegen erhöhter Sicherheitsanforderungen verlangt. Entscheidend sind außerdem das anwendbare Regelwerk und die konkreten Vergabeunterlagen.
 
-## Schritt 5: Angebot einreichen
+### Welche Unterlagen muss ich mit dem Angebot einreichen?
 
-### Frist einhalten
-- **EU-Verfahren:** Die Mindestfrist hängt vom Verfahren ab; im offenen Verfahren nach VgV beträgt sie regulär 35 Tage, Verkürzungen sind nur unter gesetzlichen Voraussetzungen möglich
-- **Unterhalb der Schwellenwerte:** Es gibt keine einheitliche Frist für alle Auftraggeber und Leistungen; maßgeblich sind das einschlägige Regelwerk und die Vergabeunterlagen
-- **Fristversäumnis:** Verspätete Angebote werden nach den anwendbaren Vorschriften grundsätzlich nicht gewertet
+Nur die für das Verfahren und das jeweilige Los verlangten Angaben, Formblätter und Nachweise. Welche Eignungsnachweise, Preise, Erklärungen oder Konzepte benötigt werden, ergibt sich aus der Bekanntmachung und den Vergabeunterlagen. Eine allgemeingültige Anlagenliste gibt es nicht.
 
-### Einreichung prüfen
-Vor der Einreichung prüfen:
-- [ ] Alle Formalien erfüllt?
-- [ ] Alle Nachweise beigefügt?
-- [ ] Preis korrekt kalkuliert?
-- [ ] Unterschrift vorhanden?
-- [ ] Angebot vollständig?
+### Kann ich fehlende Unterlagen nach der Angebotsfrist nachreichen?
 
-## Typische Fehler vermeiden
+Nicht automatisch. In einem VgV-Verfahren kann die Vergabestelle unter den Voraussetzungen des § 56 VgV Unterlagen nachfordern; sie kann dies in Bekanntmachung oder Vergabeunterlagen auch ausschließen. Leistungsbezogene Angaben, die die Zuschlagswertung beeinflussen, sind grundsätzlich ausgenommen. Für andere Regelwerke gelten deren eigene Vorgaben.
 
-1. **Frist versäumt** — Verspätete Angebote werden nach den anwendbaren Vorschriften grundsätzlich nicht gewertet
-2. **Unterschrift fehlt** — Elektronische Signatur oder eigenhändige Unterschrift
-3. **Nachweise unvollständig** — Fehlende Bescheinigungen oder abgelaufene Zertifikate
-4. **Format nicht eingehalten** — PDF statt Word, falsche Seitenzahl, fehlende Anlagen
-5. **Nebenangebot nicht gekennzeichnet** — Muss klar als solches erkennbar sein
-6. **Preis zu niedrig** — Ein ungewöhnlich niedriges Angebot kann nach den anwendbaren Vorschriften aufgeklärt und bei fehlender tragfähiger Erklärung ausgeschlossen werden (§ 60 VgV im entsprechenden Anwendungsbereich)
-7. **Arbeitsbedingungen nicht berücksichtigt** — Prüfen Sie gesetzliche Mindestlöhne, Tariftreue- und sonstige landesrechtliche Vorgaben des konkreten Auftrags
+### Wird immer das billigste Angebot ausgewählt?
 
-## Checkliste: Angebot erstellen
-
-- [ ] Ausschreibungsunterlagen vollständig gelesen
-- [ ] Zuschlagskriterien analysiert
-- [ ] Eignungsanforderungen geprüft
-- [ ] Eignungsnachweise zusammengestellt
-- [ ] Preis realistisch kalkuliert (inkl. Lohnnebenkosten)
-- [ ] Angebot nach Formalien formatiert
-- [ ] Alle Anlagen beigefügt
-- [ ] Angebot auf Vollständigkeit geprüft
-- [ ] Unterschrift (eigenhändig oder QES)
-- [ ] Elektronische Einreichung getestet
-- [ ] Angebot fristgerecht eingereicht
-
-## Fazit
-
-Ein Angebot bei öffentlichen Ausschreibungen zu schreiben erfordert Sorgfalt, Systematik und Erfahrung. Wer die Leistungsbeschreibung genau liest, die Eignungsnachweise aktuell hält und den Preis realistisch kalkuliert, hat beste Chancen auf den Zuschlag. Die Checkliste oben hilft, keine wichtigen Punkte zu übersehen.
+Nein. Entscheidend sind die vorab bekannt gemachten Zuschlagskriterien. Der Preis kann allein maßgeblich sein oder zusammen mit weiteren Kriterien in die Bewertung eingehen. Bieter sollten ihr Angebot genau auf diese Kriterien ausrichten und keine nicht verlangten Wertungsvorteile unterstellen.
 `,
+    sources: [
+      { title: "§ 2 VgV – Vergabe von Bauaufträgen", url: "https://www.gesetze-im-internet.de/vgv_2016/__2.html" },
+      { title: "§ 9 VgV – Grundsätze der Kommunikation", url: "https://www.gesetze-im-internet.de/vgv_2016/__9.html" },
+      { title: "§ 10 VgV – Anforderungen an elektronische Mittel", url: "https://www.gesetze-im-internet.de/vgv_2016/__10.html" },
+      { title: "§ 15 VgV – Offenes Verfahren und Angebotsfristen", url: "https://www.gesetze-im-internet.de/vgv_2016/__15.html" },
+      { title: "§ 53 VgV – Form und Übermittlung von Angeboten", url: "https://www.gesetze-im-internet.de/vgv_2016/__53.html" },
+      { title: "§ 56 VgV – Prüfung und Nachforderung von Unterlagen", url: "https://www.gesetze-im-internet.de/vgv_2016/__56.html" },
+      { title: "§ 60 VgV – Ungewöhnlich niedrige Angebote", url: "https://www.gesetze-im-internet.de/vgv_2016/__60.html" },
+      { title: "§ 127 GWB – Zuschlag", url: "https://www.gesetze-im-internet.de/gwb/__127.html" },
+      { title: "VOB/A Abschnitt 1 – Bekanntmachung vom 31. Januar 2019", url: "https://www.verwaltungsvorschriften-im-internet.de/bsvwvbund_31012019_BWI781063060120180001604634.htm" },
+      { title: "Bundesanzeiger: VOB/A Abschnitte 2 und 3, Ausgabe 2026", url: "https://www.bundesanzeiger.de/pub/publication/73xO0rpP1jfX5HRt0Ja/content/73xO0rpP1jfX5HRt0Ja/BAnz%20AT%2024.08.2026%20B6.pdf?inline" },
+    ],
+    lastReviewed: "2026-10-20",
   },
   "vergaberecht-leitfaden": {
     slug: "vergaberecht-leitfaden",

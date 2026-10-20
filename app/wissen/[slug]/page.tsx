@@ -286,6 +286,26 @@ export default async function ArticlePage({ params }: PageProps) {
               </Typography>
             )}
 
+            {article.howToSteps && article.howToSteps.length > 0 && (
+              <Box component="section" aria-labelledby="article-howto-heading" sx={{ mb: 4 }}>
+                <Typography id="article-howto-heading" variant="h5" component="h2" fontWeight={700} sx={{ mb: 2, mt: 4 }}>
+                  Schritt-für-Schritt-Anleitung
+                </Typography>
+                <Stack component="ol" spacing={1.5} sx={{ pl: 2.5, mb: 0 }}>
+                  {article.howToSteps.map((step, index) => (
+                    <Box component="li" key={`${step.name}-${index}`} sx={{ pl: 0.5 }}>
+                      <Typography component="h3" variant="subtitle1" fontWeight={700}>
+                        {step.name}
+                      </Typography>
+                      <Typography color="text.secondary" sx={{ lineHeight: 1.7 }}>
+                        {step.text}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Stack>
+              </Box>
+            )}
+
             {renderContent(article.content)}
           </Box>
 

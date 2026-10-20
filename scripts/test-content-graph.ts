@@ -232,6 +232,34 @@ for (const slug of ["vergabeverfahren-uebersicht", "angebot-oeffentliche-ausschr
   }
 }
 
+const angebotArticle = ARTICLES["angebot-oeffentliche-ausschreibung-schreiben"];
+const angebotEntry = GLOSSARY_MAP["angebot"];
+for (const slug of ["angebot", "e-vergabe", "vergabeunterlagen", "nachforderung-unterlagen"]) {
+  if (!angebotArticle?.relatedGlossaryTerms?.includes(slug)) {
+    errors.push(`angebot-oeffentliche-ausschreibung-schreiben.relatedGlossaryTerms -> missing ${slug}`);
+  }
+}
+if (!angebotEntry?.relatedArticles?.includes("angebot-oeffentliche-ausschreibung-schreiben")) {
+  errors.push("angebot.relatedArticles -> missing angebot-oeffentliche-ausschreibung-schreiben");
+}
+for (const url of [
+  "https://www.gesetze-im-internet.de/vgv_2016/__53.html",
+  "https://www.gesetze-im-internet.de/vgv_2016/__56.html",
+]) {
+  if (!angebotArticle?.sources?.some((source) => source.url === url)) {
+    errors.push(`angebot-oeffentliche-ausschreibung-schreiben.sources -> missing primary source: ${url}`);
+  }
+  if (!angebotEntry?.sources?.some((source) => source.url === url)) {
+    errors.push(`angebot.sources -> missing primary source: ${url}`);
+  }
+}
+if (!angebotArticle?.lastReviewed || angebotArticle.dateModified !== angebotArticle.lastReviewed) {
+  errors.push("angebot-oeffentliche-ausschreibung-schreiben -> missing current review date or dateModified mismatch");
+}
+if (!angebotArticle?.howToSteps?.length) {
+  errors.push("angebot-oeffentliche-ausschreibung-schreiben.howToSteps -> missing visible step-by-step guidance");
+}
+
 if (errors.length > 0) {
   console.error(errors.join("\n"));
   process.exitCode = 1;
