@@ -52,6 +52,11 @@ for (const [location, bundesland] of postalCodeCases) {
 }
 
 assert.equal(deriveBundesland("54"), null, "A postal prefix alone is not a postal code");
+assert.equal(deriveBundesland("Neubrandenburg"), "Mecklenburg-Vorpommern");
+assert.equal(deriveBundesland("17033 Neubrandenburg"), "Mecklenburg-Vorpommern");
+assert.equal(deriveBundesland("17033"), null, "An ambiguous postal code must not infer a Bundesland");
+assert.equal(deriveBundesland("Brandenburg"), "Brandenburg");
+assert.equal(deriveBundesland("Brandenburg an der Havel"), "Brandenburg");
 
 assert.deepEqual(normalizeOperatingArea(["RLP", "RP", "Bayern"]), {
   nationwide: false,

@@ -463,6 +463,8 @@ export const projectTenderSearchHit = (
     ...hit,
     title: display.title || `Ausschreibung #${hit.id}`,
     client: display.client || "Unbekannt",
+    bundesland: deriveBundesland(display.location)
+      ?? getPublicSourceBundesland(current.source, current.url),
     location: display.location || "",
     city: display.location ? deriveCity(display.location) : null,
     description: display.description || "",
@@ -681,7 +683,8 @@ export async function searchTenders(
     .map((hit) => {
       const current = currentTendersById.get(hit.id)!;
       return projectTenderSearchHit(hit, current);
-    });
+    })
+    .filter((hit) => !params.bundesland || hit.bundesland === params.bundesland);
 
   // DB-built documents recover a sparse page when stale or unqualified index
   // records were removed. The fallback preserves filters and sort, but its

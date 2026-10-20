@@ -355,7 +355,10 @@ const portalRegionOnlyIndex = buildTenderIndexDocument({
   slug: null,
   readinessStatus: "partial",
 });
-const portalRegionOnlySearchHit = projectTenderSearchHit(portalRegionOnlyIndex, {
+const portalRegionOnlySearchHit = projectTenderSearchHit({
+  ...portalRegionOnlyIndex,
+  bundesland: "Mecklenburg-Vorpommern",
+}, {
   title: portalRegionOnlyTitle,
   source: "brandenburg",
   url: "https://example.test/tender/906",
@@ -389,6 +392,7 @@ const portalRegionOnlySsr = projectPublicTenderRecord({
   structured: normalizeStructured(portalRegionOnlyStructured, portalRegionOnlyTitle),
 });
 assert.equal(portalRegionOnlyIndex.bundesland, "Brandenburg");
+assert.equal(portalRegionOnlySearchHit.bundesland, "Brandenburg", "current trusted source region replaces a stale indexed region");
 assert.equal(portalRegionOnlySearchHit.location, "");
 assert.equal(portalRegionOnlyList.location, null);
 assert.equal(portalRegionOnlyModal.location, null);
@@ -476,6 +480,7 @@ assert.deepEqual({
 const staleIndexedLocation = projectTenderSearchHit({
   ...meiliAccessHit,
   id: 904,
+  bundesland: "Brandenburg",
   location: "55116 Mainz",
   city: "Mainz",
 }, {
@@ -487,6 +492,53 @@ const staleIndexedLocation = projectTenderSearchHit({
 });
 assert.equal(staleIndexedLocation.location, "", "a stale indexed location must not outlive the current DB projection");
 assert.equal(staleIndexedLocation.city, null);
+assert.equal(staleIndexedLocation.bundesland, null, "a stale indexed region must not outlive current location/source evidence");
+
+const neubrandenburgTitle = "Gefährdungsbeurteilung";
+const neubrandenburgMetadata = { location: "17033 Neubrandenburg" };
+const neubrandenburgStructured = { hard_facts: { location: "17033 Neubrandenburg" } };
+const neubrandenburgIndex = buildTenderIndexDocument({
+  id: 14706,
+  title: neubrandenburgTitle,
+  source: "dtvp",
+  sourceKey: "dtvp",
+  url: "https://example.test/tender/14706",
+  deadlineAt: null,
+  firstSeenAt: null,
+  category: "Bauarbeiten",
+  metadataJson: neubrandenburgMetadata,
+  structuredJson: neubrandenburgStructured,
+  rawText: "Ausführungsort: 17033 Neubrandenburg",
+  contractValueMax: null,
+  slug: null,
+  readinessStatus: "pending",
+});
+assert.equal(neubrandenburgIndex.location, "17033 Neubrandenburg");
+assert.equal(neubrandenburgIndex.bundesland, "Mecklenburg-Vorpommern");
+const staleNeubrandenburgSearchHit = projectTenderSearchHit({
+  ...neubrandenburgIndex,
+  bundesland: "Brandenburg",
+}, {
+  title: neubrandenburgTitle,
+  source: "dtvp",
+  url: "https://example.test/tender/14706",
+  metadataJson: neubrandenburgMetadata,
+  structuredJson: neubrandenburgStructured,
+  rawText: "Ausführungsort: 17033 Neubrandenburg",
+});
+assert.equal(staleNeubrandenburgSearchHit.bundesland, "Mecklenburg-Vorpommern");
+const mecklenburgVorpommernSearchPage = selectTenderSearchFallbackResults(
+  { query: "", bundesland: "Mecklenburg-Vorpommern" },
+  [neubrandenburgIndex],
+  0,
+);
+const brandenburgSearchPage = selectTenderSearchFallbackResults(
+  { query: "", bundesland: "Brandenburg" },
+  [neubrandenburgIndex],
+  0,
+);
+assert.deepEqual(mecklenburgVorpommernSearchPage.hits.map(({ id }) => id), [14706]);
+assert.deepEqual(brandenburgSearchPage.hits, []);
 
 const staleIndexedFacts = projectTenderSearchHit({
   ...meiliAccessHit,
@@ -770,6 +822,7 @@ const detailRouteSource = readFileSync("app/api/tenders/public/detail/route.ts",
 const ssrPageSource = readFileSync("app/ausschreibung/[...params]/page.tsx", "utf8");
 const detailModalSource = readFileSync("components/AusschreibungenSection.tsx", "utf8");
 const searchRouteSource = readFileSync("app/api/tenders/search/route.ts", "utf8");
+const meiliSearchSource = readFileSync("lib/meilisearch.ts", "utf8");
 const pipelineSource = readFileSync("lib/pipeline.ts", "utf8");
 assert.match(listRouteSource, /getPublicAccessLimitedFallback/);
 assert.match(listRouteSource, /resolvePublicTenderDisplayFacts\(/);
@@ -786,6 +839,8 @@ assert.match(detailModalSource, /const displayLocation = display\.location \?\? 
 assert.match(detailModalSource, /const location = display\.location \?\? "–";/);
 assert.match(ssrPageSource, /const displayLocation = location \|\| "–";/);
 assert.match(searchRouteSource, /searchTenders\(/);
+assert.match(searchRouteSource, /bundesland:\s*hit\.bundesland/);
+assert.match(meiliSearchSource, /\.filter\(\(hit\) => !params\.bundesland \|\| hit\.bundesland === params\.bundesland\)/);
 assert.match(pipelineSource, /parseDeadlineDate\(tender\.deadline\)/);
 
 console.log("Public endpoint quality tests passed.");

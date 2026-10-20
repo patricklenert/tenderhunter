@@ -260,7 +260,7 @@ const PLZ_PREFIX_TO_BUNDESLAND: Array<{ prefix: number; bundesland: Bundesland }
   { prefix: 14, bundesland: "Brandenburg" },
   { prefix: 15, bundesland: "Brandenburg" },
   { prefix: 16, bundesland: "Brandenburg" },
-  { prefix: 17, bundesland: "Brandenburg" },
+  // 17xxx spans both Brandenburg and Mecklenburg-Vorpommern.
   { prefix: 18, bundesland: "Mecklenburg-Vorpommern" },
   { prefix: 19, bundesland: "Mecklenburg-Vorpommern" },
   { prefix: 20, bundesland: "Hamburg" },
@@ -437,16 +437,6 @@ export function deriveBundesland(location: string | null | undefined): Bundeslan
   }
 
   const parts = location.split(",").map((s) => s.trim());
-  for (const part of parts) {
-    const cleaned = part.replace(/^\d{4,5}\s+/, "").trim();
-    if (cleaned.length < 2) continue;
-
-    for (const bl of BUNDESLAENDER) {
-      if (cleaned.toLowerCase() === bl.toLowerCase()) return bl;
-      if (cleaned.toLowerCase().includes(bl.toLowerCase())) return bl;
-    }
-  }
-
   for (const [city, bundesland] of Object.entries(CITY_TO_BUNDESLAND)) {
     const normalizedCity = normalizeLocationText(city);
     if (
