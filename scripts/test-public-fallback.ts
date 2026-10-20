@@ -15,7 +15,29 @@ assert.equal(item.title, "Softwareentwicklung für die Stadtverwaltung");
 assert.equal(item.deadline, "31.12.2026");
 assert.equal(item.client, "Stadt Mainz");
 assert.equal(item.location, "55116 Mainz");
+assert.equal(item.description, "", "unsectioned page copy must not be promoted to a tender description");
 assert.deepEqual(item.pdfUrls, ["https://example.vergabe.rlp.de/docs/unterlagen.pdf"]);
+
+const sectionedItem = extractBasicDetailFromHtml(
+  `<html><head><title>Kanalreinigung in Mainz</title></head><body>
+    <h1>Kanalreinigung in Mainz</h1>
+    <p>Willkommen auf dem Vergabeportal. Hier finden Sie laufende Verfahren und aktuelle Bekanntmachungen.</p>
+    <h2>Beschreibung der Leistung</h2>
+    <p>Kanalreinigung in Mainz</p>
+    <h2>Gegenstand der Ausschreibung</h2>
+    <p>Die Stadt Mainz lässt öffentliche Kanäle im gesamten Stadtgebiet fachgerecht reinigen und inspizieren.</p>
+    <h2>Fristen</h2><p>Angebotsfrist: 31.12.2026</p>
+  </body></html>`,
+  "https://example.vergabe.rlp.de/project/125",
+  "rlp",
+  [],
+);
+assert.ok(sectionedItem);
+assert.equal(
+  sectionedItem.description,
+  "Die Stadt Mainz lässt öffentliche Kanäle im gesamten Stadtgebiet fachgerecht reinigen und inspizieren.",
+  "the fallback should use the explicitly labeled tender-description section, not page preamble or later fields",
+);
 
 const verifyStableBrowserPageReaders = async (): Promise<void> => {
   const contentFallbackPage = {
@@ -172,6 +194,7 @@ assert.equal(rlpItem.title, "26F0047 (LBB NL Mainz) Bauendreinigung");
 assert.equal(rlpItem.client, "LBB Niederlassung Mainz");
 assert.equal(rlpItem.location, "55128 Mainz");
 assert.equal(rlpItem.referenceNumber, "CXCPEYDYYYRM0");
+assert.equal(rlpItem.description, "", "a title-only Bezeichnung field is not a substantive description");
 
 const participationWallItem = extractBasicDetailFromHtml(
   `<html><head><title>DA Ausstellungsbau (3)</title></head><body>

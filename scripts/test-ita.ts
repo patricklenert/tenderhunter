@@ -58,7 +58,7 @@ assert.ok(detail.description.startsWith("Die Leistung umfasst"), detail.descript
 assert.equal(detail.procedure, "Öffentliche Ausschreibung");
 assert.equal(detail.contractType, "Dienstleistung");
 assert.equal(detail.bundesland, "Sachsen");
-assert.equal(detail.location, "04109 Leipzig");
+assert.equal(detail.location, "Sachsen", "the labeled performance region must not be replaced by the buyer's address");
 assert.equal(detail.deadlineText, "26.10.2026");
 
 const detailUrl = "https://www.it-ausschreibung.de/ausschreibung/143782/entwicklung-des-ki-gestuetzten-arbeitswerkzeugs-wirkcheck";
@@ -68,6 +68,7 @@ assert.equal(mapped.externalId, "143782");
 assert.equal(mapped.source, "it-ausschreibung");
 assert.equal(mapped.sourceUrl, detailUrl);
 assert.equal(mapped.category, "IT-Dienstleistungen");
+assert.equal(mapped.location, "Sachsen");
 assert.ok(mapped.deadline, "Fehlende Deadline");
 // parseDeadlineDate ohne Uhrzeit → 23:59:59 Europe/Berlin (26.10.2026 ist nach
 // der DST-Umstellung CET = UTC+1 → 22:59:59 UTC).
@@ -82,6 +83,7 @@ const display = projectPublicDisplayFields({
   summary: [mapped.description, mapped.scope],
 });
 assert.ok(display.description && display.description.length >= 40, JSON.stringify(display.description));
+assert.equal(display.location, "Sachsen", "the shared public projection must preserve the sourced Erfüllungsort");
 
 // Registry: Aliase, Host-Regel und SEO-Definition.
 assert.equal(resolvePublicSourceKey("it-ausschreibung.de"), "it-ausschreibung");

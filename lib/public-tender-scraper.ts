@@ -1425,7 +1425,8 @@ export function extractBasicDetailFromHtml(
   const $ = cheerio.load(html);
   $("script, style, nav, header, footer").remove();
   const text = htmlToBasicMarkdown($("body").html() ?? "").trim();
-  const lines = text.split("\n")
+  const rawLines = text.split("\n").map((line) => line.trim());
+  const lines = rawLines
     .map((line) => line.trim().replace(/^#+\s*/, ""))
     .filter(Boolean);
 
@@ -1439,6 +1440,44 @@ export function extractBasicDetailFromHtml(
       if (inlineValue) return inlineValue;
       return lines[index + 1] ?? null;
     }
+    return null;
+  };
+
+  const descriptionSection = (): string | null => {
+    const headingPattern = /^(?:Beschreibung der Leistung|Gegenstand der Ausschreibung|Auftragsgegenstand|Leistungsbeschreibung|Beschreibung des Auftrags|Kurze Beschreibung(?: des Auftrags)?|Art und Umfang der Leistung)$/i;
+    const comparable = (value: string): string => normalizePublicDisplayCandidate(value)
+      ?.toLocaleLowerCase("de-DE")
+      .replace(/[^\p{L}\p{N}]+/gu, " ")
+      .trim() ?? "";
+
+    for (let headingIndex = 0; headingIndex < rawLines.length; headingIndex += 1) {
+      const heading = rawLines[headingIndex]
+        .replace(/^#{1,6}\s*/, "")
+        .replace(/:\s*$/, "")
+        .trim();
+      if (!headingPattern.test(heading)) continue;
+
+      const contentLines: string[] = [];
+      for (let index = headingIndex + 1; index < rawLines.length; index += 1) {
+        const rawLine = rawLines[index];
+        if (/^#{1,6}\s+/.test(rawLine)) break;
+
+        const line = rawLine
+          .replace(/^[-*+]\s+/, "")
+          .replace(/^(?:Bezeichnung|Beschreibung|Kurzbeschreibung):\s*/i, "")
+          .trim();
+        if (!line) continue;
+        const metadataLine = line.replace(/^[a-z]\)\s*/i, "");
+        if (/^(?:Ausschreibende Stelle|Öffentlicher Auftraggeber|Auftraggeber|Vergabeart|Verfahrensart|Angebotsfrist|Abgabefrist|Teilnahmefrist|Erfüllungsort|Ort der Ausführung|Hauptleistungsort|Bekanntmachungs-ID|Vergabenummer|CPV(?:-Code)?)\b/i.test(metadataLine)) break;
+
+        contentLines.push(line);
+        if (contentLines.join(" ").length >= 2_000) break;
+      }
+
+      const candidate = cleanPublicDescription(contentLines.join(" ").slice(0, 2_000));
+      if (candidate && comparable(candidate) !== comparable(title)) return candidate;
+    }
+
     return null;
   };
 
@@ -1490,7 +1529,7 @@ export function extractBasicDetailFromHtml(
   const referenceNumber = text.match(/(?:Bekanntmachungs-ID|Vergabe-Nr\.|Vergabenummer)\s*:?\s*\n?\s*([A-Z0-9][A-Z0-9._/-]{2,})/i)?.[1] ?? null;
   const description = accessPage.blocked
     ? buildPublicAccessLimitedDescription(title, portalFacts)
-    : cleanPublicDescription(text.slice(0, 2000));
+    : descriptionSection() ?? "";
   const descriptionMarkdown = accessPage.blocked
     ? buildPublicAccessLimitedDescriptionMarkdown(title, portalFacts)
     : buildTenderDescriptionMarkdown({
@@ -4830,7 +4869,7 @@ export function parseItAusschreibungDetail(html: string): ItAusschreibungDetail 
   const title = cleanTenderTitle(rawTitle || fallbackTitle);
   if (title.length < 5) return null;
 
-  const addressText = normalizePublicMarkupText($("address").first().text());
+  const performanceLocation = sectionAfterHeading(/^Erfüllungsort/i);
   const deadlineMatch = html.match(/Angebotsfrist:<\/strong>\s*(\d{2}\.\d{2}\.\d{4})/);
 
   return {
@@ -4838,8 +4877,8 @@ export function parseItAusschreibungDetail(html: string): ItAusschreibungDetail 
     description: sectionAfterHeading(/^Gegenstand der Ausschreibung/i) ?? "",
     procedure: /^(?:Öffentliche|Beschränkte|Freihändige|Verhandlungsverfahren|Direktauftrag)/i.test(firstHeading) ? firstHeading : null,
     contractType: sectionAfterHeading(/^Art des Auftrags/i),
-    bundesland: sectionAfterHeading(/^Erfüllungsort/i),
-    location: addressText || null,
+    bundesland: performanceLocation,
+    location: performanceLocation,
     deadlineText: deadlineMatch?.[1] ?? null,
   };
 }
