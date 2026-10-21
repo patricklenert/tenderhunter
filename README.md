@@ -1,167 +1,161 @@
-# Tenderhunter (Next.js Basis-Version)
+<div align="center">
 
-Diese Version setzt Tenderhunter bewusst mit moeglichst wenig Technologie um, jetzt voll in Next.js statt Python.
+<img src="public/logo.webp" alt="TenderHunter" width="80" />
 
-## Was die App kann
+# TenderHunter
 
-- Ausschreibungen entdecken (Crawler) oder manuell erfassen
-- Dokumente lokal speichern und Text aus PDF/HTML extrahieren
-- Inhalte in entscheidungsrelevante Felder strukturieren
-- Pro Firmenprofil Scores berechnen (Fit, Gewinnchance, Aufwand, Kill-Switch)
-- Erklaerungen, naechste Schritte und fehlende Unterlagen erzeugen
-- Tracking-Ereignisse fuer Attribution speichern
+**Public tenders, found early — scored with evidence, not gut feeling.**
 
-## Stack
+[![Live](https://img.shields.io/badge/live-palemaz.com-0F766E?style=flat-square)](https://palemaz.com)
+[![Next.js](https://img.shields.io/badge/Next.js_16-black?style=flat-square)](https://nextjs.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://typescriptlang.org)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white)](https://postgresql.org)
+[![Meilisearch](https://img.shields.io/badge/Meilisearch-FF36B1?style=flat-square)](https://meilisearch.com)
+[![MCP](https://img.shields.io/badge/MCP-server-8A2BE2?style=flat-square)](#mcp-server-for-ai-agents)
 
-- Next.js App Router + TypeScript
-- SQLite (`better-sqlite3`)
-- Lokaler Dateispeicher (`data/object_store`)
-- Einfache Job-Queue in SQLite + Worker-Script
+*Öffentliche Aufträge. Früh erkannt. Klar bewertet.*
 
-## Schnellstart
+[Live product](https://palemaz.com) · [MCP server](#mcp-server-for-ai-agents) · [Quickstart](#quickstart) · [Architecture](#architecture)
 
-1) Abhaengigkeiten installieren
+</div>
 
-```bash
-npm install
-```
+---
 
-2) Next.js starten
+## Why this exists
 
-```bash
-npm run dev
-```
+Public procurement is a huge market that is nearly inaccessible to small and mid-sized companies. Relevant tenders are scattered across TED, DTVP, Bund.de, SAM.gov and dozens of regional portals. The documents are long legal PDFs. And while large vendors staff entire bid teams, a 10-person company has one person — part-time.
 
-3) Worker starten (zweites Terminal)
+TenderHunter closes that gap: it continuously ingests tender sources, structures the documents, scores every opportunity against a company profile, and explains the verdict with verifiable evidence — so a small team can decide in minutes which tenders are worth pursuing.
 
-```bash
-npm run worker
-```
+## What it does
 
-Die App ist danach unter `http://localhost:3000` erreichbar.
+**Discover → Structure → Score → Explain → Deliver**
 
-## MCP und lokale Agenten
+| Capability | Detail |
+|---|---|
+| **Multi-market ingestion** | EU (TED), Germany (DTVP, Bund.de, federal states), US (SAM.gov, state & local portals) — crawled on schedule via Firecrawl and Playwright |
+| **Profile-based scoring** | Four dimensions per tender and company profile: fit, win probability, effort, and kill-switch (exclusion criteria) |
+| **Evidence-first AI** | Every verdict cites its source: document, page, verbatim quote. No black-box scores |
+| **Small-vendor barrier detection** | Recognizes references, certificates, capacity lease (*Eignungsleihe*) and subcontractor requirements — the classic reasons SMB bids fail |
+| **Document pipeline** | PDF/HTML/ZIP text extraction, deadline tracking, readiness states, deduplication |
+| **Agent-ready** | Built-in MCP server so Claude, Codex, ChatGPT and OpenCode query the index directly |
+| **Production system** | Auth (Google OAuth), Stripe subscriptions, transactional email alerts, SEO-optimized public tender pages |
 
-Der read-only MCP-Server ist unter `/api/mcp` erreichbar und liefert über alle
-MCP-Anfragen hinweg höchstens 50 Quota-Einheiten pro UTC-Kalendertag. Die
-zugehörige JSON-Fassade für lokale Skripte liegt unter `/api/mcp/search`.
+### Evidence before optimism
 
-Verfügbare Tools:
+The scoring engine is deliberately conservative: risk signals surface before positive scores, and `not_found` means *"not found in the examined documents"* — never *"requirement doesn't apply."* Verdicts come with checkpoints and quotes so a bid team can verify every claim against the original tender documents.
 
-- `search_tenders`: Suche mit Filtern, u.a. `sort: "smallVendorFit"`, `smallVendorFitMin`
-  und `category`. Maximal 30 Treffer pro Anfrage. Ergebnisse enthalten zusätzlich
-  heuristische Hinweise zu niedrigen Einstiegshürden, IT-Bezug, Losen und Remote-Eignung;
-  sie ersetzen nicht die Prüfung der Vergabeunterlagen. Die Suche umfasst nur aktuell
-  qualifizierte Ausschreibungen im Index; bekannte Fristen sind nicht abgelaufen, Einträge
-  ohne bekannte Frist können enthalten sein. Die Abdeckung aller Vergabeportale ist nicht vollständig.
-- `match_tenders`: bewertet Kandidaten gegen ein Firmenprofil (tatsächlicher Hauptbieter,
-  optional konkret benannter Partner). `query` plus bis zu 7 `searchQueries` erlauben mehrere
-  fokussierte Suchbegriffe in einem Lauf; Treffer werden dedupliziert. Die Suchdiagnostik
-  unterscheidet `no_candidates`, `evaluation_failed`, `partial` und `completed`. Je Treffer
-  gibt es ein `verdict` (`barrier`, `unclear`, `no_barrier_found`) mit Prüfpunkten und Belegen
-  (Dokument, Seite, wörtliches Zitat). `no_barrier_found` bewertet weder technischen Fit noch
-  Wirtschaftlichkeit oder Zuschlagschance. Eine Einheit je zurückgegebenem Treffer.
-- `get_tender_dossier`: Bekanntmachung, Dokumente mit Abrufstatus, ZIP-Inhalte,
-  Ressourcen, Zugriffshinweise und Kriterien mit Belegen. Eine Einheit je Aufruf.
-- `get_document_text`: Textausschnitt eines Dokuments, optional einer Seite. Eine Einheit je Aufruf.
+## MCP server for AI agents
 
-Der Status `not_found` heißt: in den geprüften Dokumenten nicht gefunden. Er heißt nicht,
-dass ein Kriterium nicht erforderlich ist. Die Auswertung ist regelbasiert und ersetzt
-keine Prüfung der Vergabeunterlagen.
+TenderHunter exposes a read-only [Model Context Protocol](https://modelcontextprotocol.io) server at `/api/mcp`, with a JSON facade at `/api/mcp/search` for local scripts:
 
-Für Claude Code:
+| Tool | Returns |
+|---|---|
+| `search_tenders` | Filtered search with `smallVendorFit` sorting, barrier hints, categories |
+| `match_tenders` | Candidates scored against a company profile — verdict + evidence per hit |
+| `get_tender_dossier` | Notice, documents, ZIP contents, access notes, criteria with citations |
+| `get_document_text` | Text excerpts per document and page |
+
+Connect it to Claude Code:
 
 ```bash
-claude mcp add --transport http tenderhunter https://DEINE-DOMAIN/api/mcp
+claude mcp add --transport http tenderhunter https://palemaz.com/api/mcp
 ```
 
-Für Codex:
+Or query it from any script with the dependency-free CLI:
 
 ```bash
-codex mcp add tenderhunter --url https://DEINE-DOMAIN/api/mcp
-```
-
-OpenCode kann den Server in der MCP-Konfiguration eintragen:
-
-```json
-{
-  "mcp": {
-    "tenderhunter": {
-      "type": "remote",
-      "url": "https://DEINE-DOMAIN/api/mcp",
-      "enabled": true
-    }
-  }
-}
-```
-
-ChatGPT wird über Developer Mode als eigener Custom Connector mit derselben
-URL eingerichtet. ChatGPT Web bietet dafür keinen verlässlichen Shell-Befehl.
-
-Lokale Agenten können alternativ die dependency-freie CLI verwenden:
-
-```bash
-TENDERHUNTER_API_URL=https://DEINE-DOMAIN/api/mcp/search \
+TENDERHUNTER_API_URL=https://palemaz.com/api/mcp/search \
   npm run tenderhunter -- search --query "Gebäudereinigung" --limit 10
 ```
 
-Wenn `MCP_API_KEY` auf dem Server gesetzt ist, muss der Client einen Bearer-
-Token senden. Der Schlüssel wird nur über die jeweilige lokale
-Umgebungsvariable `TENDERHUNTER_MCP_API_KEY` verwendet und niemals in diesen
-Dateien gespeichert.
+## Architecture
 
-Beispiel für ein Firmenprofil in `match_tenders` (alle Profilfelder außer `bidder` optional;
-unbekannte Angaben weglassen, nicht schätzen. Bei `partner.roles` nur tatsächlich geplante
-und offengelegte Rollen angeben):
+```mermaid
+flowchart LR
+    subgraph sources["Tender sources"]
+        S1["TED · EU"]
+        S2["DTVP · Bund.de · Länder"]
+        S3["SAM.gov · US state portals"]
+    end
 
-```json
-{
-  "bidder": { "foundedOn": "2026-03-01", "inGermany": true, "registeredInGermany": true, "germanLanguage": true, "referenceCount": 0 },
-  "partner": { "name": "Partnerfirma", "roles": ["subcontractor"], "referenceCount": 3, "certificates": ["ISO 27001"] }
-}
+    subgraph ingest["Ingestion pipeline"]
+        W["Queue worker<br/>retries · concurrency caps"] --> P["Parse · structure · dedupe"]
+        P --> SC["Profile scoring<br/>+ evidence extraction"]
+    end
+
+    sources -->|"Firecrawl · Playwright/Obscura · SearXNG"| W
+
+    W --> PG[("PostgreSQL<br/>+ Drizzle ORM")]
+    W --> ME[("Meilisearch<br/>full-text + embeddings")]
+    W --> OB[("Object store<br/>documents")]
+
+    PG --> APP["Next.js 16 · App Router"]
+    ME --> APP
+
+    subgraph serve["Delivery"]
+        APP --> UI["Dashboards · public tender pages"]
+        APP --> API["REST API"]
+        APP --> MCP["MCP server · /api/mcp"]
+    end
+
+    MCP --> AG["Claude · Codex · ChatGPT · OpenCode"]
 ```
 
-`partner.roles` akzeptiert `subcontractor`, `capacity_provider` (Eignungsleihe) und
-`consortium_member`. Ein Nachunternehmer wird nicht automatisch als Eignungsleiher gewertet;
-bei Referenzen, Umsatz oder anderen Eignungskriterien müssen die Vergabeunterlagen und die
-tatsächlich geplante Rolle zusammenpassen.
+| Layer | Technology |
+|---|---|
+| App & API | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4, MUI |
+| Database | PostgreSQL with Drizzle ORM |
+| Search | Meilisearch with embedding-based semantic retrieval |
+| Ingestion | Firecrawl, Playwright via Obscura headless browser (CDP), SearXNG |
+| AI | Z.AI GLM models with OpenRouter fallback, hard daily spend budget |
+| Auth & billing | Better Auth + Google OAuth, Stripe subscriptions |
+| Email | Resend transactional alerts |
+| Ops | Docker Compose — 6 services, background worker with retry and backpressure limits |
 
-Für ein IT-Angebot können mehrere gezielte Suchbegriffe in `searchQueries` stehen, z. B.
-`["individuelle Softwareentwicklung", "API-Integration", "RAG-Assistent", "GenAI-Prototyp"]`.
-`category` muss weiterhin einer gültigen Tenderhunter-Kategorie entsprechen; für Software/IT
-ist das `IT-Dienstleistungen`, nicht `KI`.
+## Quickstart
 
-## Typischer Ablauf
+```bash
+git clone https://github.com/patricklenert/tenderhunter.git
+cd tenderhunter
+cp .env.example .env            # add your keys — LLM/Firecrawl keys are optional
+docker compose up -d --build    # Postgres, Meilisearch, SearXNG, Obscura, app, worker
+```
 
-1. Firmenprofil anlegen: `POST /api/company-profiles`
-2. Ausschreibung anlegen: `POST /api/tenders/manual`
-3. Jobs verarbeiten: `POST /api/pipeline/run-batch?limit=20` oder Worker laufen lassen
-4. Empfehlungen abrufen: `GET /api/recommendations/{companyId}`
-5. Attribution tracken: `POST /api/tracking`
+Open **http://localhost:3000**. The worker starts ingesting and scoring tenders automatically.
 
-## Wichtige API-Routen
+For local development against running infrastructure:
 
-- `GET /api/health`
-- `POST /api/pipeline/crawl`
-- `POST /api/pipeline/run-once`
-- `POST /api/pipeline/run-batch?limit=20`
-- `GET /api/jobs`
-- `GET /api/tenders`
-- `POST /api/tenders/manual`
-- `GET|POST /api/company-profiles`
-- `GET /api/recommendations/{companyId}`
-- `POST /api/tracking`
+```bash
+npm install
+npm run migrate
+npm run dev       # Next.js on :3000
+npm run worker    # ingestion + analysis pipeline (second terminal)
+```
 
-## Konfiguration
+## Testing & quality
 
-- `DATABASE_PATH` (default: `data/tender_agent.db`)
-- `OBJECT_STORE_PATH` (default: `data/object_store`)
-- `DEFAULT_SOURCES` (kommagetrennte URLs)
-- `MAX_PDF_LINKS_PER_TENDER` (default: `5`)
-- `MAX_JOB_RETRIES` (default: `3`)
-- `WORKER_POLL_SECONDS` (default: `3`)
+The pipeline is covered by 55+ focused test suites — scoring, evidence extraction, MCP contracts, billing, SEO, parser and crawler behavior:
 
-## Hinweise
+```bash
+npm run test:scoring        # scoring engine
+npm run test:mcp            # MCP server contract
+npm run test:billing        # Stripe subscription flows
+npm run | grep "test:"      # …and the rest
+```
 
-- Die Basis-Version ist deterministisch, lokal lauffaehig und ohne externe Infrastruktur nutzbar.
-- Eine spaetere Migration auf Postgres ist moeglich, ohne die Pipeline-Logik neu zu denken.
+## Repository map
+
+| Path | Contents |
+|---|---|
+| `app/` | Next.js App Router — public tender pages, dashboards, API routes |
+| `lib/` | Core domain — ingestion, scraping, scoring, evidence, entitlements, SEO |
+| `components/` | React UI, incl. the shared semantic brand system |
+| `scripts/` | Worker, migrations, test suites, operational backfill tooling |
+| `cli/` | Dependency-free CLI for the search facade |
+| `docker-compose.yml` | Full local stack: Postgres, Meilisearch, SearXNG, Obscura, app, worker |
+
+## License & contact
+
+Built and operated as a commercial product — © 2026, all rights reserved.
+Questions or feedback? Reach out via [GitHub](https://github.com/patricklenert).
