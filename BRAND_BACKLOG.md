@@ -26,6 +26,7 @@ Product-wide brand and UI consistency work is tracked here. This backlog is cumu
 | TH-BR-019 | P0 | Completed | Tailwind v4 was installed but its PostCSS plugin was not configured, so `@theme` tokens and utilities shipped unprocessed | Registered the existing `@tailwindcss/postcss` plugin and kept semantic variables statically emitted; the documented colors, generated utilities, and global focus styles now compile for all surfaces. | TH-BR-001 |
 | TH-BR-020 | P1 | Completed | Tailwind and MUI/public colors drifted for shared roles, with insufficient contrast on primary actions and warning states | Aligned shared roles across Tailwind and MUI, separated the brighter brand signal from AA-compliant action/interaction shades, added the semantic info role, and added parity plus contrast regression checks. | TH-BR-001, TH-BR-019 |
 | TH-BR-021 | P2 | Completed | The U.S. profile save action overrode the shared primary action role with a local dark shade | Removed the local `primary.dark` override from `UsCompanyProfileForm`; the enabled save action now uses the established `action-primary` role, guarded by the browser regression test. | TH-BR-020 |
+| TH-BR-022 | P1 | Completed | The public 404 page used local action styling and wrapped clickable category chips in separate links | Added the shared `BrandLockup`, replaced local button styles with semantic MUI button variants, made recovery actions stack cleanly on mobile, and made each 44px category chip a single direct link. | TH-BR-001, TH-BR-005, TH-BR-006, TH-BR-020 |
 
 ## Open
 
