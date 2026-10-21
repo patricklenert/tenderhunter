@@ -335,6 +335,17 @@ const startTenderRecovery = (): NodeJS.Timeout => {
   }, TENDER_RECOVERY_INTERVAL_MS);
 };
 
+let shutdownRequested = false;
+
+const requestWorkerShutdown = (signal: NodeJS.Signals): void => {
+  if (shutdownRequested) return;
+  shutdownRequested = true;
+  console.log(`[worker] ${signal} empfangen; keine neuen Jobs mehr starten, laufende Jobs werden abgeschlossen.`);
+};
+
+process.on("SIGTERM", () => requestWorkerShutdown("SIGTERM"));
+process.on("SIGINT", () => requestWorkerShutdown("SIGINT"));
+
 const runWorkerLoop = async (workerId: string): Promise<void> => {
   console.log(`Worker ${workerId} gestartet. Polling alle ${settings.workerPollSeconds}s.`);
   let lastUsScheduleCheckAt = Date.now();
@@ -342,7 +353,7 @@ const runWorkerLoop = async (workerId: string): Promise<void> => {
   let criticalStreak = 0;
   let lastCriticalType: string | null = null;
   const criticalBurst = 5;
-  while (true) {
+  while (!shutdownRequested) {
     if (Date.now() - lastUsScheduleCheckAt >= US_SCHEDULE_CHECK_MS) {
       lastUsScheduleCheckAt = Date.now();
       try {
@@ -363,6 +374,8 @@ const runWorkerLoop = async (workerId: string): Promise<void> => {
         console.warn(`[scheduler] Public-Scrape-Check fehlgeschlagen: ${message}`);
       }
     }
+
+    if (shutdownRequested) break;
 
     const lane: JobLane = criticalStreak < criticalBurst ? "critical" : "background";
     let result: Awaited<ReturnType<typeof processNextJob>>;

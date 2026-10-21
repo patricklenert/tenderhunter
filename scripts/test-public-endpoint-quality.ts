@@ -332,6 +332,11 @@ const fallbackSearchPageTwo = selectTenderSearchFallbackResults(
   100,
 );
 assert.equal(fallbackSearchPageTwo.hits[0]?.id, 921, "DB fallback applies the same ordering and page offset");
+assert.equal(
+  selectTenderSearchFallbackResults({ ...fallbackSearchParams, source: [] }, fallbackSearchDocuments, 100).estimatedTotalHits,
+  0,
+  "an explicitly empty source filter returns no fallback matches",
+);
 
 // A source portal's Bundesland is not evidence of the tender's performance
 // location and must not leak into the list/modal display as one.

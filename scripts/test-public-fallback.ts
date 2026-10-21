@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import type { Page } from "playwright";
 import { isRecoverableBrowserError, readStablePageContent, readStablePageTitle, retryOnceOnRecoverableBrowserError } from "@/lib/firecrawl";
-import { extractBasicDetailFromHtml, extractPublicPortalFacts, searchOeffentlicheVergabeByTitle } from "@/lib/public-tender-scraper";
+import {
+  extractBasicDetailFromHtml,
+  extractPublicPortalFacts,
+  isMatchingOeffentlicheVergabeTitle,
+  searchOeffentlicheVergabeByTitle,
+} from "@/lib/public-tender-scraper";
 
 const item = extractBasicDetailFromHtml(
   "<html><head><title>Vergabe</title></head><body><h1>Softwareentwicklung für die Stadtverwaltung</h1><p>Auftraggeber: Stadt Mainz</p><p>Frist: 31.12.2026</p><p>55116 Mainz</p><a href='/docs/unterlagen.pdf'>PDF</a></body></html>",
@@ -195,6 +200,25 @@ assert.equal(rlpItem.client, "LBB Niederlassung Mainz");
 assert.equal(rlpItem.location, "55128 Mainz");
 assert.equal(rlpItem.referenceNumber, "CXCPEYDYYYRM0");
 assert.equal(rlpItem.description, "", "a title-only Bezeichnung field is not a substantive description");
+
+assert.equal(
+  isMatchingOeffentlicheVergabeTitle("Kläranlage Itzgrund - Bauarbeiten", {
+    de: "Klaeranlage Itzgrund Bauarbeiten",
+    en: "Wastewater treatment works",
+  }),
+  true,
+  "the OCDS German title may match after safe encoding and punctuation normalization",
+);
+assert.equal(
+  isMatchingOeffentlicheVergabeTitle("Kläranlage Itzgrund - Bauarbeiten", "Sanierung der Grundschule Mainz"),
+  false,
+  "a different notice title must not be used as an enrichment source",
+);
+assert.equal(
+  isMatchingOeffentlicheVergabeTitle("Kläranlage Itzgrund - Bauarbeiten", null),
+  false,
+  "an OCDS notice without a title is not a verified enrichment source",
+);
 
 const participationWallItem = extractBasicDetailFromHtml(
   `<html><head><title>DA Ausstellungsbau (3)</title></head><body>

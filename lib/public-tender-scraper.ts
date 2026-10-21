@@ -6,7 +6,7 @@ import { detectAccessPage, hasPositiveAccessLimitedEvidence, isParticipationWall
 import { stripSessionId } from "@/lib/tender-identity";
 import { settings } from "@/lib/config";
 import type { JsonValue } from "@/lib/types";
-import { decodeHtmlEntities, decodeTextBuffer } from "@/lib/text-normalization";
+import { decodeHtmlEntities, decodeTextBuffer, repairKnownGermanEncoding } from "@/lib/text-normalization";
 import {
   isPdfFormBoilerplate as isSharedPdfFormBoilerplate,
   isRawPortalDescription as isSharedRawPortalDescription,
@@ -5554,6 +5554,30 @@ export interface OeffentlicheVergabeDetails {
   portalUrl: string | null;
 }
 
+const normalizeOeffentlicheVergabeTitle = (value: string): string =>
+  repairKnownGermanEncoding(decodeHtmlEntities(value))
+    .normalize("NFKC")
+    .toLocaleLowerCase("de-DE")
+    .replace(/ä/g, "ae")
+    .replace(/ö/g, "oe")
+    .replace(/ü/g, "ue")
+    .replace(/ß/g, "ss")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+
+/** Require the OCDS result title to identify the requested tender before using its facts. */
+export const isMatchingOeffentlicheVergabeTitle = (expectedTitle: string, actualTitle: unknown): boolean => {
+  const expected = normalizeOeffentlicheVergabeTitle(expectedTitle);
+  if (!expected) return false;
+
+  const candidates = typeof actualTitle === "string"
+    ? [actualTitle]
+    : actualTitle && typeof actualTitle === "object" && !Array.isArray(actualTitle)
+      ? Object.values(actualTitle).filter((value): value is string => typeof value === "string")
+      : [];
+  return candidates.some((candidate) => normalizeOeffentlicheVergabeTitle(candidate) === expected);
+};
+
 export async function searchOeffentlicheVergabeByTitle(title: string): Promise<{ noticeId: string; evergabeUrl: string | null } | null> {
   if (!title) return null;
 
@@ -5728,7 +5752,7 @@ async function searchOeffentlicheVergabeByTitleAttempt(title: string): Promise<{
   }
 }
 
-export async function fetchOeffentlicheVergabeDetails(noticeId: string): Promise<OeffentlicheVergabeDetails | null> {
+export async function fetchOeffentlicheVergabeDetails(noticeId: string, expectedTitle: string): Promise<OeffentlicheVergabeDetails | null> {
   try {
     // Try with noticeVersion=01 first (works for UUID noticeIds)
     let apiUrl = `https://oeffentlichevergabe.de/api/notices/${noticeId}?format=ocds&noticeVersion=01`;
@@ -5774,6 +5798,10 @@ export async function fetchOeffentlicheVergabeDetails(noticeId: string): Promise
 
     if (!tender) {
       console.warn(`[oeffvergabe] Keine tender-Daten in OCDS Antwort`);
+      return null;
+    }
+    if (!isMatchingOeffentlicheVergabeTitle(expectedTitle, tender.title)) {
+      console.warn(`[oeffvergabe] OCDS-Titel stimmt nicht mit der gesuchten Ausschreibung ueberein (${noticeId})`);
       return null;
     }
 
@@ -6065,17 +6093,14 @@ async function scrapeEvergabeDetailPage(url: string): Promise<{ details: Partial
   }
 }
 
-export async function enrichFromOeffentlicheVergabe(
-  title: string,
-  existingDescription?: string | null
-): Promise<OeffentlicheVergabeDetails | null> {
+export async function enrichFromOeffentlicheVergabe(title: string): Promise<OeffentlicheVergabeDetails | null> {
   if (!title || title.length < 10) return null;
 
   const searchResult = await searchOeffentlicheVergabeByTitle(title);
   if (!searchResult) return null;
 
   // Try API first
-  const details = await fetchOeffentlicheVergabeDetails(searchResult.noticeId);
+  const details = await fetchOeffentlicheVergabeDetails(searchResult.noticeId, title);
 
   // If API found details but no evergabe docs, try the URL from the detail page
   if (details && details.evergabeDocumentUrls.length === 0 && searchResult.evergabeUrl) {
@@ -6109,25 +6134,9 @@ export async function enrichFromOeffentlicheVergabe(
     }
   }
 
-  // If API failed entirely, build minimal details from what we have
-  if (!details && searchResult.evergabeUrl) {
-    console.log(`[oeffvergabe] API fehlgeschlagen, nutze evergabe.de URL direkt`);
-    const docUrls = await fetchEvergabeDownloadUrls(searchResult.evergabeUrl);
-    const isPublicPortal = searchResult.evergabeUrl && !searchResult.evergabeUrl.match(/\/\/(?:www\.)?evergabe\.de\//);
-    return {
-      noticeId: searchResult.noticeId,
-      estimatedValue: null,
-      procedure: null,
-      duration: null,
-      buyer: null,
-      contact: null,
-      description: existingDescription ?? null,
-      evergabeUrl: searchResult.evergabeUrl,
-      evergabeDocumentUrls: docUrls,
-      lotDescription: null,
-      portalUrl: isPublicPortal ? searchResult.evergabeUrl : null,
-    };
-  }
+  // A search result without a title-verified OCDS record is not a safe source
+  // for tender facts or downloadable documents.
+  if (!details) return null;
 
   // Set portalUrl if the evergabe URL is a public portal (not evergabe.de paywall)
   if (details && searchResult.evergabeUrl) {

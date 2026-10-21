@@ -119,6 +119,7 @@
     "cheerio": "^1.1.2",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
+    "entities": "^4.2.0",
     "jsdom": "^29.1.1",
     "jspdf": "^4.2.1",
     "lucide-react": "^1.14.0",

@@ -122,6 +122,8 @@ services:
     build: .
     container_name: tenderhunter-worker
     restart: always
+    # The longest job timeout is five hours; allow a full job to finish on shutdown.
+    stop_grace_period: 6h
     init: true
     # Chromium now runs in the shared obscura container; the worker only holds
     # the Node heap (1536m), so 2g is sufficient again.

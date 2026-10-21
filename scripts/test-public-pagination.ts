@@ -171,6 +171,9 @@ assert.equal(canonicalPublicTenderUrl("https://example.test/a;jsessionid=abc?id=
 assert.equal(derivePublicExternalId({ sourceKey: "dtvp", sourceUrl: "https://dtvp.test/projectForwarding.do?pid=123" }), "123");
 assert.equal(decodeHtmlEntities("Materialpr&#252;fmaschine f&#252;r"), "Materialprüfmaschine für");
 assert.equal(decodeHtmlEntities("&amp;#228;"), "ä");
+assert.equal(decodeHtmlEntities("<script>literal &amp; text</script>"), "<script>literal & text</script>");
+assert.equal(decodeHtmlEntities("&lt;b&gt;markiert &amp; geprüft&lt;/b&gt;"), "<b>markiert & geprüft</b>");
+assert.equal(decodeHtmlEntities("&quot; &#x1F4A1; &apos; &nbsp;"), "\" 💡 ' \u00a0");
 assert.equal(
   decodeHtmlEntities("Bayreuth, Casselmannstra&#223;e 6, 330-Sonnenschutz"),
   "Bayreuth, Casselmannstraße 6, 330-Sonnenschutz",

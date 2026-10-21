@@ -1,7 +1,7 @@
 import { Meilisearch, type SearchResponse } from "meilisearch";
 import { db } from "@/lib/db";
 import { structuredData, tenders } from "@/lib/schema";
-import { and, eq, gt, inArray, isNull, or } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, or, sql } from "drizzle-orm";
 import { getPublicAccessLimitedFallback } from "@/lib/public-tender-scraper";
 import { resolvePublicTenderDeadline, resolvePublicTenderDisplayFacts } from "@/lib/public-tender-display-facts";
 import { deriveBundesland, deriveCity } from "@/lib/bundesland";
@@ -548,6 +548,21 @@ const searchTenderDatabaseFallback = async (
 ): Promise<{ hits: TenderDocument[]; estimatedTotalHits: number; processingTimeMs: number }> => {
   const startedAt = Date.now();
   const nowUnix = Math.floor(startedAt / 1000);
+  const conditions = [eq(tenders.qualityStatus, "qualified")];
+
+  // Apply filters that are already canonical database fields before building
+  // display projections. In particular, a stale Meilisearch page must not
+  // force normalization of the entire qualified catalog for an empty category.
+  if (params.category) {
+    conditions.push(params.category === "Sonstiges"
+      ? or(isNull(tenders.category), eq(tenders.category, "Sonstiges"))!
+      : eq(tenders.category, params.category));
+  }
+  if (params.source) {
+    const sources = Array.isArray(params.source) ? params.source : [params.source];
+    conditions.push(sources.length > 0 ? inArray(tenders.source, sources) : sql`FALSE`);
+  }
+
   const rows = await db
     .select({
       id: tenders.id,
@@ -568,7 +583,7 @@ const searchTenderDatabaseFallback = async (
     })
     .from(tenders)
     .leftJoin(structuredData, eq(structuredData.tenderId, tenders.id))
-    .where(eq(tenders.qualityStatus, "qualified"));
+    .where(and(...conditions));
   const documents = rows.map(buildTenderIndexDocument);
   const result = selectTenderSearchFallbackResults(params, documents, nowUnix);
   return { ...result, processingTimeMs: Date.now() - startedAt };

@@ -3509,7 +3509,7 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
   if ((hasLimitedData || hasThinDescription) && tender.title && tender.title.length >= 10) {
     try {
       console.log(`[cache-detail] Versuche oeffentlichevergabe.de Anreicherung fuer: ${tender.title.slice(0, 60)}...`);
-      const oeffDetails = await enrichFromOeffentlicheVergabe(tender.title, description);
+      const oeffDetails = await enrichFromOeffentlicheVergabe(tender.title);
 
       if (oeffDetails) {
         console.log(`[cache-detail] oeffentlichevergabe.de Daten gefunden: value=${oeffDetails.estimatedValue ?? "nein"}, docs=${oeffDetails.evergabeDocumentUrls.length}`);
@@ -3925,19 +3925,21 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
     mergedBlob.decision_relevant = decisionRelevant;
 
     // Prefer the richer description (don't overwrite good existing data with thin LLM output)
-    const existingDesc = typeof mergedBlob.description === "string" ? mergedBlob.description : "";
-    const newDesc = typeof result.description === "string" ? result.description : "";
+    const existingDesc = pickPublicDescription(mergedBlob.description);
+    const newDesc = pickPublicDescription(result.description);
     console.log(`[cache-detail] Merge: existingDesc=${existingDesc.length}, newDesc=${newDesc.length}`);
     if (newDesc.length > 20 && newDesc.length > existingDesc.length && newDesc.length < 5000) {
-      mergedBlob.description = result.description;
+      mergedBlob.description = newDesc;
       console.log(`[cache-detail] Description updated to ${newDesc.length} chars`);
+    } else if (existingDesc) {
+      mergedBlob.description = existingDesc;
     }
 
     // Update summary only if cache_detail has substantially better content
     // Don't replace a good summary with raw text (which can be 10K+ chars from PDFs)
     const existingSummary = typeof mergedBlob.summary === "string" ? mergedBlob.summary : "";
-    if (typeof result.description === "string" && result.description.length > 100 && result.description.length < 5000 && result.description.length > existingSummary.length + 50) {
-      mergedBlob.summary = result.description.slice(0, 3000);
+    if (newDesc.length > 100 && newDesc.length < 5000 && newDesc.length > existingSummary.length + 50) {
+      mergedBlob.summary = newDesc.slice(0, 3000);
     }
 
     const newDescriptionMarkdown = typeof result.descriptionMarkdown === "string"
