@@ -464,6 +464,12 @@ export async function runApiAnalysisJob(payload: {
   companyId?: number;
   profileSlug?: string;
 }): Promise<void> {
+  await db.update(apiJobs).set({
+    status: "processing",
+    error: null,
+    updatedAt: new Date(),
+  }).where(eq(apiJobs.id, payload.apiJobId));
+
   if (payload.mode !== "rescore") {
     await runAnalysis(payload.apiJobId, payload.url);
     return;

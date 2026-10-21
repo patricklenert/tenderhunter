@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { buildJobKey, CRITICAL_JOB_TYPES, getCriticalJobTypeOrder, getEffectiveQueuePriority, getJobMaxRuntimeMs, isCriticalJobType, isJobRuntimeStale, JOB_PRIORITIES, PUBLIC_CONTINUATION_PRIORITY, shouldReapJobForRuntimeTimeout, shouldReuseCompletedJob } from "../lib/queue";
+import { buildJobKey, CRITICAL_JOB_TYPES, getApiAnalysisStatusAfterFailure, getCriticalJobTypeOrder, getEffectiveQueuePriority, getJobMaxRuntimeMs, isCriticalJobType, isJobRuntimeStale, JOB_PRIORITIES, PUBLIC_CONTINUATION_PRIORITY, shouldReapJobForRuntimeTimeout, shouldReuseCompletedJob } from "../lib/queue";
 
 assert.equal(buildJobKey("parse_documents", 42), "parse_documents:42");
 assert.equal(buildJobKey("parse_documents", 42, "refresh"), "parse_documents:42:refresh");
@@ -8,6 +8,8 @@ assert.equal(shouldReuseCompletedJob("done"), true);
 assert.equal(shouldReuseCompletedJob("done", false), false);
 assert.equal(shouldReuseCompletedJob("pending", false), false);
 assert.equal(shouldReuseCompletedJob("failed"), false);
+assert.equal(getApiAnalysisStatusAfterFailure(1, 3), "processing", "API analyses stay processing while queue retries remain");
+assert.equal(getApiAnalysisStatusAfterFailure(4, 3), "failed", "API analyses fail only after the retry budget is exhausted");
 
 assert.equal(isCriticalJobType("parse_documents"), true);
 assert.equal(isCriticalJobType("structure_tender"), true);

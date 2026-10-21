@@ -1,6 +1,6 @@
 import { eq, and, lte, sql, inArray, notInArray, or } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { jobs, jobAttempts, publicScrapeRuns, type Job } from "@/lib/schema";
+import { apiJobs, jobs, jobAttempts, publicScrapeRuns, type Job } from "@/lib/schema";
 import { settings } from "@/lib/config";
 import { releaseOrphanedCatalogSync, releaseStaleCatalogSync } from "@/lib/catalog";
 import {
@@ -90,6 +90,32 @@ export const shouldReapJobForRuntimeTimeout = (
 
 export const sanitizeErrorMessage = (message: string): string =>
   message.replace(/\u0000/g, "").slice(0, MAX_ERROR_MESSAGE_LENGTH);
+
+export const getApiAnalysisStatusAfterFailure = (retries: number, maxRetries: number): "processing" | "failed" =>
+  retries > maxRetries ? "failed" : "processing";
+
+type QueueTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+const updateApiAnalysisStatusAfterFailure = async (
+  tx: QueueTransaction,
+  payload: unknown,
+  retries: number,
+  maxRetries: number,
+  errorMessage: string,
+): Promise<void> => {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return;
+  const record = payload as Record<string, unknown>;
+  const rawId = record.api_job_id ?? record.apiJobId;
+  const apiJobId = typeof rawId === "number" || typeof rawId === "string" ? Number(rawId) : NaN;
+  if (!Number.isSafeInteger(apiJobId) || apiJobId <= 0) return;
+
+  const terminal = getApiAnalysisStatusAfterFailure(retries, maxRetries) === "failed";
+  await tx.update(apiJobs).set({
+    status: terminal ? "failed" : "processing",
+    error: terminal ? errorMessage : null,
+    updatedAt: new Date(),
+  }).where(eq(apiJobs.id, apiJobId));
+};
 
 const ACTIVE_JOB_STATUSES = ["pending", "running"] as const;
 
@@ -450,7 +476,13 @@ export async function markDone(jobId: number, workerId: string): Promise<void> {
 export async function markFailed(jobId: number, workerId: string, errorMessage: string): Promise<void> {
   await db.transaction(async (tx) => {
     const row = await tx
-      .select({ retries: jobs.retries, maxRetries: jobs.maxRetries, startedAt: jobs.startedAt, type: jobs.type })
+      .select({
+        retries: jobs.retries,
+        maxRetries: jobs.maxRetries,
+        startedAt: jobs.startedAt,
+        type: jobs.type,
+        payload: jobs.payload,
+      })
       .from(jobs)
       .where(and(eq(jobs.id, jobId), eq(jobs.status, "running"), eq(jobs.lockedBy, workerId)))
       .limit(1)
@@ -495,6 +527,9 @@ export async function markFailed(jobId: number, workerId: string, errorMessage: 
           eq(jobAttempts.status, "running"),
            eq(jobAttempts.workerId, workerId),
          ));
+        if (row[0].type === JOB_API_ANALYZE) {
+          await updateApiAnalysisStatusAfterFailure(tx, row[0].payload, newRetries, maxRetries, safeErrorMessage);
+        }
         return;
     }
 
@@ -522,6 +557,9 @@ export async function markFailed(jobId: number, workerId: string, errorMessage: 
         eq(jobAttempts.status, "running"),
         eq(jobAttempts.workerId, workerId),
       ));
+    if (row[0].type === JOB_API_ANALYZE) {
+      await updateApiAnalysisStatusAfterFailure(tx, row[0].payload, newRetries, maxRetries, safeErrorMessage);
+    }
   });
 }
 
@@ -548,6 +586,7 @@ export async function reapStaleJobs(): Promise<number> {
       lockedAt: jobs.lockedAt,
       lockedBy: jobs.lockedBy,
       runtimeTimeoutEnforced: jobs.runtimeTimeoutEnforced,
+      payload: jobs.payload,
     })
     .from(jobs)
     .where(eq(jobs.status, "running"));
@@ -657,6 +696,9 @@ export async function reapStaleJobs(): Promise<number> {
         finishedAt: new Date(),
         updatedAt: new Date(),
       }).where(and(eq(publicScrapeRuns.jobId, job.id), eq(publicScrapeRuns.status, "running")));
+      if (job.type === JOB_API_ANALYZE) {
+        await updateApiAnalysisStatusAfterFailure(tx, job.payload, newRetries, job.maxRetries, runError);
+      }
       return true;
     });
     if (reapedJob) reaped++;
