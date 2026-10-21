@@ -9,6 +9,7 @@ import {
   normalizePublicClient,
   normalizePublicDisplayCandidate,
   normalizePublicTextList,
+  normalizePublicProcedureCandidate,
   pickValidatedPublicCandidate,
   pickValidatedPublicProcedure,
   pickValidatedPublicLocation,
@@ -870,14 +871,24 @@ export const groundLLMExtractionAgainstSource = (
   const source = decodeHtmlEntities(rawText);
   const amounts = sourceEuroAmounts(source);
   const durations = sourceDurationMonths(source);
-  const awardCriteria = extraction.award_criteria
-    .filter((item) => sourceBackedAwardCriterion(item.criterion, rawText))
-    .map((item) => ({
+  const awardCriteria = extraction.award_criteria.flatMap((item) => {
+    const criterion = sanitizeTenderText(item.criterion);
+    if (!criterion || !sourceBackedAwardCriterion(criterion, rawText)) return [];
+    return [{
       ...item,
-      weight: item.weight !== null && sourceBackedAwardWeight(item.criterion, item.weight, rawText)
+      criterion,
+      weight: item.weight !== null && sourceBackedAwardWeight(criterion, item.weight, rawText)
         ? item.weight
         : null,
-    }));
+    }];
+  });
+  const participationRequirements = extraction.participation_requirements
+    .map(sanitizeTenderText)
+    .filter((requirement) => Boolean(requirement) && isSourceBackedPublicValue(requirement, rawText));
+  const cpvCodes = extraction.cpv_codes
+    .map(sanitizeTenderText)
+    .filter((code) => Boolean(code) && sourceBackedCpvCode(code, rawText));
+  const procedure = normalizePublicProcedureCandidate(extraction.procedure_type);
   return {
     ...extraction,
     contract_value: {
@@ -896,10 +907,9 @@ export const groundLLMExtractionAgainstSource = (
     contract_duration_renewal: extraction.contract_duration_renewal
       && /(?:verlängerungsoption|verlängerbar|optionszeitraum|option\s+(?:zur\s+)?verlängerung|renewable|renewal\s+option|option\s+to\s+extend)/iu.test(source),
     award_criteria: awardCriteria,
-    participation_requirements: extraction.participation_requirements
-      .filter((requirement) => isSourceBackedPublicValue(requirement, rawText)),
-    cpv_codes: extraction.cpv_codes.filter((code) => sourceBackedCpvCode(code, rawText)),
-    procedure_type: sourceBackedProcedure(extraction.procedure_type, source) ? extraction.procedure_type : "",
+    participation_requirements: participationRequirements,
+    cpv_codes: cpvCodes,
+    procedure_type: procedure && sourceBackedProcedure(procedure, source) ? procedure : "",
   };
 };
 
@@ -1003,22 +1013,24 @@ const buildSummary = (lines: string[], rawText: string, excludedTitle: string): 
   const picked: string[] = [];
   let total = 0;
   for (const line of lines) {
-    if (line.length < 40) continue;
-    if (excludedTitle && compactSpaces(line).toLocaleLowerCase("de-DE") === compactSpaces(excludedTitle).toLocaleLowerCase("de-DE")) continue;
-    if (looksMangled(line)) continue;
-    picked.push(line);
-    total += line.length + 1;
+    const candidate = sanitizeTenderText(line);
+    if (candidate.length < 40) continue;
+    if (excludedTitle && compactSpaces(candidate).toLocaleLowerCase("de-DE") === compactSpaces(excludedTitle).toLocaleLowerCase("de-DE")) continue;
+    if (looksMangled(candidate)) continue;
+    // Validate each line before selection, then validate the composed value so
+    // a rejected first line cannot poison a later usable summary candidate.
+    const combined = [...picked, candidate].join(" ").slice(0, 420);
+    if (!sanitizeTenderText(combined)) continue;
+    picked.push(candidate);
+    total += candidate.length + 1;
     if (picked.length >= 2 || total >= 420) break;
   }
   if (picked.length === 0) {
-    // Last resort: keep the old behaviour but only if the input does not look mangled.
-    const head = rawText.slice(0, 420).trim();
+    const head = sanitizeTenderText(rawText.slice(0, 420));
     if (head.length < 40 || looksMangled(head)) return "";
-    return compactSpaces(head).toLocaleLowerCase("de-DE") === compactSpaces(excludedTitle).toLocaleLowerCase("de-DE")
-      ? ""
-      : head;
+    return compactSpaces(head).toLocaleLowerCase("de-DE") === compactSpaces(excludedTitle).toLocaleLowerCase("de-DE") ? "" : head;
   }
-  return picked.join(" ").slice(0, 420);
+  return sanitizeTenderText(picked.join(" ").slice(0, 420));
 };
 
 export const extractStructuredData = async (

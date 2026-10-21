@@ -57,6 +57,7 @@ import { buildTenderDescriptionMarkdown } from "@/lib/tender-description";
 import { hasQueryParameters, NOINDEX_FOLLOW, type SeoSearchParams } from "@/lib/seo-indexability";
 import { getCanonicalTenderSlug, isCanonicalTenderId } from "@/lib/tender-canonical";
 import {
+  hasCanonicalPublicDescriptionSection,
   normalizePublicClient,
   pickValidatedPublicCandidate,
   pickValidatedPublicLocationForTender,
@@ -578,7 +579,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
       cpv: (procurement.cpv_codes ?? procurement.cpvCodes) as unknown,
     }),
   ) ?? "";
-  const markdownHasSection = (label: string): boolean => descriptionMarkdown.includes(`- **${label}:**`);
+  const markdownHasSection = (label: string): boolean => hasCanonicalPublicDescriptionSection(descriptionMarkdown, label);
   const markdownHasScope = markdownHasSection("Leistungsumfang");
   const markdownHasRequirements = markdownHasSection("Anforderungen");
   const markdownHasAwards = markdownHasSection("Zuschlagskriterien");
@@ -769,15 +770,15 @@ export default async function TenderDetailPage({ params }: PageProps) {
     .map((role) => ROLE_LABELS_DE[role] ?? role)
     .join(", ");
   const keyFacts = [
-    { label: "Auftraggeber", value: client, Icon: Building2 },
-    { label: "Ort", value: location, Icon: MapPin },
-    { label: "Vergabeart", value: procedure, Icon: FileText },
-    { label: "Frist", value: deadline ?? "", Icon: Calendar },
-    { label: "Veröffentlicht", value: publishedAt ?? "", Icon: Clock },
-    { label: "Laufzeit", value: duration, Icon: Clock },
-    { label: "Geschätzter Wert", value: contractValue, Icon: Euro },
-    { label: "Referenz", value: referenceNumber, Icon: Briefcase },
-  ].filter((fact) => Boolean(fact.value));
+    { label: "Auftraggeber", markdownLabel: "Auftraggeber", value: client, Icon: Building2 },
+    { label: "Ort", markdownLabel: "Leistungsort", value: location, Icon: MapPin },
+    { label: "Vergabeart", markdownLabel: "Verfahren", value: procedure, Icon: FileText },
+    { label: "Frist", markdownLabel: "Angebotsfrist", value: deadline ?? "", Icon: Calendar },
+    { label: "Veröffentlicht", markdownLabel: null, value: publishedAt ?? "", Icon: Clock },
+    { label: "Laufzeit", markdownLabel: "Laufzeit", value: duration, Icon: Clock },
+    { label: "Geschätzter Wert", markdownLabel: "Auftragswert", value: contractValue, Icon: Euro },
+    { label: "Referenz", markdownLabel: "Referenz", value: referenceNumber, Icon: Briefcase },
+  ].filter((fact) => Boolean(fact.value) && (!fact.markdownLabel || !markdownHasSection(fact.markdownLabel)));
 
   return (
     <>

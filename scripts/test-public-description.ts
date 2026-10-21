@@ -20,6 +20,7 @@ import {
 } from "@/lib/public-description-backfill";
 import {
   isCanonicalPublicDescriptionMarkdown,
+  hasCanonicalPublicDescriptionSection,
   isPdfFormBoilerplate,
   isPdfFormBoilerplateFragment,
   normalizePublicDisplayCandidate,
@@ -747,6 +748,11 @@ if (markdown.includes("](https://example.test)")) {
 }
 if (!isCanonicalPublicDescriptionMarkdown(markdown)) {
   throw new Error("Generiertes Markdown wird nicht als kanonische Anzeige erkannt");
+}
+if (!hasCanonicalPublicDescriptionSection(markdown, "Auftraggeber")
+  || hasCanonicalPublicDescriptionSection("## Ungeprüft", "Auftraggeber")
+  || hasCanonicalPublicDescriptionSection(markdown, "Unbekannt")) {
+  throw new Error("Doppelte Key-Facts werden nur bei kanonischen Markdown-Abschnitten erkannt");
 }
 const filteredRequirementMarkdown = buildTenderDescriptionMarkdown({
   summary: cleanText,

@@ -73,6 +73,19 @@ const main = async (): Promise<void> => {
   assert.equal(sourceBackedLlm.procedure_type, "offen");
   assert.equal(sourceBackedLlm.commercial_brief, commercialBrief);
 
+  const artifactLlm = groundLLMExtractionAgainstSource({
+    contract_value: { min: null, max: null, currency: "EUR" },
+    contract_duration_months: null,
+    contract_duration_renewal: false,
+    award_criteria: [{ criterion: "Meta-Navigation", weight: null }],
+    participation_requirements: ["Anmelden erforderlich, um Zugriff zu erhalten"],
+    cpv_codes: [],
+    procedure_type: "",
+    commercial_brief: commercialBrief,
+  }, "Zuschlagskriterien: Meta-Navigation\nTeilnahmevoraussetzung: Anmelden erforderlich, um Zugriff zu erhalten");
+  assert.deepEqual(artifactLlm.award_criteria, []);
+  assert.deepEqual(artifactLlm.participation_requirements, []);
+
   const unsupportedLlm = groundLLMExtractionAgainstSource({
     contract_value: { min: 50_000, max: 300_000, currency: "EUR" },
     contract_duration_months: 24,
@@ -99,6 +112,21 @@ const main = async (): Promise<void> => {
   assert.equal(regexFallback.procurement.contract_duration.months, 12);
   assert.deepEqual(regexFallback.procurement.cpv_codes, ["90910000-7"]);
   assert.equal(regexFallback.procurement.procedure_type, "offen");
+
+  const summaryAfterInvalidCandidates = await extractStructuredData(
+    "Sanierung der Turnhalle in Mainz",
+    [
+      "Bitte melden Sie sich an, um Zugriff auf die vollständigen Ausschreibungsunterlagen zu erhalten.",
+      "VHB-Bund-Ausgabe 2019 Eigenerklärung zur Eignung und rechtsverbindliche Unterschrift",
+      "Die ausgeschriebene Leistung umfasst die energetische Sanierung der Turnhalle und den Austausch der Beleuchtungsanlage.",
+    ].join("\n"),
+    { useLLM: false },
+  );
+  assert.equal(
+    summaryAfterInvalidCandidates.summary,
+    "Die ausgeschriebene Leistung umfasst die energetische Sanierung der Turnhalle und den Austausch der Beleuchtungsanlage.",
+    "invalid early source lines must not block a later validated summary candidate",
+  );
 
   assert.equal(extractNetServerTenderTitle(rawText), title);
   assert.equal(projectHomeTenderTitle("## Kurzinfo", 91), "Ausschreibung #91");

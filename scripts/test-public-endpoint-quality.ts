@@ -4,6 +4,7 @@ import {
   normalizePublicDisplayCandidate,
   normalizePublicProcedureCandidate,
   isCanonicalPublicDescriptionMarkdown,
+  hasCanonicalPublicDescriptionSection,
   normalizePublicClient,
   pickCanonicalPublicDescriptionMarkdown,
   pickValidatedPublicCandidate,
@@ -202,7 +203,7 @@ assert.equal(projectedMeiliAccessHit.description, accessFixtureFallback.descript
 // prose in the index, list/detail projection, or modal's shared projection.
 const qualityFixtureTitle = "Energetische Sanierung der Grundschule Mainz";
 const qualityFixtureSummary = "Die Grundschule erhält eine neue Heizungsanlage und eine verbesserte Wärmedämmung.";
-const invalidPortalSummary = "SERVICE.BUND.DE Haupt-Navigations-Menü Meta-Navigation Andere Ausschreibungen im Bereich";
+const invalidPortalSummary = "- Verfahren - - - Lose - Ergebnisse - Verträge - - - -";
 const qualityFixtureMetadata = { description: invalidPortalSummary, location: "##", client: "Stadt Mainz" };
 const qualityFixtureStructured = {
   summary: qualityFixtureSummary,
@@ -271,6 +272,10 @@ assert.deepEqual(publicFields(qualityFixtureIndex), qualityFixtureExpected);
 assert.deepEqual(publicFields(qualityFixtureSearchHit), qualityFixtureExpected);
 assert.equal(normalizePublicDisplayCandidate("- Verfahren - - - Lose - Ergebnisse - Verträge - - - -"), null);
 assert.equal(normalizePublicDisplayCandidate("## Bekanntmachung"), null);
+const duplicateFactMarkdown = "- **Auftraggeber:** Stadt Mainz\n- **Leistungsort:** 55116 Mainz";
+assert.equal(hasCanonicalPublicDescriptionSection(duplicateFactMarkdown, "Auftraggeber"), true);
+assert.equal(hasCanonicalPublicDescriptionSection(duplicateFactMarkdown, "Leistungsort"), true);
+assert.equal(hasCanonicalPublicDescriptionSection("## Ungeprüft", "Auftraggeber"), false);
 assert.equal(
   projectPublicDisplayFields({
     location: ["##", "55116 Mainz"],
@@ -905,6 +910,10 @@ assert.doesNotMatch(detailModalSource, /location:\s*\[d\.location,\s*t\.location
 assert.match(detailModalSource, /const displayLocation = display\.location \?\? "–";/);
 assert.match(detailModalSource, /const location = display\.location \?\? "–";/);
 assert.match(ssrPageSource, /const displayLocation = location \|\| "–";/);
+assert.match(ssrPageSource, /hasCanonicalPublicDescriptionSection\(descriptionMarkdown, label\)/);
+assert.match(ssrPageSource, /!markdownHasSection\(fact\.markdownLabel\)/);
+assert.match(detailModalSource, /client && !markdownHasSection\("Auftraggeber"\)/);
+assert.match(detailModalSource, /!markdownHasSection\("Leistungsort"\) && <Box>/);
 assert.match(searchRouteSource, /searchTenders\(/);
 assert.match(searchRouteSource, /bundesland:\s*hit\.bundesland/);
 assert.match(meiliSearchSource, /\.filter\(\(hit\) => !params\.bundesland \|\| hit\.bundesland === params\.bundesland\)/);

@@ -1083,6 +1083,12 @@ export const isCanonicalPublicDescriptionMarkdown = (value: unknown): value is s
   });
 };
 
+/** True when canonical Markdown already presents a fact section elsewhere in the detail view. */
+export const hasCanonicalPublicDescriptionSection = (value: unknown, label: string): boolean =>
+  isCanonicalPublicDescriptionMarkdown(value)
+  && CANONICAL_DESCRIPTION_LABELS.has(label)
+  && value.split(/\r?\n/u).some((line) => line.trim().startsWith(`- **${label}:**`));
+
 /** Select the first generated, canonical Markdown candidate. */
 export const pickCanonicalPublicDescriptionMarkdown = (...candidates: unknown[]): string | null =>
   projectionCandidates(candidates, "descriptionMarkdown")

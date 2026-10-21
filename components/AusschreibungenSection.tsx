@@ -72,6 +72,7 @@ import { ResourceState } from "@/components/ResourceState";
 import { ResponsiveTableFrame } from "@/components/ResponsiveTableFrame";
 import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
 import {
+  hasCanonicalPublicDescriptionSection,
   normalizePublicDisplayCandidate,
   pickValidatedPublicCandidate,
   projectPublicDisplayFields,
@@ -1131,7 +1132,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
             const deadlineISO = pickValidatedPublicCandidate(d.deadlineISO, t.deadlineISO);
             const description = display.description ?? "";
             const descriptionMarkdown = display.descriptionMarkdown;
-            const markdownHasSection = (label: string): boolean => Boolean(descriptionMarkdown?.includes(`- **${label}:**`));
+            const markdownHasSection = (label: string): boolean => hasCanonicalPublicDescriptionSection(descriptionMarkdown, label);
             const markdownHasScope = markdownHasSection("Leistungsumfang");
             const markdownHasRequirements = markdownHasSection("Anforderungen");
             const markdownHasAwards = markdownHasSection("Zuschlagskriterien");
@@ -1229,7 +1230,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
 
                 {/* Key Facts */}
                 <Stack spacing={3}>
-                  {client && (
+                  {client && !markdownHasSection("Auftraggeber") && (
                     <Box>
                       <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 0.5, lineHeight: 1.2, color: "text.secondary", fontSize: "0.75rem" }}>
                         Auftraggeber
@@ -1239,7 +1240,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                       </Typography>
                     </Box>
                   )}
-                  {estimatedValue && (
+                  {estimatedValue && !markdownHasSection("Auftragswert") && (
                     <Box>
                       <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 0.5, lineHeight: 1.2, color: "text.secondary", fontSize: "0.75rem" }}>
                         Geschätzter Auftragswert
@@ -1249,7 +1250,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                       </Typography>
                     </Box>
                   )}
-                  {deadline && (
+                  {deadline && !markdownHasSection("Angebotsfrist") && (
                     <Box>
                       <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 0.5, lineHeight: 1.2, color: "text.secondary", fontSize: "0.75rem" }}>
                         Frist
@@ -1259,15 +1260,15 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                       </Typography>
                     </Box>
                   )}
-                  <Box>
+                  {!markdownHasSection("Leistungsort") && <Box>
                     <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 0.5, lineHeight: 1.2, color: "text.secondary", fontSize: "0.75rem" }}>
                       Standort
                     </Typography>
                     <Typography variant="h6" fontWeight={600} sx={{ fontSize: "1rem", lineHeight: 1.3, color: "text.primary" }}>
                       {location}
                     </Typography>
-                  </Box>
-                  {procedure && (
+                  </Box>}
+                  {procedure && !markdownHasSection("Verfahren") && (
                     <Box>
                       <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 0.5, lineHeight: 1.2, color: "text.secondary", fontSize: "0.75rem" }}>
                         Verfahren
@@ -1277,7 +1278,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                       </Typography>
                     </Box>
                   )}
-                  {duration && (
+                  {duration && !markdownHasSection("Laufzeit") && (
                     <Box>
                       <Typography variant="overline" sx={{ fontWeight: 600, letterSpacing: 0.8, display: "block", mb: 0.5, lineHeight: 1.2, color: "text.secondary", fontSize: "0.75rem" }}>
                         Laufzeit
