@@ -46,6 +46,7 @@ const VOB_CLUSTER = [
   { slug: "auftragswert", label: "Auftragswert" },
   { slug: "leistungsbeschreibung", label: "Leistungsbeschreibung" },
   { slug: "leistungsverzeichnis", label: "Leistungsverzeichnis" },
+  { slug: "praequalifikation-pq-vob", label: "Präqualifikation (PQ-VOB)" },
   { slug: "vgv-vergabeverordnung", label: "VgV" },
   { slug: "gwb-vergaberecht", label: "GWB" },
 ];

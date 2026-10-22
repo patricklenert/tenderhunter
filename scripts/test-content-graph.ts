@@ -135,6 +135,28 @@ for (const slug of ["vob-b", "vob-c", "vob-a-eu"]) {
   }
 }
 
+const pqVob = GLOSSARY_MAP["praequalifikation-pq-vob"];
+for (const slug of ["vob-a", "vob-a-eu", "eignungskriterien", "eignungsleihe", "eigenerklaerung", "referenzen"]) {
+  if (!pqVob?.relatedTerms?.includes(slug)) {
+    errors.push(`praequalifikation-pq-vob.relatedTerms -> missing cluster link: ${slug}`);
+  }
+  if (!GLOSSARY_MAP[slug]?.relatedTerms?.includes("praequalifikation-pq-vob")) {
+    errors.push(`${slug}.relatedTerms -> missing reciprocal PQ-VOB link`);
+  }
+}
+if (!pqVob?.relatedArticles?.includes("vob-vergabe")) {
+  errors.push("praequalifikation-pq-vob.relatedArticles -> missing vob-vergabe");
+}
+if (!ARTICLES["vob-vergabe"]?.relatedGlossaryTerms?.includes("praequalifikation-pq-vob")) {
+  errors.push("vob-vergabe.relatedGlossaryTerms -> missing PQ-VOB");
+}
+if (!pqVob?.sources?.some((source) => source.url.includes("BAnz%20AT%2024.08.2026%20B6"))) {
+  errors.push("praequalifikation-pq-vob.sources -> missing current VOB/A EU primary source");
+}
+if (!ARTICLES["vob-vergabe"]?.content.includes("§ 6b EU VOB/A")) {
+  errors.push("vob-vergabe.content -> missing verified PQ-VOB guidance");
+}
+
 const vobAEu = GLOSSARY_MAP["vob-a-eu"];
 if (!vobAEu?.definition.some((paragraph) => paragraph.includes("5.404.000 Euro netto") && paragraph.includes("2026 und 2027"))) {
   errors.push("vob-a-eu.definition -> missing qualified 2026/2027 construction threshold");

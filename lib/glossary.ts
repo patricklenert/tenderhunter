@@ -164,7 +164,7 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "Die VOB/A regelt die Vergabe von Bauleistungen. Die VgV regelt grundsätzlich Liefer- und Dienstleistungen oberhalb der EU-Schwellenwerte; § 2 VgV bestimmt aber auch ihre Anwendung bei Bauaufträgen und bei bestimmten Planungsleistungen. Deshalb ist keine pauschale Entweder-oder-Aussage richtig.",
       },
     ],
-    relatedTerms: ["vob-b", "vob-c", "vob-a-eu", "schwellenwerte", "auftragswert", "leistungsbeschreibung", "leistungsverzeichnis", "losvergabe", "vgv-vergabeverordnung", "gwb-vergaberecht", "eignungsleihe", "nachforderung-unterlagen"],
+    relatedTerms: ["vob-b", "vob-c", "vob-a-eu", "schwellenwerte", "auftragswert", "leistungsbeschreibung", "leistungsverzeichnis", "losvergabe", "vgv-vergabeverordnung", "gwb-vergaberecht", "eignungsleihe", "nachforderung-unterlagen", "praequalifikation-pq-vob"],
     relatedCategories: ["Bauarbeiten", "Tiefbau", "TGA", "Gartenarbeiten"],
     relatedArticles: ["vob-vergabe", "schwellenwerte-vergabe"],
     sources: [
@@ -243,7 +243,7 @@ export const GLOSSARY: GlossaryEntry[] = [
       { question: "Ist VOB/A EU dasselbe wie VgV?", answer: "Nein. VOB/A EU ist Abschnitt 2 der VOB/A. Bei Bauaufträgen gelten daneben die in § 2 VgV genannten VgV-Vorschriften sowie der vierte Teil des GWB." },
       { question: "Welcher EU-Schwellenwert gilt für Bauaufträge?", answer: "Für Bauaufträge klassischer öffentlicher Auftraggeber im Anwendungsbereich der Richtlinie 2014/24/EU liegt der Schwellenwert 2026 und 2027 bei 5.404.000 Euro netto. Das ist kein pauschaler Wert für jede Bauvergabe: Auftraggeber, Auftragsart, die Berechnung des geschätzten Auftragswerts und mögliche Sonderregeln müssen geprüft werden." },
     ],
-    relatedTerms: ["vob-a", "vob-b", "vob-c", "schwellenwerte", "auftragswert", "losvergabe", "vgv-vergabeverordnung", "gwb-vergaberecht", "offenes-verfahren", "beschraenktes-verfahren", "nachforderung-unterlagen"],
+    relatedTerms: ["vob-a", "vob-b", "vob-c", "schwellenwerte", "auftragswert", "losvergabe", "vgv-vergabeverordnung", "gwb-vergaberecht", "offenes-verfahren", "beschraenktes-verfahren", "nachforderung-unterlagen", "praequalifikation-pq-vob"],
     relatedCategories: ["Bauarbeiten", "Tiefbau", "TGA", "Gartenarbeiten"],
     relatedArticles: ["vob-vergabe", "schwellenwerte-vergabe"],
     sources: [
@@ -979,7 +979,54 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "Eignungskriterien müssen vorab in der Bekanntmachung oder den Vergabeunterlagen definiert werden. Sie müssen transparent, nachvollziehbar und im angemessenen Verhältnis zur Leistung stehen. Typische Kriterien sind Referenzen, Zertifikate, Umsatzzahlen und personelle Ausstattung.",
       },
     ],
-    relatedTerms: ["zuschlagskriterien", "eigenerklaerung", "referenzen", "eignungsleihe", "nachforderung-unterlagen"],
+    relatedTerms: ["zuschlagskriterien", "eigenerklaerung", "referenzen", "eignungsleihe", "nachforderung-unterlagen", "praequalifikation-pq-vob"],
+  },
+  {
+    slug: "praequalifikation-pq-vob",
+    term: "Präqualifikation nach PQ-VOB",
+    category: "Eignung & Zuschlag",
+    shortDefinition: "PQ-VOB ist ein Verfahren zur vorgelagerten, auftragsunabhängigen Prüfung bestimmter Eignungsnachweise von Bauunternehmen. Der Eintrag kann bei öffentlichen Bauvergaben als Eignungsnachweis dienen, ersetzt aber nicht automatisch auftragsbezogene Nachweise oder die Prüfung der konkreten Vergabeunterlagen.",
+    definition: [
+      "Bei einer Präqualifikation werden festgelegte Eignungsnachweise eines Unternehmens vor und unabhängig von einem einzelnen Vergabeverfahren geprüft. Für Bauunternehmen in Deutschland führt der Verein für die Präqualifikation von Bauunternehmen e. V. das amtliche Verzeichnis PQ-VOB; die Prüfung selbst übernehmen vom Verein beauftragte Präqualifizierungsstellen.",
+      "Ein präqualifiziertes Unternehmen kann seine Eintragung und Registriernummer für den Eignungsnachweis in einer Bauvergabe nutzen. Im EU-weiten Bereich nach VOB/A erlaubt § 6b EU VOB/A, den Nachweis ganz oder teilweise über Präqualifizierungssysteme zu führen. Angaben im PQ-VOB-Verzeichnis sollen dort nicht ohne Begründung in Zweifel gezogen werden. Je nach Regelwerk kann die Vergabestelle dennoch zusätzliche Bescheinigungen verlangen, etwa zu Steuern, Abgaben oder Sozialversicherungsbeiträgen.",
+      "Die Eintragung ist kein pauschaler Nachweis für jede Anforderung eines konkreten Auftrags. Bieter müssen prüfen, ob die registrierten Leistungsbereiche zu den ausgeschriebenen Arbeiten passen, die Eintragung aktuell ist und welche weiteren auftragsbezogenen Nachweise die Vergabeunterlagen verlangen. Auch besondere technische Anforderungen oder Angaben zur wirtschaftlichen Leistungsfähigkeit können zusätzlich abzufragen sein.",
+      "PQ-VOB ist von der Eignungsleihe zu unterscheiden: Bei der Präqualifikation werden Nachweise des eigenen Unternehmens vorab geprüft. Bei einer Eignungsleihe stützt sich ein Bieter für ein bestimmtes Eignungskriterium auf die Kapazitäten eines anderen Unternehmens. Die Präqualifikation ist eine Möglichkeit zum Eignungsnachweis, aber keine Teilnahme- oder Zuschlagspflicht und keine Zuschlagsgarantie.",
+    ],
+    keyPoints: [
+      "Vorgelagerte, auftragsunabhängige Prüfung bestimmter Eignungsnachweise",
+      "PQ-VOB ist das amtliche Verzeichnis für präqualifizierte Bauunternehmen in Deutschland",
+      "Im EU-Bereich können Präqualifizierungssysteme nach § 6b EU VOB/A ganz oder teilweise zum Nachweis dienen",
+      "Auftragsbezogene und besondere Nachweise können weiterhin erforderlich sein",
+      "Nicht mit Eignungsleihe oder einer Zuschlagsgarantie gleichzusetzen",
+    ],
+    faq: [
+      {
+        question: "Was ist PQ-VOB?",
+        answer: "PQ-VOB ist das amtliche Verzeichnis präqualifizierter Bauunternehmen. Die Präqualifikation prüft bestimmte Eignungsnachweise vorab und unabhängig von einem einzelnen Vergabeverfahren; in der Ausschreibung kann die Eintragung als Nachweis dienen.",
+      },
+      {
+        question: "Ist eine Präqualifikation nach PQ-VOB für Bauvergaben verpflichtend?",
+        answer: "Nein. Sie ist eine Möglichkeit, bestimmte Eignungsnachweise vorab prüfen zu lassen. Unternehmen können die von der Vergabestelle verlangten Nachweise grundsätzlich auch nach den Vorgaben der konkreten Ausschreibung einreichen.",
+      },
+      {
+        question: "Ersetzt ein PQ-VOB-Eintrag alle Nachweise in einer Ausschreibung?",
+        answer: "Nein. Der Eintrag deckt nur die geprüften und hinterlegten Angaben ab. Zusätzliche Bescheinigungen und auftragsbezogene Nachweise können nach dem anwendbaren Regelwerk und den Vergabeunterlagen weiterhin verlangt werden.",
+      },
+      {
+        question: "Garantiert die Präqualifikation den Zuschlag?",
+        answer: "Nein. Sie erleichtert den Nachweis bestimmter Eignungsmerkmale, ersetzt aber weder die Prüfung aller Anforderungen des konkreten Auftrags noch die Angebotswertung. Der Zuschlag richtet sich nach den bekannt gemachten Kriterien und dem anwendbaren Vergaberecht.",
+      },
+    ],
+    relatedTerms: ["vob-a", "vob-a-eu", "eignungskriterien", "eignungsleihe", "eigenerklaerung", "referenzen"],
+    relatedCategories: ["Bauarbeiten", "Tiefbau", "TGA", "Gartenarbeiten"],
+    relatedArticles: ["vob-vergabe"],
+    sources: [
+      { title: "VOB/A – amtliche Bekanntmachung und Fassung", url: "https://www.verwaltungsvorschriften-im-internet.de/bsvwvbund_31012019_BWI781063060120180001604634.htm" },
+      { title: "Bundesanzeiger: VOB/A Abschnitte 2 und 3, Ausgabe 2026 (BAnz AT 24.08.2026 B6)", url: "https://www.bundesanzeiger.de/pub/publication/73xO0rpP1jfX5HRt0Ja/content/73xO0rpP1jfX5HRt0Ja/BAnz%20AT%2024.08.2026%20B6.pdf?inline" },
+      { title: "PQ-Verein: Informationen für Unternehmen", url: "https://www.pq-verein.de/pq-liste/informationen-fuer-unternehmen" },
+      { title: "PQ-Verein: Präqualifizierungsstellen", url: "https://www.pq-verein.de/praequalifizierungsstellen" },
+    ],
+    lastReviewed: "2026-10-22",
   },
   {
     slug: "eignungsleihe",
@@ -1017,7 +1064,7 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "Nicht pauschal. Unterhalb der EU-Schwellenwerte kommt es darauf an, welches Bundes-, Landes- oder Haushaltsregelwerk für den Auftraggeber und die Leistung eingeführt ist.",
       },
     ],
-    relatedTerms: ["eignungskriterien", "referenzen", "nachunternehmer", "bietergemeinschaft", "vob-a", "vob-a-eu"],
+    relatedTerms: ["eignungskriterien", "referenzen", "nachunternehmer", "bietergemeinschaft", "vob-a", "vob-a-eu", "praequalifikation-pq-vob"],
     relatedArticles: ["vob-vergabe", "bietergemeinschaft-gruenden"],
     sources: [
       { title: "§ 47 VgV – Eignungsleihe", url: "https://www.gesetze-im-internet.de/vgv_2016/__47.html" },
@@ -1080,7 +1127,7 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "Die EEE ist eine vorläufige Selbsterklärung. Der Auftraggeber kann Nachweise nach den anwendbaren Vorschriften und den Vergabeunterlagen verlangen; das ist nicht auf einen einzigen Zeitpunkt oder ausschließlich den erfolgreichen Bieter beschränkt.",
       },
     ],
-    relatedTerms: ["eignungskriterien", "referenzen"],
+    relatedTerms: ["eignungskriterien", "referenzen", "praequalifikation-pq-vob"],
     sources: [
       { title: "§ 48 VgV – Beleg der Eignung und des Nichtvorliegens von Ausschlussgründen", url: "https://www.gesetze-im-internet.de/vgv_2016/__48.html" },
       { title: "§ 50 VgV – Einheitliche Europäische Eigenerklärung", url: "https://www.gesetze-im-internet.de/vgv_2016/__50.html" },
@@ -1113,7 +1160,7 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "Referenzen sind in der Regel ein Eignungskriterium. Ohne passende Referenzen kann der Ausschluss drohen. Eine Möglichkeit ist die Beteiligung an einer Bietergemeinschaft mit einem Partner, der die Referenzen mitbringt.",
       },
     ],
-    relatedTerms: ["eignungskriterien", "eigenerklaerung"],
+    relatedTerms: ["eignungskriterien", "eigenerklaerung", "praequalifikation-pq-vob"],
   },
 
   // === SCHWELLENWERTE ===

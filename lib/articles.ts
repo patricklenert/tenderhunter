@@ -109,11 +109,11 @@ Unterhalb des jeweils einschlägigen Werts gelten die nationalen Regeln des Auft
     description:
       "VOB/A, VOB/B und VOB/C verständlich erklärt: Vergabeverfahren, Bauvertragsbedingungen, technische ATV, Schwellenwerte und wichtige Hinweise für Bieter.",
     datePublished: "2025-01-15",
-    dateModified: "2026-10-08",
-    lastReviewed: "2026-10-08",
+    dateModified: "2026-10-22",
+    lastReviewed: "2026-10-22",
     relatedCategories: ["Bauarbeiten", "Tiefbau", "TGA", "Planungsleistungen"],
     relatedArticles: ["vergabeverfahren-uebersicht", "schwellenwerte-vergabe", "ausschreibung-muster", "bietergemeinschaft-gruenden"],
-    relatedGlossaryTerms: ["vob-a", "vob-b", "vob-c", "vob-a-eu", "schwellenwerte", "auftragswert", "losvergabe", "leistungsbeschreibung", "leistungsverzeichnis", "vgv-vergabeverordnung", "gwb-vergaberecht", "eignungsleihe", "nachforderung-unterlagen"],
+    relatedGlossaryTerms: ["vob-a", "vob-b", "vob-c", "vob-a-eu", "schwellenwerte", "auftragswert", "losvergabe", "leistungsbeschreibung", "leistungsverzeichnis", "vgv-vergabeverordnung", "gwb-vergaberecht", "eignungsleihe", "praequalifikation-pq-vob", "nachforderung-unterlagen"],
     sources: [
       { title: "Bundesanzeiger: VOB/A-Änderung vom 22. Juli 2026 (BAnz AT 24.08.2026 B6)", url: "https://www.bundesanzeiger.de/pub/publication/73xO0rpP1jfX5HRt0Ja/content/73xO0rpP1jfX5HRt0Ja/BAnz%20AT%2024.08.2026%20B6.pdf?inline" },
       { title: "VOB/A, Bekanntmachung vom 31. Januar 2019 (BAnz AT 19.02.2019 B2)", url: "https://www.verwaltungsvorschriften-im-internet.de/bsvwvbund_31012019_BWI781063060120180001604634.htm" },
@@ -161,6 +161,10 @@ Der Zuschlag wird auf das wirtschaftlichste Angebot erteilt. Das bestimmt sich n
 - **Finanzielle Leistungsfähigkeit:** etwa Umsatzangaben, Jahresabschlüsse oder andere zulässige Nachweise
 - **Technische Ausstattung:** Maschinen, Anlagen, Personal
 - **Qualitätssicherung:** etwa Zertifikate oder Beschreibungen, soweit auftragsbezogen gefordert
+
+### Präqualifikation nach PQ-VOB
+
+Bauunternehmen können bestimmte Eignungsnachweise vorab und unabhängig von einer einzelnen Ausschreibung prüfen lassen und ihre Eintragung im amtlichen Verzeichnis PQ-VOB angeben. Für EU-weite Bauvergaben erlaubt § 6b EU VOB/A, Nachweise ganz oder teilweise über Präqualifizierungssysteme zu führen; die hinterlegten PQ-VOB-Angaben sollen nicht ohne Begründung in Zweifel gezogen werden. Die Vergabeunterlagen bleiben maßgeblich: Sie können zusätzliche Bescheinigungen und auftragsbezogene Nachweise verlangen. Eine Präqualifikation bestätigt daher weder automatisch die Eignung für jeden Auftrag noch einen Anspruch auf den Zuschlag.
 
 ### Eignung durch ein anderes Unternehmen (Eignungsleihe)
 
