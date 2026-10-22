@@ -8,7 +8,7 @@ npm run migrate
 
 if [ "$mode" = "worker" ]; then
   echo "Starting worker..."
-  exec npm run worker
+  exec node --import tsx scripts/worker.ts
 fi
 
 echo "Starting application..."
