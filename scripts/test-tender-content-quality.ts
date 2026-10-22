@@ -231,6 +231,22 @@ const main = async (): Promise<void> => {
   assert.deepEqual(tokenizedTruncatedContent.decision_relevant.scope, []);
   assert.match(tokenizedTruncatedContent.descriptionMarkdown ?? "", /Bodenbelagsarbeiten für das Landratsamt/);
   assert.doesNotMatch(tokenizedTruncatedContent.descriptionMarkdown ?? "", /Fliesenarbeiten|Epoxidharzbeschichtung|GTL/);
+  const scalarPrefixFallback = normalizeStructured({
+    title: "2000-9 Besucherleitsystem, LRA Heidelberg VG, Bodenbelagsarbeiten RNK_EBBAU-2026-0029",
+    summary: "Fliesenarbeiten",
+    decision_relevant: {
+      scope: ["Fliesenarbeiten", "Epoxidharzbeschichtung", "(GTL"],
+      requirements: [],
+      mandatory_documents: [],
+      award_criteria: [],
+    },
+  }, "2000-9 Besucherleitsystem, LRA Heidelberg VG, Bodenbelagsarbeiten RNK_EBBAU-2026-0029", {
+    summary: truncatedArrayFallback,
+  });
+  assert.equal(scalarPrefixFallback.summary, truncatedArrayFallback);
+  assert.deepEqual(scalarPrefixFallback.decision_relevant.scope, []);
+  assert.match(scalarPrefixFallback.descriptionMarkdown ?? "", /Bodenbelagsarbeiten für das Landratsamt/);
+  assert.doesNotMatch(scalarPrefixFallback.descriptionMarkdown ?? "", /Fliesenarbeiten|Epoxidharzbeschichtung|GTL/);
   const rejectedScopeText = normalizeStructured({
     title,
     summary: title,

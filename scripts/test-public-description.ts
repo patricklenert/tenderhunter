@@ -130,6 +130,28 @@ if (normalizePublicTextList(truncatedTokenArray).length !== 0
   }).description !== fallbackAfterTruncatedArray) {
   throw new Error("Tokenisiertes abgeschnittenes Fragment wurde nicht als Ganzes verworfen oder blockierte den Fallback");
 }
+const truncatedScopeStructured = {
+  summary: "Fliesenarbeiten",
+  decision_relevant: { scope: truncatedTokenArray },
+};
+const projectedTruncatedScopeFallback = projectPublicTenderRecord({
+  title: "Besucherleitsystem Bodenbelagsarbeiten",
+  metadata: { description: fallbackAfterTruncatedArray },
+  structured: truncatedScopeStructured,
+});
+const repairedTruncatedScopePrefix = repairPublicDescriptionFields(
+  { ...truncatedScopeStructured },
+  [fallbackAfterTruncatedArray],
+  "Besucherleitsystem Bodenbelagsarbeiten",
+);
+if (projectedTruncatedScopeFallback.description !== fallbackAfterTruncatedArray
+  || repairedTruncatedScopePrefix.record.summary !== fallbackAfterTruncatedArray
+  || JSON.stringify((repairedTruncatedScopePrefix.record.decision_relevant as { scope: unknown[] }).scope) !== "[]"
+  || !repairedTruncatedScopePrefix.scopeChanged
+  || !repairedTruncatedScopePrefix.summaryChanged
+  || JSON.stringify(truncatedScopeStructured.decision_relevant.scope) !== JSON.stringify(truncatedTokenArray)) {
+  throw new Error("Ein Summary-Token aus einem abgeschnittenen Scope blockierte keinen gültigen Fallback oder wurde nicht bereinigt");
+}
 if (isCanonicalPublicDescriptionMarkdown(`- **Anforderungen:** ${portalSupportWall}`)
   || isCanonicalPublicDescriptionMarkdown("- **Zusammenfassung:** Fliesenarbeiten Epoxidharzbeschichtung (GTL")) {
   throw new Error("Kanonisches Markdown hat Portal-Wall-Text oder abgeschnittene Fragmente akzeptiert");

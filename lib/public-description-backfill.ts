@@ -1,5 +1,7 @@
 import {
   isCanonicalPublicDescriptionMarkdown,
+  isPublicCandidateFromTruncatedArray,
+  isTruncatedPublicTokenArray,
   pickValidatedPublicSummaryForTitle,
 } from "./public-content-quality";
 import { hasPositiveAccessLimitedEvidence } from "./access-page-detector";
@@ -10,6 +12,7 @@ export interface PublicDescriptionRepair {
   record: PublicDescriptionRecord;
   descriptionChanged: boolean;
   summaryChanged: boolean;
+  scopeChanged: boolean;
 }
 
 export const hasPositivePublicAccessEvidence = (
@@ -37,16 +40,41 @@ export const shouldSyncPublicDescriptionBackfillMeili = (
 const hasOwn = (record: PublicDescriptionRecord, key: string): boolean =>
   Object.prototype.hasOwnProperty.call(record, key);
 
+const getScopeRecords = (record: PublicDescriptionRecord): PublicDescriptionRecord[] => [
+  record,
+  ...[record.decision_relevant, record.decisionRelevant]
+    .filter((value): value is PublicDescriptionRecord => Boolean(value && typeof value === "object" && !Array.isArray(value))),
+];
+
+const getScopeSources = (records: readonly PublicDescriptionRecord[]): unknown[] =>
+  records.flatMap((record) => [record.scope, record.subject]);
+
+const clearTruncatedScopeFields = (records: readonly PublicDescriptionRecord[]): boolean => {
+  let changed = false;
+  for (const record of records) {
+    for (const key of ["scope", "subject"]) {
+      if (hasOwn(record, key) && isTruncatedPublicTokenArray(record[key])) {
+        record[key] = [];
+        changed = true;
+      }
+    }
+  }
+  return changed;
+};
+
 const repairField = (
   record: PublicDescriptionRecord,
   field: "description" | "summary",
   fallbacks: readonly unknown[],
   title: unknown,
+  scopeSources: readonly unknown[],
 ): boolean => {
   if (!hasOwn(record, field)) return false;
 
   const original = record[field];
-  const normalized = pickValidatedPublicSummaryForTitle(title, original);
+  const isTruncatedScopePrefix = scopeSources.some((scope) =>
+    isPublicCandidateFromTruncatedArray(original, scope));
+  const normalized = isTruncatedScopePrefix ? "" : pickValidatedPublicSummaryForTitle(title, original);
   if (normalized) {
     if (typeof original === "string" && original === normalized) return false;
     record[field] = normalized;
@@ -76,9 +104,19 @@ export const repairPublicDescriptionFields = (
   title?: unknown,
 ): PublicDescriptionRepair => {
   const record = { ...input };
+  for (const key of ["decision_relevant", "decisionRelevant"]) {
+    const nested = record[key];
+    if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+      record[key] = { ...(nested as PublicDescriptionRecord) };
+    }
+  }
+  const scopeRecords = getScopeRecords(record);
+  const scopeSources = getScopeSources(scopeRecords);
+  const scopeChanged = clearTruncatedScopeFields(scopeRecords);
   return {
     record,
-    descriptionChanged: repairField(record, "description", fallbacks, title),
-    summaryChanged: repairField(record, "summary", fallbacks, title),
+    descriptionChanged: repairField(record, "description", fallbacks, title, scopeSources),
+    summaryChanged: repairField(record, "summary", fallbacks, title, scopeSources),
+    scopeChanged,
   };
 };

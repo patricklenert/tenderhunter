@@ -270,8 +270,10 @@ async function main(): Promise<void> {
     let structuredChanged = 0;
     let metadataDescriptionRepaired = 0;
     let metadataSummaryRepaired = 0;
+    let metadataScopeRepaired = 0;
     let structuredDescriptionRepaired = 0;
     let structuredSummaryRepaired = 0;
+    let structuredScopeRepaired = 0;
     let skippedMalformed = 0;
     let failed = 0;
 
@@ -289,6 +291,12 @@ async function main(): Promise<void> {
           .filter((value): value is string => Boolean(value));
         const repairedMetadata = repairPublicDescriptionFields(parsedMetadata.value, publicFallbacks, row.title);
         const repairedStructured = repairPublicDescriptionFields(parsedStructured.value, publicFallbacks, row.title);
+        const publicFieldsChanged = repairedMetadata.descriptionChanged
+          || repairedMetadata.summaryChanged
+          || repairedMetadata.scopeChanged
+          || repairedStructured.descriptionChanged
+          || repairedStructured.summaryChanged
+          || repairedStructured.scopeChanged;
         const generatedMarkdown = buildRowDescriptionMarkdown(
           row,
           repairedMetadata.record,
@@ -297,12 +305,12 @@ async function main(): Promise<void> {
         const nextMetadata = canonicalMarkdown(
           repairedMetadata.record,
           generatedMarkdown,
-          repairedMetadata.descriptionChanged || repairedMetadata.summaryChanged,
+          publicFieldsChanged,
         );
         const nextStructured = canonicalMarkdown(
           repairedStructured.record,
           generatedMarkdown,
-          repairedStructured.descriptionChanged || repairedStructured.summaryChanged,
+          publicFieldsChanged,
         );
         const shouldUpdateMetadata = parsedMetadata.valid && !sameJson(parsedMetadata.value, nextMetadata);
         const shouldUpdateStructured = row.json_blob !== null && parsedStructured.valid && !sameJson(parsedStructured.value, nextStructured);
@@ -312,15 +320,19 @@ async function main(): Promise<void> {
         if (shouldUpdateStructured) structuredChanged += 1;
         if (shouldUpdateMetadata && repairedMetadata.descriptionChanged) metadataDescriptionRepaired += 1;
         if (shouldUpdateMetadata && repairedMetadata.summaryChanged) metadataSummaryRepaired += 1;
+        if (shouldUpdateMetadata && repairedMetadata.scopeChanged) metadataScopeRepaired += 1;
         if (shouldUpdateStructured && repairedStructured.descriptionChanged) structuredDescriptionRepaired += 1;
         if (shouldUpdateStructured && repairedStructured.summaryChanged) structuredSummaryRepaired += 1;
+        if (shouldUpdateStructured && repairedStructured.scopeChanged) structuredScopeRepaired += 1;
 
         if (dryRun) {
           const repairedFields = [
             repairedMetadata.descriptionChanged && shouldUpdateMetadata ? "metadata.description" : "",
             repairedMetadata.summaryChanged && shouldUpdateMetadata ? "metadata.summary" : "",
+            repairedMetadata.scopeChanged && shouldUpdateMetadata ? "metadata.scope" : "",
             repairedStructured.descriptionChanged && shouldUpdateStructured ? "structured.description" : "",
             repairedStructured.summaryChanged && shouldUpdateStructured ? "structured.summary" : "",
+            repairedStructured.scopeChanged && shouldUpdateStructured ? "structured.scope" : "",
           ].filter(Boolean);
           console.log(`#${row.id} ${row.title ?? "(ohne Titel)"}: metadata=${shouldUpdateMetadata ? "update" : "ok"}, structured=${shouldUpdateStructured ? "update" : "skip"}${repairedFields.length > 0 ? `, repaired=${repairedFields.join(",")}` : ""}`);
           continue;
@@ -353,8 +365,10 @@ async function main(): Promise<void> {
       structuredChanged,
       metadataDescriptionRepaired,
       metadataSummaryRepaired,
+      metadataScopeRepaired,
       structuredDescriptionRepaired,
       structuredSummaryRepaired,
+      structuredScopeRepaired,
       skippedMalformed,
       failed,
     }));

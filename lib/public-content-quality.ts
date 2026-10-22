@@ -901,7 +901,7 @@ const isLikelyTokenizedProseArray = (values: readonly string[]): boolean => {
     && (connectorValues > 0 || hasManualArtifactCue || hasPortalArtifactCue);
 };
 
-const isTruncatedTokenizedPublicArray = (value: unknown): boolean => {
+export const isTruncatedPublicTokenArray = (value: unknown): boolean => {
   const parsed = parsePublicJsonValue(value);
   if (!Array.isArray(parsed) || parsed.length < 3
     || parsed.some((item) => typeof item !== "string" || !item.trim())) return false;
@@ -914,6 +914,23 @@ const isTruncatedTokenizedPublicArray = (value: unknown): boolean => {
     const normalized = item.trim();
     return normalized.length <= 40 && normalized.split(/\s+/u).length <= 2;
   });
+};
+
+export const isPublicCandidateFromTruncatedArray = (candidate: unknown, source: unknown): boolean => {
+  if (!isTruncatedPublicTokenArray(source)) return false;
+  const normalizedCandidate = normalizePublicDisplayCandidate(candidate);
+  if (!normalizedCandidate) return false;
+
+  const parsedSource = parsePublicJsonValue(source) as string[];
+  const candidateKey = normalizedCandidate.replace(/\s+/gu, " ").trim().toLocaleLowerCase("de-DE");
+  const prefixTokens = parsedSource.slice(0, -1)
+    .map((value) => normalizePublicDisplayCandidate(value))
+    .filter((value): value is string => Boolean(value));
+  const prefixKey = prefixTokens.join(" ").replace(/\s+/gu, " ").trim().toLocaleLowerCase("de-DE");
+
+  return prefixTokens.some((value) => value.toLocaleLowerCase("de-DE") === candidateKey)
+    || prefixKey === candidateKey
+    || prefixKey.startsWith(`${candidateKey} `);
 };
 
 /**
@@ -936,7 +953,7 @@ const expandProjectionCandidate = (
 
   if (Array.isArray(value)) {
     if ((field === "summary" || field === "descriptionMarkdown")
-      && isTruncatedTokenizedPublicArray(value)) return [];
+      && isTruncatedPublicTokenArray(value)) return [];
 
     const scalarValues = value
       .filter((item): item is string | number => typeof item === "string" || typeof item === "number")
@@ -957,11 +974,21 @@ const expandProjectionCandidate = (
 
   if (typeof value !== "object") return [];
   const record = value as Record<string, unknown>;
-  const knownValues = projectionFieldKeys[field].flatMap((key) => (
-    Object.prototype.hasOwnProperty.call(record, key)
-      ? expandProjectionCandidate(record[key], field, depth + 1)
-      : []
-  ));
+  const relatedScopes = [record.scope, record.subject];
+  for (const key of ["decision_relevant", "decisionRelevant"]) {
+    const nested = record[key];
+    if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+      const decisionRelevant = nested as Record<string, unknown>;
+      relatedScopes.push(decisionRelevant.scope, decisionRelevant.subject);
+    }
+  }
+  const knownValues = projectionFieldKeys[field].flatMap((key) => {
+    if (!Object.prototype.hasOwnProperty.call(record, key)) return [];
+    const candidate = record[key];
+    if (field === "summary" && (key === "summary" || key === "description")
+      && relatedScopes.some((scope) => isPublicCandidateFromTruncatedArray(candidate, scope))) return [];
+    return expandProjectionCandidate(candidate, field, depth + 1);
+  });
   if (knownValues.length > 0) return knownValues;
 
   return projectionScalarKeys.flatMap((key) => (
@@ -990,7 +1017,7 @@ const projectionCandidates = (
  */
 export const normalizePublicTextList = (value: unknown): string[] => {
   const parsed = parsePublicJsonValue(value);
-  if (isTruncatedTokenizedPublicArray(parsed)) return [];
+  if (isTruncatedPublicTokenArray(parsed)) return [];
 
   const values = Array.isArray(parsed) ? parsed : [parsed];
   const scalarValues = values
@@ -1054,7 +1081,7 @@ export const pickValidatedPublicSummaryForTitle = (title: unknown, ...candidates
   const titleKey = titleText?.replace(/\s+/gu, " ").trim().toLocaleLowerCase("de-DE") ?? "";
 
   for (const candidate of candidates) {
-    if (isTruncatedTokenizedPublicArray(candidate)) continue;
+    if (isTruncatedPublicTokenArray(candidate)) continue;
 
     for (const expanded of projectionCandidates(candidate, "summary")) {
       const normalized = normalizePublicDisplayCandidate(expanded);

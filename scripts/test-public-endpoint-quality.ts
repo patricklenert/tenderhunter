@@ -270,6 +270,65 @@ assert.deepEqual(publicFields(qualityFixtureDetail), qualityFixtureExpected);
 assert.deepEqual(publicFields(qualityFixtureModal), qualityFixtureExpected);
 assert.deepEqual(publicFields(qualityFixtureIndex), qualityFixtureExpected);
 assert.deepEqual(publicFields(qualityFixtureSearchHit), qualityFixtureExpected);
+const truncatedScopeTitle = "2000-9 Besucherleitsystem, LRA Heidelberg VG, Bodenbelagsarbeiten RNK_EBBAU-2026-0029";
+const truncatedScopeFallback = "Ausschreibung von Bodenbelagsarbeiten für das Landratsamt Rhein-Neckar-Kreis in Heidelberg.";
+const truncatedScopeMetadata = {
+  description: truncatedScopeFallback,
+  client: "Landratsamt Rhein-Neckar-Kreis",
+  location: "69115 Heidelberg",
+};
+const truncatedScopeStructured = {
+  summary: "Fliesenarbeiten",
+  hard_facts: { buyer: "Landratsamt Rhein-Neckar-Kreis", location: "69115 Heidelberg" },
+  decision_relevant: { scope: ["Fliesenarbeiten", "Epoxidharzbeschichtung", "(GTL"] },
+};
+const truncatedScopeList = projectPublicTenderRecord({
+  title: truncatedScopeTitle,
+  metadata: truncatedScopeMetadata,
+  structured: normalizeStructured(truncatedScopeStructured, truncatedScopeTitle),
+});
+const truncatedScopeDetail = projectPublicTenderDetailFallback({
+  title: truncatedScopeTitle,
+  metadataJson: truncatedScopeMetadata,
+  staleStructuredJson: truncatedScopeStructured,
+  fallbackFacts: {},
+}).display;
+const truncatedScopeModal = projectPublicDisplayFields({
+  title: truncatedScopeDetail.title,
+  client: truncatedScopeDetail.client,
+  location: truncatedScopeDetail.location,
+  summary: truncatedScopeDetail.description,
+});
+const truncatedScopeIndex = buildTenderIndexDocument({
+  id: 908,
+  title: truncatedScopeTitle,
+  source: "dtvp",
+  sourceKey: "dtvp",
+  url: "https://example.test/tender/908",
+  deadlineAt: null,
+  firstSeenAt: null,
+  category: "Bauarbeiten",
+  metadataJson: truncatedScopeMetadata,
+  structuredJson: truncatedScopeStructured,
+  rawText: truncatedScopeFallback,
+  contractValueMax: null,
+  slug: null,
+  readinessStatus: "partial",
+});
+const truncatedScopeSearchHit = projectTenderSearchHit(truncatedScopeIndex, {
+  title: truncatedScopeTitle,
+  source: "dtvp",
+  url: "https://example.test/tender/908",
+  metadataJson: truncatedScopeMetadata,
+  structuredJson: truncatedScopeStructured,
+  rawText: truncatedScopeFallback,
+});
+const truncatedScopeExpected = publicFields(truncatedScopeList);
+assert.equal(truncatedScopeExpected.description, truncatedScopeFallback);
+assert.deepEqual(publicFields(truncatedScopeDetail), truncatedScopeExpected);
+assert.deepEqual(publicFields(truncatedScopeModal), truncatedScopeExpected);
+assert.deepEqual(publicFields(truncatedScopeIndex), truncatedScopeExpected);
+assert.deepEqual(publicFields(truncatedScopeSearchHit), truncatedScopeExpected);
 assert.equal(normalizePublicDisplayCandidate("- Verfahren - - - Lose - Ergebnisse - Verträge - - - -"), null);
 assert.equal(normalizePublicDisplayCandidate("## Bekanntmachung"), null);
 const duplicateFactMarkdown = "- **Auftraggeber:** Stadt Mainz\n- **Leistungsort:** 55116 Mainz";

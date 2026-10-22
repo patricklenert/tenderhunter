@@ -12,6 +12,7 @@ import {
   normalizePublicProcedureCandidate,
   pickValidatedPublicCandidate,
   pickValidatedPublicSummaryForTitle,
+  isPublicCandidateFromTruncatedArray,
   pickValidatedPublicProcedure,
   pickValidatedPublicLocation,
   pickValidatedPublicLocationForTender,
@@ -584,7 +585,8 @@ export function normalizeStructured(raw: unknown, fallbackTitle: string, fallbac
       ["contract_type", "contractType"],
       (value) => pickValidatedPublicProcedure(value) || null,
     ) ?? "";
-    const structuredSummaryCandidates = structuredAliasValues([obj], ["summary", "description"]);
+    const structuredSummaryCandidates = structuredAliasValues([obj], ["summary", "description"])
+      .filter((candidate) => !isPublicCandidateFromTruncatedArray(candidate, rawScope));
     const structuredTitle = sanitizeTenderText(structured.title) || safeFallbackTitle;
     const normalizedSummary = pickValidatedPublicSummaryForTitle(
       structuredTitle,
