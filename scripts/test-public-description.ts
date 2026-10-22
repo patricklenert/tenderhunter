@@ -23,6 +23,7 @@ import {
   hasCanonicalPublicDescriptionSection,
   isPdfFormBoilerplate,
   isPdfFormBoilerplateFragment,
+  isPopulatedTenderNotice,
   normalizePublicDisplayCandidate,
   normalizePublicTextList,
   normalizePublicProcedureCandidate,
@@ -133,6 +134,21 @@ if (!isPdfFormBoilerplate("VHB-Bund-Ausgabe 2019 Eigenerklärung zur Eignung und
 }
 if (normalizePublicDisplayCandidate("VHB-Bund-Ausgabe 2019 Eigenerklärung zur Eignung und rechtsverbindliche Unterschrift") !== null) {
   throw new Error("PDF-Formularboilerplate wurde als Beschreibung akzeptiert");
+}
+const populatedVhbNotice = "[Seite 1] VHB-VOL NRW VOL 3a 01/2015 Vergabebekanntmachung Öffentliche Ausschreibung Bekanntmachung Aktenzeichen: Vergabe-Nr.: 1088_044-FL Bezeichnung des Verfahrens: Erneuerung der Fahrleitungsmaste an der Hafenstraße in Krefeld 1. Art der Vergabe 2. Bezeichnung der zur Angebotsabgabe auffordernden Stelle Bezeichnung SWK MOBIL GmbH Postanschrift Telefon-Nummer Telefax-Nummer E-Mail-Adresse Ablauf der Angebotsfrist 22.10.2026 13:00 Uhr";
+const populatedVhbNoticeWithScope = "[Seite 1] 121 Bekanntmachung Öffentliche Ausschreibung VHB-Bund Vergabenummer R34/6-2026/08 a) Öffentlicher Auftraggeber Name Struktur-und Genehmigungsdirektion Süd Straße Industriestraße 70 Art der Leistung: Rodungsarbeiten Umfang ca. 3.000 m2 Ablauf der Angebotsfrist am 18.11.2099 um 14:00 Uhr";
+const portalPointer = "[Seite 1] VMS © 2024 cosinex GmbH Die Bekanntmachung für dieses Vergabeverfahren finden Sie auf folgenden Vergabeplattformen: Ted - tenders electronical daily https://ted.europa.eu/TED/search/search.do Bekanntmachungsservice Öffentliche Vergabe https://www.oeffentlichevergabe.de/ui/de/advancedSearch";
+if (!isPdfFormBoilerplate(populatedVhbNotice) || !isPopulatedTenderNotice(populatedVhbNotice)) {
+  throw new Error("Ausgefüllte VHB-Bekanntmachung wurde intern nicht als echte Bekanntmachung erkannt");
+}
+if (!isPopulatedTenderNotice(populatedVhbNoticeWithScope)) {
+  throw new Error("Ausgefüllte Bekanntmachung mit Vergabenummer, Leistungsart und Frist wurde nicht erkannt");
+}
+if (isPopulatedTenderNotice("VHB-Bund-Ausgabe 2019 Eigenerklärung zur Eignung und rechtsverbindliche Unterschrift")) {
+  throw new Error("Leeres VHB-Formular wurde als ausgefüllte Bekanntmachung erkannt");
+}
+if (!isPdfFormBoilerplate(portalPointer) || isPopulatedTenderNotice(portalPointer)) {
+  throw new Error("Cosinex-Portalhinweis wurde als ausgefüllte Bekanntmachung behandelt");
 }
 if (!isPdfFormBoilerplateFragment(serviceBundPdfTemplateFragment)
   || normalizePublicDisplayCandidate(serviceBundPdfTemplateFragment) !== null) {

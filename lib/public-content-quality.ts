@@ -348,6 +348,33 @@ export const isPdfFormBoilerplate = (value: string): boolean => {
     || PDF_FORM_MARKERS.filter((pattern) => pattern.test(documentText)).length >= 2;
 };
 
+const isSpecificNoticeValue = (value: string | undefined): boolean => {
+  if (!value) return false;
+  const normalized = value.trim().toLocaleLowerCase("de");
+  return normalized.length >= 8
+    && !/^(?:öffentliche ausschreibung|auftragsbekanntmachung|vergabebekanntmachung|siehe vergabeunterlagen|gemäß vergabeunterlagen|keine angabe|nicht angegeben|wird nachgereicht|[-–—.\s]+)$/iu.test(normalized);
+};
+
+/** Recognize filled-in tender notices for internal analysis without changing public boilerplate filtering. */
+export const isPopulatedTenderNotice = (value: string): boolean => {
+  if (!value) return false;
+  const normalized = normalizePublicQualityText(value);
+  const reference = normalized.match(/\b(?:Vergabenummer|Vergabe\s*[-–—]?\s*Nr\.?|Aktenzeichen)\s*:?\s*([A-Z0-9][A-Z0-9._/-]{3,})\b/iu)?.[1];
+  const hasReference = Boolean(reference && /\d/u.test(reference));
+  const procedureTitle = normalized.match(/\bBezeichnung des Verfahrens\s*:\s*(.{12,160}?)(?=\s+\d+\.\s+[A-ZÄÖÜ])/iu)?.[1];
+  const hasProcedureTitle = isSpecificNoticeValue(procedureTitle)
+    && !/^(?:\d+\.\s*)?(?:art der vergabe|öffentliche ausschreibung|auftragsbekanntmachung)\b/iu.test(procedureTitle ?? "");
+  const scope = normalized.match(/\b(?:Art\s+und\s+Umfang\s+der\s+Leistung|Art\s+der\s+Leistung|Leistungsgegenstand|Auftragsgegenstand)\s*[:)]\s*(.{4,100}?)(?=\s+(?:Umfang\b|[a-z]\)|Angebotsfrist\b|Abgabefrist\b|Frist\b)|[.;]|$)/iu)?.[1];
+  const hasScope = isSpecificNoticeValue(scope)
+    && !/\b(?:beschreibung der leistung|siehe|gemäß|laut vergabeunterlagen)\b/iu.test(scope ?? "");
+  const hasDeadline = /\b(?:Angebotsfrist|Abgabefrist|Einreichungsfrist|Schlusstermin|Ablauf der Angebotsfrist)\b.{0,100}?\b\d{1,2}[./]\d{1,2}[./]\d{4}\b/iu.test(normalized);
+
+  const signalCount = [hasReference, hasProcedureTitle, hasScope, hasDeadline].filter(Boolean).length;
+  const hasTenderIdentity = hasReference || hasProcedureTitle;
+  const hasTenderDetail = hasProcedureTitle || hasScope || hasDeadline;
+  return signalCount >= 2 && hasTenderIdentity && hasTenderDetail;
+};
+
 /** Detect a known service.bund.de notice template when it appears as a field value or quote. */
 export const isPdfFormBoilerplateFragment = (value: string): boolean => {
   if (!value) return false;

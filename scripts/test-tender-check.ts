@@ -40,6 +40,44 @@ const structured = {
 
 const serviceBundPdfTemplateFragment = "Auftragsbekanntmachung © Ausgabe 03/2020 Seite 2 von 2 Vergabeunterlagen werden elektronisch zur Verfügung gestellt. Maßnahmen zum Schutz vertraulicher Informationen";
 const serviceBundOfferSubmissionTemplateFragment = "Zugelassene Angebotsabgabe elektronisch in Textform mit fortgeschrittener/m Signatur/Siegel. mit qualifizierter/m Signatur/Siegel. schriftlich; Maßnahmen zum Schutz vertraulicher Informationen: Abgabe Verschwiegenheitserklärung";
+const populatedVhbNotice = "[Seite 1]\nVHB-VOL NRW VOL 3a 01/2015 Vergabebekanntmachung Öffentliche Ausschreibung Bekanntmachung Aktenzeichen: Vergabe-Nr.: 1088_044-FL Bezeichnung des Verfahrens: Erneuerung der Fahrleitungsmaste an der Hafenstraße in Krefeld 1. Art der Vergabe 2. Bezeichnung der zur Angebotsabgabe auffordernden Stelle Bezeichnung SWK MOBIL GmbH Postanschrift Telefon-Nummer Telefax-Nummer E-Mail-Adresse\n[Seite 2]\nAblauf der Angebotsfrist 18.11.2099 14:00 Uhr. Leistungsbeschreibung: Rodungsarbeiten.";
+const populatedNoticeCheck = buildTenderCheck({
+  tenderId: 900,
+  tenderDeadlineAt: null,
+  structured: null,
+  documents: [{
+    id: 900,
+    filename: "Bekanntmachung.pdf",
+    role: "bekanntmachung",
+    parseStatus: "parsed",
+    downloadStatus: "downloaded",
+    errorMessage: null,
+    extractedText: populatedVhbNotice,
+    pageCount: 2,
+    roleConfidence: 0.9,
+  }],
+});
+assert.equal(populatedNoticeCheck.coverage.parsed, 1, "a populated VHB notice must be usable by tender checks");
+assert.ok(populatedNoticeCheck.events.some((event) => event.type === "submission"), "a populated VHB notice must provide submission-date facts");
+const portalPointerCheck = buildTenderCheck({
+  tenderId: 901,
+  tenderDeadlineAt: null,
+  structured: null,
+  documents: [{
+    id: 901,
+    filename: "Hinweis auf Bekanntmachungsorte.pdf",
+    role: "bekanntmachung",
+    parseStatus: "parsed",
+    downloadStatus: "downloaded",
+    errorMessage: null,
+    extractedText: "[Seite 1]\nVMS © 2024 cosinex GmbH Die Bekanntmachung für dieses Vergabeverfahren finden Sie auf folgenden Vergabeplattformen: Ted - tenders electronical daily https://ted.europa.eu/TED/search/search.do Bekanntmachungsservice Öffentliche Vergabe https://www.oeffentlichevergabe.de/ui/de/advancedSearch",
+    pageCount: 1,
+    roleConfidence: 0.9,
+  }],
+});
+assert.equal(portalPointerCheck.coverage.parsed, 0, "a Cosinex portal pointer must remain unusable by tender checks");
+assert.equal(portalPointerCheck.events.length, 0, "a Cosinex portal pointer must not create document events");
+
 const templateAndTenderDocument: AnalyzedDocument & { filename: string } = {
   id: 105,
   filename: "Bekanntmachung.pdf",

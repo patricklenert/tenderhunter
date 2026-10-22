@@ -65,6 +65,7 @@ import { pickPublicTenderDescription, readPublicTenderMeta } from "@/lib/tender-
 import {
   isCanonicalPublicDescriptionMarkdown,
   isPdfFormBoilerplate,
+  isPopulatedTenderNotice,
   normalizePublicDisplayCandidate,
   pickValidatedPublicCandidate,
   pickSourceBackedPublicCandidate,
@@ -236,7 +237,7 @@ export const removeParsedDocumentSections = (
 
 /** Keep valid document text out of the corpus only when the shared validator rejects it. */
 export const shouldIncludeParsedDocumentText = (value: string): boolean =>
-  value.trim().length >= 20 && !isPdfFormBoilerplate(value);
+  value.trim().length >= 20 && (!isPdfFormBoilerplate(value) || isPopulatedTenderNotice(value));
 
 const submitToIndexNow = async (urls: string[]): Promise<void> => {
   if (urls.length === 0) return;
@@ -2843,7 +2844,8 @@ const runParseDocuments = async (payload: Record<string, JsonValue>): Promise<Re
     && !isHtmlContentType(document.contentType));
   const formBoilerplateDocumentIds = new Set(
     allDocs
-      .filter((document) => isPdfFormBoilerplate(document.extractedText ?? ""))
+      .filter((document) => isPdfFormBoilerplate(document.extractedText ?? "")
+        && !isPopulatedTenderNotice(document.extractedText ?? ""))
       .map((document) => document.id),
   );
   const cleanedFormRawText = removeParsedDocumentSections(
@@ -2917,7 +2919,7 @@ const runParseDocuments = async (payload: Record<string, JsonValue>): Promise<Re
         }
       }
       effectiveRole = primaryDocumentRole(effectiveRoles);
-      const isFormBoilerplate = isPdfFormBoilerplate(bounded);
+      const isFormBoilerplate = isPdfFormBoilerplate(bounded) && !isPopulatedTenderNotice(bounded);
       if (isFormBoilerplate) formBoilerplateDocumentIds.add(doc.id);
 
       if (shouldIncludeParsedDocumentText(bounded)) {
@@ -3038,7 +3040,7 @@ const runParseDocuments = async (payload: Record<string, JsonValue>): Promise<Re
     parsed_documents: docs.length,
     parsed_successfully: parsedDocs.length,
     text_length: merged.length,
-    partial,
+    partial: partial || formBoilerplateDocumentIds.size > 0,
     missing_roles: analysis.coverage.missingRoles,
   };
 };

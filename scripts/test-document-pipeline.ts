@@ -323,8 +323,20 @@ assert.notEqual(
 const listingText = "Ausschreibung für Straßenbau";
 const parsedSections = "[ROLLEN: leistungsbeschreibung] [ROLLE: leistungsbeschreibung] [DOKUMENT-ID: 7]\nUmfang: 500 Meter Straße\n\n[ROLLEN: anlage] [ROLLE: anlage] [DOKUMENT-ID: 8]\n";
 const formBoilerplate = "VHB-Bund-Ausgabe 2019 Eigenerklärung zur Eignung und rechtsverbindliche Unterschrift";
+const populatedVhbNotice = "[Seite 1] VHB-VOL NRW VOL 3a 01/2015 Vergabebekanntmachung Öffentliche Ausschreibung Bekanntmachung Aktenzeichen: Vergabe-Nr.: 1088_044-FL Bezeichnung des Verfahrens: Erneuerung der Fahrleitungsmaste an der Hafenstraße in Krefeld 1. Art der Vergabe 2. Bezeichnung der zur Angebotsabgabe auffordernden Stelle Bezeichnung SWK MOBIL GmbH Postanschrift Telefon-Nummer Telefax-Nummer E-Mail-Adresse Ablauf der Angebotsfrist 22.10.2026 13:00 Uhr";
+const populatedVhbNoticeWithScope = "[Seite 1] 121 Bekanntmachung Öffentliche Ausschreibung VHB-Bund Vergabenummer R34/6-2026/08 a) Öffentlicher Auftraggeber Name Struktur-und Genehmigungsdirektion Süd Straße Industriestraße 70 Art der Leistung: Rodungsarbeiten Umfang ca. 3.000 m2 Ablauf der Angebotsfrist am 18.11.2099 um 14:00 Uhr";
+const portalPointer = "[Seite 1] VMS © 2024 cosinex GmbH Die Bekanntmachung für dieses Vergabeverfahren finden Sie auf folgenden Vergabeplattformen: Ted - tenders electronical daily https://ted.europa.eu/TED/search/search.do Bekanntmachungsservice Öffentliche Vergabe https://www.oeffentlichevergabe.de/ui/de/advancedSearch";
 if (shouldIncludeParsedDocumentText(formBoilerplate)) {
   throw new Error("PDF-Formularboilerplate wurde als Korpus-Dokument akzeptiert");
+}
+if (!shouldIncludeParsedDocumentText(populatedVhbNotice)) {
+  throw new Error("Ausgefüllte VHB-Bekanntmachung wurde aus dem Analyse-Korpus ausgeschlossen");
+}
+if (!shouldIncludeParsedDocumentText(populatedVhbNoticeWithScope)) {
+  throw new Error("Ausgefüllte VHB-Bekanntmachung mit Leistungsart wurde ausgeschlossen");
+}
+if (shouldIncludeParsedDocumentText(portalPointer)) {
+  throw new Error("Reiner Portalhinweis wurde als Analyse-Dokument akzeptiert");
 }
 if (!shouldIncludeParsedDocumentText("Gültige Leistungsbeschreibung für Straßenbau in Mainz")) {
   throw new Error("Gültiger deutscher Dokumenttext wurde aus dem Korpus ausgeschlossen");

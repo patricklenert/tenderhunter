@@ -8,6 +8,7 @@ import { isHtmlContentType } from "@/lib/document-identity";
 import {
   isPdfFormBoilerplate,
   isPdfFormBoilerplateFragment,
+  isPopulatedTenderNotice,
   normalizePublicDisplayCandidate,
 } from "@/lib/public-content-quality";
 
@@ -141,7 +142,7 @@ const isUsableDocument = (document: TenderCheckDocument): boolean =>
   !isHtmlContentType(document.contentType) &&
   typeof document.extractedText === "string" &&
   document.extractedText.trim().length >= 20 &&
-  !isPdfFormBoilerplate(document.extractedText);
+  (!isPdfFormBoilerplate(document.extractedText) || isPopulatedTenderNotice(document.extractedText));
 
 const pagesOf = (text: string): PageText[] => {
   const pages: PageText[] = [];
