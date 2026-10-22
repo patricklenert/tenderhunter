@@ -185,6 +185,17 @@ const main = async (): Promise<void> => {
     decision_relevant: { scope: [], requirements: [], mandatory_documents: [], award_criteria: [] },
   }, "Sanierung der Turnhalle in Mainz");
   assert.equal(titleOnlySummaryFallback.summary, "");
+  const rejectedScopeText = normalizeStructured({
+    title,
+    summary: "## Bekanntmachung",
+    decision_relevant: { scope: "## Bekanntmachung", requirements: [], mandatory_documents: [], award_criteria: [] },
+  }, title);
+  assert.equal(rejectedScopeText.summary, "");
+  assert.equal(
+    rejectedScopeText.descriptionMarkdown?.includes(title) ?? false,
+    false,
+    "the tender title must not be rendered as summary or scope",
+  );
   assert.equal(normalizePublicDisplayCandidate("## Kurzinfo"), null);
   assert.equal(normalizePublicDisplayCandidate("Verfahrensart: Offenes Verfahren"), null);
   assert.equal(normalizePublicDisplayCandidate("sart"), null);
