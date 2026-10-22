@@ -1142,6 +1142,13 @@ for (const accessOnlyProcedure of ["zugänglich", "verfügbar", "nicht verfügba
     throw new Error(`Generischer Zugangswert wurde als Verfahren akzeptiert: ${accessOnlyProcedure}`);
   }
 }
+const incidentalProcedureText = "Die Vergabe erfolgt als öffentliche Ausschreibung nach dem Verfahren der VOB mit elektronischer Auftragsvergabe über die Auftragsbörse. Der Zuschlag erfolgt ausschließlich nach dem Preis als einzigem Kriterium (100 %). Nebenangebote und mehrere Hauptangebote sind nicht zugelassen. Die Bieter müssen Nachweise der Fachkunde, Leistungsfähigkeit und Zuverlässigkeit gemäß § 6a Abs. 2 VOB/A erbringen.";
+const incidentalProcedureFacts = extractPublicPortalFacts(incidentalProcedureText);
+if (normalizePublicProcedureCandidate(incidentalProcedureFacts.procedure ?? "") !== null
+  || incidentalProcedureFacts.procedure !== null
+  || pickValidatedPublicProcedure(incidentalProcedureFacts.procedure, "Öffentliche Ausschreibung") !== "Öffentliche Ausschreibung") {
+  throw new Error("Ein Verfahrensfragment aus Beschreibungstext wurde nicht verworfen oder blockiert keinen gültigen Fallback");
+}
 const punctuationFacts = {
   client: "Stadt Mainz.",
   procedure: "Offenes Verfahren.",

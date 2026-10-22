@@ -431,6 +431,7 @@ const PUBLIC_PROCEDURE_PORTAL_FRAGMENT = /\b(?:sangaben|losangaben|angaben\s+zu\
 const PUBLIC_PROCEDURE_PORTAL_FRAGMENT_ONLY = /^\s*\(?\s*(?:sangaben|losangaben|angaben\s+zu\s+den\s+losen)\s*\)?\s*$/iu;
 const PUBLIC_PROCEDURE_PORTAL_SUFFIX = /(?:\s+\(?\s*(?:sangaben|losangaben|angaben\s+zu\s+den\s+losen)\s*\)?|\(\s*(?:sangaben|losangaben|angaben\s+zu\s+den\s+losen)\s*\))\s*$/iu;
 const PUBLIC_PROCEDURE_DANGLING_SUFFIX = /\s+(?:mit|ohne)$/iu;
+const PUBLIC_PROCEDURE_MAX_LENGTH = 120;
 // One observed portal form cuts the known procedure label after this
 // adjective. The omitted noun must not be completed; keep only the base.
 const PUBLIC_PROCEDURE_TRUNCATED_ADJECTIVE_SUFFIX = /\s+mit\s+öffentlichem$/iu;
@@ -458,6 +459,8 @@ const normalizeProcedurePortalFragment = (value: string): string | null => {
 const normalizeProcedureCandidateValue = (value: string): string | null => {
   const normalized = normalizeProcedurePortalFragment(value);
   if (!normalized) return null;
+  const withinProcedureLabelLimit = (candidate: string | null): string | null =>
+    candidate && candidate.length <= PUBLIC_PROCEDURE_MAX_LENGTH ? candidate : null;
 
   const withoutTrailingPunctuation = normalized.replace(/[.!?,;:]+$/u, "").trim();
   if (/^(?:mit|ohne)$/iu.test(withoutTrailingPunctuation)) return null;
@@ -465,14 +468,14 @@ const normalizeProcedureCandidateValue = (value: string): string | null => {
   const truncatedAdjectiveSuffix = withoutTrailingPunctuation.match(PUBLIC_PROCEDURE_TRUNCATED_ADJECTIVE_SUFFIX);
   if (truncatedAdjectiveSuffix?.index !== undefined) {
     const base = withoutTrailingPunctuation.slice(0, truncatedAdjectiveSuffix.index).trim();
-    return base ? normalizeProcedurePortalFragment(base) : null;
+    return withinProcedureLabelLimit(base ? normalizeProcedurePortalFragment(base) : null);
   }
 
   const danglingSuffix = withoutTrailingPunctuation.match(PUBLIC_PROCEDURE_DANGLING_SUFFIX);
-  if (!danglingSuffix || danglingSuffix.index === undefined) return normalized;
+  if (!danglingSuffix || danglingSuffix.index === undefined) return withinProcedureLabelLimit(normalized);
 
   const base = withoutTrailingPunctuation.slice(0, danglingSuffix.index).trim();
-  return base ? normalizeProcedurePortalFragment(base) : null;
+  return withinProcedureLabelLimit(base ? normalizeProcedurePortalFragment(base) : null);
 };
 
 const ACCESS_ONLY_PUBLIC_PROCEDURE = /^(?:zugänglich|verfügbar|nicht\s+verfügbar|nicht\s+zugänglich)\.?$/iu;
