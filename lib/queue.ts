@@ -1,4 +1,4 @@
-import { eq, and, lte, sql, inArray, notInArray, or, type SQLWrapper } from "drizzle-orm";
+import { eq, and, lte, sql, inArray, notInArray, or, notExists, type SQLWrapper } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/lib/db";
 import { apiJobs, jobs, jobAttempts, publicScrapeRuns, type Job } from "@/lib/schema";
@@ -388,14 +388,17 @@ export async function claimNextJob(workerId: string, options: ClaimJobOptions = 
         conditions.push(notInArray(jobs.type, [...CRITICAL_JOB_TYPES]));
       }
 
-      conditions.push(sql`NOT EXISTS (
-        SELECT 1 FROM ${runningJobs}
-        WHERE ${runningJobs.status} = 'running'
-          AND ${queueGroupConflictSql(
+      const runningJobConflicts = tx
+        .select({ id: runningJobs.id })
+        .from(runningJobs)
+        .where(and(
+          eq(runningJobs.status, "running"),
+          queueGroupConflictSql(
             { type: runningJobs.type, payload: runningJobs.payload, groupKey: runningJobs.groupKey },
             { type: jobs.type, payload: jobs.payload, groupKey: jobs.groupKey },
-          )}
-      )`);
+          ),
+        ));
+      conditions.push(notExists(runningJobConflicts));
 
       const typeOrder = options.typeOrder?.length
         ? sql`CASE ${jobs.type} ${sql.join(
