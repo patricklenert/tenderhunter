@@ -3,11 +3,56 @@ import { db } from "@/lib/db";
 import { getCatalogState } from "@/lib/catalog";
 import { jobs, publicScrapeRuns, publicSourceCursors, publicSourceRuns, structuredData, tenders } from "@/lib/schema";
 import { JOB_SCRAPE_PUBLIC, JOB_SYNC_MEILI, type JsonValue } from "@/lib/types";
-import { shouldSchedulePublicContinuation } from "@/lib/public-pagination";
+import { summarizePublicContinuationState } from "@/lib/public-pagination";
 
 const PUBLIC_SCRAPE_INTERVAL_HOURS = Number(process.env.PUBLIC_SCRAPE_INTERVAL_HOURS ?? 48);
 
 const asNumber = (value: unknown): number => Number(value ?? 0);
+
+export async function getPublicContinuationMonitoringState() {
+  const [sourceCursors, activeJobs] = await Promise.all([
+    db
+      .select()
+      .from(publicSourceCursors)
+      .orderBy(publicSourceCursors.sourceKey),
+    db
+      .select({ payload: jobs.payload })
+      .from(jobs)
+      .where(and(
+        eq(jobs.type, JOB_SCRAPE_PUBLIC),
+        inArray(jobs.status, ["pending", "running"]),
+      )),
+  ]);
+
+  const activeSourceKeys = new Set<string>();
+  let hasActiveFullRun = false;
+  for (const job of activeJobs) {
+    const payload = job.payload;
+    const source = payload && typeof payload === "object" && !Array.isArray(payload)
+      ? (payload as Record<string, unknown>).source
+      : null;
+    if (typeof source === "string" && source.trim()) {
+      activeSourceKeys.add(source.trim());
+    } else {
+      hasActiveFullRun = true;
+    }
+  }
+
+  const continuationState = summarizePublicContinuationState(
+    sourceCursors.map((cursor) => ({
+      sourceKey: cursor.sourceKey,
+      cursor: cursor.cursorJson as Record<string, JsonValue> | null,
+      exhausted: cursor.exhausted,
+      continuationRequired: cursor.continuationRequired,
+      lastStatus: cursor.lastStatus,
+      lastError: cursor.lastError,
+    })),
+    activeSourceKeys,
+    hasActiveFullRun,
+  );
+
+  return { sourceCursors, ...continuationState };
+}
 
 export interface PublicCatalogQualitySummary {
   total: number;
@@ -132,38 +177,8 @@ export async function getPublicScrapeMonitoring() {
       .where(eq(publicSourceRuns.runId, lastRun.id))
       .orderBy(publicSourceRuns.sourceKey)
       : [];
-  const sourceCursors = await db
-    .select()
-    .from(publicSourceCursors)
-    .orderBy(publicSourceCursors.sourceKey);
-  const continuationJobs = await db
-    .select({ payload: jobs.payload })
-    .from(jobs)
-    .where(and(
-      eq(jobs.type, JOB_SCRAPE_PUBLIC),
-      inArray(jobs.status, ["pending", "running"]),
-      sql`${jobs.jobKey} like 'public-continuation:%'`,
-    ));
-  const activeContinuationSources = new Set(
-    continuationJobs
-      .map((job) => {
-        if (!job.payload || typeof job.payload !== "object" || Array.isArray(job.payload)) return null;
-        return (job.payload as Record<string, unknown>).source;
-      })
-      .filter((source): source is string => typeof source === "string" && source.length > 0),
-  );
-  const nonExhaustedSources = sourceCursors.filter((cursor) => !cursor.exhausted && cursor.continuationRequired).map((cursor) => cursor.sourceKey);
-  const blockedSources = sourceCursors.filter((cursor) => !cursor.exhausted && !cursor.continuationRequired).map((cursor) => cursor.sourceKey);
-  const continuationMissingSources = sourceCursors
-    .filter((cursor) => shouldSchedulePublicContinuation(
-      cursor.cursorJson as Record<string, JsonValue>,
-      cursor.exhausted,
-      cursor.continuationRequired,
-      cursor.lastStatus,
-      cursor.lastError,
-    ))
-    .map((cursor) => cursor.sourceKey)
-    .filter((sourceKey) => !activeContinuationSources.has(sourceKey));
+  const continuationState = await getPublicContinuationMonitoringState();
+  const { sourceCursors, nonExhaustedSources, blockedSources, continuationMissingSources } = continuationState;
   const [lastSyncJob] = await db
     .select({
       id: jobs.id,

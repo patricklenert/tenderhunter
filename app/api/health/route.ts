@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { json } from "@/lib/http";
 import { settings } from "@/lib/config";
 import { isJobRuntimeStale } from "@/lib/queue";
+import { getPublicContinuationMonitoringState } from "@/lib/public-monitoring";
 import { sql } from "drizzle-orm";
 
 export const runtime = "nodejs";
@@ -102,43 +103,9 @@ export async function GET(): Promise<Response> {
     const sourceFailures24h = Number(sourceRow.failed_recent ?? 0);
     const sourcePartial24h = Number(sourceRow.partial_recent ?? 0);
     const sourceEmpty24h = Number(sourceRow.empty_recent ?? 0);
-    const cursorResult = await db.execute(sql`
-      SELECT
-        count(*) FILTER (WHERE NOT exhausted AND continuation_required) AS non_exhausted,
-        count(*) FILTER (
-          WHERE NOT exhausted
-            AND continuation_required
-            AND NOT EXISTS (
-              SELECT 1
-              FROM jobs continuation
-              WHERE continuation.type = 'scrape_public_tenders'
-                AND continuation.status IN ('pending', 'running')
-                AND continuation.payload ->> 'source' = public_source_cursors.source_key
-            )
-            AND (
-              (
-                jsonb_array_length(COALESCE(public_source_cursors.cursor_json -> 'pendingDetails', '[]'::jsonb)) = 0
-                AND public_source_cursors.last_status IN ('success', 'partial')
-                AND public_source_cursors.last_error IS NULL
-              )
-              OR EXISTS (
-                SELECT 1
-                FROM jsonb_array_elements(COALESCE(public_source_cursors.cursor_json -> 'pendingDetails', '[]'::jsonb)) AS detail
-                 WHERE COALESCE(detail ->> 'blocked', 'false') <> 'true'
-                   AND (
-                     detail ->> 'nextAttemptAt' IS NULL
-                     OR detail ->> 'nextAttemptAt' = ''
-                     OR NOT (detail ->> 'nextAttemptAt' ~ '^\\d{4}-\\d{2}-\\d{2}T')
-                     OR (detail ->> 'nextAttemptAt')::timestamptz <= now()
-                   )
-              )
-            )
-        ) AS continuation_missing
-      FROM public_source_cursors
-    `);
-    const cursorRow = cursorResult[0] ?? {};
-    const nonExhaustedSources = Number(cursorRow.non_exhausted ?? 0);
-    const continuationMissingSources = Number(cursorRow.continuation_missing ?? 0);
+    const continuationState = await getPublicContinuationMonitoringState();
+    const nonExhaustedSources = continuationState.nonExhaustedSources.length;
+    const continuationMissingSources = continuationState.continuationMissingSources.length;
     const fullRunResult = await db.execute(sql`
       SELECT status, finished_at
       FROM public_scrape_runs

@@ -207,6 +207,44 @@ export const shouldSchedulePublicContinuation = (
     && (lastStatus === "success" || (lastStatus === "partial" && !lastError));
 };
 
+export interface PublicContinuationCursorState {
+  sourceKey: string;
+  cursor: PublicSourceCursor | null;
+  exhausted: boolean;
+  continuationRequired: boolean;
+  lastStatus: string | null;
+  lastError: string | null;
+}
+
+export const summarizePublicContinuationState = (
+  cursors: readonly PublicContinuationCursorState[],
+  activeSourceKeys: ReadonlySet<string>,
+  hasActiveFullRun: boolean,
+  now: Date = new Date(),
+) => {
+  const nonExhaustedSources = cursors
+    .filter((cursor) => !cursor.exhausted && cursor.continuationRequired)
+    .map((cursor) => cursor.sourceKey);
+  const blockedSources = cursors
+    .filter((cursor) => !cursor.exhausted && !cursor.continuationRequired)
+    .map((cursor) => cursor.sourceKey);
+  const continuationMissingSources = hasActiveFullRun
+    ? []
+    : cursors
+      .filter((cursor) => shouldSchedulePublicContinuation(
+        cursor.cursor,
+        cursor.exhausted,
+        cursor.continuationRequired,
+        cursor.lastStatus,
+        cursor.lastError,
+        now,
+      ))
+      .map((cursor) => cursor.sourceKey)
+      .filter((sourceKey) => !activeSourceKeys.has(sourceKey));
+
+  return { nonExhaustedSources, blockedSources, continuationMissingSources };
+};
+
 export const isPublicSourceCursorV2 = (
   cursor: PublicSourceCursor | null | undefined,
 ): cursor is PublicSourceCursorV2 => (

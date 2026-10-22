@@ -5,6 +5,7 @@ import {
   shouldRetryFailedPublicFullRun,
   shouldSchedulePublicContinuation,
   shouldWaitForPublicContinuations,
+  summarizePublicContinuationState,
   type PublicDetailReference,
   type PublicSourceCursor,
 } from "../lib/public-pagination";
@@ -199,6 +200,35 @@ assert.equal(
   ),
   false,
   "source backoff must also park due detail retries",
+);
+
+const retryDeferredCursor = {
+  sourceKey: "berlin-html",
+  cursor: { ...cursorWith([reference({ nextAttemptAt: due })]), sourceFailureRetryAt: future },
+  exhausted: false,
+  continuationRequired: true,
+  lastStatus: "failed",
+  lastError: "Portal-Timeout nach 420s",
+};
+assert.deepEqual(
+  summarizePublicContinuationState([retryDeferredCursor], new Set(), false, now).continuationMissingSources,
+  [],
+  "health monitoring must not report a source while its source-failure backoff is active",
+);
+assert.deepEqual(
+  summarizePublicContinuationState([retryDeferredCursor], new Set(), true, now).continuationMissingSources,
+  [],
+  "an active full run covers source cursors without dedicated continuation jobs",
+);
+assert.deepEqual(
+  summarizePublicContinuationState([retryDeferredCursor], new Set(), false, new Date(future)).continuationMissingSources,
+  ["berlin-html"],
+  "a source becomes missing only after its failure backoff expires",
+);
+assert.deepEqual(
+  summarizePublicContinuationState([retryDeferredCursor], new Set(["berlin-html"]), false, new Date(future)).continuationMissingSources,
+  [],
+  "an active source continuation prevents a missing-job warning",
 );
 
 // 7. Mixed queue with one future and one blocked reference stays parked.
