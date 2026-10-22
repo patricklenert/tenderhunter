@@ -1,11 +1,10 @@
 import assert from "node:assert/strict";
 import { buildDocumentAnalysis, documentAnalysisFieldLabel, withEvidenceValues } from "../lib/document-analysis";
 
-const populatedVhbNotice = "[Seite 1]\nVHB-VOL NRW VOL 3a 01/2015 Vergabebekanntmachung Öffentliche Ausschreibung Bekanntmachung Aktenzeichen: Vergabe-Nr.: 1088_044-FL Bezeichnung des Verfahrens: Erneuerung der Fahrleitungsmaste an der Hafenstraße in Krefeld 1. Art der Vergabe 2. Bezeichnung der zur Angebotsabgabe auffordernden Stelle Bezeichnung SWK MOBIL GmbH Postanschrift Telefon-Nummer Telefax-Nummer E-Mail-Adresse\n[Seite 2]\nAblauf der Angebotsfrist 18.11.2099 14:00 Uhr. Leistungsbeschreibung: Rodungsarbeiten.";
+const populatedVhbNotice = "[Seite 1]\nVHB-VOL NRW VOL 3a 01/2015 Vergabebekanntmachung Öffentliche Ausschreibung Bekanntmachung Aktenzeichen: Vergabe-Nr.: 1088_044-FL Bezeichnung des Verfahrens: Erneuerung der Fahrleitungsmaste an der Hafenstraße in Krefeld 1. Art der Vergabe 2. Bezeichnung der zur Angebotsabgabe auffordernden Stelle Bezeichnung SWK MOBIL GmbH Postanschrift Telefon-Nummer Telefax-Nummer E-Mail-Adresse\n[Seite 2]\nAblauf der Angebotsfrist 18.11.2099 14:00 Uhr. Art der Leistung: Rodungsarbeiten Umfang der Leistung: Freimachen des Baufeldes ca. 3.000 m2.";
 const populatedNoticeAnalysis = buildDocumentAnalysis([{
   id: 900,
   role: "bekanntmachung",
-  roles: ["bekanntmachung", "leistungsbeschreibung"],
   parseStatus: "parsed",
   downloadStatus: "downloaded",
   errorMessage: null,
