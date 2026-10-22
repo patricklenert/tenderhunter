@@ -104,10 +104,26 @@ if (!isPublicNavigationSummary(bundNavigation) || cleanPublicDescription(bundNav
 if (pickPublicDescription(rawPortalText, cleanText) !== cleanText) {
   throw new Error("Fallback-Auswahl verwendet nicht die erste brauchbare Beschreibung");
 }
-for (const invalid of ["## Kurzinfo", "## location", "## Bekanntmachung", "#", "... Dienstleistungen ## CPV-Codes ...", "[ROLLEN: bekanntmachung] [ROLLE: bekanntmachung] [DOKUMENT-ID: 51568]", "Formular — Auftragsbekanntmachung ...", "-", "--", "---", "- Verfahren - - - Lose - Ergebnisse - Verträge - - - -", "SERVICE.BUND.DE - Aktuelle Ausschreibungen", "Haupt-Navigations-Menü", "Meta-Navigation", "Andere Ausschreibungen im Bereich", "Ã–ffentliche Ausschreibung", "�ffentliche Ausschreibung", "HüpstedtVergabeartBeschränkte AusschreibungAngebotsfrist03.08.2026", "<p>Portaltext</p>", "Die angegebene URL (https://example.test) gibt einen 404-Fehler zurück. Es liegen keine Ausschreibungsdaten vor.", "{{description}}", "Anmelden", "Alle Ausschreibungen", "Login", "Log in", "Sign in", "Anmeldung", "Registrieren", "Registrierung", "Formblatt 1", "Anmelden erforderlich, um Zugriff zu erhalten", "Bitte melden Sie sich an, um die vollständigen Vergabeunterlagen einzusehen.", "Sie müssen sich anmelden, um die vollständigen Ausschreibungsunterlagen herunterzuladen.", "Eine Teilnahme ist erforderlich, um die Vergabeunterlagen einzusehen."]) {
+const portalSupportWall = [
+  "Registrierung oder Anmeldung erforderlich;",
+  "Sofern größere Datenmengen verwendet werden sollen muss sich der Benutzer innerhalb der Servicezeiten an den Support der Betreiberin wenden.",
+  "Ein Anspruch auf die Verwendung größere Datenmengen besteht jedoch nicht.",
+].join(" ");
+for (const invalid of ["## Kurzinfo", "## location", "## Bekanntmachung", "#", "... Dienstleistungen ## CPV-Codes ...", "[ROLLEN: bekanntmachung] [ROLLE: bekanntmachung] [DOKUMENT-ID: 51568]", "Formular — Auftragsbekanntmachung ...", "-", "--", "---", "- Verfahren - - - Lose - Ergebnisse - Verträge - - - -", "SERVICE.BUND.DE - Aktuelle Ausschreibungen", "Haupt-Navigations-Menü", "Meta-Navigation", "Andere Ausschreibungen im Bereich", "Ã–ffentliche Ausschreibung", "�ffentliche Ausschreibung", "HüpstedtVergabeartBeschränkte AusschreibungAngebotsfrist03.08.2026", "<p>Portaltext</p>", "Die angegebene URL (https://example.test) gibt einen 404-Fehler zurück. Es liegen keine Ausschreibungsdaten vor.", "{{description}}", "Anmelden", "Alle Ausschreibungen", "Login", "Log in", "Sign in", "Anmeldung", "Registrieren", "Registrierung", "Formblatt 1", "Anmelden erforderlich, um Zugriff zu erhalten", "Bitte melden Sie sich an, um die vollständigen Vergabeunterlagen einzusehen.", "Sie müssen sich anmelden, um die vollständigen Ausschreibungsunterlagen herunterzuladen.", "Eine Teilnahme ist erforderlich, um die Vergabeunterlagen einzusehen.", portalSupportWall, "Fliesenarbeiten Epoxidharzbeschichtung (GTL"]) {
   if (normalizePublicDisplayCandidate(invalid) !== null) {
     throw new Error(`Ungültiger öffentlicher Kandidat wurde akzeptiert: ${invalid}`);
   }
+}
+if (JSON.stringify(normalizePublicTextList([portalSupportWall, "Der Auftragnehmer muss die Baustelle absichern."]))
+  !== JSON.stringify(["Der Auftragnehmer muss die Baustelle absichern."])) {
+  throw new Error("Ungültige Portal-Anforderung blockierte keinen gültigen Folge-Kandidaten");
+}
+if (isCanonicalPublicDescriptionMarkdown(`- **Anforderungen:** ${portalSupportWall}`)
+  || isCanonicalPublicDescriptionMarkdown("- **Zusammenfassung:** Fliesenarbeiten Epoxidharzbeschichtung (GTL")) {
+  throw new Error("Kanonisches Markdown hat Portal-Wall-Text oder abgeschnittene Fragmente akzeptiert");
+}
+if (normalizePublicDisplayCandidate("Fliesenarbeiten im Gebäude (GTL)") !== "Fliesenarbeiten im Gebäude (GTL)") {
+  throw new Error("Vollständige Klammerangabe wurde verworfen");
 }
 if (!["Anmelden", "Alle Ausschreibungen", "Login", "Log in", "Sign in", "Anmeldung", "Registrieren", "Registrierung"]
   .every(isSharedPublicNavigationSummary)) {

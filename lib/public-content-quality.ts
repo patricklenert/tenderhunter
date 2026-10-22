@@ -390,6 +390,9 @@ export const isPdfFormBoilerplateFragment = (value: string): boolean => {
 
 const isLoginOrParticipationWall = (value: string): boolean =>
   /(?:login|log\s*in|sign\s*in|anmelden|registrieren).{0,100}(?:erforderlich|required|notwendig|zuerst|zugriff|benutzername|passwort)/iu.test(value)
+  || /\bregistrierung\s+oder\s+anmeldung\s+(?:ist\s+)?(?:erforderlich|notwendig)\b/iu.test(value)
+  || /\bservicezeiten\b.{0,160}\bsupport\s+der\s+betreiberin\b/iu.test(value)
+  || /\banspruch\s+auf\s+die\s+verwendung\s+gr(?:ö(?:ß|ss)|oess)ere\s+datenmengen\b/iu.test(value)
   || /(?:melden\s+sie\s+sich(?:\s+an)?|loggen\s+sie\s+sich\s+ein|anmelden|registrieren).{0,100}\b(?:um|damit)\b.{0,120}\b(?:zugriff|ausschreibung|bekanntmachung|vergabeunterlagen|ausschreibungsunterlagen|unterlagen|leistungsbeschreibung|ausschreibungsdetails)\b/iu.test(value)
   || /(?:teilnahme|anmeldung|registrierung)\s+(?:ist\s+)?(?:erforderlich|notwendig).{0,100}\b(?:zugriff|vergabeunterlagen|ausschreibungsunterlagen|unterlagen|leistungsbeschreibung|ausschreibungsdetails)\b/iu.test(value)
   || /(?:passwort|benutzername).{0,120}(?:melden sie sich|anmelden|registrieren|zugriff)/iu.test(value)
@@ -610,6 +613,19 @@ const normalizeGeneratedAccessLimitedSummary = (value: string): string | null | 
   return `${parsed.prefix}${factSentence} ${GENERATED_ACCESS_NOTE_TEXT}`;
 };
 
+const hasUnbalancedDelimiters = (value: string): boolean => {
+  const stack: string[] = [];
+  const pairs: Record<string, string> = { ")": "(", "]": "[", "}": "{" };
+  for (const character of value) {
+    if (character === "(" || character === "[" || character === "{") {
+      stack.push(character);
+    } else if (character in pairs && stack.pop() !== pairs[character]) {
+      return true;
+    }
+  }
+  return stack.length > 0;
+};
+
 const normalizePublicClientValue = (value: unknown): string => {
   if (typeof value !== "string") return "";
   const candidate = repairPublicEncoding(decodePublicHtmlEntities(value))
@@ -647,7 +663,7 @@ const normalizePublicDisplayCandidateInternal = (value: unknown, allowInlineMark
   const generated = normalizeGeneratedAccessLimitedSummary(procedureNormalized);
   if (generated === null) return null;
   const candidate = generated ?? procedureNormalized;
-  if (!candidate || candidate.length > 5_000) return null;
+  if (!candidate || candidate.length > 5_000 || hasUnbalancedDelimiters(candidate)) return null;
   if (/�|Ã.|Â.|â[\u0080-\u00bf]|ð[\u0080-\u00bf]|&(?:#\d+|#x[\da-f]+|[a-z]+);/iu.test(candidate)) return null;
   if (SOURCE_ERROR.test(candidate)) return null;
   if (/<\/?[a-z][^>]*>/iu.test(candidate)) return null;

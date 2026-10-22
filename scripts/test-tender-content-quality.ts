@@ -20,6 +20,11 @@ import { projectHomeTenderTitle } from "@/components/seo/HomeTenderList";
 
 const sourceUrl = "https://vergabe.vmstart.de/NetServer/PublicationControllerServlet?function=Detail";
 const title = "Heinrich-Völker-Bad - Bestandsbadehalle - Raumlufttechnische Anlagen 79-2026";
+const portalSupportWall = [
+  "Registrierung oder Anmeldung erforderlich;",
+  "Sofern größere Datenmengen verwendet werden sollen muss sich der Benutzer innerhalb der Servicezeiten an den Support der Betreiberin wenden.",
+  "Ein Anspruch auf die Verwendung größere Datenmengen besteht jedoch nicht.",
+].join(" ");
 const rawText = [
   "AI Vergabeplattform - Administration Intelligence AG",
   "## Bekanntmachung",
@@ -192,6 +197,23 @@ const main = async (): Promise<void> => {
     decision_relevant: { scope: [], requirements: [], mandatory_documents: [], award_criteria: [] },
   }, title);
   assert.equal(titleEchoWithLaterDescription.summary, "Die Raumlufttechnischen Anlagen werden erneuert.");
+  const invalidPortalAndTruncatedContent = normalizeStructured({
+    title,
+    summary: "Fliesenarbeiten Epoxidharzbeschichtung (GTL",
+    decision_relevant: {
+      scope: ["Fliesenarbeiten Epoxidharzbeschichtung (GTL"],
+      requirements: [portalSupportWall, "Der Auftragnehmer muss die Baustelle während der Ausführung absichern."],
+      mandatory_documents: [],
+      award_criteria: [],
+    },
+  }, title);
+  assert.equal(invalidPortalAndTruncatedContent.summary, "");
+  assert.deepEqual(invalidPortalAndTruncatedContent.decision_relevant.scope, []);
+  assert.deepEqual(invalidPortalAndTruncatedContent.decision_relevant.requirements, [
+    "Der Auftragnehmer muss die Baustelle während der Ausführung absichern.",
+  ]);
+  assert.doesNotMatch(invalidPortalAndTruncatedContent.descriptionMarkdown ?? "", /GTL|Registrierung|Support der Betreiberin/i);
+  assert.match(invalidPortalAndTruncatedContent.descriptionMarkdown ?? "", /Baustelle während der Ausführung absichern/);
   const rejectedScopeText = normalizeStructured({
     title,
     summary: title,
