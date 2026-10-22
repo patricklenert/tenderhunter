@@ -28,6 +28,11 @@ const loadPublicContinuationCursors = async () => db
 
 const args = new Set(process.argv.slice(2));
 const runOnce = args.has("--once");
+const batchArg = process.argv.slice(2).find((arg) => arg.startsWith("--batch="));
+const parsedBatchLimit = batchArg ? Number.parseInt(batchArg.slice("--batch=".length), 10) : null;
+const runBatchLimit = parsedBatchLimit === null
+  ? null
+  : Math.max(1, Math.min(Number.isNaN(parsedBatchLimit) ? 1 : parsedBatchLimit, 200));
 const withPollingCrawl = args.has("--with-crawl");
 const workerIdPrefix = `worker-${process.pid}-${randomUUID().slice(0, 8)}`;
 
@@ -407,13 +412,19 @@ const runWorkerLoop = async (workerId: string): Promise<void> => {
 
 const run = async (): Promise<void> => {
   await initialize();
-  if (runOnce) {
-    const result = await processNextJob(`${workerIdPrefix}-once`, { lane: "all", terminateOnTimeout: true });
-    if (!result) {
-      console.log("Keine Jobs verfuegbar.");
-      return;
+  if (runOnce || runBatchLimit !== null) {
+    const limit = runBatchLimit ?? 1;
+    const workerId = `${workerIdPrefix}-${runBatchLimit === null ? "once" : "batch"}`;
+    for (let index = 0; index < limit; index += 1) {
+      const result = await processNextJob(workerId, { lane: "all", terminateOnTimeout: true });
+      if (!result) {
+        if (index === 0) {
+          console.log("Keine Jobs verfuegbar.");
+        }
+        break;
+      }
+      console.log(JSON.stringify(result));
     }
-    console.log(JSON.stringify(result));
     return;
   }
 
