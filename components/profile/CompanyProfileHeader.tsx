@@ -12,9 +12,9 @@ interface CompanyProfileHeaderProps {
   regions: string[];
   teamSize: number | null;
   address: string | null;
-  tenderCount: number;
-  bestFit: number | null;
-  expiredCount: number;
+  tenderCount?: number;
+  bestFit?: number | null;
+  expiredCount?: number;
 }
 
 const chipSx = {
@@ -39,8 +39,8 @@ export function CompanyProfileHeader({
   bestFit,
   expiredCount,
 }: CompanyProfileHeaderProps) {
-  const activeCount = Math.max(tenderCount - expiredCount, 0);
-  const bestFitState = bestFit === null
+  const activeCount = Math.max((tenderCount ?? 0) - (expiredCount ?? 0), 0);
+  const bestFitState = bestFit == null
     ? { color: "text.secondary", backgroundColor: "background.default", label: "Nicht bewertet" }
     : bestFit >= 70
       ? { color: "success.main", backgroundColor: "success.light", label: "Stark" }
@@ -134,7 +134,7 @@ export function CompanyProfileHeader({
           </Box>
         </Stack>
 
-        <Box
+        {tenderCount !== undefined && bestFit !== undefined && expiredCount !== undefined && <Box
           sx={{
             display: "grid",
             gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", md: "repeat(2, 152px)" },
@@ -180,7 +180,7 @@ export function CompanyProfileHeader({
               {bestFitState.label}
             </Typography>
           </Box>
-        </Box>
+        </Box>}
       </Box>
 
       <Box sx={{ mt: { xs: 2.25, md: 2.5 }, pt: 1.75, borderTop: "1px solid", borderColor: "divider" }}>

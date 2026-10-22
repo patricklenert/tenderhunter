@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { formatDeadlineDE, getDeadlineState, parseDeadlineDate } from "@/lib/date-utils";
 import {
   buildProfileSummary,
@@ -11,6 +12,13 @@ import {
 const now = new Date("2026-08-06T12:00:00.000Z");
 
 assert.equal(PUBLIC_PROFILE_FALLBACK_CANDIDATE_LIMIT, 250);
+
+const profilePage = readFileSync("app/p/[slug]/page.tsx", "utf8");
+const profileHeader = readFileSync("components/profile/CompanyProfileHeader.tsx", "utf8");
+assert.match(profileHeader, /component="h1"/, "public profile heading must remain server-rendered independently of tender results");
+assert.ok(profilePage.indexOf("<CompanyProfileHeader") < profilePage.indexOf("<Suspense"), "profile identity must render before slow tender matching suspends");
+assert.match(profilePage, /<Suspense[\s\S]*?<PublicProfileMatches company=\{company\} \/>/, "tender matching must be isolated behind a streaming boundary");
+assert.doesNotMatch(profilePage, /findPublicProfileMatches/, "slow tender match queries must not block the profile shell");
 
 assert.equal(getDeadlineState("05.08.2026", now), "expired");
 assert.equal(getDeadlineState("07.08.2026", now), "current");
