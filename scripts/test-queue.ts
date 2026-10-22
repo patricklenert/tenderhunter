@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { buildJobKey, CRITICAL_JOB_TYPES, getApiAnalysisStatusAfterFailure, getCriticalJobTypeOrder, getEffectiveQueuePriority, getJobMaxRuntimeMs, isCriticalJobType, isJobRuntimeStale, JOB_PRIORITIES, PUBLIC_CONTINUATION_PRIORITY, shouldReapJobForRuntimeTimeout, shouldReuseCompletedJob } from "../lib/queue";
+import { buildJobKey, CRITICAL_JOB_TYPES, getApiAnalysisStatusAfterFailure, getCriticalJobTypeOrder, getEffectiveQueuePriority, getJobMaxRuntimeMs, isCriticalJobType, isJobRuntimeStale, JOB_PRIORITIES, PUBLIC_CONTINUATION_PRIORITY, queueJobsConflict, shouldReapJobForRuntimeTimeout, shouldReuseCompletedJob } from "../lib/queue";
 
 assert.equal(buildJobKey("parse_documents", 42), "parse_documents:42");
 assert.equal(buildJobKey("parse_documents", 42, "refresh"), "parse_documents:42:refresh");
@@ -21,6 +21,38 @@ assert.equal(JOB_PRIORITIES.scrape_us_tenders, 115);
 assert.equal(JOB_PRIORITIES.cache_detail, 120);
 assert.equal(JOB_PRIORITIES.fetch_documents, 115);
 assert.equal(PUBLIC_CONTINUATION_PRIORITY, 100);
+const fullPublicScrape = { type: "scrape_public_tenders", payload: {}, groupKey: "public-scrape" };
+const dtvpContinuation = { type: "scrape_public_tenders", payload: { source: "dtvp" }, groupKey: "public-scrape" };
+const dtvpNextPage = { type: "scrape_public_tenders", payload: { source: "dtvp" }, groupKey: "public-scrape" };
+const tedContinuation = { type: "scrape_public_tenders", payload: { source: "ted" }, groupKey: "public-scrape" };
+assert.equal(queueJobsConflict(fullPublicScrape, dtvpContinuation), true, "full runs exclude every source continuation");
+assert.equal(queueJobsConflict(dtvpContinuation, fullPublicScrape), true, "source continuations exclude a running full run");
+assert.equal(queueJobsConflict(dtvpContinuation, dtvpNextPage), true, "one source cannot process concurrent cursor updates");
+assert.equal(queueJobsConflict(dtvpContinuation, tedContinuation), false, "independent source cursors may progress concurrently");
+assert.equal(queueJobsConflict(
+  dtvpContinuation,
+  { ...dtvpNextPage, groupKey: "public-source:dtvp" },
+), true, "reprocess jobs still share the source cursor lock");
+assert.equal(queueJobsConflict(
+  { ...dtvpContinuation, payload: { source: " dtvp " } },
+  dtvpNextPage,
+), true, "source keys are normalized before applying the cursor lock");
+assert.equal(queueJobsConflict(
+  { ...dtvpContinuation, payload: { source: 42 } },
+  tedContinuation,
+), true, "invalid source payloads are treated as full runs");
+assert.equal(queueJobsConflict(
+  { type: "cache_detail", payload: {}, groupKey: "tender:1" },
+  { type: "parse_documents", payload: {}, groupKey: "tender:1" },
+), true, "ordinary jobs in the same group remain exclusive");
+assert.equal(queueJobsConflict(
+  { type: "cache_detail", payload: {}, groupKey: "tender:1" },
+  { type: "parse_documents", payload: {}, groupKey: "tender:2" },
+), false, "ordinary jobs in different groups remain concurrent");
+assert.equal(queueJobsConflict(
+  dtvpContinuation,
+  { type: "cache_detail", payload: {}, groupKey: "public-scrape" },
+), true, "the legacy public group remains exclusive across job types");
 const priorityNow = Date.parse("2026-08-31T15:00:00.000Z");
 assert.equal(getEffectiveQueuePriority(140, new Date(priorityNow - 48 * 60 * 60 * 1_000), priorityNow), 150);
 assert.equal(getEffectiveQueuePriority(100, new Date(priorityNow - 48 * 60 * 60 * 1_000), priorityNow), 150);

@@ -1,4 +1,5 @@
-import { eq, and, lte, sql, inArray, notInArray, or } from "drizzle-orm";
+import { eq, and, lte, sql, inArray, notInArray, or, type SQLWrapper } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/lib/db";
 import { apiJobs, jobs, jobAttempts, publicScrapeRuns, type Job } from "@/lib/schema";
 import { settings } from "@/lib/config";
@@ -33,6 +34,69 @@ const minutes = (value: number): number => value * 60 * 1_000;
 const MAX_QUEUE_AGE_BOOST = 50;
 const QUEUE_AGE_BOOST_PER_HOUR = 10;
 const MAX_AGED_QUEUE_PRIORITY = 150;
+
+type QueueGroupJob = { type: string; payload: unknown; groupKey: string | null };
+
+const getPublicJobSource = (payload: unknown): string | null => {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+  const source = (payload as Record<string, unknown>).source;
+  return typeof source === "string" && source.trim() ? source.trim() : null;
+};
+
+export const queueJobsConflict = (left: QueueGroupJob, right: QueueGroupJob): boolean => {
+  const leftIsPublic = left.type === JOB_SCRAPE_PUBLIC;
+  const rightIsPublic = right.type === JOB_SCRAPE_PUBLIC;
+
+  if (leftIsPublic && rightIsPublic) {
+    const leftSource = getPublicJobSource(left.payload);
+    const rightSource = getPublicJobSource(right.payload);
+    return leftSource === null || rightSource === null || leftSource === rightSource;
+  }
+  if (leftIsPublic || rightIsPublic) {
+    const nonPublicJob = leftIsPublic ? right : left;
+    return nonPublicJob.groupKey === "public-scrape";
+  }
+  return left.groupKey !== null && left.groupKey === right.groupKey;
+};
+
+type QueueGroupSqlFields = { type: SQLWrapper; payload: SQLWrapper; groupKey: SQLWrapper };
+
+const publicJobSourceSql = (payload: SQLWrapper) => sql`CASE
+  WHEN jsonb_typeof(${payload} -> 'source') = 'string'
+  THEN NULLIF(BTRIM(${payload} ->> 'source'), '')
+  ELSE NULL
+END`;
+
+// Keep this candidate filter aligned with queueJobsConflict, used after the
+// advisory lock to re-check against the latest running rows.
+const queueGroupConflictSql = (running: QueueGroupSqlFields, candidate: QueueGroupSqlFields) => sql`(
+  (
+    ${running.type} = ${JOB_SCRAPE_PUBLIC}
+    AND ${candidate.type} = ${JOB_SCRAPE_PUBLIC}
+    AND (
+      ${publicJobSourceSql(running.payload)} IS NULL
+      OR ${publicJobSourceSql(candidate.payload)} IS NULL
+      OR ${publicJobSourceSql(running.payload)} = ${publicJobSourceSql(candidate.payload)}
+    )
+  )
+  OR (
+    ${running.type} = ${JOB_SCRAPE_PUBLIC}
+    AND ${candidate.type} <> ${JOB_SCRAPE_PUBLIC}
+    AND ${candidate.groupKey} = 'public-scrape'
+  )
+  OR (
+    ${running.type} <> ${JOB_SCRAPE_PUBLIC}
+    AND ${candidate.type} = ${JOB_SCRAPE_PUBLIC}
+    AND ${running.groupKey} = 'public-scrape'
+  )
+  OR (
+    ${running.type} <> ${JOB_SCRAPE_PUBLIC}
+    AND ${candidate.type} <> ${JOB_SCRAPE_PUBLIC}
+    AND ${running.groupKey} = ${candidate.groupKey}
+  )
+)`;
+
+const runningJobs = alias(jobs, "running_job");
 
 export const getEffectiveQueuePriority = (
   basePriority: number,
@@ -325,13 +389,12 @@ export async function claimNextJob(workerId: string, options: ClaimJobOptions = 
       }
 
       conditions.push(sql`NOT EXISTS (
-        SELECT 1 FROM jobs running_job
-        WHERE running_job.status = 'running'
-          AND (
-             CASE WHEN running_job.type = ${JOB_SCRAPE_PUBLIC} THEN 'public-scrape' ELSE running_job.group_key END
-           ) = (
-             CASE WHEN ${jobs.type} = ${JOB_SCRAPE_PUBLIC} THEN 'public-scrape' ELSE ${jobs.groupKey} END
-          )
+        SELECT 1 FROM ${runningJobs}
+        WHERE ${runningJobs.status} = 'running'
+          AND ${queueGroupConflictSql(
+            { type: runningJobs.type, payload: runningJobs.payload, groupKey: runningJobs.groupKey },
+            { type: jobs.type, payload: jobs.payload, groupKey: jobs.groupKey },
+          )}
       )`);
 
       const typeOrder = options.typeOrder?.length
@@ -372,21 +435,20 @@ export async function claimNextJob(workerId: string, options: ClaimJobOptions = 
 
     let job: Job | undefined;
     for (const candidate of rows) {
-      const effectiveGroup = candidate.type === JOB_SCRAPE_PUBLIC ? "public-scrape" : candidate.groupKey;
+      // Keep the public advisory lock shared across source continuations. It
+      // serializes only the short claim transaction and stays compatible with
+      // older workers while the database recheck allows distinct sources to run.
+      const effectiveGroup = candidate.type === JOB_SCRAPE_PUBLIC || candidate.groupKey === "public-scrape"
+        ? "public-scrape"
+        : candidate.groupKey;
       if (effectiveGroup) {
-        // The candidate query avoids known conflicts. The advisory lock and
-        // second check close the race where two workers selected a group at
-        // the same time.
+        // The advisory lock and second check close races between claims.
         await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${effectiveGroup}, 0))`);
         const running = await tx
-          .select({ id: jobs.id })
-          .from(jobs)
-          .where(and(
-            eq(jobs.status, "running"),
-             sql`CASE WHEN ${jobs.type} = ${JOB_SCRAPE_PUBLIC} THEN 'public-scrape' ELSE ${jobs.groupKey} END = ${effectiveGroup}`,
-          ))
-          .limit(1);
-        if (running.length > 0) continue;
+          .select({ id: runningJobs.id, type: runningJobs.type, payload: runningJobs.payload, groupKey: runningJobs.groupKey })
+          .from(runningJobs)
+          .where(eq(runningJobs.status, "running"));
+        if (running.some((runningJob) => queueJobsConflict(runningJob, candidate))) continue;
       }
       job = candidate;
       break;
