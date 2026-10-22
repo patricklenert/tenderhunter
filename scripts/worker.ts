@@ -5,7 +5,7 @@ import { enqueueJob, getCriticalJobTypeOrder, isCriticalJobType, PUBLIC_CONTINUA
 import { serializeSourceItems } from "@/lib/tender-sources";
 import { buildPublicContinuationJobKey, shouldRetryFailedPublicFullRun, shouldSchedulePublicContinuation, shouldWaitForPublicContinuations } from "@/lib/public-pagination";
 import { JOB_CRAWL, JOB_SCRAPE_PUBLIC, JOB_SCRAPE_US, type JsonValue } from "@/lib/types";
-import { db } from "@/lib/db";
+import { closeDatabase, db } from "@/lib/db";
 import { jobs, publicScrapeRuns, publicSourceCursors } from "@/lib/schema";
 import { eq, desc, and, or, isNotNull, sql } from "drizzle-orm";
 
@@ -442,8 +442,18 @@ const run = async (): Promise<void> => {
   }
 };
 
-run().catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : "Unbekannter Fehler";
-  console.error(`Worker-Fehler: ${message}`);
-  process.exit(1);
-});
+run()
+  .catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : "Unbekannter Fehler";
+    console.error(`Worker-Fehler: ${message}`);
+    process.exitCode = 1;
+  })
+  .finally(async () => {
+    try {
+      await closeDatabase();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unbekannter Fehler";
+      console.error(`Worker-Datenbank konnte nicht geschlossen werden: ${message}`);
+      process.exitCode = 1;
+    }
+  });

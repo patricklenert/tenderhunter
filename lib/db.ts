@@ -13,6 +13,10 @@ const client = postgres(connectionString, {
 
 export const db = drizzle(client, { schema: { ...schema, ...authSchema } });
 
+export async function closeDatabase(): Promise<void> {
+  await client.end({ timeout: 5 });
+}
+
 export async function initializeDatabase(): Promise<void> {
   await client`SELECT 1`;
 }
