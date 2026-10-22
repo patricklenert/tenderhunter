@@ -16,6 +16,19 @@ assert.equal(populatedNoticeAnalysis.coverage.parsed, 1, "a populated VHB notice
 assert.ok(populatedNoticeAnalysis.evidence.some((item) => item.field === "deadline"), "a populated VHB notice must provide deadline evidence");
 assert.ok(populatedNoticeAnalysis.evidence.some((item) => item.field === "scope"), "a populated VHB notice must provide scope evidence");
 
+const placeholderScopeAnalysis = buildDocumentAnalysis([{
+  id: 902,
+  role: "bekanntmachung",
+  parseStatus: "parsed",
+  downloadStatus: "downloaded",
+  errorMessage: null,
+  extractedText: "[Seite 1] VHB-VOL NRW VOL 3a 01/2015 Vergabebekanntmachung Öffentliche Ausschreibung Bekanntmachung Aktenzeichen: Vergabe-Nr.: 1088_044-FL Bezeichnung des Verfahrens: Erneuerung der Fahrleitungsmaste an der Hafenstraße in Krefeld 1. Art der Vergabe 6. Art und Umfang der Leistung sowie Ort der Leistungserbringung Siehe Vergabeunterlagen. 12. Ablauf der Angebotsfrist 02.11.2026 10:00 Uhr",
+  pageCount: 1,
+  roleConfidence: 0.9,
+}]);
+assert.equal(placeholderScopeAnalysis.coverage.parsed, 1, "a populated notice with a scope pointer must remain usable");
+assert.ok(!placeholderScopeAnalysis.evidence.some((item) => item.field === "scope"), "a pointer to separate tender documents must not be emitted as scope evidence");
+
 const blankFormAnalysis = buildDocumentAnalysis([{
   id: 901,
   role: "bekanntmachung",

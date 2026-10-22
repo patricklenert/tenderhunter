@@ -169,13 +169,19 @@ const EVIDENCE_PATTERNS: Array<{
   },
   {
     field: "scope",
-    roles: ["bekanntmachung", "leistungsbeschreibung", "leistungsverzeichnis"],
+    roles: ["bekanntmachung"],
+    patterns: [
+      /art\s+der\s+leistung/i,
+    ],
+  },
+  {
+    field: "scope",
+    roles: ["leistungsbeschreibung", "leistungsverzeichnis"],
     patterns: [
       /leistungsbeschreibung/i,
       /leistungsumfang/i,
       /gegenstand\s+(?:der|des)\s+(?:ausschreibung|auftrags)/i,
       /art\s+und\s+umfang/i,
-      /art\s+der\s+leistung/i,
       /auftragsgegenstand/i,
     ],
   },
