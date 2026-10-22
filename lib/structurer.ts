@@ -551,6 +551,8 @@ export function normalizeStructured(raw: unknown, fallbackTitle: string, fallbac
     ) ?? [];
     const scopeIsDocumentArtifact = structuredScope.length === 0
       && Boolean(rawScopeText && isPublicDocumentArtifact(rawScopeText));
+    const hasRejectedScopeText = structuredScope.length === 0
+      && Boolean(rawScopeText.trim() && !normalizePublicDisplayCandidate(rawScopeText));
     const normalizedScope = structuredScope.length > 0
       ? structuredScope
       : normalizePublicTextList(fallbackFacts.scope);
@@ -600,7 +602,7 @@ export function normalizeStructured(raw: unknown, fallbackTitle: string, fallbac
         fallbackFacts.summary,
         fallbackFacts.scope,
         normalizedScope,
-      ),
+      ) || (hasRejectedScopeText ? pickValidatedPublicCandidate(safeFallbackTitle) : ""),
       hard_facts: {
         // Parsed portal labels are more reliable than legacy cache fragments
         // such as "## Kurzinfo" or a lone postal code.
