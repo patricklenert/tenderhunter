@@ -284,8 +284,8 @@ export const pipelineVersionPayload = (payload: unknown): Record<string, JsonVal
   return version === null ? {} : { pipeline_version: version };
 };
 
-export const isCurrentPipelineVersion = (payload: unknown, currentVersion: number): boolean =>
-  pipelineVersionFromPayload(payload) === currentVersion;
+export const isCurrentPipelineVersion = (payload: unknown, currentVersion: number | null): boolean =>
+  currentVersion !== null && pipelineVersionFromPayload(payload) === currentVersion;
 
 export const isPipelineJobCompatibleWithVersion = (payload: unknown, currentVersion: number): boolean => {
   const jobVersion = pipelineVersionFromPayload(payload);
@@ -937,7 +937,17 @@ const queueTenderStage = async (
 };
 
 const queueTenderProcessing = async (tenderId: number, retryKey?: string): Promise<void> => {
-  const tender = await getTender(tenderId);
+  const tenderRows = await db
+    .select({
+      url: tenders.url,
+      metadataJson: tenders.metadataJson,
+      version: tenders.version,
+    })
+    .from(tenders)
+    .where(eq(tenders.id, tenderId))
+    .limit(1);
+  const tender = tenderRows[0];
+  if (!tender) return;
   const metadata = parseRecord(tender.metadataJson as string);
   const resourceFingerprint = buildResourceFingerprint(tender.url, metadata);
   const baseJobKey = buildFetchDocumentsJobKey(tenderId, resourceFingerprint, tender.version);
@@ -989,8 +999,13 @@ const ensureCurrentPipelineVersion = async (
   tenderId: number,
   payload: Record<string, JsonValue>,
 ): Promise<boolean> => {
-  const current = await getTender(tenderId);
-  if (isCurrentPipelineVersion(payload, current.version)) return true;
+  const current = await db
+    .select({ version: tenders.version })
+    .from(tenders)
+    .where(eq(tenders.id, tenderId))
+    .limit(1);
+  if (!current[0]) return false;
+  if (isCurrentPipelineVersion(payload, current[0].version)) return true;
   await queueTenderProcessing(tenderId, "stale-version");
   return false;
 };
@@ -1009,15 +1024,16 @@ const withCurrentPipelineVersion = async <T>(
       .from(tenders)
       .where(eq(tenders.id, tenderId))
       .for("update");
-    if (!current[0] || !isCurrentPipelineVersion(payload, current[0].version)) {
-      return { current: false as const };
+    if (!current[0]) return { current: false as const, missing: true as const };
+    if (!isCurrentPipelineVersion(payload, current[0].version)) {
+      return { current: false as const, missing: false as const };
     }
     return { current: true as const, value: await persist(tx) };
   });
 
   if (!result.current) {
-    await queueTenderProcessing(tenderId, "stale-version");
-    return result;
+    if (!result.missing) await queueTenderProcessing(tenderId, "stale-version");
+    return { current: false };
   }
   return result;
 };

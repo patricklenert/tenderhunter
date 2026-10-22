@@ -49,6 +49,8 @@ assert.deepEqual(
 assert.deepEqual(pipelineVersionPayload({ pipeline_version: 0 }), {}, "invalid generations are not propagated");
 assert.equal(isCurrentPipelineVersion({ pipeline_version: "7" }, 7), true, "numeric generation strings compare correctly");
 assert.equal(isCurrentPipelineVersion({ pipeline_version: 6 }, 7), false, "stale generations are rejected");
+assert.equal(isCurrentPipelineVersion({ pipeline_version: 7 }, null), false, "deleted tenders are never current");
+assert.equal(isCurrentPipelineVersion({}, null), false, "legacy jobs for deleted tenders are never current");
 assert.equal(isPipelineJobCompatibleWithVersion({ pipeline_version: 7 }, 7), true, "current fetch jobs may be reused");
 assert.equal(isPipelineJobCompatibleWithVersion({ pipeline_version: 6 }, 7), false, "stale pending fetch jobs must not suppress the current generation");
 assert.equal(isPipelineJobCompatibleWithVersion({}, 7), true, "legacy unversioned fetch jobs read the current tender row");
