@@ -185,9 +185,16 @@ const main = async (): Promise<void> => {
     decision_relevant: { scope: [], requirements: [], mandatory_documents: [], award_criteria: [] },
   }, "Sanierung der Turnhalle in Mainz");
   assert.equal(titleOnlySummaryFallback.summary, "");
+  const titleEchoWithLaterDescription = normalizeStructured({
+    title,
+    summary: `  ${title.toLocaleUpperCase("de-DE")}  `,
+    description: "Die Raumlufttechnischen Anlagen werden erneuert.",
+    decision_relevant: { scope: [], requirements: [], mandatory_documents: [], award_criteria: [] },
+  }, title);
+  assert.equal(titleEchoWithLaterDescription.summary, "Die Raumlufttechnischen Anlagen werden erneuert.");
   const rejectedScopeText = normalizeStructured({
     title,
-    summary: "## Bekanntmachung",
+    summary: title,
     decision_relevant: { scope: "## Bekanntmachung", requirements: [], mandatory_documents: [], award_criteria: [] },
   }, title);
   assert.equal(rejectedScopeText.summary, "");
@@ -249,7 +256,7 @@ const main = async (): Promise<void> => {
 
   const validFallbackSummary = normalizeStructured({
     title,
-    summary: "## Bekanntmachung",
+    summary: title,
     decision_relevant: { scope: [], requirements: [], mandatory_documents: [], award_criteria: [] },
   }, title, { summary: "Die Lieferung umfasst Bauleistungen am Bestandsgebäude." });
   assert.equal(validFallbackSummary.summary, "Die Lieferung umfasst Bauleistungen am Bestandsgebäude.");

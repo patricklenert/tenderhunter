@@ -1012,6 +1012,23 @@ export const pickValidatedPublicCandidate = (...candidates: unknown[]): string =
   return "";
 };
 
+/** Select validated public prose while excluding a copy of the tender title. */
+export const pickValidatedPublicSummaryForTitle = (title: unknown, ...candidates: unknown[]): string => {
+  const titleText = normalizePublicDisplayCandidate(title);
+  const titleKey = titleText?.replace(/\s+/gu, " ").trim().toLocaleLowerCase("de-DE") ?? "";
+
+  for (const candidate of candidates) {
+    for (const expanded of projectionCandidates(candidate, "summary")) {
+      const normalized = normalizePublicDisplayCandidate(expanded);
+      if (!normalized) continue;
+      const candidateKey = normalized.replace(/\s+/gu, " ").trim().toLocaleLowerCase("de-DE");
+      if (titleKey && candidateKey === titleKey) continue;
+      return normalized;
+    }
+  }
+  return "";
+};
+
 /** Select the first public prose candidate that is both display-safe and backed by its source. */
 export const pickSourceBackedPublicCandidate = (sourceText: string, ...candidates: unknown[]): string => {
   for (const candidate of candidates) {
@@ -1154,7 +1171,8 @@ export const projectPublicDisplayFields = (
     client,
     ...projectionCandidates(input.location, "location"),
   ) || null;
-  const description = pickValidatedPublicCandidate(
+  const description = pickValidatedPublicSummaryForTitle(
+    title,
     ...projectionCandidates(input.summary, "summary"),
     ...projectionCandidates(input.description, "summary"),
   ) || null;

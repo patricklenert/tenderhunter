@@ -11,6 +11,7 @@ import {
   normalizePublicTextList,
   normalizePublicProcedureCandidate,
   pickValidatedPublicCandidate,
+  pickValidatedPublicSummaryForTitle,
   pickValidatedPublicProcedure,
   pickValidatedPublicLocation,
   pickValidatedPublicLocationForTender,
@@ -584,6 +585,14 @@ export function normalizeStructured(raw: unknown, fallbackTitle: string, fallbac
       (value) => pickValidatedPublicProcedure(value) || null,
     ) ?? "";
     const structuredSummaryCandidates = structuredAliasValues([obj], ["summary", "description"]);
+    const structuredTitle = sanitizeTenderText(structured.title) || safeFallbackTitle;
+    const normalizedSummary = pickValidatedPublicSummaryForTitle(
+      structuredTitle,
+      ...structuredSummaryCandidates,
+      fallbackFacts.summary,
+      fallbackFacts.scope,
+      normalizedScope,
+    );
     const structuredProcedure = firstValidStructuredValue(
       [procurement, obj.hard_facts, obj.hardFacts],
       ["procedure", "procedure_type", "procedureType", "contract_type", "contractType"],
@@ -594,13 +603,8 @@ export function normalizeStructured(raw: unknown, fallbackTitle: string, fallbac
     const contractDuration = recordValue(firstStructuredValue(procurement, ["contract_duration", "contractDuration"]));
     const normalized = {
       ...structured,
-      title: sanitizeTenderText(structured.title) || safeFallbackTitle,
-      summary: pickValidatedPublicCandidate(
-        ...structuredSummaryCandidates,
-        fallbackFacts.summary,
-        fallbackFacts.scope,
-        normalizedScope,
-      ),
+      title: structuredTitle,
+      summary: normalizedSummary,
       hard_facts: {
         // Parsed portal labels are more reliable than legacy cache fragments
         // such as "## Kurzinfo" or a lone postal code.
@@ -653,7 +657,7 @@ export function normalizeStructured(raw: unknown, fallbackTitle: string, fallbac
     const canonical = {
       ...normalized,
       ...(Object.prototype.hasOwnProperty.call(obj, "description") || Object.prototype.hasOwnProperty.call(obj, "summary")
-        ? { description: pickValidatedPublicCandidate(...structuredSummaryCandidates) }
+        ? { description: normalizedSummary }
         : {}),
       descriptionMarkdown: buildStructuredDescriptionMarkdown(normalized, obj.referenceNumber ?? obj.reference_number),
       commercialBrief: normalized.commercialBrief
@@ -694,7 +698,8 @@ export function normalizeStructured(raw: unknown, fallbackTitle: string, fallbac
 
   const normalized = {
     title: titleStr,
-    summary: pickValidatedPublicCandidate(
+    summary: pickValidatedPublicSummaryForTitle(
+      titleStr,
       ...descriptionCandidates,
       ...scopeCandidates,
       fallbackFacts.summary,

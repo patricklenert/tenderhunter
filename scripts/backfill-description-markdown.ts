@@ -287,8 +287,8 @@ async function main(): Promise<void> {
         const accessDescription = buildAccessDescriptionFallback(row, parsedMetadata.value);
         const publicFallbacks = [publicDescription, accessDescription]
           .filter((value): value is string => Boolean(value));
-        const repairedMetadata = repairPublicDescriptionFields(parsedMetadata.value, publicFallbacks);
-        const repairedStructured = repairPublicDescriptionFields(parsedStructured.value, publicFallbacks);
+        const repairedMetadata = repairPublicDescriptionFields(parsedMetadata.value, publicFallbacks, row.title);
+        const repairedStructured = repairPublicDescriptionFields(parsedStructured.value, publicFallbacks, row.title);
         const generatedMarkdown = buildRowDescriptionMarkdown(
           row,
           repairedMetadata.record,

@@ -599,6 +599,18 @@ if (projectedDisplay.title !== "Erneuerung Energiezentrale in Bautzen"
   throw new Error("Gemeinsame öffentliche Anzeigeprojektion verwirft ungültige Kandidaten nicht konsistent");
 }
 
+const titleAwareProjection = projectPublicDisplayFields({
+  title: "Sanierung der Kl&#228;ranlage in Mainz",
+  summary: ["  SANIERUNG   DER KLÄRANLAGE IN MAINZ  ", cleanText],
+});
+const titleOnlyProjection = projectPublicDisplayFields({
+  title: "Sanierung der Kläranlage in Mainz",
+  summary: "SANIERUNG DER KLÄRANLAGE IN MAINZ",
+});
+if (titleAwareProjection.summary !== cleanText || titleOnlyProjection.summary !== null) {
+  throw new Error("Titelgleiche Zusammenfassungen werden nicht verworfen oder blockieren keinen gültigen Fallback");
+}
+
 if (pickValidatedPublicCandidate("- - -", "Dokumentierte Bauleistungen in Mainz") !== "Dokumentierte Bauleistungen in Mainz") {
   throw new Error("Ein nach Bereinigung leerer Kandidat blockiert keinen gültigen Fallback");
 }
@@ -713,6 +725,39 @@ if (!summaryFallback.descriptionChanged
   || summaryFallback.record.description !== "Dokumentierte Bauleistungen in Mainz"
   || summaryFallback.record.summary !== "Dokumentierte Bauleistungen in Mainz") {
   throw new Error("Backfill verwendet keinen gültigen Summary-Fallback");
+}
+
+const repairTitle = "Sanierung der Kläranlage in Mainz";
+const richMetadataDescription = "Die Kläranlage wird umfassend saniert und die technische Ausrüstung erneuert.";
+const titleEchoProjection = projectPublicTenderRecord({
+  title: repairTitle,
+  metadata: { description: richMetadataDescription },
+  structured: { summary: "SANIERUNG DER KLÄRANLAGE IN MAINZ" },
+});
+const repairedTitleEcho = repairPublicDescriptionFields(
+  { summary: "SANIERUNG DER KLÄRANLAGE IN MAINZ" },
+  [titleEchoProjection.description ?? ""],
+  repairTitle,
+);
+const preservedMetadataDescription = repairPublicDescriptionFields(
+  { description: richMetadataDescription },
+  [titleEchoProjection.description ?? ""],
+  repairTitle,
+);
+const removedTitleEcho = repairPublicDescriptionFields({
+  description: "Sanierung der Kläranlage in Mainz",
+  summary: " SANIERUNG   DER KLÄRANLAGE IN MAINZ ",
+}, [], repairTitle);
+if (titleEchoProjection.description !== richMetadataDescription
+  || repairedTitleEcho.record.summary !== richMetadataDescription
+  || !repairedTitleEcho.summaryChanged
+  || preservedMetadataDescription.descriptionChanged
+  || preservedMetadataDescription.record.description !== richMetadataDescription
+  || "description" in removedTitleEcho.record
+  || "summary" in removedTitleEcho.record
+  || !removedTitleEcho.descriptionChanged
+  || !removedTitleEcho.summaryChanged) {
+  throw new Error("Backfill ersetzt Titel-Echos nicht mit validen öffentlichen Fallbacks bzw. entfernt sie nicht ohne Fallback");
 }
 
 const existingCanonicalMarkdown = buildTenderDescriptionMarkdown({ summary: "Bisherige kanonische Markdown-Beschreibung." });

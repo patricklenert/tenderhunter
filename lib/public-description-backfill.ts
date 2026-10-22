@@ -1,6 +1,6 @@
 import {
   isCanonicalPublicDescriptionMarkdown,
-  pickValidatedPublicCandidate,
+  pickValidatedPublicSummaryForTitle,
 } from "./public-content-quality";
 import { hasPositiveAccessLimitedEvidence } from "./access-page-detector";
 
@@ -41,11 +41,12 @@ const repairField = (
   record: PublicDescriptionRecord,
   field: "description" | "summary",
   fallbacks: readonly unknown[],
+  title: unknown,
 ): boolean => {
   if (!hasOwn(record, field)) return false;
 
   const original = record[field];
-  const normalized = pickValidatedPublicCandidate(original);
+  const normalized = pickValidatedPublicSummaryForTitle(title, original);
   if (normalized) {
     if (typeof original === "string" && original === normalized) return false;
     record[field] = normalized;
@@ -53,7 +54,7 @@ const repairField = (
   }
 
   const sibling = field === "description" ? record.summary : record.description;
-  const fallback = pickValidatedPublicCandidate(...fallbacks, sibling);
+  const fallback = pickValidatedPublicSummaryForTitle(title, ...fallbacks, sibling);
   if (fallback) {
     if (typeof original === "string" && original === fallback) return false;
     record[field] = fallback;
@@ -72,11 +73,12 @@ const repairField = (
 export const repairPublicDescriptionFields = (
   input: PublicDescriptionRecord,
   fallbacks: readonly string[] = [],
+  title?: unknown,
 ): PublicDescriptionRepair => {
   const record = { ...input };
   return {
     record,
-    descriptionChanged: repairField(record, "description", fallbacks),
-    summaryChanged: repairField(record, "summary", fallbacks),
+    descriptionChanged: repairField(record, "description", fallbacks, title),
+    summaryChanged: repairField(record, "summary", fallbacks, title),
   };
 };
