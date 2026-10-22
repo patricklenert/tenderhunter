@@ -51,9 +51,10 @@ services:
     restart: always
     # Rust headless browser (CDP); replaces in-process Playwright Chromium.
     # Image is distroless (no shell/wget), so no in-container healthcheck is
-    # possible — restart: always covers crash recovery.
-    mem_limit: 1g
-    memswap_limit: 1g
+    # possible — restart: always covers crash recovery. Context caps are
+    # process-local, so budget 2 GiB for concurrent app/worker sessions.
+    mem_limit: 2g
+    memswap_limit: 2g
 
   app:
     build: .

@@ -19,7 +19,7 @@ const SEARXNG_URL = process.env.SEARXNG_URL ?? "http://localhost:8080";
 
 /** CDP endpoint of the Obscura headless browser server (replaces local Chromium). */
 const OBSCURA_CDP_URL = process.env.OBSCURA_CDP_URL ?? "ws://127.0.0.1:9222";
-// Bound page heaps to stay within the Obscura sidecar's 1 GiB memory budget.
+// This process-local cap combines with the other app/worker process caps.
 const MAX_ACTIVE_BROWSER_CONTEXTS = 2;
 const MAX_CAPTURED_NETWORK_RESPONSES = 200;
 const MAX_DISCOVERED_RESOURCES = 500;
