@@ -272,16 +272,27 @@ assert.deepEqual(publicFields(qualityFixtureIndex), qualityFixtureExpected);
 assert.deepEqual(publicFields(qualityFixtureSearchHit), qualityFixtureExpected);
 const truncatedScopeTitle = "2000-9 Besucherleitsystem, LRA Heidelberg VG, Bodenbelagsarbeiten RNK_EBBAU-2026-0029";
 const truncatedScopeFallback = "Ausschreibung von Bodenbelagsarbeiten für das Landratsamt Rhein-Neckar-Kreis in Heidelberg.";
+const truncatedScopeMarkdown = "- **Zusammenfassung:** Fliesenarbeiten\n- **Leistungsumfang:** Fliesenarbeiten Epoxidharzbeschichtung";
+const truncatedScopeFallbackMarkdown = `- **Zusammenfassung:** ${truncatedScopeFallback}`;
 const truncatedScopeMetadata = {
   description: truncatedScopeFallback,
+  descriptionMarkdown: truncatedScopeMarkdown,
   client: "Landratsamt Rhein-Neckar-Kreis",
   location: "69115 Heidelberg",
 };
 const truncatedScopeStructured = {
   summary: "Fliesenarbeiten",
+  descriptionMarkdown: truncatedScopeMarkdown,
   hard_facts: { buyer: "Landratsamt Rhein-Neckar-Kreis", location: "69115 Heidelberg" },
   decision_relevant: { scope: ["Fliesenarbeiten", "Epoxidharzbeschichtung", "(GTL"] },
 };
+const truncatedScopeMarkdownProjection = projectPublicTenderRecord({
+  title: truncatedScopeTitle,
+  metadata: { ...truncatedScopeMetadata, descriptionMarkdown: truncatedScopeFallbackMarkdown },
+  structured: truncatedScopeStructured,
+});
+assert.equal(truncatedScopeMarkdownProjection.descriptionMarkdown, truncatedScopeFallbackMarkdown);
+assert.doesNotMatch(truncatedScopeMarkdownProjection.descriptionMarkdown ?? "", /Fliesenarbeiten|Epoxidharzbeschichtung|GTL/);
 const truncatedScopeList = projectPublicTenderRecord({
   title: truncatedScopeTitle,
   metadata: truncatedScopeMetadata,
@@ -325,6 +336,8 @@ const truncatedScopeSearchHit = projectTenderSearchHit(truncatedScopeIndex, {
 });
 const truncatedScopeExpected = publicFields(truncatedScopeList);
 assert.equal(truncatedScopeExpected.description, truncatedScopeFallback);
+assert.ok(truncatedScopeDetail.descriptionMarkdown);
+assert.doesNotMatch(truncatedScopeDetail.descriptionMarkdown ?? "", /Fliesenarbeiten|Epoxidharzbeschichtung|GTL/);
 assert.deepEqual(publicFields(truncatedScopeDetail), truncatedScopeExpected);
 assert.deepEqual(publicFields(truncatedScopeModal), truncatedScopeExpected);
 assert.deepEqual(publicFields(truncatedScopeIndex), truncatedScopeExpected);

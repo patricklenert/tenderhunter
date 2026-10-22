@@ -48,6 +48,7 @@ export const projectPublicTenderDetailFallback = (input: PublicTenderDetailFallb
   });
   const descriptionMarkdown = pickCanonicalPublicDescriptionMarkdown(
     ...(input.accessLimited ? [input.accessLimitedDescriptionMarkdown] : []),
+    structured.descriptionMarkdown,
     display.descriptionMarkdown,
     tenderMeta.descriptionMarkdown,
     ...(input.descriptionMarkdownFallbacks ?? []),

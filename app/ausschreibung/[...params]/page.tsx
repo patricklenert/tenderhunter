@@ -562,6 +562,7 @@ export default async function TenderDetailPage({ params }: PageProps) {
 
   const descriptionMarkdown = pickCanonicalPublicDescriptionMarkdown(
     ...(accessLimited && accessFallback ? [accessFallback.descriptionMarkdown] : []),
+    normalizedStructured.descriptionMarkdown,
     display.descriptionMarkdown,
     tenderMeta.descriptionMarkdown,
     buildTenderDescriptionMarkdown({

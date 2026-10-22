@@ -465,7 +465,7 @@ export async function POST(request: Request): Promise<Response> {
               ? analyzeTenderForSmallVendor(tender.title ?? "", blob)
               : null;
               const cachedDescriptionMarkdown = pickCanonicalPublicDescriptionMarkdown(
-                ...(cachedAccess ? [descriptionMarkdownCandidate] : []),
+                descriptionMarkdownCandidate,
                 cachedDisplay.descriptionMarkdown,
                 cachedMeta.descriptionMarkdown,
                 tenderMeta.descriptionMarkdown,

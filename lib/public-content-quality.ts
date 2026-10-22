@@ -933,6 +933,14 @@ export const isPublicCandidateFromTruncatedArray = (candidate: unknown, source: 
     || prefixKey.startsWith(`${candidateKey} `);
 };
 
+const isPublicMarkdownFromTruncatedArray = (candidate: unknown, source: unknown): boolean => {
+  if (typeof candidate !== "string" || !isTruncatedPublicTokenArray(source)) return false;
+  return candidate.split(/\r?\n/u).some((line) => {
+    const match = line.match(/^- \*\*(Zusammenfassung|Leistungsgegenstand|Leistungsumfang):\*\* (.+)$/iu);
+    return Boolean(match?.[2] && isPublicCandidateFromTruncatedArray(match[2], source));
+  });
+};
+
 /**
  * Expand one untrusted value without ever stringifying an entire object into
  * public prose. Nested structured values are traversed in their canonical
@@ -987,6 +995,8 @@ const expandProjectionCandidate = (
     const candidate = record[key];
     if (field === "summary" && (key === "summary" || key === "description")
       && relatedScopes.some((scope) => isPublicCandidateFromTruncatedArray(candidate, scope))) return [];
+    if (field === "descriptionMarkdown" && relatedScopes.some((scope) =>
+      isPublicMarkdownFromTruncatedArray(candidate, scope))) return [];
     return expandProjectionCandidate(candidate, field, depth + 1);
   });
   if (knownValues.length > 0) return knownValues;
