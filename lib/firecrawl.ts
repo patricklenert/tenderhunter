@@ -19,7 +19,6 @@ const SEARXNG_URL = process.env.SEARXNG_URL ?? "http://localhost:8080";
 
 /** CDP endpoint of the Obscura headless browser server (replaces local Chromium). */
 const OBSCURA_CDP_URL = process.env.OBSCURA_CDP_URL ?? "ws://127.0.0.1:9222";
-const BROWSER_IDLE_TIMEOUT_MS = 60_000;
 // Bound page heaps to stay within the Obscura sidecar's 1 GiB memory budget.
 const MAX_ACTIVE_BROWSER_CONTEXTS = 2;
 const MAX_CAPTURED_NETWORK_RESPONSES = 200;
@@ -29,7 +28,6 @@ const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
 let browserInstance: Browser | null = null;
 let browserPromise: Promise<Browser> | null = null;
-let browserIdleTimer: NodeJS.Timeout | null = null;
 let activeContexts = 0;
 const browserContextWaiters: Array<() => void> = [];
 const trackedContexts = new WeakSet<BrowserContext>();
@@ -50,30 +48,7 @@ const releaseBrowserContextSlot = (): void => {
     return;
   }
   activeContexts = Math.max(0, activeContexts - 1);
-  scheduleBrowserShutdown();
 };
-
-function clearBrowserIdleTimer(): void {
-  if (browserIdleTimer) {
-    clearTimeout(browserIdleTimer);
-    browserIdleTimer = null;
-  }
-}
-
-function scheduleBrowserShutdown(): void {
-  clearBrowserIdleTimer();
-  if (activeContexts > 0 || !browserInstance) return;
-
-  browserIdleTimer = setTimeout(() => {
-    browserIdleTimer = null;
-    if (activeContexts > 0 || !browserInstance) return;
-
-    const browser = browserInstance;
-    browserInstance = null;
-    void browser.close().catch(() => {});
-  }, BROWSER_IDLE_TIMEOUT_MS);
-  browserIdleTimer.unref();
-}
 
 const closeWithTimeout = async (close: () => Promise<void>, timeoutMs = 5_000): Promise<void> => {
   let timer: NodeJS.Timeout | undefined;
@@ -199,9 +174,8 @@ export async function retryOnceOnRecoverableBrowserError<T>(
   }
 }
 
-/** Shared Obscura CDP connection; reused across scrapes, disconnected when idle. */
+/** Shared Obscura CDP endpoint; do not close the remote browser from a process-local idle timer. */
 export async function getBrowser(): Promise<Browser> {
-  clearBrowserIdleTimer();
   if (browserInstance && !browserInstance.isConnected()) {
     browserInstance = null;
     browserPromise = null;
@@ -227,7 +201,6 @@ export async function getBrowser(): Promise<Browser> {
           if (browserInstance === b) {
             browserInstance = null;
           }
-          clearBrowserIdleTimer();
         });
         browserInstance = b;
         return b;
