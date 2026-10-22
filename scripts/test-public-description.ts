@@ -602,6 +602,9 @@ if (projectedDisplay.title !== "Erneuerung Energiezentrale in Bautzen"
 if (pickValidatedPublicCandidate("- - -", "Dokumentierte Bauleistungen in Mainz") !== "Dokumentierte Bauleistungen in Mainz") {
   throw new Error("Ein nach Bereinigung leerer Kandidat blockiert keinen gültigen Fallback");
 }
+if (pickValidatedPublicCandidate("\u00ad", "Dokumentierte Bauleistungen in Mainz") !== "Dokumentierte Bauleistungen in Mainz") {
+  throw new Error("Ein nach Normalisierung leerer Kandidat blockiert keinen gültigen Fallback");
+}
 if (pickPublicTenderDescription({ rawText: "Nur internes Analyse-Korpus ohne öffentliche Freigabe" }) !== "") {
   throw new Error("Internes raw_text wurde als öffentlicher Beschreibungskandidat verwendet");
 }
