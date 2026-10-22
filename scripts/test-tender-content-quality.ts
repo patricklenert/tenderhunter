@@ -214,6 +214,23 @@ const main = async (): Promise<void> => {
   ]);
   assert.doesNotMatch(invalidPortalAndTruncatedContent.descriptionMarkdown ?? "", /GTL|Registrierung|Support der Betreiberin/i);
   assert.match(invalidPortalAndTruncatedContent.descriptionMarkdown ?? "", /Baustelle während der Ausführung absichern/);
+  const truncatedArrayFallback = "Ausschreibung von Bodenbelagsarbeiten für das Landratsamt Rhein-Neckar-Kreis.";
+  const tokenizedTruncatedContent = normalizeStructured({
+    title: "2000-9 Besucherleitsystem, LRA Heidelberg VG, Bodenbelagsarbeiten RNK_EBBAU-2026-0029",
+    summary: ["Fliesenarbeiten", "Epoxidharzbeschichtung", "(GTL"],
+    decision_relevant: {
+      scope: ["Fliesenarbeiten", "Epoxidharzbeschichtung", "(GTL"],
+      requirements: [],
+      mandatory_documents: [],
+      award_criteria: [],
+    },
+  }, "2000-9 Besucherleitsystem, LRA Heidelberg VG, Bodenbelagsarbeiten RNK_EBBAU-2026-0029", {
+    summary: truncatedArrayFallback,
+  });
+  assert.equal(tokenizedTruncatedContent.summary, truncatedArrayFallback);
+  assert.deepEqual(tokenizedTruncatedContent.decision_relevant.scope, []);
+  assert.match(tokenizedTruncatedContent.descriptionMarkdown ?? "", /Bodenbelagsarbeiten für das Landratsamt/);
+  assert.doesNotMatch(tokenizedTruncatedContent.descriptionMarkdown ?? "", /Fliesenarbeiten|Epoxidharzbeschichtung|GTL/);
   const rejectedScopeText = normalizeStructured({
     title,
     summary: title,

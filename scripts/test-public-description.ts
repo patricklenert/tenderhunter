@@ -30,6 +30,7 @@ import {
   isPublicNavigationSummary as isSharedPublicNavigationSummary,
   pickValidatedPublicClient,
   pickValidatedPublicCandidate,
+  pickValidatedPublicSummaryForTitle,
   pickSourceBackedPublicCandidate,
   pickValidatedPublicLocation,
   pickValidatedPublicLocationForTender,
@@ -117,6 +118,17 @@ for (const invalid of ["## Kurzinfo", "## location", "## Bekanntmachung", "#", "
 if (JSON.stringify(normalizePublicTextList([portalSupportWall, "Der Auftragnehmer muss die Baustelle absichern."]))
   !== JSON.stringify(["Der Auftragnehmer muss die Baustelle absichern."])) {
   throw new Error("Ungültige Portal-Anforderung blockierte keinen gültigen Folge-Kandidaten");
+}
+const truncatedTokenArray = ["Fliesenarbeiten", "Epoxidharzbeschichtung", "(GTL"];
+const fallbackAfterTruncatedArray = "Ausschreibung von Bodenbelagsarbeiten für das Landratsamt Rhein-Neckar-Kreis.";
+if (normalizePublicTextList(truncatedTokenArray).length !== 0
+  || pickValidatedPublicSummaryForTitle("Bodenbelagsarbeiten", truncatedTokenArray, fallbackAfterTruncatedArray)
+    !== fallbackAfterTruncatedArray
+  || projectPublicDisplayFields({
+    title: "Bodenbelagsarbeiten",
+    summary: [{ summary: truncatedTokenArray }, { description: fallbackAfterTruncatedArray }],
+  }).description !== fallbackAfterTruncatedArray) {
+  throw new Error("Tokenisiertes abgeschnittenes Fragment wurde nicht als Ganzes verworfen oder blockierte den Fallback");
 }
 if (isCanonicalPublicDescriptionMarkdown(`- **Anforderungen:** ${portalSupportWall}`)
   || isCanonicalPublicDescriptionMarkdown("- **Zusammenfassung:** Fliesenarbeiten Epoxidharzbeschichtung (GTL")) {

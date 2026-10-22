@@ -901,6 +901,21 @@ const isLikelyTokenizedProseArray = (values: readonly string[]): boolean => {
     && (connectorValues > 0 || hasManualArtifactCue || hasPortalArtifactCue);
 };
 
+const isTruncatedTokenizedPublicArray = (value: unknown): boolean => {
+  const parsed = parsePublicJsonValue(value);
+  if (!Array.isArray(parsed) || parsed.length < 3
+    || parsed.some((item) => typeof item !== "string" || !item.trim())) return false;
+
+  const values = parsed as string[];
+  const last = values[values.length - 1].trim();
+  if (!/[()[\]{}]/u.test(last) || !hasUnbalancedDelimiters(last)) return false;
+
+  return values.slice(0, -1).length >= 2 && values.slice(0, -1).every((item) => {
+    const normalized = item.trim();
+    return normalized.length <= 40 && normalized.split(/\s+/u).length <= 2;
+  });
+};
+
 /**
  * Expand one untrusted value without ever stringifying an entire object into
  * public prose. Nested structured values are traversed in their canonical
@@ -920,6 +935,9 @@ const expandProjectionCandidate = (
   if (typeof value === "string" || typeof value === "number") return [value];
 
   if (Array.isArray(value)) {
+    if ((field === "summary" || field === "descriptionMarkdown")
+      && isTruncatedTokenizedPublicArray(value)) return [];
+
     const scalarValues = value
       .filter((item): item is string | number => typeof item === "string" || typeof item === "number")
       .map(String)
@@ -972,6 +990,8 @@ const projectionCandidates = (
  */
 export const normalizePublicTextList = (value: unknown): string[] => {
   const parsed = parsePublicJsonValue(value);
+  if (isTruncatedTokenizedPublicArray(parsed)) return [];
+
   const values = Array.isArray(parsed) ? parsed : [parsed];
   const scalarValues = values
     .filter((item): item is string => typeof item === "string")
@@ -1034,6 +1054,8 @@ export const pickValidatedPublicSummaryForTitle = (title: unknown, ...candidates
   const titleKey = titleText?.replace(/\s+/gu, " ").trim().toLocaleLowerCase("de-DE") ?? "";
 
   for (const candidate of candidates) {
+    if (isTruncatedTokenizedPublicArray(candidate)) continue;
+
     for (const expanded of projectionCandidates(candidate, "summary")) {
       const normalized = normalizePublicDisplayCandidate(expanded);
       if (!normalized) continue;
