@@ -239,7 +239,7 @@ assert.equal(fallbackProfile.industry, "Immobilienverwaltung");
 assert.deepEqual(fallbackProfile.capabilities, ["Immobilienverwaltung"]);
 
 assert.deepEqual(portalDump.decision_relevant.scope, []);
-assert.equal(portalDump.summary, "Ausbildung");
+assert.equal(portalDump.summary, "");
 
 assert.equal(deriveBundesland("81929"), "Bayern");
 assert.equal(deriveBundesland("12099"), "Berlin");
