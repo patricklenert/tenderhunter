@@ -1,24 +1,33 @@
 import "dotenv/config";
 import assert from "node:assert/strict";
 import { eq, inArray } from "drizzle-orm";
-import { db } from "../lib/db";
 import { jobAttempts, jobs, publicScrapeRuns } from "../lib/schema";
-import { claimNextJob, enqueueJob, markFailed, reapStaleJobs } from "../lib/queue";
 
 const key = `test:queue:${Date.now()}`;
 const createdIds: number[] = [];
 const createdRunIds: number[] = [];
 
-const markDone = async (id: number): Promise<void> => {
+const markDone = async (db: typeof import("../lib/db").db, id: number): Promise<void> => {
   await db.update(jobs).set({ status: "done", finishedAt: new Date(), updatedAt: new Date() }).where(eq(jobs.id, id));
 };
 
 const main = async (): Promise<void> => {
+  const databaseUrl = process.env.QUEUE_TEST_DATABASE_URL;
+  if (!databaseUrl) {
+    throw new Error("Set QUEUE_TEST_DATABASE_URL to a disposable PostgreSQL database; this test runs the global stale-job reaper.");
+  }
+  process.env.DATABASE_URL = databaseUrl;
+
+  const [{ db }, { claimNextJob, enqueueJob, markFailed, reapStaleJobs }] = await Promise.all([
+    import("../lib/db"),
+    import("../lib/queue"),
+  ]);
+
   try {
     const first = await enqueueJob("cache_detail", { tender_id: 1 }, { jobKey: key, dedupeCompleted: false });
     createdIds.push(first);
 
-    await markDone(first);
+    await markDone(db, first);
     const second = await enqueueJob("cache_detail", { tender_id: 1 }, { jobKey: key, dedupeCompleted: false });
     createdIds.push(second);
     assert.notEqual(second, first, "periodic work must be reinserted after completion");
@@ -29,7 +38,7 @@ const main = async (): Promise<void> => {
       "active work must still be coalesced",
     );
 
-    await markDone(second);
+    await markDone(db, second);
     assert.equal(
       await enqueueJob("cache_detail", { tender_id: 1 }, { jobKey: key }),
       second,
