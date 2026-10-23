@@ -2,6 +2,7 @@ import {
   isCanonicalPublicDescriptionMarkdown,
   isPublicCandidateFromTruncatedArray,
   isTruncatedPublicTokenArray,
+  normalizePublicTextList,
   pickValidatedPublicSummaryForTitle,
 } from "./public-content-quality";
 import { hasPositiveAccessLimitedEvidence } from "./access-page-detector";
@@ -49,11 +50,16 @@ const getScopeRecords = (record: PublicDescriptionRecord): PublicDescriptionReco
 const getScopeSources = (records: readonly PublicDescriptionRecord[]): unknown[] =>
   records.flatMap((record) => [record.scope, record.subject]);
 
-const clearTruncatedScopeFields = (records: readonly PublicDescriptionRecord[]): boolean => {
+const clearInvalidScopeFields = (records: readonly PublicDescriptionRecord[]): boolean => {
   let changed = false;
   for (const record of records) {
     for (const key of ["scope", "subject"]) {
-      if (hasOwn(record, key) && isTruncatedPublicTokenArray(record[key])) {
+      if (!hasOwn(record, key)) continue;
+      const value = record[key];
+      const nonEmptyUnusableArray = Array.isArray(value)
+        && value.length > 0
+        && normalizePublicTextList(value).length === 0;
+      if (isTruncatedPublicTokenArray(value) || nonEmptyUnusableArray) {
         record[key] = [];
         changed = true;
       }
@@ -112,7 +118,7 @@ export const repairPublicDescriptionFields = (
   }
   const scopeRecords = getScopeRecords(record);
   const scopeSources = getScopeSources(scopeRecords);
-  const scopeChanged = clearTruncatedScopeFields(scopeRecords);
+  const scopeChanged = clearInvalidScopeFields(scopeRecords);
   return {
     record,
     descriptionChanged: repairField(record, "description", fallbacks, title, scopeSources),

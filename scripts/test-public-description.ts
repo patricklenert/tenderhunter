@@ -152,6 +152,22 @@ if (projectedTruncatedScopeFallback.description !== fallbackAfterTruncatedArray
   || JSON.stringify(truncatedScopeStructured.decision_relevant.scope) !== JSON.stringify(truncatedTokenArray)) {
   throw new Error("Ein Summary-Token aus einem abgeschnittenen Scope blockierte keinen gültigen Fallback oder wurde nicht bereinigt");
 }
+const portalNavigationScope = [
+  "Übersicht", "aller", "Plattform", "gelisteten", "Ausschreibungen", "Filtermöglichkeiten", "nach", "Kategorie",
+  "(Liefer-", "Dienstleistungen,", "Bauleistungen,", "Architekten-", "Ingenieurleistungen),", "Verfahrensart,",
+  "Rechtsrahmen", "Abgabefrist.", "Liste", "enthält", "insgesamt", "über", "verschiedener", "Vergabestellen.",
+];
+const rawNavigationScopeRecord = {
+  decision_relevant: { scope: portalNavigationScope },
+};
+const repairedNavigationScope = repairPublicDescriptionFields(rawNavigationScopeRecord);
+const repairedNavigationScopeAgain = repairPublicDescriptionFields(repairedNavigationScope.record);
+if (JSON.stringify((repairedNavigationScope.record.decision_relevant as { scope: unknown[] }).scope) !== "[]"
+  || !repairedNavigationScope.scopeChanged
+  || repairedNavigationScopeAgain.scopeChanged
+  || JSON.stringify(rawNavigationScopeRecord.decision_relevant.scope) !== JSON.stringify(portalNavigationScope)) {
+  throw new Error("Unbrauchbare tokenisierte Portal-Navigation im gespeicherten Scope wurde nicht geleert");
+}
 if (isCanonicalPublicDescriptionMarkdown(`- **Anforderungen:** ${portalSupportWall}`)
   || isCanonicalPublicDescriptionMarkdown("- **Zusammenfassung:** Fliesenarbeiten Epoxidharzbeschichtung (GTL")) {
   throw new Error("Kanonisches Markdown hat Portal-Wall-Text oder abgeschnittene Fragmente akzeptiert");
