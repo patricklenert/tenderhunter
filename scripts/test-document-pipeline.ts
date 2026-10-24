@@ -23,6 +23,7 @@ import {
   shouldRecoverFailedPipelineStage,
   shouldRetryLowConfidenceStructure,
   isTenderDocumentRefreshDue,
+  shouldSkipUsDocumentProcessing,
   mergeUsTenderMetadata,
   pipelineVersionPayload,
   isCurrentPipelineVersion,
@@ -186,6 +187,22 @@ assert.equal(
   Object.prototype.hasOwnProperty.call(changedUsMetadata, "attachment_analysis"),
   false,
   "a changed attachment set must invalidate stale analysis metadata",
+);
+const freshUsDocument = {
+  downloadStatus: "downloaded",
+  parseStatus: "parsed",
+  updatedAt: new Date(),
+};
+assert.equal(shouldSkipUsDocumentProcessing(freshUsDocument), true, "freshly parsed US documents should be reused");
+assert.equal(
+  shouldSkipUsDocumentProcessing({ ...freshUsDocument, parseStatus: "failed" }),
+  false,
+  "downloaded US documents with parser errors must be retried instead of treated as complete",
+);
+assert.equal(
+  shouldSkipUsDocumentProcessing({ ...freshUsDocument, downloadStatus: "failed" }),
+  false,
+  "failed US downloads must remain retryable",
 );
 
 const combinedCandidate: ResourceCandidateRecord = {

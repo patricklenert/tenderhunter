@@ -4861,9 +4861,16 @@ interface UsDocumentPipelineRow {
   updatedAt: Date;
 }
 
-const isUsDocumentRefreshDue = (document: UsDocumentPipelineRow): boolean =>
+const isUsDocumentRefreshDue = (document: Pick<UsDocumentPipelineRow, "updatedAt">, now = Date.now()): boolean =>
   !Number.isFinite(document.updatedAt.getTime())
-  || Date.now() - document.updatedAt.getTime() >= settings.documentRefreshHours * 60 * 60 * 1000;
+  || now - document.updatedAt.getTime() >= settings.documentRefreshHours * 60 * 60 * 1000;
+
+export const shouldSkipUsDocumentProcessing = (
+  document: Pick<UsDocumentPipelineRow, "downloadStatus" | "parseStatus" | "updatedAt">,
+  now = Date.now(),
+): boolean => document.downloadStatus === "downloaded"
+  && document.parseStatus !== "failed"
+  && !isUsDocumentRefreshDue(document, now);
 
 const buildUsAttachmentFingerprint = (attachments: Array<{ name: string; url: string }>): string =>
   createHash("sha256")
@@ -4929,11 +4936,12 @@ const runFetchUsDocuments = async (payload: Record<string, JsonValue>): Promise<
   const analysis: Array<Record<string, JsonValue>> = [];
   let saved = 0;
   let downloadFailures = 0;
+  let parseFailures = 0;
 
   for (let index = 0; index < attachments.length; index += 1) {
     const attachment = attachments[index];
     const existing = documentRows.find((document) => document.url === attachment.url);
-    if (existing?.downloadStatus === "downloaded" && !isUsDocumentRefreshDue(existing)) {
+    if (existing && shouldSkipUsDocumentProcessing(existing)) {
       analysis.push({
         name: attachment.name,
         url: attachment.url,
@@ -4988,6 +4996,7 @@ const runFetchUsDocuments = async (payload: Record<string, JsonValue>): Promise<
       parseStatus = extractedText && extractedText.length >= 20 ? "parsed" : "empty";
     } catch (error) {
       parseStatus = "failed";
+      parseFailures += 1;
       parseError = error instanceof Error ? error.message.slice(0, 500) : "Parserfehler";
     }
 
@@ -5073,6 +5082,9 @@ const runFetchUsDocuments = async (payload: Record<string, JsonValue>): Promise<
 
   if (downloadFailures > 0) {
     throw new Error(`${downloadFailures} US-Dokumente konnten nicht geladen werden`);
+  }
+  if (parseFailures > 0) {
+    throw new Error(`${parseFailures} US-Dokumente konnten nicht geparst werden`);
   }
   return { us_documents_saved: saved, attachments_discovered: attachments.length, download_failures: 0 };
 };
