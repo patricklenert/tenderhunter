@@ -532,6 +532,58 @@ export const sanitizeTenderText = (value: unknown): string => {
   return markerCount >= 2 ? "" : text;
 };
 
+const normalizeFlatStructuredFact = (value: unknown): string | null =>
+  typeof value === "number" && Number.isFinite(value)
+    ? String(value)
+    : sanitizeTenderText(value) || null;
+
+const normalizeFlatBudgetFact = (value: unknown): string | null => {
+  const scalar = normalizeFlatStructuredFact(value);
+  if (scalar) return scalar;
+
+  const record = recordValue(value);
+  const min = typeof record.min === "number" && Number.isFinite(record.min) ? record.min : null;
+  const max = typeof record.max === "number" && Number.isFinite(record.max) ? record.max : null;
+  if (min !== null || max !== null) {
+    const amount = min !== null && max !== null ? `${min} - ${max}` : String(max ?? min);
+    const currency = normalizeFlatStructuredFact(record.currency);
+    return currency ? `${amount} ${currency}` : amount;
+  }
+
+  return firstValidStructuredValue(
+    [record],
+    ["text", "value", "label", "description", "name", "code"],
+    normalizeFlatStructuredFact,
+  ) ?? null;
+};
+
+const normalizeFlatDurationFact = (value: unknown): string | null => {
+  const scalar = normalizeFlatStructuredFact(value);
+  if (scalar) return scalar;
+
+  const record = recordValue(value);
+  const months = typeof record.months === "number" && Number.isFinite(record.months) ? record.months : null;
+  const years = typeof record.years === "number" && Number.isFinite(record.years) ? record.years : null;
+  const days = typeof record.days === "number" && Number.isFinite(record.days) ? record.days : null;
+  const parts: string[] = [];
+  if (months !== null) parts.push(`${months} Monate`);
+  else if (years !== null) parts.push(`${years} Jahre`);
+  else if (days !== null) parts.push(`${days} Tage`);
+  if (record.renewal === true) parts.push("Verlängerungsoption vorhanden");
+  return parts.join(", ") || null;
+};
+
+const normalizeFlatReferenceFact = (value: unknown): string | null => {
+  const scalar = normalizeFlatStructuredFact(value);
+  if (scalar) return scalar;
+
+  return firstValidStructuredValue(
+    [recordValue(value)],
+    ["text", "value", "label", "description", "name", "code"],
+    normalizeFlatStructuredFact,
+  ) ?? null;
+};
+
 export function normalizeStructured(raw: unknown, fallbackTitle: string, fallbackFacts: StructuredFallbackFacts = {}): StructuredData {
   const obj = recordValue(raw);
   const safeFallbackTitle = sanitizeTenderText(fallbackTitle);
@@ -685,6 +737,21 @@ export function normalizeStructured(raw: unknown, fallbackTitle: string, fallbac
     (value) => pickValidatedPublicLocationForTender(titleStr, buyerStr, value) || null,
   ) ?? "";
   const deadlineStr = firstValidStructuredValue([flat], ["deadline", "deadlineAt"], (value) => sanitizeTenderText(value) || null) ?? "";
+  const budgetStr = firstValidStructuredValue(
+    [flat],
+    ["estimatedValue", "estimated_value", "value"],
+    normalizeFlatBudgetFact,
+  ) ?? "";
+  const durationStr = firstValidStructuredValue(
+    [flat],
+    ["duration", "contractDuration", "contract_duration"],
+    normalizeFlatDurationFact,
+  ) ?? "";
+  const referenceStr = firstValidStructuredValue(
+    [flat],
+    ["referenceNumber", "reference_number"],
+    normalizeFlatReferenceFact,
+  ) ?? "";
   const procedureStr = firstValidStructuredValue(
     [flat],
     ["procedure", "procedureType", "procedure_type"],
@@ -711,7 +778,7 @@ export function normalizeStructured(raw: unknown, fallbackTitle: string, fallbac
     hard_facts: {
       location: locationStr || pickValidatedPublicLocationForTender(titleStr, buyerStr, fallbackFacts.location) || null,
       deadline: deadlineStr || sanitizeTenderText(fallbackFacts.deadline) || null,
-      budget: sanitizeTenderText(firstStructuredValue(flat, ["estimatedValue", "estimated_value", "value"])) || null,
+      budget: budgetStr || null,
       buyer: buyerStr,
       contract_type: procedureStr || fallbackProcedure || null,
     },
@@ -737,9 +804,9 @@ export function normalizeStructured(raw: unknown, fallbackTitle: string, fallbac
       procedure: normalized.procurement.procedure_type,
       deadline: normalized.hard_facts.deadline,
       location: normalized.hard_facts.location,
-      value: firstStructuredValue(flat, ["estimatedValue", "estimated_value", "value"]),
-      duration: firstStructuredValue(flat, ["duration", "contractDuration", "contract_duration"]),
-      reference: firstStructuredValue(flat, ["referenceNumber", "reference_number"]),
+      value: budgetStr,
+      duration: durationStr,
+      reference: referenceStr,
       summary: normalized.summary,
       scope: scopeStr || fallbackScope,
       requirements: reqArr,

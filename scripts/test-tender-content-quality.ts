@@ -415,6 +415,32 @@ const main = async (): Promise<void> => {
   assert.equal(flatInvalidAliasFallback.procurement.procedure_type, "Offenes Verfahren");
   assert.equal(flatInvalidAliasFallback.hard_facts.deadline, "31.12.2026 12:00");
 
+  const flatInvalidFactAliasFallback = normalizeStructured({
+    title,
+    summary: "Dokumentierte Bauleistungen",
+    estimatedValue: "## Auftragswert",
+    estimated_value: "250.000 EUR",
+    duration: "- Verfahren - - - Lose - Ergebnisse - Verträge - - - -",
+    contractDuration: "12 Monate",
+    referenceNumber: "## Referenz",
+    reference_number: "VG-2026-001",
+  }, title);
+  assert.equal(flatInvalidFactAliasFallback.hard_facts.budget, "250.000 EUR");
+  assert.match(flatInvalidFactAliasFallback.descriptionMarkdown ?? "", /Auftragswert:\*\* 250\.000 EUR/);
+  assert.match(flatInvalidFactAliasFallback.descriptionMarkdown ?? "", /Laufzeit:\*\* 12 Monate/);
+  assert.match(flatInvalidFactAliasFallback.descriptionMarkdown ?? "", /Referenz:\*\* VG-2026-001/);
+  assert.doesNotMatch(flatInvalidFactAliasFallback.descriptionMarkdown ?? "", /##|Verfahren - - - Lose/);
+
+  const flatObjectFacts = normalizeStructured({
+    title,
+    estimatedValue: { min: 100_000, max: 200_000, currency: "EUR" },
+    duration: { months: 12, renewal: true },
+    referenceNumber: { text: "VG-2026-002" },
+  }, title);
+  assert.equal(flatObjectFacts.hard_facts.budget, "100000 - 200000 EUR");
+  assert.match(flatObjectFacts.descriptionMarkdown ?? "", /Laufzeit:\*\* 12 Monate, Verlängerungsoption vorhanden/);
+  assert.match(flatObjectFacts.descriptionMarkdown ?? "", /Referenz:\*\* VG-2026-002/);
+
   const nestedInvalidAliasFallback = normalizeStructured({
     title,
     summary: "## Bekanntmachung",
@@ -715,6 +741,28 @@ const main = async (): Promise<void> => {
     indexed.slug,
     getCanonicalTenderSlug(null, title, { description: "- Verfahren - - - Lose - Ergebnisse - Verträge - - - -" }, null),
     "Meilisearch must store the same rawText-aware canonical slug as the detail route",
+  );
+
+  const indexedEmptyMetadataDescription = buildTenderIndexDocument({
+    id: 46,
+    title,
+    source: "dtvp",
+    sourceKey: "dtvp",
+    url: sourceUrl,
+    deadlineAt: null,
+    firstSeenAt: null,
+    category: "Bauarbeiten",
+    metadataJson: { description: "" },
+    structuredJson: { summary: "Zusammenfassung aus strukturierten Daten" },
+    rawText: "",
+    contractValueMax: null,
+    slug: null,
+    readinessStatus: "pending",
+  });
+  assert.equal(
+    indexedEmptyMetadataDescription.description,
+    "Zusammenfassung aus strukturierten Daten",
+    "an empty cleaned metadata description must not block a valid structured summary in Meilisearch",
   );
 
   const indexedLegacyDescription = buildTenderIndexDocument({
