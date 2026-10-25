@@ -110,7 +110,7 @@ Unterhalb des jeweils einschlägigen Werts gelten die nationalen Regeln des Auft
       "VOB/A, VOB/B und VOB/C verständlich erklärt: Vergabeverfahren, Bauvertragsbedingungen, technische ATV, Schwellenwerte und wichtige Hinweise für Bieter.",
     datePublished: "2025-01-15",
     dateModified: "2026-10-22",
-    lastReviewed: "2026-10-22",
+    lastReviewed: "2026-10-25",
     relatedCategories: ["Bauarbeiten", "Tiefbau", "TGA", "Planungsleistungen"],
     relatedArticles: ["vergabeverfahren-uebersicht", "schwellenwerte-vergabe", "ausschreibung-muster", "bietergemeinschaft-gruenden"],
     relatedGlossaryTerms: ["vob-a", "vob-b", "vob-c", "vob-a-eu", "schwellenwerte", "auftragswert", "losvergabe", "leistungsbeschreibung", "leistungsverzeichnis", "vgv-vergabeverordnung", "gwb-vergaberecht", "eignungsleihe", "praequalifikation-pq-vob", "nachforderung-unterlagen"],

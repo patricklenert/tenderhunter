@@ -82,6 +82,9 @@ for (const article of Object.values(ARTICLES)) {
 const vobA = GLOSSARY_MAP["vob-a"];
 const requiredVobSpellings = [
   ["vob-a", "VOB A"],
+  ["vob-a", "VOB Teil A"],
+  ["vob-a", "VOB/A EU"],
+  ["vob-a", "EU-VOB/A"],
   ["vob-a-eu", "VOB A EU"],
   ["vob-a-eu", "EU VOB/A"],
   ["vob-a-eu", "EU-VOB/A"],
@@ -108,6 +111,21 @@ const requiredVobLinks = [
 for (const slug of requiredVobLinks) {
   if (!vobA?.relatedTerms?.includes(slug)) {
     errors.push(`vob-a.relatedTerms -> required cluster link missing: ${slug}`);
+  }
+}
+
+const vobCluster = ["vob-a", "vob-b", "vob-c", "vob-a-eu"];
+for (const slug of vobCluster) {
+  if (!GLOSSARY_MAP[slug]?.relatedArticles?.includes("vob-vergabe")) {
+    errors.push(`${slug}.relatedArticles -> missing vob-vergabe`);
+  }
+  if (!ARTICLES["vob-vergabe"]?.relatedGlossaryTerms?.includes(slug)) {
+    errors.push(`vob-vergabe.relatedGlossaryTerms -> missing ${slug}`);
+  }
+}
+for (const slug of requiredVobLinks) {
+  if (!ARTICLES["vob-vergabe"]?.relatedGlossaryTerms?.includes(slug)) {
+    errors.push(`vob-vergabe.relatedGlossaryTerms -> missing VOB cluster term ${slug}`);
   }
 }
 

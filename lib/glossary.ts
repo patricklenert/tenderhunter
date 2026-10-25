@@ -140,20 +140,20 @@ export const GLOSSARY: GlossaryEntry[] = [
     category: "Rechtsgrundlagen",
     shortDefinition: "Die VOB/A enthält die Vergaberegeln für öffentliche Bauaufträge: Abschnitt 1 für den nationalen Bereich, Abschnitt 2 für den EU-Oberschwellenbereich und Abschnitt 3 für verteidigungs- und sicherheitsspezifische Vergaben.",
     definition: [
-      "Die Vergabe- und Vertragsordnung für Bauleistungen, Teil A (VOB/A, auch „VOB A“ geschrieben) regelt den vergaberechtlichen Teil öffentlicher Bauaufträge. Sie unterscheidet zwischen Abschnitt 1 für den nationalen Unterschwellenbereich, Abschnitt 2 für den EU-Oberschwellenbereich und Abschnitt 3 für verteidigungs- und sicherheitsspezifische Aufträge.",
+      "Die Vergabe- und Vertragsordnung für Bauleistungen (VOB), Teil A (VOB/A; auch „VOB A“ oder „VOB Teil A“), regelt den vergaberechtlichen Teil öffentlicher Bauaufträge. Sie unterscheidet zwischen Abschnitt 1 für den nationalen Bereich, Abschnitt 2 für Vergaben im Anwendungsbereich des EU-Vergaberechts und Abschnitt 3 für verteidigungs- und sicherheitsspezifische Aufträge. Abschnitt 2 wird häufig als „VOB/A EU“ oder „EU-VOB/A“ bezeichnet; die eigene Lexikonseite zur VOB/A EU erläutert diesen speziellen Bereich.",
       "Bei Bauaufträgen oberhalb der EU-Schwellenwerte ist die VOB/A Abschnitt 2 nicht isoliert zu lesen. Nach § 2 VgV sind Abschnitt 1 und Abschnitt 2 Unterabschnitt 2 der VgV anzuwenden; im Übrigen gilt VOB/A Teil A Abschnitt 2. Planungsleistungen, die als Los eines Bauauftrags vergeben werden, unterliegen nach § 2 VgV der VgV.",
       "Die VOB/A betrifft das Vergabeverfahren, etwa Leistungsbeschreibung, Eignung, Angebote und Zuschlag. Die VOB/B regelt dagegen Vertragsbedingungen für die Ausführung, die VOB/C technische Vertragsbedingungen und Abrechnungsgrundlagen.",
     ],
     keyPoints: [
       "Abschnitt 1 = nationale Vergabe von Bauleistungen",
-      "Abschnitt 2 = EU-Oberschwellenbereich bei Bauaufträgen",
+      "Abschnitt 2 = EU-Oberschwellenbereich bei Bauaufträgen (häufig „VOB/A EU“ genannt)",
       "Abschnitt 3 = verteidigungs- und sicherheitsspezifische Vergaben",
       "Regelt das Verfahren, nicht die späteren Bauvertragsbedingungen",
     ],
     faq: [
       {
         question: "Was ist die VOB/A?",
-        answer: "Die VOB/A (Vergabe- und Vertragsordnung für Bauleistungen, Teil A) regelt die Vergabe öffentlicher Bauaufträge. Sie besteht aus Abschnitt 1 für nationale Vergaben, Abschnitt 2 für den EU-Oberschwellenbereich und Abschnitt 3 für verteidigungs- und sicherheitsspezifische Vergaben.",
+        answer: "Die VOB/A (Vergabe- und Vertragsordnung für Bauleistungen, Teil A; auch „VOB A“ oder „VOB Teil A“) regelt die Vergabe öffentlicher Bauaufträge. Sie besteht aus Abschnitt 1 für den nationalen Bereich, Abschnitt 2 für Vergaben im Anwendungsbereich des EU-Vergaberechts und Abschnitt 3 für verteidigungs- und sicherheitsspezifische Vergaben. Abschnitt 2 wird häufig „VOB/A EU“ genannt.",
       },
       {
         question: "Wann gilt VOB/A und wann UVgO?",
@@ -173,7 +173,7 @@ export const GLOSSARY: GlossaryEntry[] = [
       { title: "§ 2 VgV – Bauaufträge", url: "https://www.gesetze-im-internet.de/vgv_2016/__2.html" },
       { title: "BMWE: Vergabeübersicht und Rechtsgrundlagen", url: "https://www.bundeswirtschaftsministerium.de/Redaktion/DE/Artikel/Wirtschaft/vergabe-uebersicht-und-rechtsgrundlagen.html" },
     ],
-    lastReviewed: "2026-09-29",
+    lastReviewed: "2026-10-25",
   },
   {
     slug: "vob-b",
