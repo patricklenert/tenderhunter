@@ -19,6 +19,7 @@ const SEARXNG_URL = process.env.SEARXNG_URL ?? "http://localhost:8080";
 
 /** CDP endpoint of the Obscura headless browser server (replaces local Chromium). */
 const OBSCURA_CDP_URL = process.env.OBSCURA_CDP_URL ?? "ws://127.0.0.1:9222";
+const OBSCURA_CDP_TOKEN = process.env.OBSCURA_CDP_TOKEN;
 // This process-local cap combines with the other app/worker process caps.
 const MAX_ACTIVE_BROWSER_CONTEXTS = 2;
 const MAX_CAPTURED_NETWORK_RESPONSES = 200;
@@ -195,7 +196,10 @@ export async function getBrowser(): Promise<Browser> {
     let lastError: unknown;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
-        const b = await chromium.connectOverCDP(OBSCURA_CDP_URL, { timeout: 15_000 });
+        const b = await chromium.connectOverCDP(OBSCURA_CDP_URL, {
+          timeout: 15_000,
+          headers: OBSCURA_CDP_TOKEN ? { Authorization: `Bearer ${OBSCURA_CDP_TOKEN}` } : undefined,
+        });
         b.on("disconnected", () => {
           // Only clear if this is still the active instance
           if (browserInstance === b) {

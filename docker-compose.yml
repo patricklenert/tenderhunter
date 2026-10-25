@@ -49,6 +49,8 @@ services:
     image: h4ckf0r0day/obscura
     container_name: tenderhunter-obscura
     restart: always
+    environment:
+      OBSCURA_CDP_TOKEN: ${OBSCURA_CDP_TOKEN:?Set OBSCURA_CDP_TOKEN in .env}
     # Rust headless browser (CDP); replaces in-process Playwright Chromium.
     # Image is distroless (no shell/wget), so no in-container healthcheck is
     # possible — restart: always covers crash recovery. Context caps are
