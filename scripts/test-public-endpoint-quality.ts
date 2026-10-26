@@ -6,6 +6,7 @@ import {
   isCanonicalPublicDescriptionMarkdown,
   hasCanonicalPublicDescriptionSection,
   normalizePublicClient,
+  normalizePublicTextList,
   pickCanonicalPublicDescriptionMarkdown,
   pickValidatedPublicCandidate,
   pickValidatedPublicProcedure,
@@ -270,6 +271,49 @@ assert.deepEqual(publicFields(qualityFixtureDetail), qualityFixtureExpected);
 assert.deepEqual(publicFields(qualityFixtureModal), qualityFixtureExpected);
 assert.deepEqual(publicFields(qualityFixtureIndex), qualityFixtureExpected);
 assert.deepEqual(publicFields(qualityFixtureSearchHit), qualityFixtureExpected);
+
+// cache_detail persists a validated scope as a sentence/list item, and list,
+// modal and server-rendered detail must project that stored shape identically.
+const cacheDetailTitle = "Lieferung von Büromaterial für mehrere Standorte";
+const cacheDetailScope = "Die Lieferung von Büromaterial umfasst den Versand an mehrere Standorte.";
+const legacyCacheDetailScope = cacheDetailScope.split(/\s+/u).filter((word) => word.length > 3);
+const legacyCacheDetailStructured = normalizeStructured({
+  title: cacheDetailTitle,
+  summary: "## Kurzinfo",
+  decision_relevant: { scope: legacyCacheDetailScope },
+}, cacheDetailTitle);
+assert.deepEqual(legacyCacheDetailStructured.decision_relevant.scope, []);
+assert.equal(projectPublicTenderRecord({
+  title: cacheDetailTitle,
+  metadata: { description: "## Kurzinfo" },
+  structured: legacyCacheDetailStructured,
+}).description, null);
+const cacheDetailStructured = normalizeStructured({
+  title: cacheDetailTitle,
+  summary: "## Kurzinfo",
+  decision_relevant: { scope: normalizePublicTextList(cacheDetailScope) },
+}, cacheDetailTitle);
+assert.deepEqual(cacheDetailStructured.decision_relevant.scope, [cacheDetailScope]);
+const cacheDetailMetadata = { description: "## Kurzinfo" };
+const cacheDetailList = projectPublicTenderRecord({
+  title: cacheDetailTitle,
+  metadata: cacheDetailMetadata,
+  structured: cacheDetailStructured,
+});
+const cacheDetailDetail = projectPublicTenderDetailFallback({
+  title: cacheDetailTitle,
+  metadataJson: cacheDetailMetadata,
+  staleStructuredJson: cacheDetailStructured,
+  fallbackFacts: {},
+}).display;
+const cacheDetailModal = projectPublicDisplayFields({
+  title: cacheDetailTitle,
+  summary: cacheDetailList.description,
+});
+assert.equal(cacheDetailList.description, cacheDetailScope);
+assert.deepEqual(publicFields(cacheDetailDetail), publicFields(cacheDetailList));
+assert.deepEqual(publicFields(cacheDetailModal), publicFields(cacheDetailList));
+
 const truncatedScopeTitle = "2000-9 Besucherleitsystem, LRA Heidelberg VG, Bodenbelagsarbeiten RNK_EBBAU-2026-0029";
 const truncatedScopeFallback = "Ausschreibung von Bodenbelagsarbeiten für das Landratsamt Rhein-Neckar-Kreis in Heidelberg.";
 const truncatedScopeMarkdown = "- **Zusammenfassung:** Fliesenarbeiten\n- **Leistungsumfang:** Fliesenarbeiten Epoxidharzbeschichtung";

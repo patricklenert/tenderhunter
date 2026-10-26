@@ -24,6 +24,7 @@ import {
   isPdfFormBoilerplate,
   isPdfFormBoilerplateFragment,
   isPopulatedTenderNotice,
+  mergePublicTextListWithFallback,
   normalizePublicDisplayCandidate,
   normalizePublicTextList,
   normalizePublicProcedureCandidate,
@@ -121,6 +122,36 @@ if (JSON.stringify(normalizePublicTextList([portalSupportWall, "Der Auftragnehme
 }
 const truncatedTokenArray = ["Fliesenarbeiten", "Epoxidharzbeschichtung", "(GTL"];
 const fallbackAfterTruncatedArray = "Ausschreibung von Bodenbelagsarbeiten für das Landratsamt Rhein-Neckar-Kreis.";
+const cacheDetailScope = "Die Lieferung von Büromaterial umfasst den Versand an mehrere Standorte.";
+const legacyCacheDetailScope = cacheDetailScope.split(/\s+/u).filter((word) => word.length > 3);
+if (JSON.stringify(normalizePublicTextList(cacheDetailScope)) !== JSON.stringify([cacheDetailScope])
+  || normalizePublicTextList(legacyCacheDetailScope).length !== 0) {
+  throw new Error("cache_detail-Scope muss Satzprosa bewahren und alte verlustbehaftete Tokenarrays verwerfen");
+}
+const repairedLegacyCacheScope = repairPublicDescriptionFields({
+  decision_relevant: { scope: legacyCacheDetailScope },
+});
+const repairedLegacyCacheScopeAgain = repairPublicDescriptionFields(repairedLegacyCacheScope.record);
+if (JSON.stringify((repairedLegacyCacheScope.record.decision_relevant as { scope: unknown[] }).scope) !== "[]"
+  || !repairedLegacyCacheScope.scopeChanged
+  || repairedLegacyCacheScopeAgain.scopeChanged) {
+  throw new Error("Der bestehende Beschreibung-Backfill muss alte cache_detail-Tokenarrays idempotent bereinigen");
+}
+if (JSON.stringify(mergePublicTextListWithFallback(legacyCacheDetailScope, cacheDetailScope))
+    !== JSON.stringify([cacheDetailScope])) {
+  throw new Error("Ungültiger bestehender cache_detail-Scope muss auf den normalisierten Satz-Fallback zurückfallen");
+}
+const shortScopeList = ["Lieferung", "Planung", "Umsetzung."];
+if (JSON.stringify(normalizePublicTextList(shortScopeList)) !== JSON.stringify(shortScopeList)
+  || JSON.stringify(mergePublicTextListWithFallback(shortScopeList, cacheDetailScope)) !== JSON.stringify(shortScopeList)) {
+  throw new Error("Gültige kurze Scope-Liste muss unverändert erhalten bleiben");
+}
+if (JSON.stringify(mergePublicTextListWithFallback(
+  ["Die Lieferung für Kl&#228;ranlagen wird ausgeführt.", "##", "-"],
+  "Eine alternative gültige Zusammenfassung.",
+)) !== JSON.stringify(["Die Lieferung für Kläranlagen wird ausgeführt."])) {
+  throw new Error("Gültige Bestandswerte müssen normalisiert bleiben, auch wenn andere Einträge ungültig sind");
+}
 if (normalizePublicTextList(truncatedTokenArray).length !== 0
   || pickValidatedPublicSummaryForTitle("Bodenbelagsarbeiten", truncatedTokenArray, fallbackAfterTruncatedArray)
     !== fallbackAfterTruncatedArray

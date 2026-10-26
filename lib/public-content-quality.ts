@@ -879,6 +879,10 @@ const PROSE_CONNECTOR_WORDS = new Set([
   "zum", "zur",
 ]);
 
+const LEGACY_PROSE_VERB_TOKENS = new Set([
+  "absichern", "beinhaltet", "besteht", "durchführen", "erfolgt", "erfolgen", "umfasst", "umfassen", "werden", "wird",
+]);
+
 const isLikelyTokenizedProseArray = (values: readonly string[]): boolean => {
   if (values.length < 2) return false;
 
@@ -898,10 +902,15 @@ const isLikelyTokenizedProseArray = (values: readonly string[]): boolean => {
       || /\bbeschreibt\b/iu.test(joinedValues));
   const hasPortalArtifactCue = /\b(?:vorinformationen|plattform|vergabeverfahren)\b/iu.test(joinedValues)
     && /\b(?:teilnahme|einsicht|vergabeunterlagen|bietercockpit)\b/iu.test(joinedValues);
+  const hasLegacyTerminalSentenceTokenization = values.length >= 3
+    && values.every((value) => value.trim().length > 3 && value.trim().split(/\s+/u).length === 1)
+    && /[.!?]$/u.test(values[values.length - 1].trim());
+  const hasLegacySentenceVerb = hasLegacyTerminalSentenceTokenization
+    && values.some((value) => LEGACY_PROSE_VERB_TOKENS.has(value.trim().toLocaleLowerCase("de-DE").replace(/[.!?]+$/u, "")));
 
   return oneWordValues >= Math.ceil(values.length * 0.75)
     && shortValues >= Math.ceil(values.length * 0.75)
-    && (connectorValues > 0 || hasManualArtifactCue || hasPortalArtifactCue);
+    && (connectorValues > 0 || hasManualArtifactCue || hasPortalArtifactCue || hasLegacySentenceVerb);
 };
 
 export const isTruncatedPublicTokenArray = (value: unknown): boolean => {
@@ -1055,6 +1064,13 @@ export const normalizePublicTextList = (value: unknown): string[] => {
     seen.add(key);
     return true;
   });
+};
+
+/** Keep a stored list only when it still normalizes to valid items; otherwise use the normalized fallback. */
+export const mergePublicTextListWithFallback = (existing: unknown, fallback: unknown): string[] => {
+  const existingItems = normalizePublicTextList(existing);
+  if (existingItems.length > 0) return existingItems;
+  return normalizePublicTextList(fallback);
 };
 
 /** Normalize an authority independently from any description or location fallback. */

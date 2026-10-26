@@ -67,7 +67,9 @@ import {
   isCanonicalPublicDescriptionMarkdown,
   isPdfFormBoilerplate,
   isPopulatedTenderNotice,
+  mergePublicTextListWithFallback,
   normalizePublicDisplayCandidate,
+  normalizePublicTextList,
   pickValidatedPublicCandidate,
   pickSourceBackedPublicCandidate,
   pickValidatedPublicProcedure,
@@ -3942,10 +3944,7 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
       }
     }
     if (typeof result.scope === "string" && result.scope.length > 20) {
-      const existingScope = Array.isArray(decisionRelevant.scope) ? decisionRelevant.scope as string[] : [];
-      if (existingScope.length === 0) {
-        decisionRelevant.scope = result.scope.split(/\s+/).filter((w: string) => w.length > 3);
-      }
+      decisionRelevant.scope = mergePublicTextListWithFallback(decisionRelevant.scope, result.scope);
     }
     if (Array.isArray(result.awardCriteria) && result.awardCriteria.length > 0) {
       decisionRelevant.award_criteria = result.awardCriteria;
@@ -4002,7 +4001,7 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
       },
       decision_relevant: {
         requirements: result.requirements ?? [],
-        scope: typeof result.scope === "string" ? result.scope.split(/\s+/).filter((w: string) => w.length > 3) : [],
+        scope: normalizePublicTextList(result.scope),
         award_criteria: result.awardCriteria ?? [],
         mandatory_documents: [],
       },
