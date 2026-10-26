@@ -37,15 +37,6 @@ function toIsoDate(value: unknown, fallback: Date): string {
   return normalizeDate(value, fallback).toISOString();
 }
 
-function escapeSitemapValue(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
-
 function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null ? value as Record<string, unknown> : {};
 }
@@ -450,7 +441,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: row.updatedAt ?? now,
       changeFrequency: "weekly",
       priority: 0.5,
-      ...(row.logoUrl ? { images: [escapeSitemapValue(row.logoUrl)] } : {}),
+      ...(row.logoUrl ? { images: [row.logoUrl] } : {}),
     });
   }
 

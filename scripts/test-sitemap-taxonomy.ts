@@ -75,6 +75,16 @@ assert.match(
   /getCanonicalTenderSlug\(\s*row\.slug,\s*row\.title,\s*row\.metadataJson,\s*row\.rawText\?\.trim\(\) \? row\.structuredJson : null,\s*\)/,
   "sitemap tender URLs must use the detail route's rawText-aware canonical slug",
 );
+assert.match(
+  readFileSync("app/sitemap.ts", "utf8"),
+  /images: \[row\.logoUrl\]/,
+  "sitemap image URLs must remain raw so the XML serializer escapes them exactly once",
+);
+assert.doesNotMatch(
+  readFileSync("app/sitemap.ts", "utf8"),
+  /escapeSitemapValue/,
+  "sitemap image URLs must not be pre-escaped before XML serialization",
+);
 const proxySource = readFileSync("proxy.ts", "utf8");
 assert.ok(proxySource.includes("rawText: tenders.rawText"), "proxy canonical checks must load rawText");
 assert.match(
