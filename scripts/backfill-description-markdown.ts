@@ -281,16 +281,27 @@ async function main(): Promise<void> {
       try {
         const parsedMetadata = parseRecord(row.metadata_json);
         const parsedStructured = parseRecord(row.json_blob);
-        const publicDescription = projectPublicTenderRecord({
+        const publicDisplay = projectPublicTenderRecord({
           title: row.title,
           metadata: parsedMetadata.value,
           structured: parsedStructured.value,
-        }).description;
+        });
+        const publicDescription = publicDisplay.description;
         const accessDescription = buildAccessDescriptionFallback(row, parsedMetadata.value);
         const publicFallbacks = [publicDescription, accessDescription]
           .filter((value): value is string => Boolean(value));
-        const repairedMetadata = repairPublicDescriptionFields(parsedMetadata.value, publicFallbacks, row.title);
-        const repairedStructured = repairPublicDescriptionFields(parsedStructured.value, publicFallbacks, row.title);
+        const repairedMetadata = repairPublicDescriptionFields(
+          parsedMetadata.value,
+          publicFallbacks,
+          row.title,
+          publicDisplay.client,
+        );
+        const repairedStructured = repairPublicDescriptionFields(
+          parsedStructured.value,
+          publicFallbacks,
+          row.title,
+          publicDisplay.client,
+        );
         const publicFieldsChanged = repairedMetadata.descriptionChanged
           || repairedMetadata.summaryChanged
           || repairedMetadata.scopeChanged

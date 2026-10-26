@@ -31,6 +31,7 @@ import {
   isPublicNavigationSummary as isSharedPublicNavigationSummary,
   pickValidatedPublicClient,
   pickValidatedPublicCandidate,
+  pickValidatedPublicSummaryForTender,
   pickValidatedPublicSummaryForTitle,
   pickSourceBackedPublicCandidate,
   pickValidatedPublicLocation,
@@ -41,6 +42,7 @@ import {
   groundPublicTenderFields,
 } from "@/lib/public-content-quality";
 import { pickPublicTenderDescription, readPublicTenderMeta } from "@/lib/tender-meta";
+import { normalizeStructured } from "@/lib/structurer";
 
 const rawPortalText = "(Bekanntmachung Öffentliche Ausschreibung) a)Öffentlicher Auftraggeber (Vergabestelle) NameGrün und Gruga StraßeLührmannstraße 82 Telefon0201 Fax0201";
 const cleanText = "Die Stadt beauftragt die Ausführung von Wegebauarbeiten im öffentlichen Raum.";
@@ -160,6 +162,56 @@ if (normalizePublicTextList(truncatedTokenArray).length !== 0
     summary: [{ summary: truncatedTokenArray }, { description: fallbackAfterTruncatedArray }],
   }).description !== fallbackAfterTruncatedArray) {
   throw new Error("Tokenisiertes abgeschnittenes Fragment wurde nicht als Ganzes verworfen oder blockierte den Fallback");
+}
+const repeatedClientTitle = "Aufrüstung von Speichersystemen";
+const repeatedClientName = "Zentraler IT-Dienstleister der Justiz des Landes Brandenburg";
+const repeatedClientDescription = `${repeatedClientName} ${repeatedClientName} – Außenstelle Brandenburg`;
+const repeatedClientFallback = "Für „Aufrüstung von Speichersystemen“ sind aktuell nur die öffentlich sichtbaren Verfahrensdaten verfügbar. Öffentlich sichtbar sind: Auftraggeber: Zentraler IT-Dienstleister der Justiz des Landes Brandenburg; Verfahren: Offenes Verfahren; Angebotsfrist: 20.11.2026 08:00; Leistungsgegenstand: 30234600-4 Flashspeicher. Die vollständige Leistungsbeschreibung und die Vergabeunterlagen sind auf dem Quellportal derzeit nicht öffentlich verfügbar.";
+const repeatedClientProjection = projectPublicTenderRecord({
+  title: repeatedClientTitle,
+  metadata: { description: repeatedClientFallback },
+  structured: { client: repeatedClientName, description: repeatedClientDescription },
+});
+const normalizedClientEcho = normalizeStructured({
+  title: repeatedClientTitle,
+  summary: repeatedClientDescription,
+  description: repeatedClientDescription,
+  hard_facts: { buyer: repeatedClientName },
+  decision_relevant: { scope: [] },
+}, repeatedClientTitle, { buyer: repeatedClientName, summary: repeatedClientFallback });
+const normalizedFlatClientEcho = normalizeStructured({
+  title: repeatedClientTitle,
+  client: repeatedClientName,
+  description: repeatedClientDescription,
+}, repeatedClientTitle, { buyer: repeatedClientName, summary: repeatedClientFallback });
+const repairedClientEcho = repairPublicDescriptionFields(
+  { description: repeatedClientDescription },
+  [repeatedClientFallback],
+  repeatedClientTitle,
+  repeatedClientName,
+);
+const repairedClientEchoAgain = repairPublicDescriptionFields(
+  repairedClientEcho.record,
+  [repeatedClientFallback],
+  repeatedClientTitle,
+  repeatedClientName,
+);
+const substantiveClientSummary = `Der Auftraggeber ${repeatedClientName} beschafft 20 NVMe-SSDs mit 15,36 TB für die Justiz.`;
+if (pickValidatedPublicSummaryForTender(
+  repeatedClientTitle,
+  repeatedClientName,
+  repeatedClientDescription,
+  repeatedClientFallback,
+) !== repeatedClientFallback
+  || repeatedClientProjection.description !== repeatedClientFallback
+  || normalizedClientEcho.summary !== repeatedClientFallback
+  || normalizedFlatClientEcho.summary !== repeatedClientFallback
+  || repairedClientEcho.record.description !== repeatedClientFallback
+  || !repairedClientEcho.descriptionChanged
+  || repairedClientEchoAgain.descriptionChanged
+  || pickValidatedPublicSummaryForTender(repeatedClientTitle, repeatedClientName, substantiveClientSummary)
+    !== substantiveClientSummary) {
+  throw new Error("Doppelte Auftraggeber-/Standortfragmente müssen verworfen werden, ohne echte Beschaffungsprosa zu verlieren");
 }
 const truncatedScopeStructured = {
   summary: "Fliesenarbeiten",

@@ -3,7 +3,7 @@ import {
   isPublicCandidateFromTruncatedArray,
   isTruncatedPublicTokenArray,
   normalizePublicTextList,
-  pickValidatedPublicSummaryForTitle,
+  pickValidatedPublicSummaryForTender,
 } from "./public-content-quality";
 import { hasPositiveAccessLimitedEvidence } from "./access-page-detector";
 
@@ -74,13 +74,14 @@ const repairField = (
   fallbacks: readonly unknown[],
   title: unknown,
   scopeSources: readonly unknown[],
+  client: unknown,
 ): boolean => {
   if (!hasOwn(record, field)) return false;
 
   const original = record[field];
   const isTruncatedScopePrefix = scopeSources.some((scope) =>
     isPublicCandidateFromTruncatedArray(original, scope));
-  const normalized = isTruncatedScopePrefix ? "" : pickValidatedPublicSummaryForTitle(title, original);
+  const normalized = isTruncatedScopePrefix ? "" : pickValidatedPublicSummaryForTender(title, client, original);
   if (normalized) {
     if (typeof original === "string" && original === normalized) return false;
     record[field] = normalized;
@@ -88,7 +89,7 @@ const repairField = (
   }
 
   const sibling = field === "description" ? record.summary : record.description;
-  const fallback = pickValidatedPublicSummaryForTitle(title, ...fallbacks, sibling);
+  const fallback = pickValidatedPublicSummaryForTender(title, client, ...fallbacks, sibling);
   if (fallback) {
     if (typeof original === "string" && original === fallback) return false;
     record[field] = fallback;
@@ -108,6 +109,7 @@ export const repairPublicDescriptionFields = (
   input: PublicDescriptionRecord,
   fallbacks: readonly string[] = [],
   title?: unknown,
+  client?: unknown,
 ): PublicDescriptionRepair => {
   const record = { ...input };
   for (const key of ["decision_relevant", "decisionRelevant"]) {
@@ -121,8 +123,8 @@ export const repairPublicDescriptionFields = (
   const scopeChanged = clearInvalidScopeFields(scopeRecords);
   return {
     record,
-    descriptionChanged: repairField(record, "description", fallbacks, title, scopeSources),
-    summaryChanged: repairField(record, "summary", fallbacks, title, scopeSources),
+    descriptionChanged: repairField(record, "description", fallbacks, title, scopeSources, client),
+    summaryChanged: repairField(record, "summary", fallbacks, title, scopeSources, client),
     scopeChanged,
   };
 };

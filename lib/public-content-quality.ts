@@ -1104,8 +1104,30 @@ export const pickValidatedPublicCandidate = (...candidates: unknown[]): string =
   return "";
 };
 
-/** Select validated public prose while excluding a copy of the tender title. */
-export const pickValidatedPublicSummaryForTitle = (title: unknown, ...candidates: unknown[]): string => {
+const isClientEchoSummary = (summary: string, client: unknown): boolean => {
+  const normalizedClient = normalizePublicClient(client);
+  if (normalizedClient.length < 20) return false;
+
+  const normalizeKey = (value: string): string =>
+    foldGerman(value.toLocaleLowerCase("de-DE")).replace(/\s+/gu, " ").trim();
+  const clientKey = normalizeKey(normalizedClient);
+  const summaryKey = normalizeKey(summary);
+  const repeatedClientPrefix = `${clientKey} ${clientKey}`;
+  if (!summaryKey.startsWith(repeatedClientPrefix)) return false;
+
+  const remainder = summaryKey.slice(repeatedClientPrefix.length)
+    .replace(/^[\s\p{P}\p{S}]+/gu, "")
+    .trim();
+  if (!remainder) return true;
+  return /^(?:hauptsitz|hauptstelle|nebenstelle|aussenstelle|geschaeftsstelle|dienststelle|standort|niederlassung|sitz|filiale)(?:\s+[\p{L}\p{N}-]+){0,2}$/u.test(remainder);
+};
+
+/** Select validated public prose while excluding title copies and duplicated client labels. */
+export const pickValidatedPublicSummaryForTender = (
+  title: unknown,
+  client: unknown,
+  ...candidates: unknown[]
+): string => {
   const titleText = normalizePublicDisplayCandidate(title);
   const titleKey = titleText?.replace(/\s+/gu, " ").trim().toLocaleLowerCase("de-DE") ?? "";
 
@@ -1117,11 +1139,16 @@ export const pickValidatedPublicSummaryForTitle = (title: unknown, ...candidates
       if (!normalized) continue;
       const candidateKey = normalized.replace(/\s+/gu, " ").trim().toLocaleLowerCase("de-DE");
       if (titleKey && candidateKey === titleKey) continue;
+      if (isClientEchoSummary(normalized, client)) continue;
       return normalized;
     }
   }
   return "";
 };
+
+/** Select validated public prose while excluding a copy of the tender title. */
+export const pickValidatedPublicSummaryForTitle = (title: unknown, ...candidates: unknown[]): string =>
+  pickValidatedPublicSummaryForTender(title, null, ...candidates);
 
 /** Select the first public prose candidate that is both display-safe and backed by its source. */
 export const pickSourceBackedPublicCandidate = (sourceText: string, ...candidates: unknown[]): string => {
@@ -1265,8 +1292,9 @@ export const projectPublicDisplayFields = (
     client,
     ...projectionCandidates(input.location, "location"),
   ) || null;
-  const description = pickValidatedPublicSummaryForTitle(
+  const description = pickValidatedPublicSummaryForTender(
     title,
+    client,
     ...projectionCandidates(input.summary, "summary"),
     ...projectionCandidates(input.description, "summary"),
   ) || null;
