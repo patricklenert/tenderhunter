@@ -1,6 +1,19 @@
 import { createHash } from "node:crypto";
 import type { StructuredData } from "@/lib/structurer";
 import { classifyOpportunityStatus } from "@/lib/opportunity-status";
+import { formatDeadlineDE } from "@/lib/date-utils";
+
+export const withCanonicalTenderDeadline = (
+  structured: StructuredData,
+  deadlineAt: Date | null,
+): StructuredData => {
+  const deadline = formatDeadlineDE(deadlineAt);
+  if (!deadline) return structured;
+  return {
+    ...structured,
+    hard_facts: { ...structured.hard_facts, deadline },
+  };
+};
 
 /** Parse a date string that might be in German format (DD.MM.YYYY) or ISO format. */
 const parseGermanDate = (value: string): Date | null => {

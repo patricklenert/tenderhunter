@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { assessTenderQuality } from "@/lib/tender-quality";
+import { assessTenderQuality, withCanonicalTenderDeadline } from "@/lib/tender-quality";
 import type { StructuredData } from "@/lib/structurer";
 
 const structured: StructuredData = {
@@ -27,5 +27,21 @@ const active = assessTenderQuality(
   structured,
 );
 assert.equal(active.status, "qualified");
+
+const staleExtraction: StructuredData = {
+  ...structured,
+  hard_facts: { ...structured.hard_facts, deadline: "22.10.2026" },
+};
+const canonicalDeadline = withCanonicalTenderDeadline(
+  staleExtraction,
+  new Date("2026-11-12T08:00:00.000Z"),
+);
+assert.equal(canonicalDeadline.hard_facts.deadline, "12.11.2026");
+assert.equal(assessTenderQuality(
+  "Rahmenvereinbarung über strategische KI-Unterstützungsleistungen",
+  "https://www.dtvp.de/Satellite/notice/example",
+  "Öffentliche Ausschreibung mit Angebotsfrist und Vergabeunterlagen zur Entwicklung von KI-Anwendungen.",
+  canonicalDeadline,
+).status, "qualified");
 
 console.log("Awarded tender quality tests passed.");

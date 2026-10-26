@@ -441,12 +441,32 @@ const buildLimitations = (
 
 export type OpportunityStatus = "offen" | "aufgehoben" | "vergeben" | "geändert" | "unklar";
 
+/**
+ * Konstatierende Formulierungen je Hinweistyp. Texte in vollständigen Unterlagen
+ * enthalten regelmäßig gleichlautende Rechtsformeln („Die Vergabe erfolgt im Wege
+ * …", „Recht auf Berichtigung" (DSGVO), „…gegebenenfalls über die Aufhebung des
+ * Verfahrens") – nur explizite Aussagen dürfen den Opportunities-Status ändern.
+ * Ohne Quoten-Kontext (Legacy-Aufrufer) gilt ein Treffer weiterhin als Hinweis.
+ */
+const STRONG_NOTICE_PATTERNS: Readonly<Record<string, RegExp>> = {
+  aufhebung: /(?:wurde|wird|ist)[^.\n]{0,60}?aufgehoben\b|aufgehoben\s+(?:worden|wird)|\bverfahren\s+wurde\s+beendet/i,
+  vergabe: /Zuschlag[^.\n]{0,40}?(?:wurde|wird|erteilt)|Auftrag[^.\n]{0,80}?(?:wurde|wird)[^.\n]{0,40}?vergeben|bereits\s+vergeben/i,
+  berichtigung: /(?:Berichtigung(?:sbekanntmachung)?|Änderungsbekanntmachung|Änderungsmitteilung)[^.\n]{0,80}?(?:Ausschreibung|Vergabe|Angebotsfrist|Teilnahmefrist|Frist|Bekanntmachung)/i,
+};
+
 export const deriveOpportunityStatus = (
-  notices: Array<{ type: string }>,
+  notices: Array<{ type: string; quote?: string | null }>,
   deadlineIso: string | null,
   now: Date,
 ): { status: OpportunityStatus; basis: string } => {
-  const has = (type: string): boolean => notices.some((notice) => notice.type === type);
+  const has = (type: string): boolean =>
+    notices.some((notice) => {
+      if (notice.type !== type) return false;
+      const quote = (notice.quote ?? "").trim();
+      if (!quote) return true;
+      const strong = STRONG_NOTICE_PATTERNS[type];
+      return strong ? strong.test(quote) : true;
+    });
   if (has("aufhebung")) return { status: "aufgehoben", basis: "Aufhebungshinweis im Text (siehe changeNotices)" };
   if (has("vergabe")) return { status: "vergeben", basis: "Vergabehinweis im Text (siehe changeNotices)" };
   if (has("berichtigung")) return { status: "geändert", basis: "Berichtigungshinweis im Text (siehe changeNotices)" };

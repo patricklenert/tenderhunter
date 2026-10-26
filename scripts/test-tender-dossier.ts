@@ -383,4 +383,55 @@ assert.equal(deriveOpportunityStatus([{ type: "berichtigung" }], DEADLINE, OPEN_
 assert.equal(deriveOpportunityStatus([], DEADLINE, OPEN_NOW).status, "offen");
 assert.equal(deriveOpportunityStatus([], "2026-09-01T12:00", OPEN_NOW).status, "unklar");
 assert.equal(deriveOpportunityStatus([], null, OPEN_NOW).status, "unklar");
+// Konstatierende Aufhebung im Quoten-Kontext -> aufgehoben
+assert.equal(
+  deriveOpportunityStatus([{ type: "aufhebung", quote: "Das Vergabeverfahren wurde hiermit aufgehoben." }], DEADLINE, OPEN_NOW).status,
+  "aufgehoben",
+);
+// Informationshafte Rechtsformel in Unterlagen -> weiterhin offen
+assert.equal(
+  deriveOpportunityStatus(
+    [{ type: "aufhebung", quote: "…Zuschlagserteilung sowie gegebenenfalls über die Aufhebung des Verfahrens. Auf Verlangen…" }],
+    DEADLINE,
+    OPEN_NOW,
+  ).status,
+  "offen",
+);
+// Konditionale Formulierung -> weiterhin offen
+assert.equal(
+  deriveOpportunityStatus([{ type: "aufhebung", quote: "Der Auftraggeber kann das Verfahren aufheben, soweit…" }], DEADLINE, OPEN_NOW).status,
+  "offen",
+);
+// "Die Vergabe erfolgt im Wege der Verhandlungsvergabe" ist kein Zuschlagshinweis
+assert.equal(
+  deriveOpportunityStatus(
+    [{ type: "vergabe", quote: "Die Vergabe erfolgt im Wege der Verhandlungsvergabe mit Teilnahmewettbewerb." }],
+    DEADLINE,
+    OPEN_NOW,
+  ).status,
+  "offen",
+);
+// echter Zuschlagshinweis -> vergeben
+assert.equal(
+  deriveOpportunityStatus([{ type: "vergabe", quote: "Der Zuschlag wurde am 01.11.2026 erteilt." }], DEADLINE, OPEN_NOW).status,
+  "vergeben",
+);
+// DSGVO-"Recht auf Berichtigung" ist keine Berichtigung der Ausschreibung
+assert.equal(
+  deriveOpportunityStatus(
+    [{ type: "berichtigung", quote: "Recht auf Berichtigung, Löschung, Einschränkung der Verarbeitung personenbezogener Daten" }],
+    DEADLINE,
+    OPEN_NOW,
+  ).status,
+  "offen",
+);
+// echte Berichtigung -> geändert
+assert.equal(
+  deriveOpportunityStatus(
+    [{ type: "berichtigung", quote: "Berichtigung der Ausschreibung: Fristverlängerung bis 15.12.2026." }],
+    DEADLINE,
+    OPEN_NOW,
+  ).status,
+  "geändert",
+);
 console.log("tender-dossier passed.");

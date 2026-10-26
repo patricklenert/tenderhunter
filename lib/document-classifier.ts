@@ -218,6 +218,13 @@ export const classifyDocumentRole = (input: ClassifyInput): ClassifyResult => {
   };
 };
 
+export const shouldRefineDocumentRole = (input: {
+  role: string | null;
+  roleSource: string | null;
+  confidence: number | null;
+}): boolean => input.roleSource !== "aggregator_summary"
+  && (!input.role || input.role === "other" || (input.confidence ?? 0) < 0.75);
+
 export const ROLE_PRIORITY: Record<string, number> = {
   leistungsbeschreibung: 1,
   leistungsverzeichnis: 2,

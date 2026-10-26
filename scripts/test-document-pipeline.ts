@@ -36,12 +36,23 @@ import { readResponseBodyBounded } from "../lib/firecrawl";
 import { decodeTextBuffer } from "../lib/text-normalization";
 import { deduplicateDocumentRows, documentIdentityKey, isHtmlContentType, isHtmlDocumentResource } from "../lib/document-identity";
 import { deduplicateParsedDocuments } from "../lib/document-aggregation";
+import { shouldRefineDocumentRole } from "../lib/document-classifier";
 
 assert.equal(resolveEffectiveRawText(undefined), undefined, "omitted rawText must not update the existing snapshot");
 assert.equal(resolveEffectiveRawText(null), null, "explicit null rawText must clear the snapshot");
 assert.equal(resolveEffectiveRawText(""), null, "an explicit empty rawText snapshot must clear the snapshot");
 assert.equal(resolveEffectiveRawText("  \n  "), null, "whitespace-only rawText must clear the snapshot");
 assert.equal(resolveEffectiveRawText("public snapshot"), "public snapshot", "non-empty rawText must be retained");
+assert.equal(
+  shouldRefineDocumentRole({ role: "other", roleSource: "aggregator_summary", confidence: 0 }),
+  false,
+  "secondary aggregator summaries must not be reclassified as official document roles",
+);
+assert.equal(
+  shouldRefineDocumentRole({ role: "other", roleSource: "content", confidence: 0 }),
+  true,
+  "ordinary documents with a weak role should still be refined from content",
+);
 assert.deepEqual(
   pipelineVersionPayload({ pipeline_version: 7, tender_id: 42 }),
   { pipeline_version: 7 },

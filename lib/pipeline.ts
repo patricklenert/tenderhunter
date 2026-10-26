@@ -35,9 +35,10 @@ import { decodeTextBuffer, repairKnownGermanEncoding } from "@/lib/text-normaliz
 import { buildJobKey, buildTenderPipelineGroupKey, claimNextJob, enqueueJob, getJobMaxRuntimeMs, heartbeatJob, markDone, markFailed, PUBLIC_CONTINUATION_PRIORITY, sanitizeErrorMessage, type ClaimJobOptions } from "@/lib/queue";
 import { buildTenderMatchDocument, computeScores, getDomainEligibility, getLocationEligibility, llmBatchDomainMatch, type CompanyRow } from "@/lib/scoring";
 import { ensureExtension, fetchAndStore, objectAbsolutePath, suggestedFilename } from "@/lib/storage";
+import { fetchAndStoreWithParallelFallback, fetchEvergabeDocumentsViaParallel } from "@/lib/parallel-extract";
 import { ColdStorageError, ensureLocalStored } from "@/lib/object-store-cold";
 import { buildStructuredDescriptionMarkdown, extractStructuredData, normalizeStructured, type StructuredData } from "@/lib/structurer";
-import { assessTenderQuality } from "@/lib/tender-quality";
+import { assessTenderQuality, withCanonicalTenderDeadline } from "@/lib/tender-quality";
 import { resolveSourceItem } from "@/lib/tender-sources";
 import {
   canonicalPublicSourceKey,
@@ -97,7 +98,7 @@ import { isGenericPortalNavigationResource, isPortalActionUrl } from "@/lib/reso
 import { documentIdentityKey, isHtmlContentType } from "@/lib/document-identity";
 import { processCompanyUrlPreview } from "@/lib/preview";
 import { getCatalogState, markCatalogDirty, releaseCatalogSync } from "@/lib/catalog";
-import { classifyDocumentRole, rolePriority } from "@/lib/document-classifier";
+import { classifyDocumentRole, rolePriority, shouldRefineDocumentRole } from "@/lib/document-classifier";
 import { buildDocumentAnalysis, withEvidenceValues, type AnalyzedDocument } from "@/lib/document-analysis";
 import { deduplicateParsedDocuments, type ParsedTenderDocument } from "@/lib/document-aggregation";
 import { evaluateTenderReadiness, isScorableReadiness } from "@/lib/tender-readiness";
@@ -1491,7 +1492,10 @@ const findPdfLinks = async (baseUrl: string): Promise<DiscoveredLink[]> => {
 
   // Evergabe: Vergabe-ID extrahieren und Documents-Seite direkt laden
   if (links.length === 0 && baseUrl.includes("evergabe.de")) {
-    const vergabeIdMatch = html.match(/Vergabe-?ID[:\s]*(\d{5,})/i);
+    // Vergabe-ID aus dem Seiteninhalt – oder direkt aus der URL, wenn der Fetch
+    // nur die 403-Fehlerseite (IP-Block) geliefert hat.
+    const vergabeIdMatch = html.match(/Vergabe-?ID[:\s]*(\d{5,})/i)
+      ?? baseUrl.match(/evergabe\.de\/unterlagen\/(\d{5,})/i);
     if (vergabeIdMatch) {
       const vergabeId = vergabeIdMatch[1];
       const docsUrl = `https://www.evergabe.de/unterlagen/${vergabeId}`;
@@ -1516,6 +1520,17 @@ const findPdfLinks = async (baseUrl: string): Promise<DiscoveredLink[]> => {
             addLink(absolute, $docs(element).text().trim());
           });
           console.log(`[pipeline] evergabe: ${links.length} PDFs von Documents-Seite geladen`);
+        }
+        // evergabe.de blockiert Server-IPs (403) – Parallel-Extract als Rückfallebene
+        if (links.length === 0) {
+          try {
+            const viaParallel = await fetchEvergabeDocumentsViaParallel(docsUrl);
+            for (const doc of viaParallel) {
+              addLink(doc.url, doc.filename ?? "");
+            }
+          } catch (parallelErr) {
+            console.warn(`[pipeline] evergabe Parallel-Extract fehlgeschlagen:`, parallelErr);
+          }
         }
       } catch (err) {
         console.warn(`[pipeline] evergabe Documents-Seite Fehler:`, err);
@@ -2673,7 +2688,7 @@ const runFetchDocuments = async (payload: Record<string, JsonValue>): Promise<Re
     const baseName = suggestedFilename(candidate.url, `tender-${tenderId}-${attemptedResources}`);
     const relative = `tenders/${tenderId}/${baseName}`;
     try {
-      const stored = await fetchAndStore(candidate.url, relative, {
+      const stored = await fetchAndStoreWithParallelFallback(candidate.url, relative, {
         referer: candidate.sourcePageUrl ?? tender.url,
         sessionPageUrl: candidate.sourcePageUrl ?? tender.url,
         userAgent: REALISTIC_USER_AGENT,
@@ -2905,7 +2920,11 @@ const runParseDocuments = async (payload: Record<string, JsonValue>): Promise<Re
       let effectiveRole = primaryDocumentRole(effectiveRoles);
       let effectiveRoleSource = doc.roleSource ?? null;
       let effectiveRoleConfidence = doc.roleConfidence ?? 0;
-      if (!doc.role || doc.role === "other" || effectiveRoleConfidence < 0.75) {
+      if (shouldRefineDocumentRole({
+        role: doc.role,
+        roleSource: doc.roleSource,
+        confidence: effectiveRoleConfidence,
+      })) {
         const refined = classifyDocumentRole({
           filename: doc.filename,
           url: doc.url,
@@ -3078,13 +3097,14 @@ const runStructureTender = async (payload: Record<string, JsonValue>): Promise<R
     source: tender.source,
     sourceUrl: tender.url,
   });
-  const structured = normalizeStructured(extractedStructured, tender.title ?? "", {
+  const normalizedStructured = normalizeStructured(extractedStructured, tender.title ?? "", {
     buyer: publicMeta.client || null,
     procedure: publicMeta.procedure || pickValidatedPublicProcedure(tender.procedureType) || null,
     location: publicMeta.location || null,
     summary: publicMeta.description || null,
     scope: publicMeta.subject || null,
   });
+  const structured = withCanonicalTenderDeadline(normalizedStructured, tender.deadlineAt);
   if (!await ensureCurrentPipelineVersion(tenderId, payload)) return { skipped: true, reason: "veraltete Tender-Version" };
 
   const documentRows = await db
@@ -3112,16 +3132,6 @@ const runStructureTender = async (payload: Record<string, JsonValue>): Promise<R
     award_criteria: structured.decision_relevant.award_criteria.join(" ") || null,
   });
 
-  // If the LLM didn't extract a deadline but the DB already has one, use it
-  if (!structured.hard_facts.deadline && tender.deadlineAt) {
-    const d = new Date(tender.deadlineAt);
-    const dd = String(d.getDate()).padStart(2, "0");
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const yyyy = d.getFullYear();
-    const hh = String(d.getHours()).padStart(2, "0");
-    const mi = String(d.getMinutes()).padStart(2, "0");
-    structured.hard_facts.deadline = `${dd}.${mm}.${yyyy}, ${hh}:${mi} Uhr`;
-  }
   const structuredDescriptionMarkdown = buildStructuredDescriptionMarkdown(structured, reference);
   structured.descriptionMarkdown = isCanonicalPublicDescriptionMarkdown(structuredDescriptionMarkdown)
     ? structuredDescriptionMarkdown
@@ -3665,7 +3675,7 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
         if (!downloading.current) return { skipped: true, reason: "veraltete Tender-Version" };
         docIndex += 1;
         const relative = `tenders/${tenderId}/${baseName}`;
-        const stored = await fetchAndStore(docUrl, relative, {
+        const stored = await fetchAndStoreWithParallelFallback(docUrl, relative, {
           referer: sourceUrl,
           sessionPageUrl: sourceUrl,
           userAgent: REALISTIC_USER_AGENT,

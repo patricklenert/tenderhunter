@@ -26,6 +26,7 @@ import {
 } from "@/lib/public-content-quality";
 import { buildTenderDescriptionMarkdown, escapeMarkdownText } from "@/lib/tender-description";
 import { parseDeadlineDate } from "@/lib/date-utils";
+import { fetchEvergabeDocumentsViaParallel } from "@/lib/parallel-extract";
 import {
   cursorBoolean,
   cursorNumber,
@@ -2357,6 +2358,27 @@ async function fetchEvergabeDocumentUrls(pageHtml: string, detailUrl: string): P
         });
       } catch (err) {
         console.warn(`[public-scraper] evergabe Fallback Fehler:`, err);
+      }
+    }
+  }
+
+  // Strategie 3: evergabe.de blockiert Server-IPs (403) – Parallel-Extract als Rückfallebene
+  if (allPdfUrls.length === 0) {
+    const unterlagenCandidates = new Set<string>();
+    const directMatch = detailUrl.match(/https:\/\/www\.evergabe\.de\/unterlagen\/\d+/i);
+    if (directMatch) unterlagenCandidates.add(directMatch[0]);
+    for (const match of pageHtml.matchAll(/https:\/\/www\.evergabe\.de\/unterlagen\/\d+/gi)) {
+      unterlagenCandidates.add(match[0]);
+    }
+    for (const candidate of [...unterlagenCandidates].slice(0, 2)) {
+      try {
+        const viaParallel = await fetchEvergabeDocumentsViaParallel(candidate);
+        for (const doc of viaParallel) {
+          if (!allPdfUrls.includes(doc.url)) allPdfUrls.push(doc.url);
+        }
+        if (allPdfUrls.length > 0) break;
+      } catch (err) {
+        console.warn(`[public-scraper] evergabe Parallel-Extract fehlgeschlagen:`, err);
       }
     }
   }
@@ -5998,6 +6020,18 @@ async function fetchEvergabeDownloadUrls(evergabeUrl: string): Promise<string[]>
         }
       } catch (overviewError) {
         console.warn(`[oeffvergabe] Uebersichtsseite Fehler:`, overviewError);
+      }
+    }
+
+    // Letzte Rückfallebene: evergabe.de blockiert Server-IPs (403) – Parallel-Extract
+    if (urls.length === 0) {
+      try {
+        const viaParallel = await fetchEvergabeDocumentsViaParallel(unterlagenUrl);
+        for (const doc of viaParallel) {
+          if (!urls.includes(doc.url)) urls.push(doc.url);
+        }
+      } catch (parallelError) {
+        console.warn(`[oeffvergabe] evergabe Parallel-Extract fehlgeschlagen:`, parallelError);
       }
     }
 
