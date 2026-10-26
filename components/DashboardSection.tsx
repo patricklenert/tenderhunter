@@ -1255,7 +1255,7 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
           }}
         >
           <Paper component="section" aria-labelledby="website-analysis-title" variant="outlined" sx={{ height: "100%", p: { xs: 2, sm: 3 }, borderRadius: 2 }}>
-            <Typography id="website-analysis-title" component="h2" fontWeight={600} sx={{ fontSize: { xs: "1.25rem", lg: "1.2rem" }, lineHeight: 1.3 }}>
+            <Typography id="website-analysis-title" component="h2" tabIndex={-1} fontWeight={600} sx={{ fontSize: { xs: "1.25rem", lg: "1.2rem" }, lineHeight: 1.3 }}>
               Website analysieren
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, maxWidth: "62ch", lineHeight: 1.55 }}>
@@ -1274,9 +1274,9 @@ export function DashboardSection({ openAuth }: DashboardSectionProps) {
                   onChange={(event) => setUrl(event.target.value)}
                   placeholder="https://www.ihr-unternehmen.de"
                   disabled={busy}
-                  autoFocus
                   fullWidth
                   size="medium"
+                  slotProps={{ inputLabel: { shrink: true } }}
                   sx={{
                     "& .MuiOutlinedInput-root": {
                       minHeight: 52,

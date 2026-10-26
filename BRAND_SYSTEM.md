@@ -1,7 +1,7 @@
 # Tenderhunter Brand System
 
 Status: active
-Last updated: 2026-10-17
+Last updated: 2026-10-26
 
 This is the product-wide source of truth for Tenderhunter's brand behavior. Campaign production tasks remain in `marketing/backlog.md`; product brand decisions and follow-up work belong in `BRAND_BACKLOG.md`.
 
@@ -74,4 +74,6 @@ Use active, concrete German copy and the `Sie` form. Name the user-visible actio
 
 ## Accessibility And Motion
 
-Interactive controls require a visible keyboard focus state using the brand-primary focus ring, a target of at least 44px where practical, and an accessible German label. Shared MUI icon buttons, navigation items, menu items, and tabs use that touch target by default; clickable regions must remain semantic buttons or links rather than plain containers. SEO-only navigation that is visually hidden must not remain in the keyboard tab order. Secondary text must meet WCAG AA on canvas, panel, and status-tinted surfaces; keep Tailwind and MUI secondary-text values aligned. Preserve readable contrast and mobile navigation behavior. Motion must remain short and purposeful, and global transitions plus analysis counters respect `prefers-reduced-motion`.
+Interactive controls require a visible keyboard focus state using the brand-primary focus ring, a target of at least 44px where practical, and an accessible German label. Shared MUI icon buttons, navigation items, menu items, and tabs use that touch target by default; clickable regions must remain semantic buttons or links rather than plain containers. SEO-only navigation that is visually hidden must not remain in the keyboard tab order. When editorial or SEO links precede a primary task surface in document order, provide a visible-on-focus skip link to that task. Secondary text must meet WCAG AA on canvas, panel, and status-tinted surfaces; keep Tailwind and MUI secondary-text values aligned. Preserve readable contrast and mobile navigation behavior. Motion must remain short and purposeful, and global transitions plus analysis counters respect `prefers-reduced-motion`.
+
+Entry forms do not force focus on initial page load. When a field has both a visible label and an example placeholder, keep the label floated so the prompt stays readable without opening a keyboard or presenting an unsolicited focus state.
