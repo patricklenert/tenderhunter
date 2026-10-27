@@ -285,9 +285,6 @@ async function runAnalysis(jobId: number, url: string) {
 
   } catch (error) {
     console.error(`[api/v1/analyze] Background analysis failed for job ${jobId}:`, error);
-    await db.update(apiJobs).set({
-      status: "failed", error: error instanceof Error ? error.message : "Unbekannter Fehler", updatedAt: new Date(),
-    }).where(eq(apiJobs.id, jobId));
     throw error;
   }
 }
@@ -512,11 +509,7 @@ export async function runApiAnalysisJob(payload: {
       updatedAt: new Date(),
     }).where(eq(apiJobs.id, payload.apiJobId));
   } catch (error) {
-    await db.update(apiJobs).set({
-      status: "failed",
-      error: error instanceof Error ? error.message : "Unbekannter Fehler",
-      updatedAt: new Date(),
-    }).where(eq(apiJobs.id, payload.apiJobId));
+    console.error(`[api/v1/analyze] Rescore failed for job ${payload.apiJobId}:`, error);
     throw error;
   }
 }
