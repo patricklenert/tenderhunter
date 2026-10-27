@@ -200,6 +200,39 @@ for (const [slug, target] of [["vob-b", "nachunternehmer"], ["nachunternehmer", 
   }
 }
 
+const rahmenvereinbarung = GLOSSARY_MAP["rahmenvereinbarung"];
+if (!rahmenvereinbarung) {
+  errors.push("process cluster -> missing glossary entry: rahmenvereinbarung");
+} else {
+  for (const slug of ["gwb-vergaberecht", "vgv-vergabeverordnung", "uvgo", "vergabeunterlagen", "auftragswert", "zuschlag"]) {
+    if (!rahmenvereinbarung.relatedTerms?.includes(slug)) {
+      errors.push(`rahmenvereinbarung.relatedTerms -> missing cluster link: ${slug}`);
+    }
+    if (!GLOSSARY_MAP[slug]?.relatedTerms?.includes("rahmenvereinbarung")) {
+      errors.push(`${slug}.relatedTerms -> missing reciprocal rahmenvereinbarung link`);
+    }
+  }
+  for (const slug of ["oeffentliche-auftraege-finden", "schwellenwerte-vergabe"]) {
+    if (!rahmenvereinbarung.relatedArticles?.includes(slug)) {
+      errors.push(`rahmenvereinbarung.relatedArticles -> missing ${slug}`);
+    }
+    if (!ARTICLES[slug]?.relatedGlossaryTerms?.includes("rahmenvereinbarung")) {
+      errors.push(`${slug}.relatedGlossaryTerms -> missing rahmenvereinbarung`);
+    }
+  }
+  for (const url of [
+    "https://www.gesetze-im-internet.de/gwb/__103.html",
+    "https://www.gesetze-im-internet.de/vgv_2016/__21.html",
+  ]) {
+    if (!rahmenvereinbarung.sources?.some((source) => source.url === url)) {
+      errors.push(`rahmenvereinbarung.sources -> missing primary source: ${url}`);
+    }
+  }
+  if (!rahmenvereinbarung.lastReviewed) {
+    errors.push("rahmenvereinbarung.lastReviewed -> missing review date");
+  }
+}
+
 for (const slug of ["vergabeverfahren-uebersicht", "eu-vergabe", "schwellenwerte-vergabe"]) {
   if (!ARTICLES[slug]?.sources?.some((source) => source.url.includes("BAnz%20AT%2018.12.2025%20B4"))) {
     errors.push(`${slug}.sources -> missing primary 2026 threshold reference`);

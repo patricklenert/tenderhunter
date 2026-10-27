@@ -207,6 +207,7 @@ Bei komplexen Bauvorhaben werden häufig Ortstermine angeboten. Die Teilnahme is
       "Lieferung",
     ],
     relatedArticles: ["wie-funktioniert-ausschreibung", "ausschreibung-gewinnen", "vergabeverfahren-uebersicht"],
+    relatedGlossaryTerms: ["rahmenvereinbarung"],
     content: `
 ## Warum öffentliche Aufträge für KMU interessant sind
 
@@ -524,7 +525,7 @@ Eine Bietergemeinschaft ist ein mächtiges Instrument, um bei großen öffentlic
     lastReviewed: "2026-10-11",
     relatedCategories: ["Bauarbeiten", "IT-Dienstleistungen", "Lieferung"],
     relatedArticles: ["vergabeverfahren-uebersicht", "vob-vergabe", "eu-vergabe", "ausschreibung-muster"],
-    relatedGlossaryTerms: ["schwellenwerte", "auftragswert", "vob-a", "vob-a-eu", "vgv-vergabeverordnung", "gwb-vergaberecht"],
+    relatedGlossaryTerms: ["schwellenwerte", "auftragswert", "vob-a", "vob-a-eu", "vgv-vergabeverordnung", "gwb-vergaberecht", "rahmenvereinbarung"],
     sources: [
       { title: "BMWE: Vergabeübersicht und Rechtsgrundlagen", url: "https://www.bundeswirtschaftsministerium.de/Redaktion/DE/Artikel/Wirtschaft/vergabe-uebersicht-und-rechtsgrundlagen.html" },
       { title: "Bundesanzeiger: EU-Schwellenwerte ab 1. Januar 2026", url: "https://www.bundesanzeiger.de/pub/publication/zDKvMODHbpcIPpDPapc/content/zDKvMODHbpcIPpDPapc/BAnz%20AT%2018.12.2025%20B4.pdf?inline" },

@@ -54,7 +54,7 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "Den vollständigen Text des GWB finden Sie auf gesetze-im-internet.de unter der offiziellen Veröffentlichung des Bundesministeriums der Justiz. Für die Einordnung sind insbesondere die Vorschriften des vierten Teils und die jeweils aktuelle Fassung maßgeblich.",
       },
     ],
-    relatedTerms: ["vgv-vergabeverordnung", "uvgo", "vob-a", "vob-a-eu", "schwellenwerte", "nachpruefungsverfahren"],
+    relatedTerms: ["vgv-vergabeverordnung", "uvgo", "vob-a", "vob-a-eu", "schwellenwerte", "nachpruefungsverfahren", "rahmenvereinbarung"],
     relatedArticles: ["vergaberecht-leitfaden", "schwellenwerte-vergabe", "vob-vergabe"],
     sources: [
       { title: "§ 97 GWB – Grundsätze der Vergabe", url: "https://www.gesetze-im-internet.de/gwb/__97.html" },
@@ -93,7 +93,7 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "Für Sektorenauftraggeber und Konzessionen gelten regelmäßig besondere Regelwerke. Bei Bauaufträgen gilt nicht pauschal ein vollständiger Ausschluss der VgV: § 2 VgV ordnet die Anwendung bestimmter VgV-Teile an und verweist im Übrigen auf VOB/A Abschnitt 2.",
       },
     ],
-    relatedTerms: ["uvgo", "vob-a", "vob-a-eu", "gwb-vergaberecht", "sektvo", "konzvgv"],
+    relatedTerms: ["uvgo", "vob-a", "vob-a-eu", "gwb-vergaberecht", "sektvo", "konzvgv", "rahmenvereinbarung"],
     relatedCategories: ["Planungsleistungen", "IT-Dienstleistungen", "Lieferung"],
     sources: [
       { title: "§ 2 VgV – Bauaufträge", url: "https://www.gesetze-im-internet.de/vgv_2016/__2.html" },
@@ -131,7 +131,7 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "Die UVgO ist grundsätzlich keine allgemeine Bauvergabeordnung. Für Bauleistungen im nationalen Bereich ist grundsätzlich VOB/A Abschnitt 1 einschlägig; die konkrete Anwendung richtet sich zusätzlich nach dem maßgeblichen Landes- und Haushaltsrecht.",
       },
     ],
-    relatedTerms: ["vgv-vergabeverordnung", "vob-a", "vol-a"],
+    relatedTerms: ["vgv-vergabeverordnung", "vob-a", "vol-a", "rahmenvereinbarung"],
     relatedCategories: ["IT-Dienstleistungen", "Lieferung", "Planungsleistungen"],
   },
   {
@@ -800,7 +800,7 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "Unter den Voraussetzungen des vierten Teils des GWB können antragsbefugte Unternehmen ein Nachprüfungsverfahren einleiten. Die Fristen richten sich insbesondere nach § 160 Absatz 3 GWB; sie sind nicht pauschal mit der 15- oder 10-tägigen Wartefrist aus § 134 GWB gleichzusetzen.",
       },
     ],
-    relatedTerms: ["zuschlagskriterien", "bindefrist", "nachpruefungsverfahren"],
+    relatedTerms: ["zuschlagskriterien", "bindefrist", "nachpruefungsverfahren", "rahmenvereinbarung"],
     sources: [
       { title: "§ 127 GWB – Zuschlag", url: "https://www.gesetze-im-internet.de/gwb/__127.html" },
       { title: "§ 134 GWB – Informations- und Wartepflicht", url: "https://www.gesetze-im-internet.de/gwb/__134.html" },
@@ -1233,7 +1233,7 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "Der Auftragswert entscheidet darüber, ob die Vorgaben des Ober- oder Unterschwellenbereichs anwendbar sind. Oberhalb des einschlägigen EU-Schwellenwerts gelten im passenden Anwendungsbereich strengere Regeln, etwa unionsweite Bekanntmachungs- und Nachprüfungsvorschriften. Bei Bauaufträgen ist nicht pauschal die VgV anstelle der VOB/A anzuwenden; § 2 VgV ordnet die Kombination der Regelwerke an.",
       },
     ],
-    relatedTerms: ["schwellenwerte", "losvergabe", "vgv-vergabeverordnung", "uvgo", "vob-a", "vob-a-eu", "gwb-vergaberecht"],
+    relatedTerms: ["schwellenwerte", "losvergabe", "vgv-vergabeverordnung", "uvgo", "vob-a", "vob-a-eu", "gwb-vergaberecht", "rahmenvereinbarung"],
     relatedArticles: ["schwellenwerte-vergabe"],
     sources: [
       { title: "§ 3 VgV – Schätzung des Auftragswerts", url: "https://www.gesetze-im-internet.de/vgv_2016/__3.html" },
@@ -1554,13 +1554,58 @@ export const GLOSSARY: GlossaryEntry[] = [
       { question: "Wo finde ich die Vergabeunterlagen?", answer: "Die Bekanntmachung nennt die zuständige Vergabeplattform und den Zugang. Bei elektronischen Verfahren werden die Unterlagen dort bereitgestellt; Bieter sollten auch spätere Antworten und Änderungen im selben Verfahren abrufen." },
       { question: "Was tun bei unklaren Vergabeunterlagen?", answer: "Unklarheiten sollten innerhalb der angegebenen Frist über den vorgesehenen Kommunikationsweg als Bieterfrage gestellt werden. Die Antwort kann für alle Bieter relevant sein und die Unterlagen ergänzen oder erläutern." },
     ],
-    relatedTerms: ["leistungsbeschreibung", "leistungsverzeichnis", "e-vergabe", "eignungskriterien", "zuschlagskriterien", "bieterfragen", "nachforderung-unterlagen"],
+    relatedTerms: ["leistungsbeschreibung", "leistungsverzeichnis", "e-vergabe", "eignungskriterien", "zuschlagskriterien", "bieterfragen", "nachforderung-unterlagen", "rahmenvereinbarung"],
     relatedArticles: ["ausschreibung-schreiben", "ausschreibung-muster", "wie-funktioniert-ausschreibung", "vob-vergabe"],
     sources: [
       { title: "§ 29 VgV – Vergabeunterlagen", url: "https://www.gesetze-im-internet.de/vgv_2016/__29.html" },
       { title: "VOB/A 2019 – §§ 7 und 8", url: "https://www.verwaltungsvorschriften-im-internet.de/bsvwvbund_31012019_BWI781063060120180001604634.htm" },
     ],
     lastReviewed: "2026-09-24",
+  },
+  {
+    slug: "rahmenvereinbarung",
+    term: "Rahmenvereinbarung",
+    category: "Vergabeprozess",
+    shortDefinition: "Eine Rahmenvereinbarung legt Bedingungen für spätere Einzelaufträge eines öffentlichen Auftraggebers fest. Sie wird in einem Vergabeverfahren vergeben und ist selbst keine Verfahrensart.",
+    definition: [
+      "Nach § 103 Absatz 5 GWB ist eine Rahmenvereinbarung eine Vereinbarung zwischen einem oder mehreren öffentlichen Auftraggebern oder Sektorenauftraggebern einerseits und einem oder mehreren Unternehmen andererseits. Sie legt Bedingungen für öffentliche Aufträge fest, die während eines bestimmten Zeitraums vergeben werden sollen, insbesondere zum Preis. Umgangssprachlich wird häufig auch von einem Rahmenvertrag gesprochen.",
+      "Der Abschluss erfolgt nicht außerhalb des Vergaberechts: Im Anwendungsbereich der VgV wird die Rahmenvereinbarung in einer dafür zulässigen Verfahrensart vergeben. Das vorgesehene Auftragsvolumen ist so genau wie möglich zu ermitteln und bekannt zu geben, muss aber nicht abschließend festgelegt sein. Eine veröffentlichte Schätzung ist deshalb nicht automatisch eine garantierte Abnahmemenge; maßgeblich sind die konkreten Vergabe- und Vertragsunterlagen.",
+      "Einzelaufträge dürfen nach § 21 VgV nur zwischen den in Bekanntmachung oder Aufforderung zur Interessensbestätigung genannten Auftraggebern und den Unternehmen vergeben werden, die Vertragsparteien der Rahmenvereinbarung sind. Bei nur einem Unternehmen richten sich Abrufe nach den vereinbarten Bedingungen. Bei mehreren Unternehmen ist ein Abruf ohne erneuten Wettbewerb nur unter den in der VgV geregelten Voraussetzungen möglich; andernfalls findet ein erneuter Wettbewerb unter den Beteiligten statt.",
+      "Im Anwendungsbereich der VgV darf die Laufzeit grundsätzlich höchstens vier Jahre betragen. Ein längerer Zeitraum setzt einen durch den Gegenstand der Rahmenvereinbarung begründeten Sonderfall voraus. Diese Frist lässt sich nicht pauschal auf Unterschwellenvergaben oder andere Regelwerke übertragen.",
+    ],
+    keyPoints: [
+      "Regelt Bedingungen für spätere Einzelaufträge, insbesondere Preise",
+      "Wird in einem anwendbaren Vergabeverfahren vergeben; keine eigene Verfahrensart",
+      "Erwartetes Auftragsvolumen muss nach VgV so genau wie möglich angegeben werden",
+      "Abrufe nur durch benannte Auftraggeber bei beteiligten Unternehmen",
+      "VgV-Laufzeit grundsätzlich höchstens vier Jahre; begründete Ausnahmen sind möglich",
+    ],
+    faq: [
+      {
+        question: "Ist eine Rahmenvereinbarung eine eigene Vergabeart?",
+        answer: "Nein. Die Rahmenvereinbarung ist eine Vereinbarung über Bedingungen späterer Einzelaufträge. Ihr Abschluss erfolgt im Anwendungsbereich der VgV in einer dafür anwendbaren Verfahrensart.",
+      },
+      {
+        question: "Wie werden Einzelaufträge aus einer Rahmenvereinbarung vergeben?",
+        answer: "Bei nur einem Unternehmen richtet sich der Abruf nach den vereinbarten Bedingungen. Bei mehreren Unternehmen kann direkt abgerufen werden, wenn die Rahmenvereinbarung alle Leistungsbedingungen und objektiven Auswahlbedingungen festlegt. Sie kann außerdem einen Mix aus Direktabrufen und erneuten Wettbewerben vorsehen, sofern das angekündigt und anhand objektiver Kriterien geregelt ist. Sind nicht alle Leistungsbedingungen festgelegt, ist ein erneuter Wettbewerb unter den Parteien erforderlich.",
+      },
+      {
+        question: "Wie lange darf eine Rahmenvereinbarung laufen?",
+        answer: "Nach § 21 Absatz 6 VgV höchstens vier Jahre, außer ein durch den Gegenstand der Rahmenvereinbarung begründeter Sonderfall rechtfertigt eine längere Laufzeit. Für andere Regelwerke, insbesondere im Unterschwellenbereich, gilt diese Aussage nicht automatisch.",
+      },
+      {
+        question: "Garantiert eine Rahmenvereinbarung eine bestimmte Abnahmemenge?",
+        answer: "Nicht automatisch. Im Anwendungsbereich der VgV muss das vorgesehene Auftragsvolumen so genau wie möglich ermittelt und bekannt gegeben werden, muss aber nicht abschließend festgelegt sein. Ob Mindestabnahmen oder andere Bindungen vereinbart sind, ergibt sich aus den konkreten Unterlagen.",
+      },
+    ],
+    relatedTerms: ["gwb-vergaberecht", "vgv-vergabeverordnung", "uvgo", "vergabeunterlagen", "auftragswert", "zuschlag"],
+    relatedCategories: ["IT-Dienstleistungen", "Gebaeudereinigung", "Lieferung"],
+    relatedArticles: ["oeffentliche-auftraege-finden", "schwellenwerte-vergabe"],
+    sources: [
+      { title: "§ 103 Absatz 5 GWB – Rahmenvereinbarungen", url: "https://www.gesetze-im-internet.de/gwb/__103.html" },
+      { title: "§ 21 VgV – Rahmenvereinbarungen", url: "https://www.gesetze-im-internet.de/vgv_2016/__21.html" },
+    ],
+    lastReviewed: "2026-10-27",
   },
   {
     slug: "teilnahmewettbewerb",
