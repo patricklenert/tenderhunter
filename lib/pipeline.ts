@@ -40,11 +40,13 @@ import { ColdStorageError, ensureLocalStored } from "@/lib/object-store-cold";
 import { buildStructuredDescriptionMarkdown, extractStructuredData, normalizeStructured, type StructuredData } from "@/lib/structurer";
 import { assessTenderQuality, withCanonicalTenderDeadline } from "@/lib/tender-quality";
 import { resolveSourceItem } from "@/lib/tender-sources";
+import { classifyTenderRelevance } from "@/lib/tender-relevance";
 import {
   canonicalPublicSourceKey,
   normalizePublicClient,
   pickPublicDescription,
   scrapeAllPublicTenders,
+  extractPublicCpvCodes,
   type ExtractedTender,
 } from "@/lib/public-tender-scraper";
 import { buildPublicContinuationJobKey, cursorNumber, resolvePublicSourcePersistenceError, shouldCommitPublicCursor, shouldSchedulePublicContinuation, type PublicSourceCursor } from "@/lib/public-pagination";
@@ -346,6 +348,8 @@ interface UpsertTenderInput {
   deadlineAt?: Date | null;
   category?: string | null;
   rawText?: string | null;
+  /** Relevance gate result (lib/tender-relevance); undefined leaves it untouched. */
+  llmRelevant?: boolean;
 }
 
 interface UpsertTenderResult {
@@ -564,7 +568,7 @@ export const mergeMetadata = (
   return merged as Record<string, JsonValue>;
 };
 
-const upsertTender = async ({ source, sourceKey, url, title, externalId, metadata, deadlineAt, category, rawText }: UpsertTenderInput): Promise<UpsertTenderResult> => {
+const upsertTender = async ({ source, sourceKey, url, title, externalId, metadata, deadlineAt, category, rawText, llmRelevant }: UpsertTenderInput): Promise<UpsertTenderResult> => {
   const boundedRawText = rawText === undefined || rawText === null
     ? rawText
     : rawText.slice(0, MAX_TENDER_TEXT_CHARS);
@@ -667,6 +671,7 @@ const upsertTender = async ({ source, sourceKey, url, title, externalId, metadat
           deadlineAt: tenders.deadlineAt,
           category: tenders.category,
           rawText: tenders.rawText,
+          llmRelevant: tenders.llmRelevant,
         })
         .from(tenders)
         .where(eq(tenders.id, id))
@@ -732,6 +737,11 @@ const upsertTender = async ({ source, sourceKey, url, title, externalId, metadat
         updateData.procedureType = null;
       }
       await tx.update(tenders).set(updateData).where(eq(tenders.id, id));
+      // The relevance flag is bookkeeping, not content: persisting it must not
+      // count as `changed` (no version bump, no derived-state invalidation).
+      if (llmRelevant !== undefined && current.llmRelevant !== llmRelevant) {
+        await tx.update(tenders).set({ llmRelevant }).where(eq(tenders.id, id));
+      }
       return { id, changed, inserted: false };
     });
     if (result.changed) await markCatalogDirty();
@@ -750,6 +760,7 @@ const upsertTender = async ({ source, sourceKey, url, title, externalId, metadat
       deadlineAt: deadlineAt ?? undefined,
       category: category ?? undefined,
       rawText: resolveEffectiveRawText(boundedRawText) ?? undefined,
+      llmRelevant: llmRelevant ?? undefined,
     })
     .returning({ id: tenders.id });
 
@@ -3093,7 +3104,11 @@ const runStructureTender = async (payload: Record<string, JsonValue>): Promise<R
     : typeof tenderMetadata.referenceNumber === "string"
       ? tenderMetadata.referenceNumber
       : null;
-  const extractedStructured = await extractStructuredData(tender.title ?? "Unbenannte Ausschreibung", tender.rawText, { reference });
+  const extractedStructured = await extractStructuredData(tender.title ?? "Unbenannte Ausschreibung", tender.rawText, {
+    reference,
+    // Relevance gate: non-IT tenders get the deterministic structuring only.
+    useLLM: tender.llmRelevant !== false,
+  });
   const publicMeta = readPublicTenderMeta(tender.metadataJson, {
     title: tender.title,
     source: tender.source,
@@ -3276,6 +3291,23 @@ Antworte NUR mit validem JSON:
   "pdfUrls": ["https://..."],
   "estimatedValue": "Schaetzwert" oder null
 }`;
+
+// Lazy relevance decision for tenders without a stored verdict (legacy rows,
+// generic crawl ingest with title+URL only): decide once on the fetched
+// content, persist it, and reuse it on every later pipeline stage.
+const resolveTenderLlmRelevance = async (tender: Tender, content: string): Promise<boolean> => {
+  if (tender.llmRelevant === true || tender.llmRelevant === false) return tender.llmRelevant;
+  const decision = await classifyTenderRelevance({
+    title: tender.title ?? "",
+    url: tender.url,
+    description: content,
+    category: tender.category,
+    cpvCodes: extractPublicCpvCodes(content),
+  });
+  await db.update(tenders).set({ llmRelevant: decision.relevant }).where(eq(tenders.id, tender.id));
+  console.info(`[cache-detail] Relevanz entschieden: ${decision.relevant ? "relevant" : "nicht relevant"} (p=${decision.probability?.toFixed(2) ?? "n/a"}, ${decision.source}) fuer Tender ${tender.id}`);
+  return decision.relevant;
+};
 
 const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Record<string, JsonValue>> => {
   const tenderId = Number(payload.tender_id ?? 0);
@@ -3483,7 +3515,10 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
       }
   }
 
-  if (fullContent.length > 200 && openrouterKey) {
+  // Relevance gate: non-IT tenders keep their deterministic fallbacks but no
+  // longer reach the (expensive) LLM enrichment.
+  const llmRelevant = await resolveTenderLlmRelevance(tender, fullContent);
+  if (fullContent.length > 200 && openrouterKey && llmRelevant) {
     // We have good content — use LLM to structure it
     try {
       const llmClient = new OpenAI({ apiKey: openrouterKey, baseURL: "https://openrouter.ai/api/v1", timeout: 120_000, maxRetries: 0 });
@@ -4238,7 +4273,9 @@ const runScoreTender = async (payload: Record<string, JsonValue>): Promise<Recor
     // A model may refine an evidenced match, but cannot turn an unknown service into one.
     const capabilities = Array.isArray(company.capabilitiesJson) ? company.capabilitiesJson as string[] : [];
     const regions = Array.isArray(company.regionsJson) ? company.regionsJson as string[] : [];
-    const llmScores = locationEligibility.status === "match" && domainEligibility.status === "match"
+    // Relevance gate: non-IT tenders are scored deterministically only.
+    const llmScores = tender.llmRelevant !== false
+      && locationEligibility.status === "match" && domainEligibility.status === "match"
       ? await llmBatchDomainMatch(capabilities, company.industry, regions, tenderBatchItem)
       : new Map<number, number>();
     const llmDomainScore = llmScores.get(tenderId);
@@ -4555,6 +4592,19 @@ const runScrapePublicTenders = async (payload: Record<string, JsonValue>): Promi
          const procedure = pickValidatedPublicProcedure(tender.procedure) || null;
         const referenceNumber = normalizePublicDisplayCandidate(tender.referenceNumber) ?? null;
         const scope = normalizePublicDisplayCandidate(tender.scope);
+        const relevance = await classifyTenderRelevance({
+          title,
+          url: tender.sourceUrl,
+          client,
+          procedure: tender.procedure,
+          description,
+          scope,
+          category: tender.category,
+          cpvCodes: tender.cpvCodes,
+        });
+        if (!relevance.relevant) {
+          console.info(`[public-scraper] Nicht IT-relevant (p=${relevance.probability?.toFixed(2) ?? "n/a"}, ${relevance.source}); Tender ohne LLM: ${title.slice(0, 80)}`);
+        }
          const descriptionMarkdown = tender.accessLimited
            ? buildPublicAccessLimitedDescriptionMarkdown(title, extractPublicPortalFacts(tender.description))
            : buildTenderDescriptionMarkdown({
@@ -4600,6 +4650,7 @@ const runScrapePublicTenders = async (payload: Record<string, JsonValue>): Promi
           deadlineAt: deadline,
           category: tender.category,
           rawText: description,
+          llmRelevant: relevance.relevant,
         });
         if (upserted.changed) {
           await queueTenderProcessing(upserted.id);

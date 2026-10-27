@@ -122,6 +122,7 @@ async function main() {
     await client`ALTER TABLE tenders ADD COLUMN IF NOT EXISTS contract_value_max REAL`;
     await client`ALTER TABLE tenders ADD COLUMN IF NOT EXISTS contract_duration_months INTEGER`;
     await client`ALTER TABLE tenders ADD COLUMN IF NOT EXISTS procedure_type TEXT`;
+    await client`ALTER TABLE tenders ADD COLUMN IF NOT EXISTS llm_relevant BOOLEAN`;
 
     await client`
       CREATE TABLE IF NOT EXISTS us_tenders (

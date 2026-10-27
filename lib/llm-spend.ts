@@ -3,9 +3,12 @@ import { db } from "@/lib/db";
 import { llmSpendDays } from "@/lib/schema";
 
 // Paid-model price table in EUR per 1M tokens (prompt/completion).
-// Source: OpenRouter /api/v1/models (USD) × 0.92 FX, verified 2026-09-25.
+// Source: OpenRouter /api/v1/models (USD) × 0.92 FX, verified 2026-09-25;
+// ling-3.1-flash verified 2026-10-27 (the model became paid but was missing
+// here, so its spend went untracked — see MODEL_CASCADE in lib/llm.ts).
 export const PAID_MODEL_PRICING_EUR_PER_1M: Record<string, { prompt: number; completion: number }> = {
   "inclusionai/ling-3.0-flash": { prompt: 0.0193, completion: 0.058 },
+  "inclusionai/ling-3.1-flash": { prompt: 0.069, completion: 0.207 },
   "meta/muse-spark-1.3-contributor": { prompt: 0.092, completion: 0.184 },
   "z-ai/glm-5.3-flash": { prompt: 0.0414, completion: 0.1288 },
 };

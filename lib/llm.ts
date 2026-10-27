@@ -8,10 +8,10 @@ import {
   paidDailyBudgetMicroEur,
 } from "@/lib/llm-spend";
 
-// Prefer free OpenRouter models; paid fallbacks are disabled for now.
-// If re-enabled, paid OpenRouter models are gated by the daily budget (see lib/llm-spend).
+// Truly free OpenRouter variants first; the paid ling-3.1-flash (tracked and
+// gated by the daily budget, see lib/llm-spend) only bridges exhausted
+// free-model quotas before the Z.AI fallback kicks in.
 export const MODEL_CASCADE = [
-  "inclusionai/ling-3.1-flash",
   "poolside/laguna-s-2.1:free",
   "poolside/laguna-xs-2.1:free",
   "nvidia/nemotron-3-ultra-550b-a55b:free",
@@ -19,6 +19,7 @@ export const MODEL_CASCADE = [
   "google/gemma-4-31b-it:free",
   "nvidia/nemotron-3.5-lightning:free",
   "google/gemma-4-26b-a4b-it:free",
+  "inclusionai/ling-3.1-flash",
   // Paid OpenRouter models, kept disabled:
   // "inclusionai/ling-3.0-flash",
   // "meta/muse-spark-1.3-contributor",

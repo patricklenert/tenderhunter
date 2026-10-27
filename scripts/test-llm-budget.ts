@@ -79,8 +79,8 @@ async function main(): Promise<void> {
     isPaidModel("poolside/laguna-s-2.1:free") === false,
   );
   check(
-    'isPaidModel: "inclusionai/ling-3.1-flash" ist kostenlos',
-    isPaidModel("inclusionai/ling-3.1-flash") === false,
+    'isPaidModel: "inclusionai/ling-3.1-flash" ist paid (wurde nachtraeglich kostenpflichtig)',
+    isPaidModel("inclusionai/ling-3.1-flash") === true,
   );
   check(
     'isPaidModel: "glm-4.7-flash" ist nicht paid (Z.AI-Modelle sind nie paid)',
@@ -88,6 +88,7 @@ async function main(): Promise<void> {
   );
 
   const ling = PAID_MODEL_PRICING_EUR_PER_1M["inclusionai/ling-3.0-flash"];
+  const ling31 = PAID_MODEL_PRICING_EUR_PER_1M["inclusionai/ling-3.1-flash"];
   const muse = PAID_MODEL_PRICING_EUR_PER_1M["meta/muse-spark-1.3-contributor"];
 
   // estimateCostMicroEur
@@ -115,6 +116,10 @@ async function main(): Promise<void> {
   check(
     "Preis-Anker: muse Prompt-Preis liegt bei 0.092 EUR +/- 0.01 pro 1M Tokens",
     Math.abs(muse.prompt - 0.092) <= 0.01,
+  );
+  check(
+    "Preis-Anker: ling-3.1-flash liegt bei 0.069/0.207 EUR pro 1M Tokens (OpenRouter 0.075/0.225 USD x 0.92)",
+    Math.abs(ling31.prompt - 0.069) <= 0.005 && Math.abs(ling31.completion - 0.207) <= 0.005,
   );
   check(
     'estimateCostMicroEur: unbekanntes Modell ("unbekannt/modell") ergibt 0',

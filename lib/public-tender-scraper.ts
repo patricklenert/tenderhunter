@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import * as cheerio from "cheerio";
 import { closeTrackedBrowserContext, createTrackedBrowserContext, isRecoverableBrowserError, readStablePageContent, retryOnceOnRecoverableBrowserError, scrapeWebsite, htmlToBasicMarkdown, type ScrapedPage } from "@/lib/firecrawl";
 import { callLLM } from "@/lib/llm";
+import { classifyTenderRelevance } from "@/lib/tender-relevance";
 import { detectAccessPage, hasPositiveAccessLimitedEvidence, isParticipationWallText } from "@/lib/access-page-detector";
 import { stripSessionId } from "@/lib/tender-identity";
 import { settings } from "@/lib/config";
@@ -1337,6 +1338,62 @@ async function extractTendersFromMarkdown(
   }
 }
 
+// Best-effort title from scraped page text, used by the deterministic detail
+// fallback when the relevance gate skips the LLM extraction.
+const guessTenderTitleFromMarkdown = (markdown: string): string | null => {
+  const lines = markdown.split("\n").map((line) => line.trim()).filter(Boolean);
+  const heading = lines.find((line) => /^#{1,4}\s+\S/.test(line));
+  const candidates = heading ? [heading.replace(/^#{1,4}\s+/, ""), ...lines] : lines;
+  for (const candidate of candidates.slice(0, 15)) {
+    const cleaned = cleanTenderTitle(candidate.replace(/^#{1,4}\s+/, "").slice(0, 300));
+    if (cleaned.length >= 8 && cleaned.length <= 300 && !isPublicNavigationSummary(candidate)) return cleaned;
+  }
+  return null;
+};
+
+// LLM-free minimum extraction for detail pages the relevance gate refuses to
+// spend tokens on. Keeps the tender visible in the catalog (title, portal
+// facts, description head) without pretending at LLM-grade extraction.
+const buildDeterministicDetailTender = (
+  markdown: string,
+  truncated: string,
+  sourceUrl: string,
+  source: string,
+): ExtractedTender | null => {
+  const title = guessTenderTitleFromMarkdown(markdown);
+  if (!title || !isLikelyTender(title, sourceUrl)) return null;
+  const facts = extractPublicPortalFacts(truncated);
+  const cpvCodes = extractPublicCpvCodes(truncated);
+  const scope = facts.subject;
+  const description = cleanPublicDescription(
+    truncated.split("\n").filter((line) => line.trim() && line.trim() !== title).join("\n").slice(0, 1500),
+  );
+  const category = derivePublicTenderCategory(
+    null,
+    cpvCodes,
+    [title, description, scope].filter(Boolean).join(" "),
+  );
+  return withDescriptionMarkdown({
+    title,
+    client: normalizePublicClient(facts.client ?? ""),
+    deadline: facts.deadline,
+    description,
+    procedure: facts.procedure,
+    scope,
+    estimatedValue: null,
+    duration: null,
+    requirements: [],
+    awardCriteria: [],
+    cpvCodes,
+    referenceNumber: null,
+    location: facts.location,
+    category,
+    sourceUrl,
+    source,
+    pdfUrls: extractPdfUrlsFromMarkdown(markdown, sourceUrl),
+  });
+};
+
 async function extractDetailFromMarkdown(
   markdown: string,
   sourceUrl: string,
@@ -1352,8 +1409,22 @@ async function extractDetailFromMarkdown(
     return null;
   }
 
-  const client = getOpenAI();
+  // Relevance gate: spend LLM tokens only on tenders a fullstack developer
+  // could apply to. Non-relevant pages get the deterministic minimum instead.
+  // Runs before getOpenAI() so a missing key cannot block gate-only processing.
   const truncated = markdown.substring(0, 10000);
+  const relevance = await classifyTenderRelevance({
+    title: guessTenderTitleFromMarkdown(markdown) ?? sourceUrl,
+    url: sourceUrl,
+    description: truncated,
+    cpvCodes: extractPublicCpvCodes(markdown),
+  });
+  if (!relevance.relevant) {
+    console.info(`[public-scraper] Detail nicht IT-relevant (p=${relevance.probability?.toFixed(2) ?? "n/a"}); deterministische Extraktion ${sourceUrl}`);
+    return buildDeterministicDetailTender(markdown, truncated, sourceUrl, source);
+  }
+
+  const client = getOpenAI();
 
   try {
     const content = await callLLM(client, {

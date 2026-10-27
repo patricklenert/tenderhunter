@@ -41,6 +41,9 @@ export const tenders = pgTable(
     metadataJson: jsonb("metadata_json"),
     deadlineAt: timestamp("deadline_at", { withTimezone: true }),
     category: text("category"),
+    // Relevance gate (lib/tender-relevance): false = pipeline stages skip LLM
+    // calls for this tender (deterministic processing only). null = undecided.
+    llmRelevant: boolean("llm_relevant"),
     qualityStatus: text("quality_status").notNull().default("candidate"),
     qualityReason: text("quality_reason"),
     readinessStatus: text("readiness_status").notNull().default("pending"),

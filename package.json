@@ -48,6 +48,7 @@
     "test:home-seo:browser": "tsx scripts/test-home-seo-browser.ts",
     "test:public-profile": "tsx scripts/test-public-profile.ts",
     "test:llm": "tsx scripts/test-llm.ts",
+    "test:tender-relevance": "tsx scripts/test-tender-relevance.ts",
     "test:llm-budget": "tsx scripts/test-llm-budget.ts",
     "test:parser": "tsx scripts/test-parser.ts",
     "test:classifier": "tsx scripts/test-document-classifier.ts",
