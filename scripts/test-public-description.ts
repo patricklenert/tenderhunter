@@ -113,7 +113,7 @@ const portalSupportWall = [
   "Sofern größere Datenmengen verwendet werden sollen muss sich der Benutzer innerhalb der Servicezeiten an den Support der Betreiberin wenden.",
   "Ein Anspruch auf die Verwendung größere Datenmengen besteht jedoch nicht.",
 ].join(" ");
-for (const invalid of ["## Kurzinfo", "## location", "## Bekanntmachung", "#", "... Dienstleistungen ## CPV-Codes ...", "[ROLLEN: bekanntmachung] [ROLLE: bekanntmachung] [DOKUMENT-ID: 51568]", "Formular — Auftragsbekanntmachung ...", "-", "--", "---", "- Verfahren - - - Lose - Ergebnisse - Verträge - - - -", "SERVICE.BUND.DE - Aktuelle Ausschreibungen", "Haupt-Navigations-Menü", "Meta-Navigation", "Andere Ausschreibungen im Bereich", "Ã–ffentliche Ausschreibung", "�ffentliche Ausschreibung", "HüpstedtVergabeartBeschränkte AusschreibungAngebotsfrist03.08.2026", "<p>Portaltext</p>", "Die angegebene URL (https://example.test) gibt einen 404-Fehler zurück. Es liegen keine Ausschreibungsdaten vor.", "{{description}}", "Anmelden", "Alle Ausschreibungen", "Login", "Log in", "Sign in", "Anmeldung", "Registrieren", "Registrierung", "Formblatt 1", "Anmelden erforderlich, um Zugriff zu erhalten", "Bitte melden Sie sich an, um die vollständigen Vergabeunterlagen einzusehen.", "Sie müssen sich anmelden, um die vollständigen Ausschreibungsunterlagen herunterzuladen.", "Eine Teilnahme ist erforderlich, um die Vergabeunterlagen einzusehen.", portalSupportWall, "Fliesenarbeiten Epoxidharzbeschichtung (GTL"]) {
+for (const invalid of ["## Kurzinfo", "##Kurzinfo", "##Bekanntmachung", "## location", "## Bekanntmachung", "#", "... Dienstleistungen ## CPV-Codes ...", "[ROLLEN: bekanntmachung] [ROLLE: bekanntmachung] [DOKUMENT-ID: 51568]", "Formular — Auftragsbekanntmachung ...", "-", "--", "---", "- Verfahren - - - Lose - Ergebnisse - Verträge - - - -", "SERVICE.BUND.DE - Aktuelle Ausschreibungen", "Haupt-Navigations-Menü", "Meta-Navigation", "Andere Ausschreibungen im Bereich", "Ã–ffentliche Ausschreibung", "�ffentliche Ausschreibung", "HüpstedtVergabeartBeschränkte AusschreibungAngebotsfrist03.08.2026", "<p>Portaltext</p>", "Die angegebene URL (https://example.test) gibt einen 404-Fehler zurück. Es liegen keine Ausschreibungsdaten vor.", "{{description}}", "Anmelden", "Alle Ausschreibungen", "Login", "Log in", "Sign in", "Anmeldung", "Registrieren", "Registrierung", "Formblatt 1", "Anmelden erforderlich, um Zugriff zu erhalten", "Bitte melden Sie sich an, um die vollständigen Vergabeunterlagen einzusehen.", "Sie müssen sich anmelden, um die vollständigen Ausschreibungsunterlagen herunterzuladen.", "Eine Teilnahme ist erforderlich, um die Vergabeunterlagen einzusehen.", portalSupportWall, "Fliesenarbeiten Epoxidharzbeschichtung (GTL"]) {
   if (normalizePublicDisplayCandidate(invalid) !== null) {
     throw new Error(`Ungültiger öffentlicher Kandidat wurde akzeptiert: ${invalid}`);
   }
@@ -596,7 +596,9 @@ if (normalizePublicDisplayCandidate("94469 Deggendorf Bayern Karte anschauen Hin
 if (normalizePublicDisplayCandidate("Öffentliche Ausschreibung für Bauleistungen") !== "Öffentliche Ausschreibung für Bauleistungen") {
   throw new Error("Gültiger deutscher Kandidat wurde verändert");
 }
-if (pickValidatedPublicCandidate("## Kurzinfo", "-", "Dokumentierte Bauleistungen in Mainz") !== "Dokumentierte Bauleistungen in Mainz") {
+const compactHeadingFallback = "Vergabeverfahren für Bauleistungen in Mainz";
+if (pickValidatedPublicCandidate("##Kurzinfo", "##Bekanntmachung", "-", compactHeadingFallback) !== compactHeadingFallback
+  || projectPublicDisplayFields({ summary: ["##Kurzinfo", compactHeadingFallback] }).summary !== compactHeadingFallback) {
   throw new Error("Validierter Fallback wählt keinen gültigen Kandidaten");
 }
 const sourceBackedDescription = "Die Lieferung und Montage umfasst neue Fenster für die Grundschule.";

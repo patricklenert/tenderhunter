@@ -202,13 +202,16 @@ assert.equal(projectedMeiliAccessHit.description, accessFixtureFallback.descript
 
 // A non-null but invalid metadata description must not shadow valid structured
 // prose in the index, list/detail projection, or modal's shared projection.
-const qualityFixtureTitle = "Energetische Sanierung der Grundschule Mainz";
+const qualityFixtureTitle = "##Bekanntmachung";
+const qualityFixtureDisplayTitle = "Energetische Sanierung der Grundschule Mainz";
 const qualityFixtureSummary = "Die Grundschule erhält eine neue Heizungsanlage und eine verbesserte Wärmedämmung.";
-const invalidPortalSummary = "- Verfahren - - - Lose - Ergebnisse - Verträge - - - -";
-const qualityFixtureMetadata = { description: invalidPortalSummary, location: "##", client: "Stadt Mainz" };
+const invalidPortalSummary = "##Kurzinfo";
+const qualityFixtureMetadata = { description: invalidPortalSummary, location: "##Leistungsort", client: "Stadt Mainz" };
 const qualityFixtureStructured = {
-  summary: qualityFixtureSummary,
-  hard_facts: { buyer: "Stadt Mainz", location: "55116 Mainz" },
+  title: qualityFixtureDisplayTitle,
+  summary: "##Bekanntmachung",
+  description: qualityFixtureSummary,
+  hard_facts: { buyer: "Stadt Mainz", location: "##Leistungsort", city: "55116 Mainz" },
   decision_relevant: { scope: ["Energetische Sanierung der Grundschule"] },
 };
 const qualityFixtureNormalized = normalizeStructured(qualityFixtureStructured, qualityFixtureTitle);
@@ -224,10 +227,10 @@ const qualityFixtureDetail = projectPublicTenderDetailFallback({
   fallbackFacts: {},
 }).display;
 const qualityFixtureModal = projectPublicDisplayFields({
-  title: qualityFixtureDetail.title,
-  client: qualityFixtureDetail.client,
-  location: qualityFixtureDetail.location,
-  summary: qualityFixtureDetail.description,
+  title: [qualityFixtureTitle, qualityFixtureDisplayTitle],
+  client: ["##Auftraggeber", "Stadt Mainz"],
+  location: ["##Leistungsort", "55116 Mainz"],
+  summary: ["##Kurzinfo", "##Bekanntmachung", qualityFixtureSummary],
 });
 const qualityFixtureIndex = buildTenderIndexDocument({
   id: 907,
@@ -265,6 +268,7 @@ const publicFields = (projection: {
   description: projection.description,
 });
 const qualityFixtureExpected = publicFields(qualityFixtureList);
+assert.equal(qualityFixtureExpected.title, qualityFixtureDisplayTitle);
 assert.equal(qualityFixtureExpected.location, "55116 Mainz");
 assert.equal(qualityFixtureExpected.description, qualityFixtureSummary);
 assert.deepEqual(publicFields(qualityFixtureDetail), qualityFixtureExpected);

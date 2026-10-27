@@ -72,7 +72,7 @@ const STANDALONE_PUBLIC_FRAGMENT = /^(?:beschreibt|vorinformationen|nicht\s+inne
 const FORM_FRAGMENT = /(?:gesetzlichen vertreter|beruflichen qualifikationen|nicht erforderlich\s*$|rechtsverbindlich(?:e|en)? erklärung)/iu;
 const SOURCE_ERROR = /(?:die angegebene url.*(?:404|nicht gefunden)|keine ausschreibungsdaten vor|\bsource[\s_-]*error\b|\b(?:quell|quellen)[\s_-]*fehler\b)/iu;
 const INTERNAL_DOCUMENT_MARKERS = /\[(?:rollen|rolle|dokument\s*[-–—]?\s*id)\s*:[^\]\r\n]*\]/iu;
-const INLINE_MARKDOWN_HEADING = /(?:^|\s)#{1,6}(?=\s|$)/u;
+const INLINE_MARKDOWN_HEADING = /(?:^#{1,6}(?=\S)|(?:^|\s)#{1,6}(?=\s|$))/u;
 const INLINE_MARKDOWN_LINK = /!?\[[^\]\r\n]+\]\([^\r\n]*\)/gu;
 const INLINE_MARKDOWN_CODE = /(`+)[^`\r\n]+\1/gu;
 const INLINE_MARKDOWN_FORMATTING = /(~~|\*\*|__)[^\r\n]+?\1|(\*|_)[^\r\n]+?\2/gu;
