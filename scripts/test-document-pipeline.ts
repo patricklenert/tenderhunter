@@ -138,6 +138,26 @@ assert.equal(
   true,
   "low-confidence tenders with usable text remain eligible after cooldown",
 );
+assert.equal(
+  shouldRetryLowConfidenceStructure({
+    qualityStatus: "candidate",
+    rawText: "Tender description and scope",
+    finishedAt: new Date(recoveryNow - 2 * 60 * 60 * 1_000),
+    confidence: 0.35,
+  }, recoveryNow),
+  false,
+  "structures at the confidence threshold are not low-confidence retries",
+);
+assert.equal(
+  shouldRetryLowConfidenceStructure({
+    qualityStatus: "candidate",
+    rawText: "Tender description and scope",
+    finishedAt: new Date(recoveryNow - 30 * 60 * 1_000),
+    confidence: 0.2,
+  }, recoveryNow),
+  false,
+  "low-confidence structures remain in cooldown until an hour has elapsed",
+);
 assert.equal(isTerminalCacheDetailFailure("Detailseite vorübergehend nicht verfügbar (login_required)"), true);
 assert.equal(isTerminalCacheDetailFailure("Portal returned navigation_page without tender details"), true);
 assert.equal(isTerminalCacheDetailFailure("temporary network timeout"), false);

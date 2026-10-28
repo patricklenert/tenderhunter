@@ -1377,6 +1377,30 @@ export const recoverIncompleteTenderPipelines = async (limit = 50): Promise<numb
             )
           )
         )
+        OR (
+          -- Completed but low-confidence structures are retried only after
+          -- their recovery cooldown; without this branch the retry logic in
+          -- recoverTenderProcessing is never reached for these tenders.
+          ${structuredData.tenderId} IS NOT NULL
+          AND ${tenders.rawText} IS NOT NULL
+          AND BTRIM(${tenders.rawText}) <> ''
+          AND COALESCE(${structuredData.confidence}, 0) < 0.35
+          AND EXISTS (
+            SELECT 1 FROM jobs low_confidence_structure
+            WHERE low_confidence_structure.type = 'structure_tender'
+              AND low_confidence_structure.status = 'done'
+              AND low_confidence_structure.finished_at <= NOW() - (${FAILED_PIPELINE_RECOVERY_COOLDOWN_MS} * INTERVAL '1 millisecond')
+              AND low_confidence_structure.payload ->> 'tender_id' = ${tenders.id}::text
+              AND ${currentPipelineVersionSql("low_confidence_structure")}
+              AND NOT EXISTS (
+                SELECT 1 FROM jobs newer_structure
+                WHERE newer_structure.type = low_confidence_structure.type
+                  AND newer_structure.payload ->> 'tender_id' = low_confidence_structure.payload ->> 'tender_id'
+                  AND newer_structure.id > low_confidence_structure.id
+                  AND ${currentPipelineVersionSql("newer_structure")}
+              )
+          )
+        )
         OR EXISTS (
           SELECT 1 FROM jobs failed_stage
           WHERE (
