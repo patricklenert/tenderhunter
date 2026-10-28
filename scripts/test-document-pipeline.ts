@@ -272,21 +272,117 @@ assert.equal(
   "invalid incoming descriptions must not replace a valid persisted description",
 );
 const richerDescription = "Der Auftrag umfasst die umfassende Planung und Ausführung von Straßenbauarbeiten im Stadtgebiet Mainz. Dazu gehören die Erneuerung der Fahrbahndecke, Anpassungen an Gehwegen und Entwässerungsanlagen sowie die Einrichtung einer sicheren Verkehrsführung während der Bauzeit. Die Leistungen sind abschnittsweise zu erbringen und mit den örtlichen Versorgungsträgern abzustimmen. Angebote müssen die vorgesehenen Bauabläufe, eingesetzten Materialien und die Einhaltung der geltenden technischen Regelwerke nachvollziehbar darstellen.";
+const incomingDescriptionMarkdown = "- **Auftraggeber:** Stadt Wiesbaden";
+const thinnerDescriptionInput = {
+  description: "Straßenbauarbeiten in Mainz.",
+  descriptionMarkdown: incomingDescriptionMarkdown,
+};
+const thinnerDescriptionMerge = mergeMetadata(
+  { description: richerDescription, descriptionMarkdown: canonicalMarkdown },
+  thinnerDescriptionInput,
+);
 assert.equal(
-  mergeMetadata(
-    { description: richerDescription },
-    { description: "Straßenbauarbeiten in Mainz." },
-  )?.description,
+  thinnerDescriptionMerge?.description,
   richerDescription,
   "a materially thinner valid incoming description must not replace the richer stored description",
 );
 assert.equal(
-  mergeMetadata(
-    { description: "Straßenbauarbeiten in Mainz." },
-    { description: richerDescription },
-  )?.description,
+  thinnerDescriptionMerge?.descriptionMarkdown,
+  canonicalMarkdown,
+  "a materially thinner description must keep the markdown from the retained text snapshot",
+);
+assert.deepEqual(
+  mergeMetadata(thinnerDescriptionMerge, thinnerDescriptionInput),
+  thinnerDescriptionMerge,
+  "remerging a materially thinner description must be idempotent",
+);
+const invalidDescriptionInput = {
+  description: "## Bekanntmachung",
+  descriptionMarkdown: incomingDescriptionMarkdown,
+};
+const invalidDescriptionMerge = mergeMetadata(
+  { description: richerDescription, descriptionMarkdown: canonicalMarkdown },
+  invalidDescriptionInput,
+);
+assert.deepEqual(
+  {
+    description: invalidDescriptionMerge?.description,
+    descriptionMarkdown: invalidDescriptionMerge?.descriptionMarkdown,
+  },
+  { description: richerDescription, descriptionMarkdown: canonicalMarkdown },
+  "invalid incoming text must keep the existing text and its matching canonical markdown",
+);
+assert.deepEqual(
+  mergeMetadata(invalidDescriptionMerge, invalidDescriptionInput),
+  invalidDescriptionMerge,
+  "remerging invalid incoming text must be idempotent",
+);
+const richerDescriptionInput = {
+  description: richerDescription,
+  descriptionMarkdown: incomingDescriptionMarkdown,
+};
+const richerDescriptionMerge = mergeMetadata(
+  { description: "Straßenbauarbeiten in Mainz.", descriptionMarkdown: canonicalMarkdown },
+  richerDescriptionInput,
+);
+assert.equal(
+  richerDescriptionMerge?.description,
   richerDescription,
   "a richer valid incoming description must replace a thinner stored description",
+);
+assert.equal(
+  richerDescriptionMerge?.descriptionMarkdown,
+  incomingDescriptionMarkdown,
+  "a winning incoming description must use its matching canonical markdown",
+);
+assert.deepEqual(
+  mergeMetadata(richerDescriptionMerge, richerDescriptionInput),
+  richerDescriptionMerge,
+  "remerging a richer description and its markdown must be idempotent",
+);
+const existingDisplaySummary = "Bisherige Zusammenfassung: Erneuerung der Fahrbahn und Entwässerung im Stadtgebiet Mainz.";
+const summaryWinsMerge = mergeMetadata(
+  {
+    summary: existingDisplaySummary,
+    description: "Kurzer vorhandener Beschreibungstext.",
+    descriptionMarkdown: canonicalMarkdown,
+  },
+  richerDescriptionInput,
+);
+assert.equal(summaryWinsMerge?.summary, existingDisplaySummary);
+assert.equal(summaryWinsMerge?.description, richerDescription);
+assert.equal(
+  summaryWinsMerge?.descriptionMarkdown,
+  canonicalMarkdown,
+  "markdown must follow the summary-first public projection when an incoming description wins only its per-key merge",
+);
+const unchangedPublicDescription = "Die Stadt Mainz erneuert die Beleuchtung einer Schule.";
+const refreshedDescriptionMarkdown = "- **Auftraggeber:** Landeshauptstadt Mainz";
+const unchangedDescriptionMerge = mergeMetadata(
+  { description: unchangedPublicDescription, descriptionMarkdown: canonicalMarkdown },
+  { description: unchangedPublicDescription, descriptionMarkdown: refreshedDescriptionMarkdown },
+);
+assert.equal(
+  unchangedDescriptionMerge?.descriptionMarkdown,
+  refreshedDescriptionMarkdown,
+  "valid incoming markdown is preferred when the unchanged incoming description matches the public display",
+);
+const invalidMarkdownMerge = mergeMetadata(
+  { description: unchangedPublicDescription, descriptionMarkdown: canonicalMarkdown },
+  { description: unchangedPublicDescription, descriptionMarkdown: "## ungeprüft" },
+);
+assert.equal(
+  invalidMarkdownMerge?.descriptionMarkdown,
+  canonicalMarkdown,
+  "invalid incoming markdown must preserve matching existing markdown when text is unchanged",
+);
+assert.equal(
+  mergeMetadata(
+    { description: richerDescription, descriptionMarkdown: canonicalMarkdown },
+    { source: "updated", descriptionMarkdown: incomingDescriptionMarkdown },
+  )?.descriptionMarkdown,
+  incomingDescriptionMarkdown,
+  "canonical markdown updates without text changes retain their existing accepted behavior",
 );
 
 assert.equal(isFetchableResourceCandidate(combinedCandidate), true, "extensionless download resources are fetchable");

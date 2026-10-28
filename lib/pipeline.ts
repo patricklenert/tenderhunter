@@ -535,9 +535,11 @@ export const mergeMetadata = (
     const existingDescription = pickPublicDescription(existingRecord[key]);
     const incomingIsMateriallyThinner = incomingDescription && existingDescription
       && incomingDescription.length < existingDescription.length * 0.8;
-    if (incomingDescription && !incomingIsMateriallyThinner) merged[key] = incomingDescription;
-    else if (existingDescription) merged[key] = existingDescription;
-    else delete merged[key];
+    if (incomingDescription && !incomingIsMateriallyThinner) {
+      merged[key] = incomingDescription;
+    } else if (existingDescription) {
+      merged[key] = existingDescription;
+    } else delete merged[key];
   }
   for (const [key, value] of Object.entries(incoming)) {
     if (key === "description" || key === "summary" || key === "descriptionMarkdown" || key === "description_markdown") continue;
@@ -554,11 +556,28 @@ export const mergeMetadata = (
       .find(isCanonicalPublicDescriptionMarkdown);
     const existingDescriptionMarkdown = [existingRecord.descriptionMarkdown, existingRecord.description_markdown]
       .find(isCanonicalPublicDescriptionMarkdown);
-    if (incomingDescriptionMarkdown) {
-      merged.descriptionMarkdown = incomingDescriptionMarkdown;
-      delete merged.description_markdown;
-    } else if (existingDescriptionMarkdown) {
-      merged.descriptionMarkdown = existingDescriptionMarkdown;
+    const hasIncomingTextSnapshot = ["description", "summary"]
+      .some((key) => Object.prototype.hasOwnProperty.call(incoming, key));
+    let selectedDescriptionMarkdown: string | undefined;
+    if (!hasIncomingTextSnapshot) {
+      selectedDescriptionMarkdown = incomingDescriptionMarkdown ?? existingDescriptionMarkdown;
+    } else {
+      const mergedPublicDescription = pickPublicTenderDescription({ metadata: merged });
+      const incomingPublicDescription = pickPublicTenderDescription({ metadata: incoming });
+      const existingPublicDescription = pickPublicTenderDescription({ metadata: existingRecord });
+      const incomingMatches = Boolean(mergedPublicDescription)
+        && incomingPublicDescription === mergedPublicDescription;
+      const existingMatches = Boolean(mergedPublicDescription)
+        && existingPublicDescription === mergedPublicDescription;
+      if (incomingMatches) {
+        selectedDescriptionMarkdown = incomingDescriptionMarkdown
+          ?? (existingMatches ? existingDescriptionMarkdown : undefined);
+      } else if (existingMatches) {
+        selectedDescriptionMarkdown = existingDescriptionMarkdown;
+      }
+    }
+    if (selectedDescriptionMarkdown) {
+      merged.descriptionMarkdown = selectedDescriptionMarkdown;
       delete merged.description_markdown;
     } else {
       delete merged.descriptionMarkdown;

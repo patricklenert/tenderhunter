@@ -276,6 +276,59 @@ assert.deepEqual(publicFields(qualityFixtureModal), qualityFixtureExpected);
 assert.deepEqual(publicFields(qualityFixtureIndex), qualityFixtureExpected);
 assert.deepEqual(publicFields(qualityFixtureSearchHit), qualityFixtureExpected);
 
+// A valid structured summary remains public when metadata carries an invalid,
+// non-null description, across list, modal, detail, index, and search surfaces.
+const structuredSummaryTitle = "Sanierung der Grundschule Mainz";
+const structuredSummaryText = "Die Grundschule erhält eine neue Heizungsanlage und eine verbesserte Wärmedämmung.";
+const invalidDescriptionMetadata = { description: "## Bekanntmachung", client: "Stadt Mainz" };
+const structuredSummary = { summary: structuredSummaryText, hard_facts: { buyer: "Stadt Mainz" } };
+const structuredSummaryNormalized = normalizeStructured(structuredSummary, structuredSummaryTitle);
+const structuredSummaryList = projectPublicTenderRecord({
+  title: structuredSummaryTitle,
+  metadata: invalidDescriptionMetadata,
+  structured: structuredSummaryNormalized,
+});
+const structuredSummaryModal = projectPublicDisplayFields({
+  title: structuredSummaryTitle,
+  client: [structuredSummaryNormalized, invalidDescriptionMetadata],
+  summary: [structuredSummaryNormalized, invalidDescriptionMetadata],
+});
+const structuredSummaryDetail = projectPublicTenderDetailFallback({
+  title: structuredSummaryTitle,
+  metadataJson: invalidDescriptionMetadata,
+  staleStructuredJson: structuredSummary,
+  fallbackFacts: {},
+}).display;
+const structuredSummaryIndex = buildTenderIndexDocument({
+  id: 908,
+  title: structuredSummaryTitle,
+  source: "dtvp",
+  sourceKey: "dtvp",
+  url: "https://example.test/tender/908",
+  deadlineAt: null,
+  firstSeenAt: null,
+  category: "Bauarbeiten",
+  metadataJson: invalidDescriptionMetadata,
+  structuredJson: structuredSummary,
+  rawText: structuredSummaryText,
+  contractValueMax: null,
+  slug: null,
+  readinessStatus: "pending",
+});
+const structuredSummarySearchHit = projectTenderSearchHit(structuredSummaryIndex, {
+  title: structuredSummaryTitle,
+  source: "dtvp",
+  url: "https://example.test/tender/908",
+  metadataJson: invalidDescriptionMetadata,
+  structuredJson: structuredSummary,
+  rawText: structuredSummaryText,
+});
+assert.equal(structuredSummaryList.description, structuredSummaryText);
+assert.equal(structuredSummaryModal.description, structuredSummaryText);
+assert.equal(structuredSummaryDetail.description, structuredSummaryText);
+assert.equal(structuredSummaryIndex.description, structuredSummaryText);
+assert.equal(structuredSummarySearchHit.description, structuredSummaryText);
+
 // cache_detail persists a validated scope as a sentence/list item, and list,
 // modal and server-rendered detail must project that stored shape identically.
 const cacheDetailTitle = "Lieferung von Büromaterial für mehrere Standorte";
