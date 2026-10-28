@@ -23,7 +23,7 @@ import {
   Bot,
 } from "lucide-react";
 import { SearchLocationIcon } from "@/components/icons/SidebarIcons";
-import { BrandMark } from "@/components/BrandMark";
+import { BrandLockup } from "@/components/BrandLockup";
 import { AuthModal } from "@/components/AuthModal";
 import { UserMenu } from "@/components/UserMenu";
 import Link from "next/link";
@@ -146,23 +146,7 @@ export function Shell({ children }: ShellProps) {
           flexShrink: 0,
         }}
       >
-        <Box
-          sx={{
-            width: 40,
-            height: 40,
-            borderRadius: 2,
-            bgcolor: "var(--color-brand-primary)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexShrink: 0,
-          }}
-        >
-          <BrandMark size={24} color="var(--color-brand-signal)" />
-        </Box>
-        <Typography variant="subtitle1" fontWeight={700} noWrap>
-          Tenderhunter
-        </Typography>
+        <BrandLockup size={40} labelSize={16} gap={12} />
       </Box>
 
       <Box id="main-navigation" component="nav" aria-label="Hauptnavigation" sx={{ flex: 1, px: 2, pt: 2 }}>

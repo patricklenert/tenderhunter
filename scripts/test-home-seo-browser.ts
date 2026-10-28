@@ -54,8 +54,18 @@ async function main() {
     }
   }
 
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+  await page.getByRole("button", { name: "Navigation öffnen" }).click();
+  const mobileBrand = page.getByRole("link", { name: "Tenderhunter Startseite" });
+  assert.equal(await mobileBrand.getByText("Tenderhunter", { exact: true }).count(), 1, "mobile navigation must use the shared Tenderhunter wordmark");
+  assert.equal(await mobileBrand.locator("svg").count(), 1, "mobile navigation must show the shared brand mark");
+
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+  const desktopBrand = page.getByRole("link", { name: "Tenderhunter Startseite" });
+  assert.equal(await desktopBrand.getByText("Tenderhunter", { exact: true }).count(), 1, "desktop navigation must use the shared Tenderhunter wordmark");
+  assert.equal(await desktopBrand.locator("svg").count(), 1, "desktop navigation must show the shared brand mark");
 
   const seoSection = page.locator('[data-layout-slot="homepage-seo"]');
   const seoHeading = page.getByRole("heading", { name: headingText, exact: true });
