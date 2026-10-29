@@ -1082,6 +1082,31 @@ for (const hint of unsafeCanonicalHints) {
     throw new Error(`Ungeprüfter Hinweis wurde als kanonisches Markdown akzeptiert: ${hint}`);
   }
 }
+const normalizedCanonicalArtifacts = [
+  "Die st�dtischen Gebäude werden saniert.",
+  "Die Stadt saniert die Kl&auml;ranlage.",
+  "Die Stadt saniert die \uFFFDffentliche Straße.",
+  "SERVICE.BUND.DEHaupt-Navigations-Men&#xFC;Meta-NavigationAndere Ausschreibungen im Bereich",
+  "Anmelden erforderlich, um Zugriff zu erhalten",
+  serviceBundPdfTemplateFragment,
+];
+for (const artifact of normalizedCanonicalArtifacts) {
+  if (isCanonicalPublicDescriptionMarkdown(`- **Zusammenfassung:** ${artifact}`)) {
+    throw new Error(`Nicht kanonischer, reparierbarer oder Portaltext wurde als Markdown akzeptiert: ${artifact}`);
+  }
+}
+const normalizedMarkdownFallback = buildTenderDescriptionMarkdown({
+  summary: "Die städtischen Gebäude werden saniert.",
+});
+const normalizedMarkdownProjection = projectPublicDisplayFields({
+  descriptionMarkdown: [
+    "- **Zusammenfassung:** Die st�dtischen Gebäude werden saniert.",
+    normalizedMarkdownFallback,
+  ],
+});
+if (normalizedMarkdownProjection.descriptionMarkdown !== normalizedMarkdownFallback) {
+  throw new Error("Reparierbares gespeichertes Markdown blieb ungeprüft sichtbar oder blockierte den gültigen Fallback");
+}
 const safeHintMarkdown = "- **Hinweis:** Die vollständige Leistungsbeschreibung und die Vergabeunterlagen sind auf dem Quellportal derzeit nicht öffentlich verfügbar.";
 const hintMarkdownFallback = projectPublicDisplayFields({
   descriptionMarkdown: [

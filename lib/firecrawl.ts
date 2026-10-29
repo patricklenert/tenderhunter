@@ -320,6 +320,9 @@ export function htmlToBasicMarkdown(html: string): string {
     .replace(/<style[\s\S]*?<\/style>/gi, "")
     .replace(/<svg[\s\S]*?<\/svg>/gi, "")
     .replace(/<noscript[\s\S]*?<\/noscript>/gi, "")
+    // Match the public scraper's basic HTML path: navigation and site chrome
+    // must not be promoted to tender content by this generic fallback.
+    .replace(/<(nav|header|footer)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, "")
     // Headings: emit markdown-style prefix so labels and values do not glue together
     .replace(/<h[1-6][^>]*>/gi, "\n## ")
     .replace(/<\/h[1-6]>/gi, "\n")

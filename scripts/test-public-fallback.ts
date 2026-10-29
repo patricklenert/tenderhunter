@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import type { Page } from "playwright";
-import { isRecoverableBrowserError, readStablePageContent, readStablePageTitle, retryOnceOnRecoverableBrowserError } from "@/lib/firecrawl";
+import { htmlToBasicMarkdown, isRecoverableBrowserError, readStablePageContent, readStablePageTitle, retryOnceOnRecoverableBrowserError } from "@/lib/firecrawl";
 import {
   extractBasicDetailFromHtml,
   extractPublicPortalFacts,
@@ -22,6 +22,15 @@ assert.equal(item.client, "Stadt Mainz");
 assert.equal(item.location, "55116 Mainz");
 assert.equal(item.description, "", "unsectioned page copy must not be promoted to a tender description");
 assert.deepEqual(item.pdfUrls, ["https://example.vergabe.rlp.de/docs/unterlagen.pdf"]);
+
+const genericHtmlFallback = htmlToBasicMarkdown(`<html><body>
+  <nav>SERVICE.BUND.DE Haupt-Navigations-Menü Meta-Navigation Andere Ausschreibungen im Bereich</nav>
+  <main><h1>Sanierung der Turnhalle in Mainz</h1><p>Die Stadt Mainz saniert die Turnhalle.</p></main>
+  <footer>Impressum Datenschutz</footer>
+</body></html>`);
+assert.match(genericHtmlFallback, /Sanierung der Turnhalle in Mainz/);
+assert.match(genericHtmlFallback, /Die Stadt Mainz saniert die Turnhalle\./);
+assert.doesNotMatch(genericHtmlFallback, /SERVICE\.BUND\.DE|Haupt-Navigations-Menü|Meta-Navigation|Andere Ausschreibungen|Impressum Datenschutz/);
 
 const sectionedItem = extractBasicDetailFromHtml(
   `<html><head><title>Kanalreinigung in Mainz</title></head><body>

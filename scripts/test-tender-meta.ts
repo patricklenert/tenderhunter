@@ -121,6 +121,16 @@ const markdownFallback = readTenderMeta({
 });
 assert.equal(markdownFallback.descriptionMarkdown, "- **Auftraggeber:** Example");
 
+const normalizedMarkdownFallback = "- **Zusammenfassung:** Die städtischen Gebäude werden saniert.";
+assert.equal(
+  readPublicTenderMeta({
+    descriptionMarkdown: "- **Zusammenfassung:** Die st�dtischen Gebäude werden saniert.",
+    description_markdown: normalizedMarkdownFallback,
+  }).descriptionMarkdown,
+  normalizedMarkdownFallback,
+  "repaired stored Markdown must be rejected before selecting the next canonical alias",
+);
+
 const legacyTitle = "Erneuerung Energiezentrale in Bautzen";
 const legacyStructured = { hard_facts: { location: "02625 Bautzen" } };
 assert.equal(

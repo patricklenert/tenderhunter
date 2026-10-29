@@ -1239,12 +1239,14 @@ export const isCanonicalPublicDescriptionMarkdown = (value: unknown): value is s
     if (!match?.[1]) return false;
     if (!CANONICAL_DESCRIPTION_LABELS.has(match[1])) return false;
     if (!match[2]?.trim() || hasUnescapedMarkdown(match[2])) return false;
+    const normalizedValue = normalizePublicDisplayCandidate(match[2]);
+    if (normalizedValue !== match[2]) return false;
     if (match[1].toLocaleLowerCase("de-DE") === "hinweis") {
       return match[2].length <= 1_000
         && !UNSAFE_CANONICAL_HINT.test(match[2])
-        && normalizePublicDisplayCandidate(match[2]) !== null;
+        && normalizedValue !== null;
     }
-    return normalizePublicDisplayCandidate(match[2]) !== null;
+    return normalizedValue !== null;
   });
 };
 
