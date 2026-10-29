@@ -139,6 +139,7 @@ async function main(): Promise<void> {
   for (const missingPath of ["/wissen/not-a-real-article", "/&"]) {
     const missing = await fetchPage(missingPath);
     assert.equal(missing.response.status, 404, `unknown public content must return 404: ${missingPath}`);
+    assert.equal(canonicalFromHtml(missing.body), null, `404 pages must not inherit a canonical URL: ${missingPath}`);
   }
 
   console.log(`SEO HTTP regression tests passed (${sitemapUrls.length} sitemap URLs structurally checked).`);

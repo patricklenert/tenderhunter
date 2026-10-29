@@ -6,6 +6,7 @@ import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 
 export const metadata: Metadata = {
   robots: { index: false, follow: true },
+  alternates: { canonical: null },
 };
 
 export default function NotFound() {

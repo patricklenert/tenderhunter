@@ -146,6 +146,7 @@ for (const route of [
 
 const layoutSource = readFileSync("app/layout.tsx", "utf8");
 assert.doesNotMatch(layoutSource, /SearchAction|search_term_string|potentialAction/, "WebSite JSON-LD must not advertise the noindex homepage search URL");
+assert.match(readFileSync("app/not-found.tsx", "utf8"), /alternates:\s*\{\s*canonical:\s*null\s*\}/, "404 pages must not inherit the homepage canonical");
 
 const proxySource = readFileSync("proxy.ts", "utf8");
 assert.match(proxySource, /pathname === "\/"[\s\S]*searchParams\.size === 1[\s\S]*searchParams\.get\("q"\) === "\{search_term_string\}"[\s\S]*NextResponse\.redirect\(destination, 301\)/, "the obsolete WebSite search placeholder must redirect directly to the clean homepage");
