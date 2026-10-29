@@ -65,6 +65,9 @@ for (const entry of GLOSSARY) {
 for (const article of Object.values(ARTICLES)) {
   checkLinks(article.slug, article.relatedArticles, articleSlugs, "relatedArticles");
   checkLinks(article.slug, article.relatedGlossaryTerms, glossarySlugs, "relatedGlossaryTerms");
+  if (/\[[^\]]+\]\([^)]*\)/.test(article.content)) {
+    errors.push(`${article.slug}.content -> unsupported Markdown inline link; use structured cross-link fields`);
+  }
   for (const category of article.relatedCategories) {
     if (!categoryKeys.has(category)) {
       errors.push(`${article.slug}.relatedCategories -> missing category: ${category}`);
@@ -77,6 +80,31 @@ for (const article of Object.values(ARTICLES)) {
   if (article.dateModified < article.datePublished) {
     errors.push(`${article.slug}.dateModified -> predates datePublished`);
   }
+}
+
+const vergaberechtLeitfaden = ARTICLES["vergaberecht-leitfaden"];
+const requiredGuideGlossaryLinks = [
+  "gwb-vergaberecht",
+  "vgv-vergabeverordnung",
+  "uvgo",
+  "vob-a",
+  "schwellenwerte",
+  "auftragswert",
+  "nachpruefungsverfahren",
+  "ruege",
+  "vergabekammer",
+  "zuschlag",
+] as const;
+for (const slug of requiredGuideGlossaryLinks) {
+  if (!vergaberechtLeitfaden?.relatedGlossaryTerms?.includes(slug)) {
+    errors.push(`vergaberecht-leitfaden.relatedGlossaryTerms -> missing ${slug}`);
+  }
+  if (!GLOSSARY_MAP[slug]?.relatedArticles?.includes("vergaberecht-leitfaden")) {
+    errors.push(`${slug}.relatedArticles -> missing vergaberecht-leitfaden`);
+  }
+}
+if (!vergaberechtLeitfaden?.relatedArticles?.includes("schwellenwerte-vergabe")) {
+  errors.push("vergaberecht-leitfaden.relatedArticles -> missing schwellenwerte-vergabe");
 }
 
 const vobA = GLOSSARY_MAP["vob-a"];

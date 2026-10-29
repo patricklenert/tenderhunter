@@ -1205,13 +1205,24 @@ Nein. Entscheidend sind die vorab bekannt gemachten Zuschlagskriterien. Der Prei
     description:
       "Umfassender Leitfaden zum Vergaberecht in Deutschland: Gesetzliche Grundlagen, Zuständigkeiten, Rechtsschutz und praktische Tipps für Unternehmen bei öffentlichen Ausschreibungen.",
     datePublished: "2025-02-01",
-    dateModified: "2026-09-13",
+    dateModified: "2026-10-29",
     relatedCategories: ["Bauarbeiten", "IT-Dienstleistungen", "Planungsleistungen"],
-    relatedArticles: ["vergabeverfahren-uebersicht", "vob-vergabe", "nachpruefungsverfahren-vergabe"],
+    relatedArticles: ["vergabeverfahren-uebersicht", "vob-vergabe", "nachpruefungsverfahren-vergabe", "schwellenwerte-vergabe"],
+    relatedGlossaryTerms: ["gwb-vergaberecht", "vgv-vergabeverordnung", "uvgo", "vob-a", "schwellenwerte", "auftragswert", "nachpruefungsverfahren", "ruege", "vergabekammer", "zuschlag"],
+    sources: [
+      { title: "§ 97 GWB – Allgemeine Grundsätze", url: "https://www.gesetze-im-internet.de/gwb/__97.html" },
+      { title: "§ 106 GWB – Schwellenwerte", url: "https://www.gesetze-im-internet.de/gwb/__106.html" },
+      { title: "§ 2 VgV – Vergabe von Bauaufträgen", url: "https://www.gesetze-im-internet.de/vgv_2016/__2.html" },
+      { title: "Bundesanzeiger: VOB/A-Änderung vom 22. Juli 2026 (BAnz AT 24.08.2026 B6)", url: "https://www.bundesanzeiger.de/pub/publication/73xO0rpP1jfX5HRt0Ja/content/73xO0rpP1jfX5HRt0Ja/BAnz%20AT%2024.08.2026%20B6.pdf?inline" },
+      { title: "§ 134 GWB – Informations- und Wartepflicht", url: "https://www.gesetze-im-internet.de/gwb/__134.html" },
+      { title: "§ 160 GWB – Einleitung, Antrag", url: "https://www.gesetze-im-internet.de/gwb/__160.html" },
+      { title: "§ 169 GWB – Aussetzung des Vergabeverfahrens", url: "https://www.gesetze-im-internet.de/gwb/__169.html" },
+    ],
+    lastReviewed: "2026-10-29",
     content: `
 ## Was ist Vergaberecht?
 
-Das Vergaberecht regelt, wie öffentliche Aufträge an private Unternehmen vergeben werden. Es soll fairen Wettbewerb garantieren und sicher, dass Steuergelder wirtschaftlich eingesetzt werden. In Deutschland basiert es auf EU-Richtlinien und ist im Gesetz gegen Wettbewerbsbeschränkungen (GWB) verankert.
+Das Vergaberecht regelt, wie öffentliche Auftraggeber Aufträge vergeben. Es soll Wettbewerb, Transparenz und Gleichbehandlung sichern und einen wirtschaftlichen Einsatz öffentlicher Mittel unterstützen. Welche Regeln gelten, hängt unter anderem von Auftraggeber, Auftragsart, geschätztem Auftragswert und dem jeweiligen Regelwerk ab.
 
 ## Gesetzliche Grundlagen
 
@@ -1230,12 +1241,24 @@ Das GWB bildet die Grundlage des deutschen Vergaberechts. Der vierte Teil enthä
 
 Die detaillierten Verfahrensregeln stehen in den Vergabeverordnungen:
 
-| Verordnung | Anwendungsbereich |
-|-----------|------------------|
-| VgV | Vergabe von Liefer- und Dienstleistungen im Anwendungsbereich des EU-Oberschwellenbereichs |
-| VOB/A | Vergabe von Bauleistungen |
-| UVgO | Liefer- und Dienstleistungen im Unterschwellenbereich, soweit eingeführt |
-| SektVO | Vergabe durch Sektorenauftraggeber (Energie, Wasser, Verkehr) |
+| Regelwerk | Typischer Anwendungsbereich |
+|-----------|----------------------------|
+| VgV | Vor allem Liefer- und Dienstleistungen im Anwendungsbereich des EU-Vergaberechts; § 2 enthält auch Regeln für Bauaufträge |
+| VOB/A | Vergabeverfahren für Bauleistungen; die Abschnitte unterscheiden sich nach Anwendungsbereich |
+| UVgO | Liefer- und Dienstleistungen unterhalb der EU-Schwellenwerte, soweit sie für den Auftraggeber eingeführt ist |
+| SektVO / KonzVgV | Besondere Regeln für Sektorenaufträge beziehungsweise Konzessionen |
+
+Die UVgO ist nicht die allgemeine Vergabeordnung für Bauleistungen. Unterhalb der EU-Schwellenwerte gelten außerdem nicht überall dieselben Regeln: Landesrecht, Haushaltsrecht und die konkrete Einführung des jeweiligen Regelwerks können entscheidend sein. Die jeweils aktuellen Schwellenwerte und ihren Anwendungsbereich behandelt der Ratgeber zu den EU-Schwellenwerten 2026/2027.
+
+## Bauaufträge: VOB/A, VgV und GWB zusammendenken
+
+Die VOB/A regelt das Vergabeverfahren für Bauleistungen. Abschnitt 1 betrifft den nationalen Bereich, Abschnitt 2 den Anwendungsbereich des EU-Vergaberechts und Abschnitt 3 verteidigungs- und sicherheitsspezifische Bauaufträge.
+
+Für Bauaufträge im EU-Anwendungsbereich gilt nicht pauschal ausschließlich die VgV oder ausschließlich die VOB/A. § 2 VgV ordnet die Anwendung von Abschnitt 1 sowie Abschnitt 2 Unterabschnitt 2 der VgV an; im Übrigen gilt VOB/A Teil A Abschnitt 2. Planungsleistungen, die als Los eines Bauauftrags vergeben werden, unterliegen der VgV. Der vierte Teil des GWB und der einschlägige Schwellenwert sind ebenfalls zu berücksichtigen.
+
+## Schwellenwerte richtig einordnen
+
+EU-Schwellenwerte sind keine einheitliche Grenze für alle Vergaben. Sie unterscheiden sich unter anderem nach Auftragsart und Auftraggeber. Maßgeblich ist der vor Verfahrensbeginn geschätzte Auftragswert nach den einschlägigen Berechnungsvorschriften. Für Bauaufträge, Liefer- und Dienstleistungen sowie Konzessionen gelten deshalb jeweils passende Werte und Regelwerke; die geprüften Beträge für 2026/2027 stehen im verlinkten Schwellenwert-Ratgeber.
 
 ## Zuständigkeiten
 
@@ -1257,21 +1280,17 @@ Die Vergabesenate der Oberlandesgerichte entscheiden über die sofortige Beschwe
 
 ### Rügepflicht
 
-Unternehmen müssen erkannte Vergabeverstöße nach Maßgabe des § 160 Abs. 3 GWB rechtzeitig rügen. Für einen erkannten Verstoß gilt grundsätzlich eine Frist von zehn Kalendertagen. Die Rüge muss:
-- Schriftlich erfolgen
-- Den Verstoß konkret benennen
-- Innerhalb von 10 Tagen nach Kenntnis erfolgen
+Für Nachprüfungsverfahren im Anwendungsbereich des vierten Teils des GWB gelten die differenzierten Rüge- und Antragsfristen des § 160 Absatz 3 GWB. Ein bereits erkannter Verstoß ist grundsätzlich innerhalb von zehn Kalendertagen gegenüber dem Auftraggeber zu rügen. Verstöße, die aus der Bekanntmachung oder den Vergabeunterlagen erkennbar sind, müssen spätestens bis zum Ablauf der dort genannten Bewerbungs- oder Angebotsfrist gerügt werden. Nach einer Mitteilung, dass der Auftraggeber einer Rüge nicht abhilft, läuft grundsätzlich eine weitere Frist von 15 Kalendertagen für den Nachprüfungsantrag.
+
+§ 160 Absatz 3 GWB formuliert keine allgemeine Pflicht, jede Rüge schriftlich einzureichen. Bieter sollten den in Bekanntmachung und Vergabeunterlagen vorgesehenen Kommunikationsweg nutzen und Inhalt sowie fristgerechten Zugang nachvollziehbar dokumentieren. Für die konkrete Zulässigkeit sind der erkennbare Verstoß, der Zeitpunkt der Kenntnis und mögliche gesetzliche Ausnahmen entscheidend.
 
 ### Nachprüfungsantrag
 
-Wenn die Rüge nicht abhilft, können Unternehmen einen Nachprüfungsantrag bei der Vergabekammer stellen. Voraussetzungen:
-- Mögliche Verletzung einer vergaberechtlichen Vorschrift
-- Rechtzeitige Rüge
-- Antragsfrist: In bestimmten Fällen 15 Kalendertage nach Eingang der Mitteilung, dass der Auftraggeber der Rüge nicht abhelfen will; die weiteren Voraussetzungen des § 160 GWB müssen erfüllt sein
+Wenn die Rüge nicht abhilft, kann ein antragsbefugtes Unternehmen unter den gesetzlichen Voraussetzungen einen Nachprüfungsantrag bei der zuständigen Vergabekammer stellen. Es muss ein Interesse am Auftrag, eine mögliche Verletzung eigener Rechte und ein drohender oder entstandener Schaden dargelegt werden. Die Fristen und Ausschlussgründe richten sich nach § 160 GWB; ein allgemeiner Anspruch auf Nachprüfung besteht nicht.
 
-### Einstweilige Anordnung
+### Zuschlagsverbot und vorläufiger Rechtsschutz
 
-Bei dringender Eilbedürftigkeit können Unternehmen eine einstweilige Anordnung beantragen, um die Zuschlagserteilung zu verhindern.
+Wird der Auftraggeber von der Vergabekammer über einen Nachprüfungsantrag informiert, darf er nach § 169 GWB grundsätzlich bis zur Entscheidung der Kammer und zum Ablauf der Beschwerdefrist keinen Zuschlag erteilen. Das Gesetz sieht Ausnahmen und Möglichkeiten vor, den Zuschlag unter bestimmten Voraussetzungen dennoch zu gestatten. Weitere vorläufige Maßnahmen richten sich ebenfalls nach den gesetzlichen Regeln; eine pauschale Aussage, jeder Antrag stoppe automatisch und ausnahmslos das Verfahren, wäre unzutreffend.
 
 ## Praktische Tipps für Unternehmen
 
@@ -1314,14 +1333,11 @@ Nachhaltigkeitskriterien gewinnen im Vergaberecht an Bedeutung. Öffentliche Auf
 
 ### Künstliche Intelligenz
 
-KI wird im Vergabewesen eingesetzt für:
-- Automatische Kategorisierung von Ausschreibungen
-- Bewertung von Angeboten
-- Erkennung von Vergabeverstößen
+Digitale Werkzeuge können etwa dabei helfen, Bekanntmachungen zu durchsuchen, Ausschreibungen zu kategorisieren oder Unterlagen vorzustrukturieren. Sie ersetzen weder die Prüfung des konkreten Vergabeverfahrens noch die rechtliche Bewertung durch Auftraggeber, Bieter oder fachkundige Beratung.
 
 ## Fazit
 
-Das Vergaberecht ist komplex, aber durchsichtig. Wer die grundlegenden Regeln kennt und die Rechtsschutzmöglichkeiten nutzt, kann erfolgreich an öffentlichen Ausschreibungen teilnehmen. Wichtig ist, Vergabeverstöße frühzeitig zu erkennen und zu rügen.
+Für Unternehmen sind vor allem drei Prüfungen wichtig: das passende Regelwerk bestimmen, die Anforderungen und Fristen der konkreten Vergabeunterlagen einhalten und bei vermuteten Verstößen die engen Rüge- und Antragsfristen beachten. Dieser Leitfaden bietet eine Orientierung; entscheidend bleiben die aktuellen Rechtsgrundlagen und der Einzelfall.
 `,
   },
   "eu-vergabe": {

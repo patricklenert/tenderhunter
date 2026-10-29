@@ -95,6 +95,7 @@ export const GLOSSARY: GlossaryEntry[] = [
     ],
     relatedTerms: ["uvgo", "vob-a", "vob-a-eu", "gwb-vergaberecht", "sektvo", "konzvgv", "rahmenvereinbarung"],
     relatedCategories: ["Planungsleistungen", "IT-Dienstleistungen", "Lieferung"],
+    relatedArticles: ["vergaberecht-leitfaden"],
     sources: [
       { title: "§ 2 VgV – Bauaufträge", url: "https://www.gesetze-im-internet.de/vgv_2016/__2.html" },
       { title: "VgV – vollständige amtliche Fassung", url: "https://www.gesetze-im-internet.de/vgv_2016/" },
@@ -133,6 +134,7 @@ export const GLOSSARY: GlossaryEntry[] = [
     ],
     relatedTerms: ["vgv-vergabeverordnung", "vob-a", "vol-a", "rahmenvereinbarung"],
     relatedCategories: ["IT-Dienstleistungen", "Lieferung", "Planungsleistungen"],
+    relatedArticles: ["vergaberecht-leitfaden"],
   },
   {
     slug: "vob-a",
@@ -166,7 +168,7 @@ export const GLOSSARY: GlossaryEntry[] = [
     ],
     relatedTerms: ["vob-b", "vob-c", "vob-a-eu", "schwellenwerte", "auftragswert", "leistungsbeschreibung", "leistungsverzeichnis", "losvergabe", "vgv-vergabeverordnung", "gwb-vergaberecht", "eignungsleihe", "nachforderung-unterlagen", "praequalifikation-pq-vob"],
     relatedCategories: ["Bauarbeiten", "Tiefbau", "TGA", "Gartenarbeiten"],
-    relatedArticles: ["vob-vergabe", "schwellenwerte-vergabe"],
+    relatedArticles: ["vob-vergabe", "schwellenwerte-vergabe", "vergaberecht-leitfaden"],
     sources: [
         { title: "Bundesanzeiger: VOB/A-Änderung vom 22. Juli 2026 (BAnz AT 24.08.2026 B6)", url: "https://www.bundesanzeiger.de/pub/publication/73xO0rpP1jfX5HRt0Ja/content/73xO0rpP1jfX5HRt0Ja/BAnz%20AT%2024.08.2026%20B6.pdf?inline" },
        { title: "VOB/A, Bekanntmachung vom 31. Januar 2019 (BAnz AT 19.02.2019 B2)", url: "https://www.verwaltungsvorschriften-im-internet.de/bsvwvbund_31012019_BWI781063060120180001604634.htm" },
@@ -801,6 +803,7 @@ export const GLOSSARY: GlossaryEntry[] = [
       },
     ],
     relatedTerms: ["zuschlagskriterien", "bindefrist", "nachpruefungsverfahren", "rahmenvereinbarung"],
+    relatedArticles: ["vergaberecht-leitfaden"],
     sources: [
       { title: "§ 127 GWB – Zuschlag", url: "https://www.gesetze-im-internet.de/gwb/__127.html" },
       { title: "§ 134 GWB – Informations- und Wartepflicht", url: "https://www.gesetze-im-internet.de/gwb/__134.html" },
@@ -1196,7 +1199,7 @@ export const GLOSSARY: GlossaryEntry[] = [
       },
     ],
     relatedTerms: ["auftragswert", "losvergabe", "vgv-vergabeverordnung", "uvgo", "vob-a", "vob-a-eu", "gwb-vergaberecht", "eu-vergaberichtlinien"],
-    relatedArticles: ["schwellenwerte-vergabe", "vob-vergabe"],
+    relatedArticles: ["schwellenwerte-vergabe", "vob-vergabe", "vergaberecht-leitfaden"],
     sources: [
       { title: "§ 106 GWB – Schwellenwerte", url: "https://www.gesetze-im-internet.de/gwb/__106.html" },
       { title: "Bundesanzeiger: EU-Schwellenwerte ab 1. Januar 2026", url: "https://www.bundesanzeiger.de/pub/publication/zDKvMODHbpcIPpDPapc/content/zDKvMODHbpcIPpDPapc/BAnz%20AT%2018.12.2025%20B4.pdf?inline" },
@@ -1234,7 +1237,7 @@ export const GLOSSARY: GlossaryEntry[] = [
       },
     ],
     relatedTerms: ["schwellenwerte", "losvergabe", "vgv-vergabeverordnung", "uvgo", "vob-a", "vob-a-eu", "gwb-vergaberecht", "rahmenvereinbarung"],
-    relatedArticles: ["schwellenwerte-vergabe"],
+    relatedArticles: ["schwellenwerte-vergabe", "vergaberecht-leitfaden"],
     sources: [
       { title: "§ 3 VgV – Schätzung des Auftragswerts", url: "https://www.gesetze-im-internet.de/vgv_2016/__3.html" },
       { title: "§ 106 GWB – Schwellenwerte", url: "https://www.gesetze-im-internet.de/gwb/__106.html" },
@@ -1274,6 +1277,7 @@ export const GLOSSARY: GlossaryEntry[] = [
       },
     ],
     relatedTerms: ["ruege", "vergabekammer", "vergabesenat", "gwb-vergaberecht"],
+    relatedArticles: ["vergaberecht-leitfaden"],
     sources: [
       { title: "§ 155 GWB – Nachprüfungsbehörden", url: "https://www.gesetze-im-internet.de/gwb/__155.html" },
       { title: "§ 160 GWB – Einleitung, Antrag", url: "https://www.gesetze-im-internet.de/gwb/__160.html" },
@@ -1308,6 +1312,7 @@ export const GLOSSARY: GlossaryEntry[] = [
       },
     ],
     relatedTerms: ["nachpruefungsverfahren", "vergabekammer"],
+    relatedArticles: ["vergaberecht-leitfaden"],
     sources: [
       { title: "§ 160 Absatz 3 GWB – Rügefristen", url: "https://www.gesetze-im-internet.de/gwb/__160.html" },
     ],
@@ -1340,6 +1345,7 @@ export const GLOSSARY: GlossaryEntry[] = [
       },
     ],
     relatedTerms: ["nachpruefungsverfahren", "ruege", "vergabesenat"],
+    relatedArticles: ["vergaberecht-leitfaden"],
   },
   {
     slug: "vergabesenat",
