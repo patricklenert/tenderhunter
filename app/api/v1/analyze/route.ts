@@ -303,8 +303,9 @@ async function scoreAllTenders(companyId: number, companyRow: CompanyRow) {
       eq(tenders.readinessStatus, "ready"),
       sql`${tenders.rawText} IS NOT NULL AND BTRIM(${tenders.rawText}) <> ''`,
     ))
-    .orderBy(desc(tenders.createdAt))
-    .limit(200);
+    // This job refreshes the company's scores, not just the newest sample.
+    // llmBatchDomainMatch chunks its input, so do not silently omit older tenders.
+    .orderBy(desc(tenders.createdAt));
 
   // Load structured data for all tenders
   const tenderData: Array<{
