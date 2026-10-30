@@ -191,6 +191,31 @@ const procedureFactsFallback = extractPublicPortalFacts([
 ].join("\n"));
 assert.equal(procedureFactsFallback.procedure, "Verhandlungsverfahren");
 
+for (const locationLabel of ["Hauptleistungsort", "Leistungsort"]) {
+  const portalLocation = extractPublicPortalFacts([
+    locationLabel,
+    "Mainz, Rheinland-Pfalz",
+    "Bekanntmachungs-ID:",
+    "CXCPEYDYYYRM0",
+  ].join("\n")).location;
+  assert.equal(portalLocation, "Mainz, Rheinland-Pfalz", `${locationLabel} parsing must stop before the next portal field`);
+
+  const locationItem = extractBasicDetailFromHtml(
+    `<html><head><title>Sanierung der Grundschule Mainz</title></head><body>
+      <h1>Sanierung der Grundschule Mainz</h1>
+      <p>${locationLabel}</p><p>Mainz, Rheinland-Pfalz</p>
+      <p>Bekanntmachungs-ID:</p><p>CXCPEYDYYYRM0</p>
+    </body></html>`,
+    "https://example.vergabe.rlp.de/project/126",
+    "rlp",
+    [],
+  );
+  assert.ok(locationItem);
+  assert.equal(locationItem.location, "Mainz, Rheinland-Pfalz", `${locationLabel} should supply a non-postcode location`);
+  assert.match(locationItem.descriptionMarkdown ?? "", /- \*\*Leistungsort:\*\* Mainz, Rheinland-Pfalz/);
+  assert.doesNotMatch(locationItem.location, /Bekanntmachungs-ID|CXCPEYDYYYRM0/);
+}
+
 const rlpItem = extractBasicDetailFromHtml(
   `<html><head><title>CXCPEYDYYYRM0 | 26F0047 (LBB NL Mainz) Bauendreinigung | www.vergabe.rlp.de</title></head><body>
     <h1>Bekanntmachung</h1>

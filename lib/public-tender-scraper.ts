@@ -1130,6 +1130,7 @@ export function extractPublicPortalFacts(text: string): PublicPortalFacts {
   const captureFields = (patterns: RegExp[]): string[] => patterns
     .map((pattern) => fieldText.match(pattern)?.[1]?.replace(/\s+/g, " ").trim() ?? "")
     .filter(Boolean);
+  const portalFactLineLabel = /^(?:[a-z]\)\s*)?(?:Ausschreibende Stelle|Öffentlicher Auftraggeber(?:\s*\(Vergabestelle\))?|Vergabestelle|Haupterfüllungsort|Erfüllungsort|Ausführungsort|Hauptleistungsort|Leistungsort|Ort der Ausführung|Ort der Leistungserbringung|Ort der Leistung|Vergabeart|Vergabeverfahren|Verfahren|Abgabe(?:frist)?|Angebotsfrist|Teilnahmefrist|Frist|Auftragsgegenstand|Leistungsgegenstand|Zuschlagskriterien|CPV(?:-Code)?|Bekanntmachungs-ID|Vergabenummer|Laufzeit|Auftragswert)(?:\s*:\s*|\s*$)/iu;
   const lines = fieldText.split("\n").map((line) => line.replace(/\s+/g, " ").trim()).filter(Boolean);
   const lineValues = (labels: RegExp[], maxLines = 1): string[] => {
     const values: string[] = [];
@@ -1148,7 +1149,7 @@ export function extractPublicPortalFacts(text: string): PublicPortalFacts {
       for (let next = index + 1; next < lines.length && sectionValues.length < maxLines; next += 1) {
         const value = lines[next];
         if (/^(?:karte anschauen|haupt-navigations|meta-navigation|andere ausschreibungen|service\.bund\.de)/i.test(value)) break;
-        if (labels.some((pattern) => pattern.test(value))) break;
+        if (portalFactLineLabel.test(value) || labels.some((pattern) => pattern.test(value))) break;
         sectionValues.push(value);
       }
       if (sectionValues.length > 0) values.push(sectionValues.join(" "));
@@ -1595,8 +1596,9 @@ export function extractBasicDetailFromHtml(
     title,
     client,
     accessPage.blocked ? portalFacts.location : null,
-    text.match(/(?:Ort der Ausführung|Ort der Leistungserbringung)\s*:?\s*\n?\s*([^\n|]{3,120})/i)?.[1],
+    text.match(/(?:Haupterfüllungsort|Erfüllungsort|Ausführungsort|Hauptleistungsort|Leistungsort|Ort der Ausführung|Ort der Leistungserbringung|Ort der Leistung)\s*:?\s*\n?\s*([^\n|]{3,120})/i)?.[1],
     text.match(/\b\d{5}\s+[A-ZÄÖÜ][\wÄÖÜäöüß .-]{2,80}/)?.[0],
+    portalFacts.location,
   ) || null;
   const referenceNumber = text.match(/(?:Bekanntmachungs-ID|Vergabe-Nr\.|Vergabenummer)\s*:?\s*\n?\s*([A-Z0-9][A-Z0-9._/-]{2,})/i)?.[1] ?? null;
   const description = accessPage.blocked
