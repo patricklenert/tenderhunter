@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Box, Container, Typography, Stack, Paper, Breadcrumbs, Chip, Divider } from "@mui/material";
-import { Home as HomeIcon, ArrowRight, Factory, FileText, Scale, AlertTriangle, Wrench } from "lucide-react";
+import { Box, Container, Typography, Stack, Paper, Chip, Divider } from "@mui/material";
+import { ArrowRight, Factory, FileText, Scale, AlertTriangle, Wrench } from "lucide-react";
+import { SiteBreadcrumbs } from "@/components/seo/SiteBreadcrumbs";
 import { BRANCHE_MAP, ALL_BRANCHE_SLUGS, BRANCHEN } from "@/lib/branchen";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 import { SiteFooter } from "@/components/seo/SiteFooter";
@@ -76,15 +77,11 @@ export default async function BrancheEntryPage({ params }: { params: Promise<{ s
 
       <Box sx={{ minHeight: "100vh", bgcolor: "background.default", py: { xs: 3, md: 5 } }}>
         <Container maxWidth="md">
-          <Breadcrumbs sx={{ mb: 3, fontSize: "0.85rem" }} separator={<span style={{ color: "#999" }}>/</span>}>
-            <Link href="/" style={{ color: "#667288", textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}>
-              <HomeIcon size={14} /> Start
-            </Link>
-            <Link href="/branchen" style={{ color: "#667288", textDecoration: "none" }}>
-              Branchen
-            </Link>
-            <Typography color="text.primary" fontSize="0.85rem">{entry.name}</Typography>
-          </Breadcrumbs>
+          <SiteBreadcrumbs items={[
+            { label: "Start", href: "/" },
+            { label: "Branchen", href: "/branchen" },
+            { label: entry.name },
+          ]} />
 
           {/* Header */}
           <Box sx={{ mb: 4 }}>

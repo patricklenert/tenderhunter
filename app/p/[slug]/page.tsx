@@ -4,12 +4,11 @@ import { companyProfiles } from "@/lib/schema";
 import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import Link from "next/link";
-import { Box, Container, Typography } from "@mui/material";
-import { ChevronRight } from "lucide-react";
+import { Box, Container } from "@mui/material";
 import { CompanyProfileHeader } from "@/components/profile/CompanyProfileHeader";
 import { PageFooter } from "@/components/profile/PageFooter";
 import { PublicProfileMatches } from "@/components/profile/PublicProfileMatches";
+import { SiteBreadcrumbs } from "@/components/seo/SiteBreadcrumbs";
 import { getListingRobots, type SeoSearchParams } from "@/lib/seo-indexability";
 
 export const revalidate = 300;
@@ -106,47 +105,11 @@ export default async function PublicProfilePage({ params }: PageProps) {
 
       <Box sx={{ minHeight: "100vh", bgcolor: "#edf3f7" }}>
         <Container maxWidth={false} sx={{ maxWidth: "1240px", mx: "auto", px: { xs: 2, sm: 3, lg: 4 }, py: { xs: 2.5, md: 3.5 } }}>
-          {/* Breadcrumbs */}
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 0.5,
-              mb: 2,
-              fontSize: "0.8125rem",
-            }}
-          >
-            <Link
-              href="/"
-              style={{
-                color: "#475569",
-                textDecoration: "none",
-              }}
-            >
-              Start
-            </Link>
-            <ChevronRight size={14} color="#94a3b8" />
-            <Link
-              href="/ausschreibungen"
-              style={{
-                color: "#475569",
-                textDecoration: "none",
-              }}
-            >
-              Ausschreibungen
-            </Link>
-            <ChevronRight size={14} color="#94a3b8" />
-            <Typography
-              component="span"
-              sx={{
-                fontSize: "0.8125rem",
-                fontWeight: 700,
-                color: "#1e293b",
-              }}
-            >
-              {company.name}
-            </Typography>
-          </Box>
+          <SiteBreadcrumbs items={[
+            { label: "Start", href: "/" },
+            { label: "Ausschreibungen", href: "/ausschreibungen" },
+            { label: company.name },
+          ]} />
 
           {/* Profile Header */}
           <CompanyProfileHeader

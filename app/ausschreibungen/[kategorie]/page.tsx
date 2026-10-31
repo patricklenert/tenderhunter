@@ -4,6 +4,7 @@ import { eq, and, or, gt, isNull, desc, sql } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { SiteBreadcrumbs } from "@/components/seo/SiteBreadcrumbs";
 import {
   Box,
   Container,
@@ -11,14 +12,12 @@ import {
   Stack,
   Chip,
   Paper,
-  Breadcrumbs,
 } from "@mui/material";
 import {
   Building2,
   MapPin,
   Calendar,
   ArrowRight,
-  Home as HomeIcon,
 } from "lucide-react";
 import { CATEGORY_LABELS, CATEGORY_SLUGS, SLUG_TO_CATEGORY, ALL_CATEGORY_SLUGS } from "@/lib/categories";
 import { CATEGORY_CONTENT } from "@/lib/category-content";
@@ -289,34 +288,11 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
 
       <Box sx={{ minHeight: "100vh", bgcolor: "background.default", py: { xs: 3, md: 5 } }}>
         <Container maxWidth="lg">
-          {/* Breadcrumbs */}
-          <Breadcrumbs
-            sx={{ mb: 3, fontSize: "0.85rem" }}
-            separator={<span style={{ color: "#999" }}>/</span>}
-          >
-            <Link
-              href="/"
-              style={{
-                color: "#667288",
-                textDecoration: "none",
-                display: "flex",
-                alignItems: "center",
-                gap: 4,
-              }}
-            >
-              <HomeIcon size={14} />
-              Start
-            </Link>
-            <Link
-              href="/ausschreibungen"
-              style={{ color: "#667288", textDecoration: "none" }}
-            >
-              Ausschreibungen
-            </Link>
-            <Typography color="text.primary" fontSize="0.85rem">
-              {label}
-            </Typography>
-          </Breadcrumbs>
+          <SiteBreadcrumbs items={[
+            { label: "Start", href: "/" },
+            { label: "Ausschreibungen", href: "/ausschreibungen" },
+            { label },
+          ]} />
 
           {/* Header */}
           <Box sx={{ mb: 4 }}>

@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Box, Container, Typography, Stack, Breadcrumbs, Chip } from "@mui/material";
-import { Home as HomeIcon, ArrowRight, CheckCircle2, BookOpen } from "lucide-react";
+import { Box, Container, Typography, Stack, Chip } from "@mui/material";
+import { ArrowRight, CheckCircle2, BookOpen } from "lucide-react";
+import { SiteBreadcrumbs } from "@/components/seo/SiteBreadcrumbs";
 import { GLOSSARY_MAP, ALL_GLOSSARY_SLUGS, GLOSSARY } from "@/lib/glossary";
 import { ARTICLES } from "@/lib/articles";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
@@ -100,15 +101,11 @@ export default async function GlossaryEntryPage({ params }: { params: Promise<{ 
 
       <Box sx={{ minHeight: "100vh", bgcolor: "background.default", py: { xs: 3, md: 5 } }}>
         <Container maxWidth="md">
-          <Breadcrumbs sx={{ mb: 3, fontSize: "0.85rem" }} separator={<span style={{ color: "#999" }}>/</span>}>
-            <Link href="/" style={{ color: "#667288", textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}>
-              <HomeIcon size={14} /> Start
-            </Link>
-            <Link href="/lexikon" style={{ color: "#667288", textDecoration: "none" }}>
-              Lexikon
-            </Link>
-            <Typography color="text.primary" fontSize="0.85rem">{entry.term}</Typography>
-          </Breadcrumbs>
+          <SiteBreadcrumbs items={[
+            { label: "Start", href: "/" },
+            { label: "Lexikon", href: "/lexikon" },
+            { label: entry.term },
+          ]} />
 
           {/* Header */}
           <Box sx={{ mb: 4 }}>

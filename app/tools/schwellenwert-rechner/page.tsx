@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Box, Container, Typography, Stack, Breadcrumbs, Paper } from "@mui/material";
-import { Home as HomeIcon, Calculator } from "lucide-react";
+import { Box, Container, Typography, Stack, Paper } from "@mui/material";
+import { Calculator } from "lucide-react";
+import { SiteBreadcrumbs } from "@/components/seo/SiteBreadcrumbs";
 import SchwellenwertRechner from "@/components/tools/SchwellenwertRechner";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 
@@ -94,15 +95,11 @@ export default function SchwellenwertRechnerPage() {
 
       <Box sx={{ minHeight: "100vh", bgcolor: "background.default", py: { xs: 3, md: 5 } }}>
         <Container maxWidth="md">
-          <Breadcrumbs sx={{ mb: 3, fontSize: "0.85rem" }} separator={<span style={{ color: "#999" }}>/</span>}>
-            <Link href="/" style={{ color: "#667288", textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}>
-              <HomeIcon size={14} /> Start
-            </Link>
-            <Link href="/tools" style={{ color: "#667288", textDecoration: "none" }}>
-              Tools
-            </Link>
-            <Typography color="text.primary" fontSize="0.85rem">Schwellenwert-Rechner</Typography>
-          </Breadcrumbs>
+          <SiteBreadcrumbs items={[
+            { label: "Start", href: "/" },
+            { label: "Tools", href: "/tools" },
+            { label: "Schwellenwert-Rechner" },
+          ]} />
 
           {/* Header */}
           <Box sx={{ mb: 4 }}>

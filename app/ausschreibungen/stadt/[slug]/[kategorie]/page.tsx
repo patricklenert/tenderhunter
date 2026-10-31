@@ -1,20 +1,19 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { SiteBreadcrumbs } from "@/components/seo/SiteBreadcrumbs";
 import {
   Box,
   Container,
   Typography,
   Stack,
   Paper,
-  Breadcrumbs,
 } from "@mui/material";
 import {
   Building2,
   MapPin,
   Calendar,
   ArrowRight,
-  Home as HomeIcon,
 } from "lucide-react";
 import { CATEGORY_LABELS, SLUG_TO_CATEGORY } from "@/lib/categories";
 import { CATEGORY_CONTENT } from "@/lib/category-content";
@@ -191,25 +190,13 @@ export default async function CityCategoryPage({ params, searchParams }: PagePro
 
       <Box sx={{ minHeight: "100vh", bgcolor: "background.default", py: { xs: 3, md: 5 } }}>
         <Container maxWidth="lg">
-          {/* Breadcrumbs */}
-          <Breadcrumbs sx={{ mb: 3, fontSize: "0.85rem" }} separator={<span style={{ color: "#999" }}>/</span>}>
-            <Link href="/" style={{ color: "#667288", textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}>
-              <HomeIcon size={14} />
-              Start
-            </Link>
-            <Link href="/ausschreibungen" style={{ color: "#667288", textDecoration: "none" }}>
-              Ausschreibungen
-            </Link>
-            {bundeslandSlug && (
-              <Link href={`/ausschreibungen/region/${bundeslandSlug}`} style={{ color: "#667288", textDecoration: "none" }}>
-                {city.bundesland}
-              </Link>
-            )}
-            <Link href={`/ausschreibungen/stadt/${slug}`} style={{ color: "#667288", textDecoration: "none" }}>
-              {city.label}
-            </Link>
-            <Typography color="text.primary" fontSize="0.85rem">{label}</Typography>
-          </Breadcrumbs>
+          <SiteBreadcrumbs items={[
+            { label: "Start", href: "/" },
+            { label: "Ausschreibungen", href: "/ausschreibungen" },
+            ...(bundeslandSlug ? [{ label: city.bundesland, href: `/ausschreibungen/region/${bundeslandSlug}` }] : []),
+            { label: city.label, href: `/ausschreibungen/stadt/${slug}` },
+            { label },
+          ]} />
 
           {/* Header */}
           <Box sx={{ mb: 4 }}>

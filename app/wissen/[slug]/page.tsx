@@ -1,8 +1,10 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Box, Container, Typography, Stack, Chip, Breadcrumbs, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from "@mui/material";
-import { Home as HomeIcon, ArrowRight } from "lucide-react";
+import { Box, Container, Typography, Stack, Chip, Table, TableBody, TableCell, TableHead, TableRow } from "@mui/material";
+import { ArrowRight } from "lucide-react";
+import { SiteBreadcrumbs } from "@/components/seo/SiteBreadcrumbs";
+import { ResponsiveTableFrame } from "@/components/ResponsiveTableFrame";
 import { ARTICLES, ALL_ARTICLE_SLUGS } from "@/lib/articles";
 import { GLOSSARY_MAP } from "@/lib/glossary";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
@@ -147,30 +149,32 @@ function renderContent(content: string) {
       const [header = [], ...bodyRows] = rows;
       const isSeparatorRow = (row: string[]) => row.every((cell) => /^:?-{3,}:?$/.test(cell));
       elements.push(
-        <TableContainer key={`table-${elements.length}`} component={Paper} elevation={0} sx={{ mb: 2, border: 1, borderColor: "divider", overflowX: "auto" }}>
-          <Table size="small" sx={{ minWidth: 560 }}>
-            <TableHead>
-              <TableRow>
-                {header.map((cell, index) => (
-                  <TableCell key={index} sx={{ fontWeight: 700, bgcolor: "grey.50" }}>
-                    <span dangerouslySetInnerHTML={{ __html: inlineFormat(cell) }} />
-                  </TableCell>
-                ))}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {bodyRows.filter((row) => !isSeparatorRow(row)).map((row, rowIndex) => (
-                <TableRow key={rowIndex}>
-                  {header.map((_, cellIndex) => (
-                    <TableCell key={cellIndex}>
-                      <span dangerouslySetInnerHTML={{ __html: inlineFormat(row[cellIndex] ?? "") }} />
+        <Box key={`table-${elements.length}`} sx={{ mb: 2 }}>
+          <ResponsiveTableFrame label={`Tabelle: ${header.join(", ")}`} minWidth={560}>
+            <Table size="small" sx={{ minWidth: 560 }}>
+              <TableHead>
+                <TableRow>
+                  {header.map((cell, index) => (
+                    <TableCell key={index} sx={{ fontWeight: 700, bgcolor: "grey.50" }}>
+                      <span dangerouslySetInnerHTML={{ __html: inlineFormat(cell) }} />
                     </TableCell>
                   ))}
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>,
+              </TableHead>
+              <TableBody>
+                {bodyRows.filter((row) => !isSeparatorRow(row)).map((row, rowIndex) => (
+                  <TableRow key={rowIndex}>
+                    {header.map((_, cellIndex) => (
+                      <TableCell key={cellIndex}>
+                        <span dangerouslySetInnerHTML={{ __html: inlineFormat(row[cellIndex] ?? "") }} />
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </ResponsiveTableFrame>
+        </Box>,
       );
     } else if (trimmed === "") {
       flushList();
@@ -254,19 +258,12 @@ export default async function ArticlePage({ params }: PageProps) {
       )}
 
       <Box sx={{ minHeight: "100vh", bgcolor: "background.default", py: { xs: 3, md: 5 } }}>
-        <Container maxWidth="lg">
-          <Breadcrumbs sx={{ mb: 3, fontSize: "0.85rem" }} separator={<span style={{ color: "#999" }}>/</span>}>
-            <Link href="/" style={{ color: "#667288", textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}>
-              <HomeIcon size={14} />
-              Start
-            </Link>
-            <Link href="/wissen" style={{ color: "#667288", textDecoration: "none" }}>
-              Wissen
-            </Link>
-            <Typography color="text.primary" fontSize="0.85rem" sx={{ maxWidth: "40ch", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {article.title}
-            </Typography>
-          </Breadcrumbs>
+        <Container maxWidth="lg" sx={{ overflowX: "clip" }}>
+          <SiteBreadcrumbs items={[
+            { label: "Start", href: "/" },
+            { label: "Wissen", href: "/wissen" },
+            { label: article.title },
+          ]} />
 
           <Box sx={{ maxWidth: "80ch" }}>
             <Typography

@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Box, Container, Typography, Stack, Paper, Breadcrumbs, Chip } from "@mui/material";
-import { Home as HomeIcon, BookOpen, ArrowRight } from "lucide-react";
+import { Box, Container, Typography, Stack, Paper, Chip } from "@mui/material";
+import { BookOpen, ArrowRight } from "lucide-react";
+import { SiteBreadcrumbs } from "@/components/seo/SiteBreadcrumbs";
 import { ARTICLES, ALL_ARTICLE_SLUGS } from "@/lib/articles";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 import { SiteFooter } from "@/components/seo/SiteFooter";
@@ -46,13 +47,10 @@ export default function WissenPage() {
 
       <Box sx={{ minHeight: "100vh", bgcolor: "background.default", py: { xs: 3, md: 5 } }}>
         <Container maxWidth="lg">
-          <Breadcrumbs sx={{ mb: 3, fontSize: "0.85rem" }} separator={<span style={{ color: "#999" }}>/</span>}>
-            <Link href="/" style={{ color: "#667288", textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}>
-              <HomeIcon size={14} />
-              Start
-            </Link>
-            <Typography color="text.primary" fontSize="0.85rem">Wissen</Typography>
-          </Breadcrumbs>
+          <SiteBreadcrumbs items={[
+            { label: "Start", href: "/" },
+            { label: "Wissen" },
+          ]} />
 
           <Box sx={{ mb: 5 }}>
             <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 2 }}>

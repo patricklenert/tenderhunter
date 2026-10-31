@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { SiteBreadcrumbs } from "@/components/seo/SiteBreadcrumbs";
 import {
   Box,
   Container,
@@ -8,14 +9,12 @@ import {
   Stack,
   Chip,
   Paper,
-  Breadcrumbs,
 } from "@mui/material";
 import {
   Building2,
   MapPin,
   Calendar,
   ArrowRight,
-  Home as HomeIcon,
 } from "lucide-react";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 import { searchTenders } from "@/lib/meilisearch";
@@ -171,22 +170,12 @@ export default async function CityPage({ params, searchParams }: PageProps) {
 
       <Box sx={{ minHeight: "100vh", bgcolor: "background.default", py: { xs: 3, md: 5 } }}>
         <Container maxWidth="lg">
-          {/* Breadcrumbs */}
-          <Breadcrumbs sx={{ mb: 3, fontSize: "0.85rem" }} separator={<span style={{ color: "#999" }}>/</span>}>
-            <Link href="/" style={{ color: "#667288", textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}>
-              <HomeIcon size={14} />
-              Start
-            </Link>
-            <Link href="/ausschreibungen" style={{ color: "#667288", textDecoration: "none" }}>
-              Ausschreibungen
-            </Link>
-            {bundeslandSlug && (
-              <Link href={`/ausschreibungen/region/${bundeslandSlug}`} style={{ color: "#667288", textDecoration: "none" }}>
-                {city.bundesland}
-              </Link>
-            )}
-            <Typography color="text.primary" fontSize="0.85rem">{city.label}</Typography>
-          </Breadcrumbs>
+          <SiteBreadcrumbs items={[
+            { label: "Start", href: "/" },
+            { label: "Ausschreibungen", href: "/ausschreibungen" },
+            ...(bundeslandSlug ? [{ label: city.bundesland, href: `/ausschreibungen/region/${bundeslandSlug}` }] : []),
+            { label: city.label },
+          ]} />
 
           {/* Header */}
           <Box sx={{ mb: 4 }}>

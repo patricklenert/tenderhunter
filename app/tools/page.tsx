@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Box, Container, Typography, Stack, Paper, Breadcrumbs, Chip } from "@mui/material";
-import { Home as HomeIcon, Calculator, Clock, Gavel, ArrowRight, Wrench } from "lucide-react";
+import { Box, Container, Typography, Stack, Paper, Chip } from "@mui/material";
+import { Calculator, Clock, Gavel, ArrowRight, Wrench } from "lucide-react";
+import { SiteBreadcrumbs } from "@/components/seo/SiteBreadcrumbs";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 import { GLOSSARY } from "@/lib/glossary";
 
@@ -92,12 +93,10 @@ export default function ToolsHubPage() {
 
       <Box sx={{ minHeight: "100vh", bgcolor: "background.default", py: { xs: 3, md: 5 } }}>
         <Container maxWidth="md">
-          <Breadcrumbs sx={{ mb: 3, fontSize: "0.85rem" }} separator={<span style={{ color: "#999" }}>/</span>}>
-            <Link href="/" style={{ color: "#667288", textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}>
-              <HomeIcon size={14} /> Start
-            </Link>
-            <Typography color="text.primary" fontSize="0.85rem">Tools</Typography>
-          </Breadcrumbs>
+          <SiteBreadcrumbs items={[
+            { label: "Start", href: "/" },
+            { label: "Tools" },
+          ]} />
 
           {/* Header */}
           <Box sx={{ mb: 5 }}>

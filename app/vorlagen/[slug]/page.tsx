@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Box, Container, Typography, Stack, Paper, Breadcrumbs, Chip } from "@mui/material";
-import { Home as HomeIcon, ArrowRight, FileText, Lightbulb } from "lucide-react";
+import { Box, Container, Typography, Stack, Paper, Chip } from "@mui/material";
+import { ArrowRight, FileText, Lightbulb } from "lucide-react";
+import { SiteBreadcrumbs } from "@/components/seo/SiteBreadcrumbs";
 import { TEMPLATE_MAP, ALL_TEMPLATE_SLUGS, TEMPLATES } from "@/lib/templates";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 import { SiteFooter } from "@/components/seo/SiteFooter";
@@ -100,15 +101,11 @@ export default async function TemplateEntryPage({ params }: { params: Promise<{ 
 
       <Box sx={{ minHeight: "100vh", bgcolor: "background.default", py: { xs: 3, md: 5 } }}>
         <Container maxWidth="md">
-          <Breadcrumbs sx={{ mb: 3, fontSize: "0.85rem" }} separator={<span style={{ color: "#999" }}>/</span>}>
-            <Link href="/" style={{ color: "#667288", textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}>
-              <HomeIcon size={14} /> Start
-            </Link>
-            <Link href="/vorlagen" style={{ color: "#667288", textDecoration: "none" }}>
-              Vorlagen
-            </Link>
-            <Typography color="text.primary" fontSize="0.85rem">{entry.title}</Typography>
-          </Breadcrumbs>
+          <SiteBreadcrumbs items={[
+            { label: "Start", href: "/" },
+            { label: "Vorlagen", href: "/vorlagen" },
+            { label: entry.title },
+          ]} />
 
           {/* Header */}
           <Box sx={{ mb: 4 }}>

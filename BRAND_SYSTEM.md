@@ -52,6 +52,10 @@ Legacy aliases remain available while existing surfaces migrate. New code should
 `components/BrandLockup.tsx` is the shared wordmark treatment for public metadata images and product entry points. Use it instead of the legacy `public/logo.webp` asset or locally recreated logo boxes.
 The public `SiteFooter` uses the shared lockup and the semantic surface/text roles as a recurring brand touchpoint across public pages.
 
+## Public Wayfinding
+
+Public page hierarchy uses `components/seo/SiteBreadcrumbs.tsx`. Pass route labels and destinations as data; the shared component owns semantic text colors, the separator, the home mark, current-page treatment, and 44px link targets. Keep breadcrumb links aligned with the page's canonical route hierarchy.
+
 ## Core Decision Surfaces
 
 Tender cards, fit scores, deadline states, and tender detail panels are one decision surface. Keep them aligned through:

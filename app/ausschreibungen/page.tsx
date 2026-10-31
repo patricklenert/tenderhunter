@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Box, Container, Typography, Stack, Chip, Breadcrumbs } from "@mui/material";
-import { Home as HomeIcon, MapPin, Calendar } from "lucide-react";
+import { Box, Container, Typography, Stack, Chip } from "@mui/material";
+import { MapPin, Calendar } from "lucide-react";
+import { SiteBreadcrumbs } from "@/components/seo/SiteBreadcrumbs";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 import { CATEGORY_CONTENT } from "@/lib/category-content";
 import { getLatestTenders } from "@/components/seo/HomeTenderList";
@@ -114,13 +115,10 @@ export default async function AusschreibungenPage() {
       >
         <Container maxWidth="lg">
           {/* SEO: Visible breadcrumbs (JSON-LD already present) */}
-          <Breadcrumbs sx={{ mb: 3, fontSize: "0.85rem" }} separator={<span style={{ color: "#999" }}>/</span>}>
-            <Link href="/" style={{ color: "#667288", textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}>
-              <HomeIcon size={14} />
-              Start
-            </Link>
-            <Typography color="text.primary" fontSize="0.85rem">Ausschreibungen</Typography>
-          </Breadcrumbs>
+          <SiteBreadcrumbs items={[
+            { label: "Start", href: "/" },
+            { label: "Ausschreibungen" },
+          ]} />
 
           <Typography
             variant="h4"

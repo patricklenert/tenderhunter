@@ -8,14 +8,13 @@ import {
   Stack,
   Chip,
   Paper,
-  Breadcrumbs,
 } from "@mui/material";
 import { SiteFooter } from "@/components/seo/SiteFooter";
+import { SiteBreadcrumbs } from "@/components/seo/SiteBreadcrumbs";
 import {
   Building2,
   MapPin,
   Calendar,
-  Home as HomeIcon,
   ArrowRight,
 } from "lucide-react";
 import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
@@ -122,14 +121,12 @@ export function TaxonomyCategoryContent({
 
       <Box sx={{ minHeight: "100vh", bgcolor: "background.default", py: { xs: 3, md: 5 } }}>
         <Container maxWidth="lg">
-          <Breadcrumbs sx={{ mb: 3, fontSize: "0.85rem" }} separator={<span style={{ color: "#999" }}>/</span>}>
-            <Link href="/" style={{ color: "#667288", textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}>
-              <HomeIcon size={14} /> Start
-            </Link>
-            <Link href="/ausschreibungen" style={{ color: "#667288", textDecoration: "none" }}>Ausschreibungen</Link>
-            <Link href={`${taxonParentPath}/${taxonSlug}`} style={{ color: "#667288", textDecoration: "none" }}>{taxonLabel}</Link>
-            <Typography color="text.primary" fontSize="0.85rem">{categoryLabel}</Typography>
-          </Breadcrumbs>
+          <SiteBreadcrumbs items={[
+            { label: "Start", href: "/" },
+            { label: "Ausschreibungen", href: "/ausschreibungen" },
+            { label: taxonLabel, href: `${taxonParentPath}/${taxonSlug}` },
+            { label: categoryLabel },
+          ]} />
 
           <Box sx={{ mb: 4 }}>
             <Typography variant="h4" component="h1" fontWeight={800} sx={{ mb: 1, fontSize: { xs: "1.5rem", md: "2.25rem" }, letterSpacing: "-0.01em" }}>
