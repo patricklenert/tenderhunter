@@ -227,7 +227,7 @@ const qualityFixtureDetail = projectPublicTenderDetailFallback({
   fallbackFacts: {},
 }).display;
 const qualityFixtureModal = projectPublicDisplayFields({
-  title: [qualityFixtureTitle, qualityFixtureDisplayTitle],
+  title: [qualityFixtureDetail.title, qualityFixtureDisplayTitle],
   client: ["##Auftraggeber", "Stadt Mainz"],
   location: ["##Leistungsort", "55116 Mainz"],
   summary: ["##Kurzinfo", "##Bekanntmachung", qualityFixtureSummary],
@@ -275,6 +275,24 @@ assert.deepEqual(publicFields(qualityFixtureDetail), qualityFixtureExpected);
 assert.deepEqual(publicFields(qualityFixtureModal), qualityFixtureExpected);
 assert.deepEqual(publicFields(qualityFixtureIndex), qualityFixtureExpected);
 assert.deepEqual(publicFields(qualityFixtureSearchHit), qualityFixtureExpected);
+assert.equal(qualityFixtureModal.title, qualityFixtureDetail.title, "modal title prefers the validated detail title");
+
+const staleIndexedTitleSearchHit = projectTenderSearchHit({
+  ...qualityFixtureIndex,
+  id: 908,
+  title: "Veralteter indexierter Ausschreibungstitel",
+}, {
+  title: "##Bekanntmachung",
+  source: "dtvp",
+  url: "https://example.test/tender/908",
+  metadataJson: {},
+  structuredJson: {},
+});
+assert.equal(
+  staleIndexedTitleSearchHit.title,
+  "Ausschreibung #908",
+  "invalid current titles must not fall back to stale indexed titles",
+);
 
 // A valid structured summary remains public when metadata carries an invalid,
 // non-null description, across list, modal, detail, index, and search surfaces.
@@ -1076,6 +1094,7 @@ assert.match(detailRouteSource, /resolvePublicTenderDisplayFacts\(/);
 assert.match(ssrPageSource, /getPublicAccessLimitedFallback/);
 assert.match(ssrPageSource, /resolvePublicTenderDisplayFacts\(/);
 assert.match(detailModalSource, /projectPublicDisplayFields/);
+assert.match(detailModalSource, /title:\s*\[d\.title,\s*t\.title\]/);
 assert.match(detailModalSource, /location:\s*tender\.location,/);
 assert.match(detailModalSource, /location:\s*\[d\.location,\s*t\.location\]/);
 assert.doesNotMatch(detailModalSource, /location:\s*\[tender\.location,\s*tender\.city,\s*tender\.bundesland\]/);
@@ -1088,6 +1107,7 @@ assert.match(ssrPageSource, /!markdownHasSection\(fact\.markdownLabel\)/);
 assert.match(detailModalSource, /client && !markdownHasSection\("Auftraggeber"\)/);
 assert.match(detailModalSource, /!markdownHasSection\("Leistungsort"\) && <Box>/);
 assert.match(searchRouteSource, /searchTenders\(/);
+assert.match(meiliSearchSource, /title:\s*\[currentDisplay\.title\]/);
 assert.match(searchRouteSource, /bundesland:\s*hit\.bundesland/);
 assert.match(meiliSearchSource, /\.filter\(\(hit\) => !params\.bundesland \|\| hit\.bundesland === params\.bundesland\)/);
 assert.match(pipelineSource, /parseDeadlineDate\(tender\.deadline\)/);

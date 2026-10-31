@@ -1119,7 +1119,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
               ? smallVendorDetail.badges.filter((item): item is string => typeof item === "string" && item.length > 0)
               : [];
             const display = projectPublicDisplayFields({
-              title: t.title,
+              title: [d.title, t.title],
               client: [d.client, t.client],
               location: [d.location, t.location],
               summary: [d.summary, d.description, t.description],

@@ -453,7 +453,7 @@ export const projectTenderSearchHit = (
     locationFallbacks: [publicFacts.fallbackFacts.location],
   });
   const display = projectPublicDisplayFields({
-    title: [currentDisplay.title, hit.title],
+    title: [currentDisplay.title],
     client: [currentDisplay.client],
     location: [currentDisplay.location],
     summary: [currentDisplay.description],
