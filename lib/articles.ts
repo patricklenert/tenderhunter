@@ -109,15 +109,16 @@ Unterhalb des jeweils einschlägigen Werts gelten die nationalen Regeln des Auft
     description:
       "VOB/A, VOB/B und VOB/C verständlich erklärt: Vergabeverfahren, Bauvertragsbedingungen, technische ATV, Schwellenwerte und wichtige Hinweise für Bieter.",
     datePublished: "2025-01-15",
-    dateModified: "2026-10-22",
-    lastReviewed: "2026-10-25",
+    dateModified: "2026-11-01",
+    lastReviewed: "2026-11-01",
     relatedCategories: ["Bauarbeiten", "Tiefbau", "TGA", "Planungsleistungen"],
     relatedArticles: ["vergabeverfahren-uebersicht", "schwellenwerte-vergabe", "ausschreibung-muster", "bietergemeinschaft-gruenden"],
     relatedGlossaryTerms: ["vob-a", "vob-b", "vob-c", "vob-a-eu", "schwellenwerte", "auftragswert", "losvergabe", "leistungsbeschreibung", "leistungsverzeichnis", "vgv-vergabeverordnung", "gwb-vergaberecht", "eignungsleihe", "praequalifikation-pq-vob", "nachforderung-unterlagen"],
     sources: [
-      { title: "Bundesanzeiger: VOB/A-Änderung vom 22. Juli 2026 (BAnz AT 24.08.2026 B6)", url: "https://www.bundesanzeiger.de/pub/publication/73xO0rpP1jfX5HRt0Ja/content/73xO0rpP1jfX5HRt0Ja/BAnz%20AT%2024.08.2026%20B6.pdf?inline" },
+      { title: "Bundesanzeiger: Bekanntmachung der Vergabe- und Vertragsordnung für Bauleistungen Teil A – Abschnitt 2 und Abschnitt 3 (VOB/A) – Ausgabe 2026 – (BAnz AT 24.08.2026 B6)", url: "https://www.bundesanzeiger.de/pub/publication/73xO0rpP1jfX5HRt0Ja/content/73xO0rpP1jfX5HRt0Ja/BAnz%20AT%2024.08.2026%20B6.pdf?inline" },
       { title: "VOB/A, Bekanntmachung vom 31. Januar 2019 (BAnz AT 19.02.2019 B2)", url: "https://www.verwaltungsvorschriften-im-internet.de/bsvwvbund_31012019_BWI781063060120180001604634.htm" },
       { title: "§ 2 VgV – Bauaufträge", url: "https://www.gesetze-im-internet.de/vgv_2016/__2.html" },
+      { title: "DIN 18299:2023-09 – Allgemeine Regelungen für Bauarbeiten jeder Art", url: "https://www.dinmedia.de/de/standard/din-18299/369847346" },
       { title: "§ 97a GWB – Losgrundsatz", url: "https://www.gesetze-im-internet.de/gwb/__97a.html" },
       { title: "§ 134 GWB – Informations- und Wartepflicht", url: "https://www.gesetze-im-internet.de/gwb/__134.html" },
     ],
@@ -138,11 +139,13 @@ Die VOB/B regelt die rechtlichen Bedingungen der Bauausführung, wenn sie wirksa
 
 ### VOB/C: Technische Vertragsbedingungen
 
-Die VOB/C enthält gewerkespezifische Allgemeine Technische Vertragsbedingungen (ATV). Sie unterstützt eine eindeutige Leistungsbeschreibung und beschreibt Anforderungen an Ausführung, Neben- und besondere Leistungen sowie Abrechnung. Das Leistungsverzeichnis konkretisiert dabei die ausgeschriebene Leistung; VOB/C und Leistungsverzeichnis sind deshalb gemeinsam zu lesen.
+Die VOB/C enthält gewerkespezifische Allgemeine Technische Vertragsbedingungen (ATV). Ein Beispiel ist die ATV DIN 18299:2023-09 „Allgemeine Regelungen für Bauarbeiten jeder Art“, die auch Bauarbeiten erfasst, für die keine gewerkespezifische ATV besteht. Die VOB/C unterstützt eine eindeutige Leistungsbeschreibung und beschreibt Anforderungen an Ausführung, Neben- und besondere Leistungen sowie Abrechnung. Das Leistungsverzeichnis konkretisiert dabei die ausgeschriebene Leistung; VOB/C und Leistungsverzeichnis sind deshalb gemeinsam zu lesen.
 
 ## Geltungsbereich der VOB/A
 
 Für Bauaufträge unterscheidet die VOB/A drei Abschnitte: Abschnitt 1 für den nationalen Bereich, Abschnitt 2 für den EU-Oberschwellenbereich und Abschnitt 3 für verteidigungs- und sicherheitsspezifische Vergaben. Nach § 2 VgV sind bei Bauaufträgen Abschnitt 1 und Abschnitt 2 Unterabschnitt 2 der VgV anzuwenden; im Übrigen gilt VOB/A Teil A Abschnitt 2. Planungsleistungen, die als Los eines Bauauftrags vergeben werden, unterliegen der VgV. Baukonzessionen sind gesondert zu prüfen.
+
+Die Bekanntmachung vom 22. Juli 2026 veröffentlichte die Ausgabe 2026 der VOB/A-Abschnitte 2 und 3. § 2 VgV nennt für den übrigen Teil VOB/A Abschnitt 2 in der Fassung von 2019, zuletzt geändert durch diese Bekanntmachung. Das BMWSB kündigte für seinen Geschäftsbereich einen gesonderten Erlass zum Anwendungsbeginn nach Änderung der Verweisungen an. Das Veröffentlichungsdatum allein belegt daher keinen einheitlichen Starttermin für alle Auftraggeber.
 
 **Unterscheidung:**
 - **Unterhalb der EU-Schwellenwerte:** VOB/A Abschnitt 1, ergänzt durch anwendbares Landes- und Haushaltsrecht
@@ -1205,7 +1208,7 @@ Nein. Entscheidend sind die vorab bekannt gemachten Zuschlagskriterien. Der Prei
     description:
       "Umfassender Leitfaden zum Vergaberecht in Deutschland: Gesetzliche Grundlagen, Zuständigkeiten, Rechtsschutz und praktische Tipps für Unternehmen bei öffentlichen Ausschreibungen.",
     datePublished: "2025-02-01",
-    dateModified: "2026-10-29",
+    dateModified: "2026-11-01",
     relatedCategories: ["Bauarbeiten", "IT-Dienstleistungen", "Planungsleistungen"],
     relatedArticles: ["vergabeverfahren-uebersicht", "vob-vergabe", "nachpruefungsverfahren-vergabe", "schwellenwerte-vergabe"],
     relatedGlossaryTerms: ["gwb-vergaberecht", "vgv-vergabeverordnung", "uvgo", "vob-a", "schwellenwerte", "auftragswert", "nachpruefungsverfahren", "ruege", "vergabekammer", "zuschlag"],
@@ -1213,7 +1216,7 @@ Nein. Entscheidend sind die vorab bekannt gemachten Zuschlagskriterien. Der Prei
       { title: "§ 97 GWB – Allgemeine Grundsätze", url: "https://www.gesetze-im-internet.de/gwb/__97.html" },
       { title: "§ 106 GWB – Schwellenwerte", url: "https://www.gesetze-im-internet.de/gwb/__106.html" },
       { title: "§ 2 VgV – Vergabe von Bauaufträgen", url: "https://www.gesetze-im-internet.de/vgv_2016/__2.html" },
-      { title: "Bundesanzeiger: VOB/A-Änderung vom 22. Juli 2026 (BAnz AT 24.08.2026 B6)", url: "https://www.bundesanzeiger.de/pub/publication/73xO0rpP1jfX5HRt0Ja/content/73xO0rpP1jfX5HRt0Ja/BAnz%20AT%2024.08.2026%20B6.pdf?inline" },
+      { title: "Bundesanzeiger: Bekanntmachung der Vergabe- und Vertragsordnung für Bauleistungen Teil A – Abschnitt 2 und Abschnitt 3 (VOB/A) – Ausgabe 2026 – (BAnz AT 24.08.2026 B6)", url: "https://www.bundesanzeiger.de/pub/publication/73xO0rpP1jfX5HRt0Ja/content/73xO0rpP1jfX5HRt0Ja/BAnz%20AT%2024.08.2026%20B6.pdf?inline" },
       { title: "§ 134 GWB – Informations- und Wartepflicht", url: "https://www.gesetze-im-internet.de/gwb/__134.html" },
       { title: "§ 160 GWB – Einleitung, Antrag", url: "https://www.gesetze-im-internet.de/gwb/__160.html" },
       { title: "§ 169 GWB – Aussetzung des Vergabeverfahrens", url: "https://www.gesetze-im-internet.de/gwb/__169.html" },

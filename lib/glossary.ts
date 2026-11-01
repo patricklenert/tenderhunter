@@ -144,6 +144,7 @@ export const GLOSSARY: GlossaryEntry[] = [
     definition: [
       "Die Vergabe- und Vertragsordnung für Bauleistungen (VOB), Teil A (VOB/A; auch „VOB A“ oder „VOB Teil A“), regelt den vergaberechtlichen Teil öffentlicher Bauaufträge. Sie unterscheidet zwischen Abschnitt 1 für den nationalen Bereich, Abschnitt 2 für Vergaben im Anwendungsbereich des EU-Vergaberechts und Abschnitt 3 für verteidigungs- und sicherheitsspezifische Aufträge. Abschnitt 2 wird häufig als „VOB/A EU“ oder „EU-VOB/A“ bezeichnet; die eigene Lexikonseite zur VOB/A EU erläutert diesen speziellen Bereich.",
       "Bei Bauaufträgen oberhalb der EU-Schwellenwerte ist die VOB/A Abschnitt 2 nicht isoliert zu lesen. Nach § 2 VgV sind Abschnitt 1 und Abschnitt 2 Unterabschnitt 2 der VgV anzuwenden; im Übrigen gilt VOB/A Teil A Abschnitt 2. Planungsleistungen, die als Los eines Bauauftrags vergeben werden, unterliegen nach § 2 VgV der VgV.",
+      "Die Bekanntmachung vom 22. Juli 2026 betrifft die Ausgabe 2026 der Abschnitte 2 und 3. § 2 VgV nennt für den übrigen Teil weiterhin VOB/A Abschnitt 2 in der Fassung der Bekanntmachung von 2019, zuletzt geändert durch die Bekanntmachung von 2026. Das BMWSB hat für seinen Geschäftsbereich angekündigt, den Anwendungsbeginn nach Änderung der Verweisungen gesondert per Erlass bekannt zu machen. Aus dem Veröffentlichungsdatum allein folgt daher kein einheitlicher Starttermin für alle Auftraggeber.",
       "Die VOB/A betrifft das Vergabeverfahren, etwa Leistungsbeschreibung, Eignung, Angebote und Zuschlag. Die VOB/B regelt dagegen Vertragsbedingungen für die Ausführung, die VOB/C technische Vertragsbedingungen und Abrechnungsgrundlagen.",
     ],
     keyPoints: [
@@ -165,17 +166,21 @@ export const GLOSSARY: GlossaryEntry[] = [
         question: "Was ist der Unterschied zwischen VOB/A und VgV?",
         answer: "Die VOB/A regelt die Vergabe von Bauleistungen. Die VgV regelt grundsätzlich Liefer- und Dienstleistungen oberhalb der EU-Schwellenwerte; § 2 VgV bestimmt aber auch ihre Anwendung bei Bauaufträgen und bei bestimmten Planungsleistungen. Deshalb ist keine pauschale Entweder-oder-Aussage richtig.",
       },
+      {
+        question: "Was bedeutet die VOB/A-Ausgabe 2026 für den Anwendungsbeginn?",
+        answer: "Die Bekanntmachung 2026 ändert die Abschnitte 2 und 3. Für Bauaufträge verweist § 2 VgV auf VOB/A Abschnitt 2 in der Fassung von 2019, zuletzt geändert durch die Bekanntmachung von 2026. Das BMWSB kündigte für seinen Geschäftsbereich einen gesonderten Erlass zum Anwendungsbeginn nach Änderung der Verweisungen an. Deshalb lässt sich aus dem Veröffentlichungsdatum allein kein einheitlicher Starttermin für alle Auftraggeber ableiten.",
+      },
     ],
     relatedTerms: ["vob-b", "vob-c", "vob-a-eu", "schwellenwerte", "auftragswert", "leistungsbeschreibung", "leistungsverzeichnis", "losvergabe", "vgv-vergabeverordnung", "gwb-vergaberecht", "eignungsleihe", "nachforderung-unterlagen", "praequalifikation-pq-vob"],
     relatedCategories: ["Bauarbeiten", "Tiefbau", "TGA", "Gartenarbeiten"],
     relatedArticles: ["vob-vergabe", "schwellenwerte-vergabe", "vergaberecht-leitfaden"],
     sources: [
-        { title: "Bundesanzeiger: VOB/A-Änderung vom 22. Juli 2026 (BAnz AT 24.08.2026 B6)", url: "https://www.bundesanzeiger.de/pub/publication/73xO0rpP1jfX5HRt0Ja/content/73xO0rpP1jfX5HRt0Ja/BAnz%20AT%2024.08.2026%20B6.pdf?inline" },
+      { title: "Bundesanzeiger: Bekanntmachung der Vergabe- und Vertragsordnung für Bauleistungen Teil A – Abschnitt 2 und Abschnitt 3 (VOB/A) – Ausgabe 2026 – (BAnz AT 24.08.2026 B6)", url: "https://www.bundesanzeiger.de/pub/publication/73xO0rpP1jfX5HRt0Ja/content/73xO0rpP1jfX5HRt0Ja/BAnz%20AT%2024.08.2026%20B6.pdf?inline" },
        { title: "VOB/A, Bekanntmachung vom 31. Januar 2019 (BAnz AT 19.02.2019 B2)", url: "https://www.verwaltungsvorschriften-im-internet.de/bsvwvbund_31012019_BWI781063060120180001604634.htm" },
       { title: "§ 2 VgV – Bauaufträge", url: "https://www.gesetze-im-internet.de/vgv_2016/__2.html" },
       { title: "BMWE: Vergabeübersicht und Rechtsgrundlagen", url: "https://www.bundeswirtschaftsministerium.de/Redaktion/DE/Artikel/Wirtschaft/vergabe-uebersicht-und-rechtsgrundlagen.html" },
     ],
-    lastReviewed: "2026-10-25",
+    lastReviewed: "2026-11-01",
   },
   {
     slug: "vob-b",
@@ -208,7 +213,7 @@ export const GLOSSARY: GlossaryEntry[] = [
     category: "Rechtsgrundlagen",
     shortDefinition: "Die VOB/C bündelt Allgemeine Technische Vertragsbedingungen und ATV für Bauleistungen. Sie konkretisiert technische Anforderungen, Ausführung und Abrechnung.",
     definition: [
-      "Die VOB/C besteht aus Allgemeinen Technischen Vertragsbedingungen (ATV), die für verschiedene Gewerke technische Anforderungen beschreiben. Sie unterstützt eine eindeutige Leistungsbeschreibung und legt Regeln für Ausführung, Nebenleistungen, besondere Leistungen und Abrechnung fest.",
+      "Die VOB/C besteht aus Allgemeinen Technischen Vertragsbedingungen (ATV), die für verschiedene Gewerke technische Anforderungen beschreiben. Ein Beispiel ist die ATV DIN 18299:2023-09 „Allgemeine Regelungen für Bauarbeiten jeder Art“; sie gilt als allgemeine ATV auch für Bauarbeiten, für die keine gewerkespezifische ATV besteht. Die VOB/C unterstützt eine eindeutige Leistungsbeschreibung und legt Regeln für Ausführung, Nebenleistungen, besondere Leistungen und Abrechnung fest.",
       "Im Vergabeverfahren hilft die VOB/C dabei, die geschuldete Bauleistung technisch eindeutig zu beschreiben. Im Bauvertrag kann sie als technische Vertragsbedingung einbezogen werden; die konkrete Ausschreibung und die vereinbarten Vertragsunterlagen bleiben entscheidend.",
       "VOB/C ist von VOB/A abzugrenzen: VOB/A betrifft die Auswahl und Beauftragung, VOB/C die technischen Vertragsbedingungen. VOB/B regelt die allgemeinen rechtlichen Vertragsbedingungen der Ausführung.",
     ],
@@ -223,9 +228,10 @@ export const GLOSSARY: GlossaryEntry[] = [
     relatedArticles: ["vob-vergabe"],
     sources: [
       { title: "VOB/A, Abschnitt 1, § 8a (Einbeziehung von VOB/B und VOB/C)", url: "https://www.verwaltungsvorschriften-im-internet.de/bsvwvbund_31012019_BWI781063060120180001604634.htm" },
+      { title: "DIN 18299:2023-09 – Allgemeine Regelungen für Bauarbeiten jeder Art", url: "https://www.dinmedia.de/de/standard/din-18299/369847346" },
       { title: "BMWE: Vergabeübersicht und Rechtsgrundlagen", url: "https://www.bundeswirtschaftsministerium.de/Redaktion/DE/Artikel/Wirtschaft/vergabe-uebersicht-und-rechtsgrundlagen.html" },
     ],
-    lastReviewed: "2026-09-17",
+    lastReviewed: "2026-11-01",
   },
   {
     slug: "vob-a-eu",
@@ -251,11 +257,11 @@ export const GLOSSARY: GlossaryEntry[] = [
     sources: [
       { title: "§ 2 VgV – Bauaufträge", url: "https://www.gesetze-im-internet.de/vgv_2016/__2.html" },
       { title: "§ 106 GWB – Schwellenwerte", url: "https://www.gesetze-im-internet.de/gwb/__106.html" },
-      { title: "Bundesanzeiger: VOB/A-Änderung vom 22. Juli 2026 (BAnz AT 24.08.2026 B6)", url: "https://www.bundesanzeiger.de/pub/publication/73xO0rpP1jfX5HRt0Ja/content/73xO0rpP1jfX5HRt0Ja/BAnz%20AT%2024.08.2026%20B6.pdf?inline" },
+      { title: "Bundesanzeiger: Bekanntmachung der Vergabe- und Vertragsordnung für Bauleistungen Teil A – Abschnitt 2 und Abschnitt 3 (VOB/A) – Ausgabe 2026 – (BAnz AT 24.08.2026 B6)", url: "https://www.bundesanzeiger.de/pub/publication/73xO0rpP1jfX5HRt0Ja/content/73xO0rpP1jfX5HRt0Ja/BAnz%20AT%2024.08.2026%20B6.pdf?inline" },
       { title: "VOB/A, Abschnitt 2, Bekanntmachung vom 31. Januar 2019", url: "https://www.verwaltungsvorschriften-im-internet.de/bsvwvbund_31012019_BWI781063060120180001604634.htm" },
       { title: "Delegierte Verordnung (EU) 2025/2152 – Schwellenwerte 2026/2027", url: "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32025R2152" },
     ],
-    lastReviewed: "2026-10-18",
+    lastReviewed: "2026-11-01",
   },
   {
     slug: "vol-a",

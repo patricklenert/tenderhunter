@@ -167,8 +167,17 @@ if (!GLOSSARY_MAP["losvergabe"]?.relatedArticles?.includes("vob-vergabe")) {
   errors.push("losvergabe.relatedArticles -> missing vob-vergabe");
 }
 
-if (!GLOSSARY_MAP["vob-a"]?.sources?.some((source) => source.title.includes("Änderung vom 22. Juli 2026") && source.title.includes("BAnz AT 24.08.2026 B6"))) {
+if (!GLOSSARY_MAP["vob-a"]?.sources?.some((source) => source.title.includes("Bekanntmachung der Vergabe- und Vertragsordnung für Bauleistungen Teil A") && source.title.includes("Abschnitt 2 und Abschnitt 3 (VOB/A) – Ausgabe 2026") && source.title.includes("BAnz AT 24.08.2026 B6"))) {
   errors.push("vob-a.sources -> missing accurately dated 2026 Bundesanzeiger reference");
+}
+if (!vobA?.definition.some((paragraph) => paragraph.includes("zuletzt geändert durch die Bekanntmachung von 2026") && paragraph.includes("§ 2 VgV"))) {
+  errors.push("vob-a.definition -> missing precise § 2 VgV reference to the 2026 VOB/A amendment");
+}
+if (!vobA?.definition.some((paragraph) => paragraph.includes("BMWSB") && paragraph.includes("Anwendungsbeginn") && paragraph.includes("gesondert per Erlass"))) {
+  errors.push("vob-a.definition -> missing qualified BMWSB commencement note for the 2026 edition");
+}
+if (!vobA?.faq.some((item) => item.question.includes("Ausgabe 2026") && item.answer.includes("kein einheitlicher Starttermin"))) {
+  errors.push("vob-a.faq -> missing scoped answer on the 2026 edition's commencement");
 }
 
 if (GLOSSARY_MAP["schwellenwerte"]?.shortDefinition.includes("EU-weite Vergabeverfahren")) {
@@ -179,6 +188,20 @@ for (const slug of ["vob-b", "vob-c", "vob-a-eu"]) {
   if (!GLOSSARY_MAP[slug]?.relatedTerms?.includes("vob-a")) {
     errors.push(`${slug}.relatedTerms -> missing reciprocal vob-a link`);
   }
+}
+
+const vobC = GLOSSARY_MAP["vob-c"];
+if (!vobC?.definition.some((paragraph) => paragraph.includes("DIN 18299:2023-09") && paragraph.includes("keine gewerkespezifische ATV"))) {
+  errors.push("vob-c.definition -> missing scoped DIN 18299:2023-09 ATV reference");
+}
+if (!vobC?.sources?.some((source) => source.url === "https://www.dinmedia.de/de/standard/din-18299/369847346")) {
+  errors.push("vob-c.sources -> missing DIN Media source for DIN 18299");
+}
+if (!ARTICLES["vob-vergabe"]?.content.includes("DIN 18299:2023-09")) {
+  errors.push("vob-vergabe.content -> missing the DIN 18299 ATV example");
+}
+if (!ARTICLES["vob-vergabe"]?.content.includes("keinen einheitlichen Starttermin für alle Auftraggeber")) {
+  errors.push("vob-vergabe.content -> missing qualified 2026 VOB/A applicability note");
 }
 
 const pqVob = GLOSSARY_MAP["praequalifikation-pq-vob"];
