@@ -347,6 +347,104 @@ assert.equal(structuredSummaryDetail.description, structuredSummaryText);
 assert.equal(structuredSummaryIndex.description, structuredSummaryText);
 assert.equal(structuredSummarySearchHit.description, structuredSummaryText);
 
+// One corrupt public record must resolve to the same validated fields for the
+// list, modal, detail API fallback, and server-rendered detail page.
+const sharedQualityTitle = "Erneuerung der Energiezentrale in Bautzen";
+const sharedQualitySummary = "Die Energiezentrale des Verwaltungsgebäudes wird umfassend modernisiert.";
+const sharedQualityLocation = "02625 Bautzen";
+const sharedQualityMarkdown = `- **Leistungsumfang:** ${sharedQualitySummary}`;
+const sharedQualityNavigation = "SERVICE.BUND.DEHaupt-Navigations-Men&#xFC;Meta-NavigationAndere Ausschreibungen im Bereich";
+const sharedQualityOfferBoilerplate = "Zugelassene Angebotsabgabe elektronisch in Textform mit fortgeschrittener/m Signatur/Siegel.";
+const sharedQualityMetadata = {
+  client: "Anmelden erforderlich, um Zugriff zu erhalten",
+  location: "##",
+  description: `## Bekanntmachung\n${sharedQualityNavigation}`,
+  descriptionMarkdown: `- **Anforderungen:** ${sharedQualityOfferBoilerplate}`,
+};
+const sharedQualityStructured = {
+  title: sharedQualityTitle,
+  client: "Anmelden erforderlich, um Zugriff zu erhalten",
+  summary: "- Verfahren - - - Lose - Ergebnisse - Verträge - - - -",
+  description: "## Bekanntmachung",
+  descriptionMarkdown: `- **Anforderungen:** ${sharedQualityOfferBoilerplate}`,
+  hard_facts: { buyer: "Anmelden erforderlich, um Zugriff zu erhalten", location: "##" },
+};
+const sharedQualityFacts = {
+  buyer: "Stadt Bautzen",
+  location: sharedQualityLocation,
+  summary: sharedQualitySummary,
+  scope: sharedQualitySummary,
+};
+const sharedQualityStructuredNormalized = normalizeStructured(
+  sharedQualityStructured,
+  sharedQualityTitle,
+  sharedQualityFacts,
+);
+const sharedQualityList = projectPublicTenderRecord({
+  title: sharedQualityTitle,
+  metadata: sharedQualityMetadata,
+  structured: sharedQualityStructuredNormalized,
+  clientFallbacks: [sharedQualityFacts.buyer],
+  locationFallbacks: [sharedQualityFacts.location],
+  summaryFallbacks: [sharedQualityFacts.summary],
+  descriptionMarkdownFallbacks: [sharedQualityMarkdown],
+});
+const sharedQualityModal = projectPublicDisplayFields({
+  title: [sharedQualityStructured.title, sharedQualityTitle],
+  client: [sharedQualityStructured.client, sharedQualityMetadata.client, sharedQualityFacts.buyer],
+  location: [sharedQualityStructured.hard_facts.location, sharedQualityMetadata.location, sharedQualityFacts.location],
+  summary: [
+    sharedQualityStructured.summary,
+    sharedQualityStructured.description,
+    sharedQualityMetadata.description,
+    sharedQualityFacts.summary,
+  ],
+  descriptionMarkdown: [
+    sharedQualityStructured.descriptionMarkdown,
+    sharedQualityMetadata.descriptionMarkdown,
+    sharedQualityStructuredNormalized.descriptionMarkdown,
+    sharedQualityMarkdown,
+  ],
+});
+const sharedQualityDetailApi = projectPublicTenderDetailFallback({
+  title: sharedQualityTitle,
+  metadataJson: sharedQualityMetadata,
+  staleStructuredJson: sharedQualityStructured,
+  fallbackFacts: sharedQualityFacts,
+  summaryFallbacks: [sharedQualityFacts.summary],
+  descriptionMarkdownFallbacks: [sharedQualityMarkdown],
+}).display;
+const sharedQualitySsr = projectPublicTenderRecord({
+  title: sharedQualityTitle,
+  metadata: sharedQualityMetadata,
+  structured: sharedQualityStructuredNormalized,
+  clientFallbacks: [sharedQualityFacts.buyer],
+  locationFallbacks: [sharedQualityFacts.location],
+  summaryFallbacks: [sharedQualityFacts.summary],
+  descriptionMarkdownFallbacks: [sharedQualityMarkdown],
+});
+const sharedQualityFields = (projection: typeof sharedQualityList) => ({
+  title: projection.title,
+  client: projection.client,
+  location: projection.location,
+  summary: projection.summary,
+  description: projection.description,
+  descriptionMarkdown: projection.descriptionMarkdown,
+});
+const sharedQualityExpected = sharedQualityFields(sharedQualityList);
+for (const surface of [sharedQualityModal, sharedQualityDetailApi, sharedQualitySsr]) {
+  assert.deepEqual(sharedQualityFields(surface), sharedQualityExpected);
+}
+assert.equal(sharedQualityExpected.client, "Stadt Bautzen");
+assert.equal(sharedQualityExpected.location, sharedQualityLocation);
+assert.equal(sharedQualityExpected.summary, sharedQualitySummary);
+assert.equal(sharedQualityExpected.description, sharedQualitySummary);
+assert.ok(isCanonicalPublicDescriptionMarkdown(sharedQualityExpected.descriptionMarkdown));
+assert.doesNotMatch(
+  `${sharedQualityExpected.summary} ${sharedQualityExpected.descriptionMarkdown}`,
+  /SERVICE\.BUND\.DE|Haupt-Navigations-Menü|Meta-Navigation|Andere Ausschreibungen im Bereich|fortgeschrittener\/m/u,
+);
+
 // cache_detail persists a validated scope as a sentence/list item, and list,
 // modal and server-rendered detail must project that stored shape identically.
 const cacheDetailTitle = "Lieferung von Büromaterial für mehrere Standorte";

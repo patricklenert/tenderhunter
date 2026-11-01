@@ -51,6 +51,7 @@ const OBVIOUS_FORM_DUMP_MARKERS = [
 ];
 const SERVICE_BUND_PUBLICATION_TEMPLATE_FRAGMENT = /\bauftragsbekanntmachung\b[\s\S]{0,120}\bausgabe\s+\d{1,2}\/\d{4}\s+seite\s+\d+\s+von\s+\d+[\s\S]{0,1000}\bvergabeunterlagen\s+werden\s+elektronisch\s+zur\s+verfügung\s+gestellt\b[\s\S]{0,1000}\bmaßnahmen\s+zum\s+schutz\s+vertraulicher\s+informationen\b/iu;
 const SERVICE_BUND_OFFER_SUBMISSION_TEMPLATE_FRAGMENT = /\bzugelassene\s+angebotsabgabe\b[\s\S]{0,120}\belektronisch\s+in\s+textform\b[\s\S]{0,100}\bfortgeschrittener\s*\/\s*m\s+signatur\s*\/\s*siegel\b[\s\S]{0,100}\bqualifizierter\s*\/\s*m\s+signatur\s*\/\s*siegel\b/iu;
+const SERVICE_BUND_OFFER_SUBMISSION_OPTION_FRAGMENT = /\bzugelassene\s+angebotsabgabe\b[\s\S]{0,120}\belektronisch\s+in\s+textform\b[\s\S]{0,100}\bfortgeschrittener\s*\/\s*m\s+signatur\s*\/\s*siegel\b/iu;
 const SERVICE_BUND_CONFIDENTIALITY_TEMPLATE_FRAGMENT = /\bmaßnahmen\s+zum\s+schutz\s+vertraulicher\s+informationen\s*:\s*abgabe\s+verschwiegenheitserklärung\b/iu;
 
 const NAVIGATION_MARKERS = [
@@ -385,6 +386,7 @@ export const isPdfFormBoilerplateFragment = (value: string): boolean => {
   return isPdfFormBoilerplate(normalized)
     || SERVICE_BUND_PUBLICATION_TEMPLATE_FRAGMENT.test(normalized)
     || SERVICE_BUND_OFFER_SUBMISSION_TEMPLATE_FRAGMENT.test(normalized)
+    || SERVICE_BUND_OFFER_SUBMISSION_OPTION_FRAGMENT.test(normalized)
     || SERVICE_BUND_CONFIDENTIALITY_TEMPLATE_FRAGMENT.test(normalized);
 };
 

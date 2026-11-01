@@ -48,6 +48,7 @@ const rawPortalText = "(Bekanntmachung Öffentliche Ausschreibung) a)Öffentlich
 const cleanText = "Die Stadt beauftragt die Ausführung von Wegebauarbeiten im öffentlichen Raum.";
 const serviceBundPdfTemplateFragment = "Auftragsbekanntmachung © Ausgabe 03/2020 Seite 2 von 2 Vergabeunterlagen werden elektronisch zur Verfügung gestellt. Maßnahmen zum Schutz vertraulicher Informationen";
 const serviceBundOfferSubmissionTemplateFragment = "Zugelassene Angebotsabgabe elektronisch in Textform mit fortgeschrittener/m Signatur/Siegel. mit qualifizierter/m Signatur/Siegel. schriftlich; Maßnahmen zum Schutz vertraulicher Informationen: Abgabe Verschwiegenheitserklärung";
+const serviceBundOfferSubmissionOptionFragment = "Zugelassene Angebotsabgabe elektronisch in Textform mit fortgeschrittener/m Signatur/Siegel.";
 const participationWallText =
   "Um Zugriff auf dieses Modul zu erhalten müssen Sie am Vergabeverfahren teilnehmen. Bestätigen Sie die Teilnahme am Verfahren um folgende Vorteile nutzen zu können. Vergabeart: Offenes Verfahren. Abgabefrist 03.08.2026.";
 const legitTeilnahmeText =
@@ -278,8 +279,18 @@ if (normalizePublicDisplayCandidate("&Uuml;berarbeitung der Au&szlig;enanlagen")
 if (normalizePublicDisplayCandidate("Die st�dtischen Gebäude werden saniert.") !== "Die städtischen Gebäude werden saniert.") {
   throw new Error("Bekannte deutsche Mojibake-Sequenz wurde nicht repariert");
 }
+const replacementCharacterSummary = "Die städtischen Gebäude werden mit beschädigtem Text �berarbeitet.";
+if (normalizePublicDisplayCandidate(replacementCharacterSummary) !== null
+  || pickValidatedPublicCandidate(replacementCharacterSummary, cleanText) !== cleanText) {
+  throw new Error("Nicht reparierbares Ersetzungszeichen muss verworfen werden, ohne einen gültigen Fallback zu blockieren");
+}
 if (!isPdfFormBoilerplate("VHB-Bund-Ausgabe 2019 Eigenerklärung zur Eignung und rechtsverbindliche Unterschrift")) {
   throw new Error("PDF-Formularboilerplate wurde nicht erkannt");
+}
+if (!isPdfFormBoilerplateFragment(serviceBundOfferSubmissionOptionFragment)
+  || normalizePublicDisplayCandidate(serviceBundOfferSubmissionOptionFragment) !== null
+  || isCanonicalPublicDescriptionMarkdown(`- **Anforderungen:** ${serviceBundOfferSubmissionOptionFragment}`)) {
+  throw new Error("Abgeschnittener Service-Bund-Angebotsformulardump wurde als Beschreibung oder kanonisches Markdown akzeptiert");
 }
 if (normalizePublicDisplayCandidate("VHB-Bund-Ausgabe 2019 Eigenerklärung zur Eignung und rechtsverbindliche Unterschrift") !== null) {
   throw new Error("PDF-Formularboilerplate wurde als Beschreibung akzeptiert");
@@ -973,12 +984,14 @@ const filteredRequirementMarkdown = buildTenderDescriptionMarkdown({
   summary: cleanText,
   requirements: [
     serviceBundPdfTemplateFragment,
+    serviceBundOfferSubmissionOptionFragment,
     serviceBundOfferSubmissionTemplateFragment,
     "Formblatt 1 ist mit dem Angebot einzureichen.",
     "Mindestens drei vergleichbare Referenzen sind mit dem Angebot vorzulegen.",
   ],
 });
 if (filteredRequirementMarkdown.includes(serviceBundPdfTemplateFragment)
+  || filteredRequirementMarkdown.includes(serviceBundOfferSubmissionOptionFragment)
   || filteredRequirementMarkdown.includes(serviceBundOfferSubmissionTemplateFragment)
   || !filteredRequirementMarkdown.includes("Formblatt 1 ist mit dem Angebot einzureichen.")
   || !filteredRequirementMarkdown.includes("Mindestens drei vergleichbare Referenzen sind mit dem Angebot vorzulegen.")
@@ -1089,6 +1102,7 @@ const normalizedCanonicalArtifacts = [
   "SERVICE.BUND.DEHaupt-Navigations-Men&#xFC;Meta-NavigationAndere Ausschreibungen im Bereich",
   "Anmelden erforderlich, um Zugriff zu erhalten",
   serviceBundPdfTemplateFragment,
+  serviceBundOfferSubmissionOptionFragment,
 ];
 for (const artifact of normalizedCanonicalArtifacts) {
   if (isCanonicalPublicDescriptionMarkdown(`- **Zusammenfassung:** ${artifact}`)) {
@@ -1101,6 +1115,7 @@ const normalizedMarkdownFallback = buildTenderDescriptionMarkdown({
 const normalizedMarkdownProjection = projectPublicDisplayFields({
   descriptionMarkdown: [
     "- **Zusammenfassung:** Die st�dtischen Gebäude werden saniert.",
+    `- **Anforderungen:** ${serviceBundOfferSubmissionOptionFragment}`,
     normalizedMarkdownFallback,
   ],
 });
