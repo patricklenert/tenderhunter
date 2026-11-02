@@ -260,27 +260,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }));
   }
 
-  // Category and portal hubs query the live catalog in their metadata/content.
-  // Only advertise them after the sitemap has confirmed that dependency is up;
-  // otherwise their own failure fallback is noindex.
-  for (const catSlug of Object.values(CATEGORY_SLUGS)) {
-    if (!catSlug) continue;
-    addEntry({
-      url: `${siteUrl}/ausschreibungen/${catSlug}`,
-      lastModified: now,
-      changeFrequency: "daily",
-      priority: 0.8,
-    });
-  }
-  for (const portalSlug of ALL_PORTAL_SLUGS) {
-    addEntry({
-      url: `${siteUrl}/ausschreibungen/${portalSlug}`,
-      lastModified: now,
-      changeFrequency: "daily",
-      priority: 0.8,
-    });
-  }
-
   const contexts = tenderRows.map(getTenderContext);
   const maxTenderUpdated = contexts.reduce<Date>((max, row) => {
     const updatedAt = normalizeDate(row.updatedAt, now);
@@ -306,6 +285,28 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       const previous = cityUpdated.get(row.city);
       if (!previous || updatedAt > previous) cityUpdated.set(row.city, updatedAt);
     }
+  }
+
+  // Category and portal roots use live catalog results in their main content.
+  // Do not advertise empty roots: their templates intentionally mark them noindex.
+  for (const [category, catSlug] of Object.entries(CATEGORY_SLUGS)) {
+    if (!catSlug || !categoryRows.has(category)) continue;
+    addEntry({
+      url: `${siteUrl}/ausschreibungen/${catSlug}`,
+      lastModified: now,
+      changeFrequency: "daily",
+      priority: 0.8,
+    });
+  }
+  for (const portalSlug of ALL_PORTAL_SLUGS) {
+    const portal = PORTALS[portalSlug];
+    if (!contexts.some((row) => portal.sourceValues.includes(row.source))) continue;
+    addEntry({
+      url: `${siteUrl}/ausschreibungen/${portalSlug}`,
+      lastModified: now,
+      changeFrequency: "daily",
+      priority: 0.8,
+    });
   }
 
   // Region/city pages are current-result landings, so only publish combinations

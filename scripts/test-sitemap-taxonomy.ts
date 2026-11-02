@@ -114,5 +114,15 @@ assert.match(
   /deadlineAt IS NULL OR deadlineAt > \$\{nowUnix\}/,
   "the sitemap must not advertise catalog URLs when the search index has no live documents",
 );
+assert.match(
+  readFileSync("app/sitemap.ts", "utf8"),
+  /if \(!catSlug \|\| !categoryRows\.has\(category\)\) continue;/,
+  "empty category roots must not be advertised when their route would be noindex",
+);
+assert.match(
+  readFileSync("app/sitemap.ts", "utf8"),
+  /if \(!contexts\.some\(\(row\) => portal\.sourceValues\.includes\(row\.source\)\)\) continue;/,
+  "empty portal roots must not be advertised when their route has no live tenders",
+);
 
 console.log("Sitemap taxonomy tests passed.");
