@@ -1,5 +1,6 @@
 import { Box, Chip, Stack, Typography } from "@mui/material";
 import { Award, BriefcaseBusiness, MapPin, Users } from "lucide-react";
+import { FIT_SCORE_LEVELS, getFitScoreTier } from "@/lib/fit-score";
 import { CompanyLogo } from "./CompanyLogo";
 
 interface CompanyProfileHeaderProps {
@@ -42,11 +43,7 @@ export function CompanyProfileHeader({
   const activeCount = Math.max((tenderCount ?? 0) - (expiredCount ?? 0), 0);
   const bestFitState = bestFit == null
     ? { color: "text.secondary", backgroundColor: "background.default", label: "Nicht bewertet" }
-    : bestFit >= 70
-      ? { color: "success.main", backgroundColor: "success.light", label: "Stark" }
-      : bestFit >= 40
-        ? { color: "warning.main", backgroundColor: "warning.light", label: "Solide" }
-        : { color: "text.secondary", backgroundColor: "background.default", label: "Offen" };
+    : FIT_SCORE_LEVELS[getFitScoreTier(bestFit)];
   const locationParts = [
     regions.slice(0, 3).join(", "),
     address,

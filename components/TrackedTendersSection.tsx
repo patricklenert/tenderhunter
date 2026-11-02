@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUpRight, BriefcaseBusiness, CalendarClock, ClipboardList, Search, UserRound } from "lucide-react";
 import { formatDeadlineDE, daysUntil, deadlineLabel } from "@/lib/date-utils";
+import { FitScore } from "@/components/profile/FitScore";
+import { getFitScoreTier } from "@/lib/fit-score";
 import {
   Box,
   Button,
@@ -94,15 +96,11 @@ const STATUS_FILTER_OPTIONS: Array<{ value: TrackedStatusFilter; label: string }
   { value: "lost", label: TRACKED_TENDER_STATUS_LABELS.lost },
 ];
 
-const progressColor = (value: number): "success" | "warning" | "info" => {
-  if (value >= 70) return "success";
-  if (value >= 40) return "warning";
-  return "info";
-};
+const probabilityProgressColor = (value: number): "success" | "info" =>
+  getFitScoreTier(value) === "high" ? "success" : "info";
 
-const statusChipColor = (status: TrackedTenderStatus): "success" | "error" | "info" | "default" => {
+const statusChipColor = (status: TrackedTenderStatus): "success" | "info" | "default" => {
   if (status === "won") return "success";
-  if (status === "lost") return "error";
   if (status === "submitted") return "info";
   return "default";
 };
@@ -167,18 +165,7 @@ function TrackedTenderCard({ item, onOpen }: { item: TrackedTenderItem; onOpen: 
             <Grid container spacing={1} sx={{ mt: 1.5 }}>
               <Grid size={{ xs: 6, xl: 3 }}>
                 <Box sx={{ bgcolor: "action.hover", borderRadius: 2, px: 1.5, py: 1 }}>
-                  <Typography variant="caption" fontWeight={600} textTransform="uppercase" letterSpacing="0.05em" color="text.secondary">
-                    Passung
-                  </Typography>
-                  <Typography variant="body2" fontWeight={600} sx={{ mt: 0.25 }} fontFamily="monospace">
-                    {item.fit}%
-                  </Typography>
-                  <LinearProgress
-                    variant="determinate"
-                    value={item.fit}
-                    color={progressColor(item.fit)}
-                    sx={{ mt: 0.5, height: 6, borderRadius: 3 }}
-                  />
+                  <FitScore value={item.fit} variant="bar" />
                 </Box>
               </Grid>
               <Grid size={{ xs: 6, xl: 3 }}>
@@ -192,7 +179,7 @@ function TrackedTenderCard({ item, onOpen }: { item: TrackedTenderItem; onOpen: 
                   <LinearProgress
                     variant="determinate"
                     value={item.winProbability}
-                    color={progressColor(item.winProbability)}
+                    color={probabilityProgressColor(item.winProbability)}
                     sx={{ mt: 0.5, height: 6, borderRadius: 3 }}
                   />
                 </Box>

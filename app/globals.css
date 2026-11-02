@@ -22,7 +22,7 @@
   --color-status-danger: oklch(49% 0.18 25);
   --color-status-info: oklch(49.52% 0.036 248.56);
   --color-fit-high: var(--color-status-success);
-  --color-fit-medium: var(--color-status-warning);
+  --color-fit-medium: var(--color-status-info);
   --color-fit-low: var(--color-text-secondary);
   --color-focus-ring: var(--color-brand-primary);
   --font-sans: "Manrope", sans-serif;

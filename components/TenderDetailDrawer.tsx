@@ -25,6 +25,7 @@ import {
   Save,
 } from "@mui/icons-material";
 import { TRACKED_TENDER_STATUSES, TRACKED_TENDER_STATUS_LABELS, type TrackedTenderStatus } from "@/lib/tracked-tender-types";
+import { FIT_SCORE_LEVELS, getFitScoreTier } from "@/lib/fit-score";
 import { BidPackPanel } from "@/components/BidPackPanel";
 
 export interface TenderDetailItem {
@@ -122,17 +123,9 @@ const toDisplayDate = (value: string | null | undefined): string | null => {
   });
 };
 
-type MetricColor = "success" | "warning" | "info";
-
-function resolveMetricColor(value: number): MetricColor {
-  if (value >= 75) return "success";
-  if (value >= 50) return "warning";
-  return "info";
-}
-
 function MetricBar({ value }: { value: number }) {
   const clamped = Math.max(0, Math.min(100, value));
-  const muiColor = resolveMetricColor(value);
+  const barColor = FIT_SCORE_LEVELS[getFitScoreTier(value)].color;
 
   return (
     <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
@@ -140,12 +133,11 @@ function MetricBar({ value }: { value: number }) {
         <LinearProgress
           variant="determinate"
           value={clamped}
-          color={muiColor}
           sx={{
             height: 8,
             borderRadius: 1,
             backgroundColor: "background.default",
-            "& .MuiLinearProgress-bar": { borderRadius: 1 },
+            "& .MuiLinearProgress-bar": { borderRadius: 1, backgroundColor: barColor },
           }}
         />
       </Box>

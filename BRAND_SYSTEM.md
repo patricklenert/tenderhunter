@@ -1,7 +1,7 @@
 # Tenderhunter Brand System
 
 Status: active
-Last updated: 2026-10-26
+Last updated: 2026-11-02
 
 This is the product-wide source of truth for Tenderhunter's brand behavior. Campaign production tasks remain in `marketing/backlog.md`; product brand decisions and follow-up work belong in `BRAND_BACKLOG.md`.
 
@@ -63,8 +63,8 @@ Tender cards, fit scores, deadline states, and tender detail panels are one deci
 - 8px panel/card radii and 4px status-chip radii; do not introduce one-off rounded values.
 - 1px divider borders and semantic MUI roles (`background.*`, `text.*`, `success.*`, `warning.*`, `info.*`, `divider`) instead of local color literals.
 - No decorative shadows or backdrop blur; hierarchy comes from surfaces, borders, spacing, and the single signal color.
-- Fit values use tabular numerals and a short verbal state: `Stark` (70-100), `Solide` (40-69), or `Offen` (0-39).
-- Green is reserved for strong matches and positive states; amber is reserved for deadlines and caution; lower fit values stay slate rather than becoming an error state.
+- Fit values use the shared thresholds and tabular numerals: `Stark` (70-100), `Solide` (40-69), or `Offen` (0-39). The shared classifier is `lib/fit-score.ts`.
+- Green is reserved for strong matches and positive states; medium and low fit remain slate (`info` and `text.secondary` respectively). Amber is reserved for deadlines and caution, never for a medium fit; lower fit values are not errors.
 - Analysis result cards and metric bars use the same semantic MUI roles and 70/40 thresholds as `FitScore`; do not add local hex, RGBA, or generic grey values to this decision surface.
 - Company-profile summaries and tender-section headers use the same semantic MUI roles; best-fit values and distributions follow the `FitScore` thresholds and verbal states.
 - The canonical public tender detail route uses the same semantic roles for readiness, deadlines, sources, documents, and related opportunities; use dividers and surfaces instead of local shadows to separate decisions.

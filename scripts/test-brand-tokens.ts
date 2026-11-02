@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { BRAND_COLORS } from "../lib/brand-tokens";
+import { FIT_SCORE_LEVELS, getFitScoreTier } from "../lib/fit-score";
 
 const css = readFileSync(resolve(process.cwd(), "app/globals.css"), "utf8");
 const declarations = new Map(
@@ -87,7 +88,7 @@ for (const [left, right] of [
   ["brand-primary", "focus-ring"],
   ["action-primary", "primary"],
   ["status-success", "fit-high"],
-  ["status-warning", "fit-medium"],
+  ["status-info", "fit-medium"],
   ["text-secondary", "fit-low"],
 ]) {
   assert.deepEqual(
@@ -96,6 +97,18 @@ for (const [left, right] of [
     `--color-${right} must reuse --color-${left}`
   );
 }
+
+for (const [value, expected] of [
+  [0, "low"],
+  [39, "low"],
+  [40, "medium"],
+  [69, "medium"],
+  [70, "high"],
+  [100, "high"],
+] as const) {
+  assert.equal(getFitScoreTier(value), expected, `${value}% must use the shared ${expected} fit tier`);
+}
+assert.equal(FIT_SCORE_LEVELS.medium.color, "info.main", "medium fit must use a neutral slate signal, not warning amber");
 
 function relativeLuminance(rgb: number[]): number {
   const linear = rgb.map((channel) => {
@@ -132,6 +145,7 @@ for (const [foreground, background, label] of [
   [BRAND_COLORS.statusSuccessDark, BRAND_COLORS.statusSuccessSoft, "success"],
   [BRAND_COLORS.statusWarningDark, BRAND_COLORS.statusWarningSoft, "warning"],
   [BRAND_COLORS.statusDangerDark, BRAND_COLORS.statusDangerSoft, "danger"],
+  [BRAND_COLORS.statusInfo, BRAND_COLORS.statusInfoSoft, "info role"],
   [BRAND_COLORS.statusInfoDark, BRAND_COLORS.statusInfoSoft, "info"],
 ]) {
   const ratio = contrastRatio(hexToRgb(foreground), hexToRgb(background));

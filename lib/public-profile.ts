@@ -1,4 +1,5 @@
 import type { DeadlineState } from "@/lib/date-utils";
+import { getFitScoreTier } from "@/lib/fit-score";
 
 export interface ProfileTender {
   id: number;
@@ -80,9 +81,7 @@ export function buildProfileSummary(
 
   const fitDistribution = currentTenders.reduce(
     (distribution, tender) => {
-      if (tender.fit >= 70) distribution.high += 1;
-      else if (tender.fit >= 40) distribution.medium += 1;
-      else distribution.low += 1;
+      distribution[getFitScoreTier(tender.fit)] += 1;
       return distribution;
     },
     { high: 0, medium: 0, low: 0 },

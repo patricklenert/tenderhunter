@@ -23,6 +23,7 @@ import { ArrowUpRight, Check, ChevronDown, Download, Radar, Rocket, SlidersHoriz
 import { TenderDetailDrawer, type FollowState, type TenderDetailItem } from "@/components/TenderDetailDrawer";
 import { CompanySelector, type UserCompany } from "@/components/CompanySelector";
 import { useSession } from "@/lib/auth-client";
+import { FIT_SCORE_LEVELS, getFitScoreTier } from "@/lib/fit-score";
 import { PaywallPanel } from "@/components/billing/PaywallPanel";
 
 type ViewState = "setup" | "discover" | "results";
@@ -281,7 +282,7 @@ function AnimatedCounter({ target, duration = 1200 }: { target: number; duration
 }
 
 function MetricBar({ value }: { value: number }) {
-  const barColor = value >= 70 ? "success.main" : value >= 40 ? "warning.main" : "text.secondary";
+  const barColor = FIT_SCORE_LEVELS[getFitScoreTier(value)].color;
 
   return (
     <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>

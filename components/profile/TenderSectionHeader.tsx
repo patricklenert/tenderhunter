@@ -1,6 +1,7 @@
 import { Box, Chip, Stack, Typography } from "@mui/material";
 import { BarChart3, BriefcaseBusiness, MapPin, RefreshCw } from "lucide-react";
 import { settings } from "@/lib/config";
+import { FIT_SCORE_LEVELS, FIT_SCORE_TIERS } from "@/lib/fit-score";
 import type { ProfileSummary } from "@/lib/public-profile";
 
 interface TenderSectionHeaderProps {
@@ -36,6 +37,11 @@ export function TenderSectionHeader({ count, summary }: TenderSectionHeaderProps
     ? "in der Regel täglich"
     : `in der Regel alle ${settings.publicScrapeIntervalHours} Stunden`;
   const total = summary.fitDistribution.high + summary.fitDistribution.medium + summary.fitDistribution.low;
+  const fitSegments = FIT_SCORE_TIERS.map((tier) => ({
+    key: tier,
+    count: summary.fitDistribution[tier],
+    ...FIT_SCORE_LEVELS[tier],
+  }));
 
   return (
     <Box component="header" sx={{ mb: 1.75 }}>
@@ -97,18 +103,16 @@ export function TenderSectionHeader({ count, summary }: TenderSectionHeaderProps
             Fit-Verteilung
           </Typography>
           <Box role="img" sx={{ display: "flex", height: 7, overflow: "hidden", borderRadius: 99, bgcolor: "background.default", mt: 1.2 }} aria-label={`${summary.fitDistribution.high} hohe, ${summary.fitDistribution.medium} mittlere und ${summary.fitDistribution.low} niedrige Fits`}>
-            {[
-              { key: "high", count: summary.fitDistribution.high, color: "success.main" },
-              { key: "medium", count: summary.fitDistribution.medium, color: "warning.main" },
-              { key: "low", count: summary.fitDistribution.low, color: "text.secondary" },
-            ].map((segment) => (
+            {fitSegments.map((segment) => (
               <Box key={segment.key} sx={{ width: total > 0 ? `${(segment.count / total) * 100}%` : 0, bgcolor: segment.color, transition: (theme) => theme.transitions.create("width", { duration: theme.transitions.duration.short }) }} />
             ))}
           </Box>
           <Stack direction="row" spacing={1.25} flexWrap="wrap" useFlexGap sx={{ mt: 0.85 }}>
-            <Typography sx={{ color: "success.main", fontSize: "0.68rem", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>Stark {summary.fitDistribution.high}</Typography>
-            <Typography sx={{ color: "warning.main", fontSize: "0.68rem", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>Solide {summary.fitDistribution.medium}</Typography>
-            <Typography sx={{ color: "text.secondary", fontSize: "0.68rem", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>Offen {summary.fitDistribution.low}</Typography>
+            {fitSegments.map((segment) => (
+              <Typography key={segment.key} sx={{ color: segment.color, fontSize: "0.68rem", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
+                {segment.label} {segment.count}
+              </Typography>
+            ))}
           </Stack>
         </Box>
 
