@@ -72,6 +72,21 @@ assert.equal(isUnexpectedEmptyPublicSourceResult({
 assert.equal(isUnexpectedEmptyPublicSourceResult({
   emptyAllowed: false,
   tenderCount: 0,
+  exhausted: true,
+  pendingCount: 0,
+  listedCount: 4,
+  detailAttempted: 4,
+}), false, "listed notices with terminal detail failures are not an empty-source outage");
+assert.equal(isUnexpectedEmptyPublicSourceResult({
+  emptyAllowed: false,
+  tenderCount: 0,
+  exhausted: true,
+  pendingCount: 0,
+  detailAttempted: 1,
+}), false, "terminal detail attempts must not strand an otherwise advanced cursor");
+assert.equal(isUnexpectedEmptyPublicSourceResult({
+  emptyAllowed: false,
+  tenderCount: 0,
   exhausted: false,
   pendingCount: 0,
 }), false, "an incomplete source can continue without being marked empty");

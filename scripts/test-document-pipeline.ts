@@ -200,6 +200,11 @@ const refreshedUsMetadata = mergeUsTenderMetadata(usAnalysisMetadata, {
   attachments: [{ name: "Bid package", url: usAttachmentUrl }],
   discovered_at: "2026-10-05T12:00:00.000Z",
 });
+assert.equal(
+  refreshedUsMetadata.discovered_at,
+  usAnalysisMetadata.discovered_at,
+  "US tender rediscovery must preserve the first-seen timestamp",
+);
 assert.deepEqual(
   refreshedUsMetadata.attachments,
   [{ name: "Bid package", url: usAttachmentUrl, status: "parsed", document_id: 9 }],
@@ -213,7 +218,13 @@ assert.deepEqual(
 assert.equal(refreshedUsMetadata.attachment_analysis_at, usAnalysisMetadata.attachment_analysis_at);
 const changedUsMetadata = mergeUsTenderMetadata(usAnalysisMetadata, {
   attachments: [{ name: "Updated bid package", url: "https://example.test/opportunity/files/new-bid.pdf" }],
+  discovered_at: "2026-10-05T12:00:00.000Z",
 });
+assert.equal(
+  changedUsMetadata.discovered_at,
+  usAnalysisMetadata.discovered_at,
+  "attachment changes must not rewrite the first-seen timestamp",
+);
 assert.equal(
   Object.prototype.hasOwnProperty.call(changedUsMetadata, "attachment_analysis"),
   false,
@@ -251,6 +262,15 @@ const combinedCandidate: ResourceCandidateRecord = {
 };
 
 const canonicalMarkdown = "- **Auftraggeber:** Stadt Mainz";
+const firstDiscoveredAt = "2026-09-01T12:00:00.000Z";
+assert.deepEqual(
+  mergeMetadata(
+    { discovered_at: firstDiscoveredAt },
+    { discovered_at: "2026-10-05T12:00:00.000Z" },
+  ),
+  { discovered_at: firstDiscoveredAt },
+  "rediscovery must preserve the original timestamp instead of invalidating tender analysis",
+);
 assert.equal(
   mergeMetadata({ descriptionMarkdown: canonicalMarkdown }, { descriptionMarkdown: "## Ungeprüft" })?.descriptionMarkdown,
   canonicalMarkdown,

@@ -5512,6 +5512,8 @@ export async function scrapeAllPublicTenders(
         tenderCount: result.tenders.length,
         exhausted: result.exhausted ?? false,
         pendingCount: result.pendingCount,
+        listedCount: result.listedCount,
+        detailAttempted: result.detailAttempted,
       });
       const cursorAdvanced = !unexpectedEmpty && (result.cursorAdvanced ?? result.cursorCommit === "commit");
       const normalized = result.tenders.map((tender) => withDescriptionMarkdown({

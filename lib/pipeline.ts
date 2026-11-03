@@ -543,6 +543,9 @@ export const mergeMetadata = (
   }
   for (const [key, value] of Object.entries(incoming)) {
     if (key === "description" || key === "summary" || key === "descriptionMarkdown" || key === "description_markdown") continue;
+    // discovered_at is the first-seen timestamp; lastSeenAt tracks later scrapes.
+    // Refreshing it here would make every unchanged tender look like new work.
+    if (key === "discovered_at" && typeof existingRecord.discovered_at === "string") continue;
     const isEmpty = value === null || value === undefined || value === ""
       || (Array.isArray(value) && value.length === 0);
     if (isEmpty) continue;
@@ -792,6 +795,9 @@ export const mergeUsTenderMetadata = (
   incoming: Record<string, JsonValue>,
 ): Record<string, JsonValue> => {
   const current = metadataRecord(existing);
+  const stableIncoming = typeof current.discovered_at === "string"
+    ? { ...incoming, discovered_at: current.discovered_at }
+    : incoming;
   const records = (value: unknown): Record<string, unknown>[] => Array.isArray(value)
     ? value.filter((attachment) =>
       Boolean(attachment) && typeof attachment === "object" && !Array.isArray(attachment)) as Record<string, unknown>[]
@@ -806,14 +812,14 @@ export const mergeUsTenderMetadata = (
     .map((attachment) => attachment.url)
     .filter((url): url is string => typeof url === "string")
     .sort();
-  if (!sameValue(previousAttachmentUrls, incomingAttachmentUrls)) return incoming;
+  if (!sameValue(previousAttachmentUrls, incomingAttachmentUrls)) return stableIncoming;
 
   const previousAttachmentsByUrl = new Map(
     previousAttachments.flatMap((attachment) =>
       typeof attachment.url === "string" ? [[attachment.url, attachment] as const] : []),
   );
   return {
-    ...incoming,
+    ...stableIncoming,
     attachments: incomingAttachments.map((attachment) => {
       const previous = previousAttachmentsByUrl.get(attachment.url as string);
       return {

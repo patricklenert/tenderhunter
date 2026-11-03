@@ -63,11 +63,15 @@ export const isUnexpectedEmptyPublicSourceResult = (input: {
   tenderCount: number;
   exhausted: boolean;
   pendingCount: number;
+  listedCount?: number;
+  detailAttempted?: number;
 }): boolean => (
   !input.emptyAllowed
   && input.tenderCount === 0
   && input.exhausted
   && input.pendingCount === 0
+  && (input.listedCount ?? 0) === 0
+  && (input.detailAttempted ?? 0) === 0
 );
 
 export type PublicDetailReference = {
