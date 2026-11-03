@@ -32,7 +32,8 @@ type Leistungstyp =
   | "lieferDienstSonst"
   | "sektorenBau"
   | "sektorenLieferDienst"
-  | "sozialeDienste";
+  | "sozialeDienste"
+  | "sektorenSozialeDienste";
 
 interface SchwelleConfig {
   label: string;
@@ -50,7 +51,7 @@ const SCHWELLEN: Record<Leistungstyp, SchwelleConfig> = {
     threshold: 5_404_000,
     lawAbove: "GWB + VOB/A Abschnitt 2 und § 2 VgV",
     lawBelow: "VOB/A Abschnitt 1 und Landes-/Haushaltsrecht",
-    beschreibung: "Bauaufträge für allgemeine Auftraggeber (Bund, Länder, Gemeinden)",
+    beschreibung: "Bauaufträge klassischer öffentlicher Auftraggeber im Richtlinien-Anwendungsbereich",
   },
   lieferDienstZentral: {
     label: "Lieferung/Dienst (zentral)",
@@ -58,7 +59,7 @@ const SCHWELLEN: Record<Leistungstyp, SchwelleConfig> = {
     threshold: 140_000,
     lawAbove: "VgV / § 99 GWB (Oberschwelle)",
     lawBelow: "UVgO oder Landesvergaberecht (Unterschwelle)",
-    beschreibung: "Liefer- und Dienstleistungen bestimmter zentraler Regierungsbehörden",
+    beschreibung: "Bestimmte Liefer- und Dienstleistungen oberster und oberer Bundesbehörden sowie vergleichbarer Bundeseinrichtungen im Anwendungsbereich der Richtlinie 2014/24/EU",
   },
   lieferDienstSonst: {
     label: "Lieferung/Dienst (sonstige)",
@@ -66,7 +67,7 @@ const SCHWELLEN: Record<Leistungstyp, SchwelleConfig> = {
     threshold: 216_000,
     lawAbove: "VgV / § 99 GWB (Oberschwelle)",
     lawBelow: "UVgO oder Landesvergaberecht (Unterschwelle)",
-    beschreibung: "Liefer- und Dienstleistungen für sonstige Auftraggeber",
+    beschreibung: "Liefer- und Dienstleistungen anderer öffentlicher Auftraggeber im Anwendungsbereich der Richtlinie 2014/24/EU, soweit keine Sonderregel gilt",
   },
   sektorenBau: {
     label: "Sektoren-Bau",
@@ -82,7 +83,7 @@ const SCHWELLEN: Record<Leistungstyp, SchwelleConfig> = {
     threshold: 432_000,
     lawAbove: "SektVO / § 100 GWB (Sektoren)",
     lawBelow: "Nationale bzw. landesrechtliche Regeln im jeweiligen Sektorenbereich",
-    beschreibung: "Liefer-/Dienstleistungen von Sektorenauftraggebern",
+    beschreibung: "Liefer-/Dienstleistungen von Sektorenauftraggebern, außer besonderen Dienstleistungen nach Anhang XVII",
   },
   sozialeDienste: {
     label: "Soziale Dienste",
@@ -90,7 +91,15 @@ const SCHWELLEN: Record<Leistungstyp, SchwelleConfig> = {
     threshold: 750_000,
     lawAbove: "GWB + VgV für soziale und besondere Dienstleistungen",
     lawBelow: "Nationale Regeln im jeweiligen Geltungsbereich",
-    beschreibung: "Soziale, gesundheitliche und kulturelle Dienstleistungen (§ 130 GWB)",
+    beschreibung: "Soziale und andere besondere Dienstleistungen klassischer Auftraggeber nach Anhang XIV der Richtlinie 2014/24/EU",
+  },
+  sektorenSozialeDienste: {
+    label: "Sektoren (besondere Dienste)",
+    icon: HeartPulse,
+    threshold: 1_000_000,
+    lawAbove: "SektVO / § 100 GWB (besondere Dienstleistungen nach Anhang XVII)",
+    lawBelow: "Nationale bzw. landesrechtliche Regeln im jeweiligen Sektorenbereich",
+    beschreibung: "Soziale und andere besondere Dienstleistungen von Sektorenauftraggebern nach Anhang XVII der Richtlinie 2014/25/EU",
   },
 };
 

@@ -157,6 +157,15 @@ for (const slug of requiredVobLinks) {
   }
 }
 
+for (const slug of ["auftragswert", "vgv-vergabeverordnung"]) {
+  if (!GLOSSARY_MAP[slug]?.relatedArticles?.includes("vob-vergabe")) {
+    errors.push(`${slug}.relatedArticles -> missing vob-vergabe`);
+  }
+  if (!ARTICLES["vob-vergabe"]?.relatedGlossaryTerms?.includes(slug)) {
+    errors.push(`vob-vergabe.relatedGlossaryTerms -> missing ${slug}`);
+  }
+}
+
 if (!ARTICLES["vob-vergabe"]?.relatedGlossaryTerms?.includes("vob-a-eu")) {
   errors.push("vob-vergabe.relatedGlossaryTerms -> missing vob-a-eu");
 }
@@ -173,11 +182,11 @@ if (!GLOSSARY_MAP["vob-a"]?.sources?.some((source) => source.title.includes("Bek
 if (!vobA?.definition.some((paragraph) => paragraph.includes("zuletzt geändert durch die Bekanntmachung von 2026") && paragraph.includes("§ 2 VgV"))) {
   errors.push("vob-a.definition -> missing precise § 2 VgV reference to the 2026 VOB/A amendment");
 }
-if (!vobA?.definition.some((paragraph) => paragraph.includes("BMWSB") && paragraph.includes("Anwendungsbeginn") && paragraph.includes("gesondert per Erlass"))) {
-  errors.push("vob-a.definition -> missing qualified BMWSB commencement note for the 2026 edition");
+if (!vobA?.definition.some((paragraph) => paragraph.includes("§ 2 VgV") && paragraph.includes("zuletzt geändert durch die Bekanntmachung von 2026") && paragraph.includes("Abschnitt 3 verteidigungs- und sicherheitsspezifische Vergaben"))) {
+  errors.push("vob-a.definition -> missing scoped § 2 VgV reference to the 2026 VOB/A amendment");
 }
-if (!vobA?.faq.some((item) => item.question.includes("Ausgabe 2026") && item.answer.includes("kein einheitlicher Starttermin"))) {
-  errors.push("vob-a.faq -> missing scoped answer on the 2026 edition's commencement");
+if (!vobA?.faq.some((item) => item.question === "Welche VOB/A-Fassung nennt § 2 VgV?" && item.answer.includes("22. Juli 2026") && item.answer.includes("keinen einheitlichen Starttermin"))) {
+  errors.push("vob-a.faq -> missing scoped answer on the 2026 edition and § 2 VgV reference");
 }
 
 if (GLOSSARY_MAP["schwellenwerte"]?.shortDefinition.includes("EU-weite Vergabeverfahren")) {
@@ -200,8 +209,8 @@ if (!vobC?.sources?.some((source) => source.url === "https://www.dinmedia.de/de/
 if (!ARTICLES["vob-vergabe"]?.content.includes("DIN 18299:2023-09")) {
   errors.push("vob-vergabe.content -> missing the DIN 18299 ATV example");
 }
-if (!ARTICLES["vob-vergabe"]?.content.includes("keinen einheitlichen Starttermin für alle Auftraggeber")) {
-  errors.push("vob-vergabe.content -> missing qualified 2026 VOB/A applicability note");
+if (!ARTICLES["vob-vergabe"]?.content.includes("das Veröffentlichungsdatum allein legt keinen einheitlichen Starttermin für alle Auftraggeber fest")) {
+  errors.push("vob-vergabe.content -> missing scoped 2026 VOB/A applicability note");
 }
 
 const pqVob = GLOSSARY_MAP["praequalifikation-pq-vob"];
@@ -295,6 +304,35 @@ for (const slug of ["schwellenwerte-vergabe", "eu-vergabe"]) {
   if (!ARTICLES[slug]?.sources?.some((source) => source.url === "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32025R2487")) {
     errors.push(`${slug}.sources -> missing primary defence and security thresholds reference`);
   }
+}
+
+const thresholdEntryContent = [
+  ...(GLOSSARY_MAP["schwellenwerte"]?.definition ?? []),
+  ...(GLOSSARY_MAP["schwellenwerte"]?.keyPoints ?? []),
+  ...(GLOSSARY_MAP["schwellenwerte"]?.faq.map((item) => item.answer) ?? []),
+].join(" ");
+for (const phrase of ["Anhang XIV", "Anhang XVII", "1.000.000 EUR", "oberster und oberer Bundesbehörden"]) {
+  if (!thresholdEntryContent.includes(phrase)) {
+    errors.push(`schwellenwerte -> missing scoped threshold detail: ${phrase}`);
+  }
+}
+
+const thresholdArticleContent = ARTICLES["schwellenwerte-vergabe"]?.content ?? "";
+for (const phrase of ["Anhang XIV", "Anhang XVII", "1.000.000 €", "Bauaufträge von Sektorenauftraggebern"]) {
+  if (!thresholdArticleContent.includes(phrase)) {
+    errors.push(`schwellenwerte-vergabe.content -> missing scoped threshold detail: ${phrase}`);
+  }
+}
+if ((ARTICLES["eu-vergabe"]?.content ?? "").includes("beziehen sich auf Deutschland")) {
+  errors.push("eu-vergabe.content -> incorrectly limits EU threshold values to Germany");
+}
+for (const slug of ["vergabeverfahren-uebersicht", "schwellenwerte-vergabe", "eu-vergabe"]) {
+  if (ARTICLES[slug]?.dateModified !== ARTICLES[slug]?.lastReviewed) {
+    errors.push(`${slug} -> threshold content change needs matching dateModified and lastReviewed`);
+  }
+}
+if (!GLOSSARY_MAP["schwellenwerte"]?.lastReviewed) {
+  errors.push("schwellenwerte.lastReviewed -> missing review date");
 }
 
 for (const slug of ["vergabeverfahren-uebersicht", "eu-vergabe"]) {

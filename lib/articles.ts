@@ -24,7 +24,7 @@ export const ARTICLES: Record<string, Article> = {
     description:
       "Alle Vergabeverfahren in Deutschland im Überblick: Offenes, nichtoffenes, Verhandlungsverfahren und mehr. Erfahren Sie, welche Verfahren es gibt und wie Bieter teilnehmen können.",
     datePublished: "2025-01-15",
-    dateModified: "2026-09-29",
+    dateModified: "2026-11-03",
     relatedCategories: ["Bauarbeiten", "IT-Dienstleistungen", "Planungsleistungen"],
     relatedArticles: ["vob-vergabe", "schwellenwerte-vergabe", "wie-funktioniert-ausschreibung", "oeffentliche-auftraege-finden"],
     relatedGlossaryTerms: ["offenes-verfahren", "beschraenktes-verfahren", "verhandlungsverfahren", "teilnahmewettbewerb", "vergabeunterlagen", "e-vergabe", "vgv-vergabeverordnung", "uvgo", "vob-a", "vob-a-eu", "schwellenwerte", "auftragswert", "nachforderung-unterlagen"],
@@ -37,7 +37,7 @@ export const ARTICLES: Record<string, Article> = {
       { title: "Delegierte Verordnung (EU) 2025/2151 für Konzessionen", url: "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32025R2151" },
       { title: "Delegierte Verordnung (EU) 2025/2150 für Sektorenauftraggeber", url: "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32025R2150" },
     ],
-    lastReviewed: "2026-09-29",
+    lastReviewed: "2026-11-03",
     content: `
 ## Was sind Vergabeverfahren?
 
@@ -85,11 +85,12 @@ Die Innovationspartnerschaft wurde 2016 eingeführt und ermöglicht die Entwickl
 | Bereich | EU-Schwellenwert |
 |---------|-----------------|
 | Bauaufträge klassischer öffentlicher Auftraggeber | 5.404.000 € |
-| Liefer- und Dienstleistungen zentraler Regierungsbehörden im Sinne von § 106 Absatz 2 Nummer 1 GWB | 140.000 € |
-| Liefer- und Dienstleistungen anderer öffentlicher Auftraggeber im Anwendungsbereich der Richtlinie 2014/24/EU | 216.000 € |
-| Sektorenaufträge (Liefer- und Dienstleistungen) | 432.000 € |
-| Soziale und andere besondere Dienstleistungen (klassische Auftraggeber) | 750.000 € |
+| Liefer- und Dienstleistungen bestimmter oberster und oberer Bundesbehörden sowie vergleichbarer Bundeseinrichtungen im Anwendungsbereich der Richtlinie 2014/24/EU | 140.000 € |
+| Liefer- und Dienstleistungen anderer öffentlicher Auftraggeber im Anwendungsbereich der Richtlinie 2014/24/EU (grundsätzlich, soweit keine Sonderregel gilt) | 216.000 € |
+| Sektorenaufträge (Liefer- und Dienstleistungen, außer besondere Dienstleistungen nach Anhang XVII der Richtlinie 2014/25/EU) | 432.000 € |
+| Soziale und andere besondere Dienstleistungen klassischer Auftraggeber nach Anhang XIV der Richtlinie 2014/24/EU | 750.000 € |
 | Konzessionen | 5.404.000 € |
+| Bauaufträge von Sektorenauftraggebern | 5.404.000 € |
 
 Unterhalb des jeweils einschlägigen Werts gelten die nationalen Regeln des Auftraggebers und Leistungsbereichs. Die Beträge sind keine pauschalen Wertgrenzen für jede Beschaffung: Maßgeblich sind Auftraggeber, Leistungsart und das einschlägige Regelwerk. Für Bauaufträge gilt oberhalb des Schwellenwerts neben VOB/A Abschnitt 2 auch § 2 VgV.
 
@@ -109,8 +110,8 @@ Unterhalb des jeweils einschlägigen Werts gelten die nationalen Regeln des Auft
     description:
       "VOB/A, VOB/B und VOB/C verständlich erklärt: Vergabeverfahren, Bauvertragsbedingungen, technische ATV, Schwellenwerte und wichtige Hinweise für Bieter.",
     datePublished: "2025-01-15",
-    dateModified: "2026-11-01",
-    lastReviewed: "2026-11-01",
+    dateModified: "2026-11-03",
+    lastReviewed: "2026-11-03",
     relatedCategories: ["Bauarbeiten", "Tiefbau", "TGA", "Planungsleistungen"],
     relatedArticles: ["vergabeverfahren-uebersicht", "schwellenwerte-vergabe", "ausschreibung-muster", "bietergemeinschaft-gruenden"],
     relatedGlossaryTerms: ["vob-a", "vob-b", "vob-c", "vob-a-eu", "schwellenwerte", "auftragswert", "losvergabe", "leistungsbeschreibung", "leistungsverzeichnis", "vgv-vergabeverordnung", "gwb-vergaberecht", "eignungsleihe", "praequalifikation-pq-vob", "nachforderung-unterlagen"],
@@ -145,7 +146,7 @@ Die VOB/C enthält gewerkespezifische Allgemeine Technische Vertragsbedingungen 
 
 Für Bauaufträge unterscheidet die VOB/A drei Abschnitte: Abschnitt 1 für den nationalen Bereich, Abschnitt 2 für den EU-Oberschwellenbereich und Abschnitt 3 für verteidigungs- und sicherheitsspezifische Vergaben. Nach § 2 VgV sind bei Bauaufträgen Abschnitt 1 und Abschnitt 2 Unterabschnitt 2 der VgV anzuwenden; im Übrigen gilt VOB/A Teil A Abschnitt 2. Planungsleistungen, die als Los eines Bauauftrags vergeben werden, unterliegen der VgV. Baukonzessionen sind gesondert zu prüfen.
 
-Die Bekanntmachung vom 22. Juli 2026 veröffentlichte die Ausgabe 2026 der VOB/A-Abschnitte 2 und 3. § 2 VgV nennt für den übrigen Teil VOB/A Abschnitt 2 in der Fassung von 2019, zuletzt geändert durch diese Bekanntmachung. Das BMWSB kündigte für seinen Geschäftsbereich einen gesonderten Erlass zum Anwendungsbeginn nach Änderung der Verweisungen an. Das Veröffentlichungsdatum allein belegt daher keinen einheitlichen Starttermin für alle Auftraggeber.
+Die Bekanntmachung vom 22. Juli 2026 veröffentlichte die Ausgabe 2026 der VOB/A-Abschnitte 2 und 3. Der aktuelle § 2 VgV verweist im Übrigen auf VOB/A Abschnitt 2 in der Fassung der Bekanntmachung von 2019, zuletzt geändert durch die Bekanntmachung von 2026. Die drei Abschnitte haben unterschiedliche Geltungsbereiche: Abschnitt 1 betrifft den nationalen Bereich, Abschnitt 2 den EU-Anwendungsbereich und Abschnitt 3 verteidigungs- und sicherheitsspezifische Vergaben. Für ein konkretes Verfahren sind die einschlägige Vorschrift und die dort in Bezug genommene Fassung maßgeblich; das Veröffentlichungsdatum allein legt keinen einheitlichen Starttermin für alle Auftraggeber fest.
 
 **Unterscheidung:**
 - **Unterhalb der EU-Schwellenwerte:** VOB/A Abschnitt 1, ergänzt durch anwendbares Landes- und Haushaltsrecht
@@ -524,14 +525,15 @@ Eine Bietergemeinschaft ist ein mächtiges Instrument, um bei großen öffentlic
     description:
       "EU-Schwellenwerte für öffentliche Aufträge 2026 und 2027: Bauaufträge, Lieferungen, Dienstleistungen und Konzessionen nach Auftraggeber und Leistungsart eingeordnet.",
     datePublished: "2025-06-01",
-    dateModified: "2026-10-11",
-    lastReviewed: "2026-10-11",
+    dateModified: "2026-11-03",
+    lastReviewed: "2026-11-03",
     relatedCategories: ["Bauarbeiten", "IT-Dienstleistungen", "Lieferung"],
     relatedArticles: ["vergabeverfahren-uebersicht", "vob-vergabe", "eu-vergabe", "ausschreibung-muster"],
     relatedGlossaryTerms: ["schwellenwerte", "auftragswert", "vob-a", "vob-a-eu", "vgv-vergabeverordnung", "gwb-vergaberecht", "rahmenvereinbarung"],
     sources: [
       { title: "BMWE: Vergabeübersicht und Rechtsgrundlagen", url: "https://www.bundeswirtschaftsministerium.de/Redaktion/DE/Artikel/Wirtschaft/vergabe-uebersicht-und-rechtsgrundlagen.html" },
       { title: "Bundesanzeiger: EU-Schwellenwerte ab 1. Januar 2026", url: "https://www.bundesanzeiger.de/pub/publication/zDKvMODHbpcIPpDPapc/content/zDKvMODHbpcIPpDPapc/BAnz%20AT%2018.12.2025%20B4.pdf?inline" },
+      { title: "§ 106 GWB – Schwellenwerte", url: "https://www.gesetze-im-internet.de/gwb/__106.html" },
       { title: "Delegierte Verordnung (EU) 2025/2152", url: "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32025R2152" },
       { title: "Delegierte Verordnung (EU) 2025/2151 für Konzessionen", url: "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32025R2151" },
       { title: "Delegierte Verordnung (EU) 2025/2150 für Sektorenauftraggeber", url: "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32025R2150" },
@@ -549,14 +551,15 @@ Die Schwellenwerte werden regelmäßig angepasst. Die folgenden EU-Werte gelten 
 | Auftragsart | EU-Schwellenwert (netto) |
 |-------------|--------------------------|
 | Bauaufträge klassischer öffentlicher Auftraggeber | 5.404.000 € |
-| Liefer- und Dienstleistungen zentraler Regierungsbehörden im Sinne von § 106 Absatz 2 Nummer 1 GWB | 140.000 € |
-| Liefer- und Dienstleistungen anderer öffentlicher Auftraggeber im Anwendungsbereich der Richtlinie 2014/24/EU | 216.000 € |
-| Liefer- und Dienstleistungen von Sektorenauftraggebern | 432.000 € |
+| Liefer- und Dienstleistungen bestimmter oberster und oberer Bundesbehörden sowie vergleichbarer Bundeseinrichtungen im Anwendungsbereich der Richtlinie 2014/24/EU | 140.000 € |
+| Liefer- und Dienstleistungen anderer öffentlicher Auftraggeber im Anwendungsbereich der Richtlinie 2014/24/EU (grundsätzlich, soweit keine Sonderregel gilt) | 216.000 € |
+| Liefer- und Dienstleistungen von Sektorenauftraggebern, außer besonderen Dienstleistungen nach Anhang XVII der Richtlinie 2014/25/EU | 432.000 € |
 | Konzessionen | 5.404.000 € |
-| Soziale und andere besondere Dienstleistungen (klassische Auftraggeber) | 750.000 € |
+| Soziale und andere besondere Dienstleistungen klassischer Auftraggeber nach Anhang XIV der Richtlinie 2014/24/EU | 750.000 € |
+| Bauaufträge von Sektorenauftraggebern | 5.404.000 € |
 | Liefer- und Dienstleistungen im Verteidigungs- und Sicherheitsbereich | 432.000 € |
 | Bauaufträge im Verteidigungs- und Sicherheitsbereich | 5.404.000 € |
-| Soziale und andere besondere Dienstleistungen von Sektorenauftraggebern | 1.000.000 € |
+| Soziale und andere besondere Dienstleistungen von Sektorenauftraggebern nach Anhang XVII der Richtlinie 2014/25/EU | 1.000.000 € |
 
 **Wichtig:** Die Werte gelten netto (ohne Umsatzsteuer) und sind keine allgemeine Wertgrenze für jede Ausschreibung. Bei der Schwellenwertberechnung sind die jeweils einschlägigen Vorschriften zu Optionen, Verlängerungen, Losen und möglichen Aufteilungen zu beachten. Eine künstliche Aufteilung zur Umgehung des EU-Vergaberechts ist unzulässig.
 
@@ -1349,7 +1352,7 @@ Für Unternehmen sind vor allem drei Prüfungen wichtig: das passende Regelwerk 
     description:
       "EU-Vergabe erklärt: Schwellenwerte, TED-Suche, Vergabeverfahren in der EU, Rechtsschutz und Tipps für deutsche Unternehmen bei europaweiten Ausschreibungen.",
     datePublished: "2025-02-15",
-    dateModified: "2026-10-11",
+    dateModified: "2026-11-03",
     relatedCategories: ["IT-Dienstleistungen", "Planungsleistungen", "Lieferung"],
     relatedArticles: ["vergabeverfahren-uebersicht", "schwellenwerte-vergabe", "vob-vergabe", "vergaberecht-leitfaden", "oeffentliche-auftraege-finden"],
     relatedGlossaryTerms: ["schwellenwerte", "auftragswert", "vob-a-eu", "vgv-vergabeverordnung", "gwb-vergaberecht", "ted"],
@@ -1361,7 +1364,7 @@ Für Unternehmen sind vor allem drei Prüfungen wichtig: das passende Regelwerk 
       { title: "Delegierte Verordnung (EU) 2025/2150 für Sektorenauftraggeber", url: "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32025R2150" },
       { title: "Delegierte Verordnung (EU) 2025/2487 für Verteidigung und Sicherheit", url: "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32025R2487" },
     ],
-    lastReviewed: "2026-10-11",
+    lastReviewed: "2026-11-03",
     content: `
 ## Was ist EU-Vergabe?
 
@@ -1372,16 +1375,17 @@ Die EU-Vergabe regelt die Vergabe öffentlicher Aufträge oberhalb bestimmter Sc
 | Auftragsart | Schwellenwert (netto) |
 |------------|----------------------|
 | Bauaufträge klassischer öffentlicher Auftraggeber | 5.404.000 € |
-| Liefer- und Dienstleistungen zentraler Regierungsbehörden im Sinne von § 106 Absatz 2 Nummer 1 GWB | 140.000 € |
-| Liefer- und Dienstleistungen anderer öffentlicher Auftraggeber im Anwendungsbereich der Richtlinie 2014/24/EU | 216.000 € |
-| Sektorenaufträge (Liefer- und Dienstleistungen) | 432.000 € |
-| Soziale und andere besondere Dienstleistungen (klassische Auftraggeber) | 750.000 € |
+| Liefer- und Dienstleistungen bestimmter oberster und oberer Bundesbehörden sowie vergleichbarer Bundeseinrichtungen im Anwendungsbereich der Richtlinie 2014/24/EU | 140.000 € |
+| Liefer- und Dienstleistungen anderer öffentlicher Auftraggeber im Anwendungsbereich der Richtlinie 2014/24/EU (grundsätzlich, soweit keine Sonderregel gilt) | 216.000 € |
+| Sektorenaufträge (Liefer- und Dienstleistungen, außer besondere Dienstleistungen nach Anhang XVII der Richtlinie 2014/25/EU) | 432.000 € |
+| Soziale und andere besondere Dienstleistungen klassischer Auftraggeber nach Anhang XIV der Richtlinie 2014/24/EU | 750.000 € |
 | Konzessionen | 5.404.000 € |
+| Bauaufträge von Sektorenauftraggebern | 5.404.000 € |
 | Liefer- und Dienstleistungen im Verteidigungs- und Sicherheitsbereich | 432.000 € |
 | Bauaufträge im Verteidigungs- und Sicherheitsbereich | 5.404.000 € |
-| Soziale und andere besondere Dienstleistungen von Sektorenauftraggebern | 1.000.000 € |
+| Soziale und andere besondere Dienstleistungen von Sektorenauftraggebern nach Anhang XVII der Richtlinie 2014/25/EU | 1.000.000 € |
 
-Die Beträge gelten ab dem 1. Januar 2026 für 2026/2027 und beziehen sich auf Deutschland; entscheidend sind stets Auftraggeber, Auftragsart und der passende Anwendungsbereich. Oberhalb des einschlägigen Schwellenwerts gelten das GWB und die jeweils anwendbaren EU-Vergaberegeln, unterhalb die nationalen Regeln.
+Die Beträge gelten ab dem 1. Januar 2026 für 2026/2027 unionsweit im jeweiligen Richtlinien-Anwendungsbereich. Für deutsche Vergaben bestimmt insbesondere § 106 GWB, welche Auftraggeber und Aufträge erfasst sind; entscheidend bleiben Auftraggeber, Auftragsart, Ausnahmen und der passende Anwendungsbereich. Oberhalb des einschlägigen Schwellenwerts gelten das GWB und die jeweils anwendbaren EU-Vergaberegeln, unterhalb die nationalen Regeln.
 
 ## Vergabeplattformen in der EU
 

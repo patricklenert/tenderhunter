@@ -95,7 +95,7 @@ export const GLOSSARY: GlossaryEntry[] = [
     ],
     relatedTerms: ["uvgo", "vob-a", "vob-a-eu", "gwb-vergaberecht", "sektvo", "konzvgv", "rahmenvereinbarung"],
     relatedCategories: ["Planungsleistungen", "IT-Dienstleistungen", "Lieferung"],
-    relatedArticles: ["vergaberecht-leitfaden"],
+    relatedArticles: ["vergaberecht-leitfaden", "vob-vergabe"],
     sources: [
       { title: "§ 2 VgV – Bauaufträge", url: "https://www.gesetze-im-internet.de/vgv_2016/__2.html" },
       { title: "VgV – vollständige amtliche Fassung", url: "https://www.gesetze-im-internet.de/vgv_2016/" },
@@ -144,7 +144,7 @@ export const GLOSSARY: GlossaryEntry[] = [
     definition: [
       "Die Vergabe- und Vertragsordnung für Bauleistungen (VOB), Teil A (VOB/A; auch „VOB A“ oder „VOB Teil A“), regelt den vergaberechtlichen Teil öffentlicher Bauaufträge. Sie unterscheidet zwischen Abschnitt 1 für den nationalen Bereich, Abschnitt 2 für Vergaben im Anwendungsbereich des EU-Vergaberechts und Abschnitt 3 für verteidigungs- und sicherheitsspezifische Aufträge. Abschnitt 2 wird häufig als „VOB/A EU“ oder „EU-VOB/A“ bezeichnet; die eigene Lexikonseite zur VOB/A EU erläutert diesen speziellen Bereich.",
       "Bei Bauaufträgen oberhalb der EU-Schwellenwerte ist die VOB/A Abschnitt 2 nicht isoliert zu lesen. Nach § 2 VgV sind Abschnitt 1 und Abschnitt 2 Unterabschnitt 2 der VgV anzuwenden; im Übrigen gilt VOB/A Teil A Abschnitt 2. Planungsleistungen, die als Los eines Bauauftrags vergeben werden, unterliegen nach § 2 VgV der VgV.",
-      "Die Bekanntmachung vom 22. Juli 2026 betrifft die Ausgabe 2026 der Abschnitte 2 und 3. § 2 VgV nennt für den übrigen Teil weiterhin VOB/A Abschnitt 2 in der Fassung der Bekanntmachung von 2019, zuletzt geändert durch die Bekanntmachung von 2026. Das BMWSB hat für seinen Geschäftsbereich angekündigt, den Anwendungsbeginn nach Änderung der Verweisungen gesondert per Erlass bekannt zu machen. Aus dem Veröffentlichungsdatum allein folgt daher kein einheitlicher Starttermin für alle Auftraggeber.",
+      "Die Bekanntmachung vom 22. Juli 2026 betrifft die Ausgabe 2026 der Abschnitte 2 und 3. Der aktuelle § 2 VgV verweist im Übrigen auf VOB/A Abschnitt 2 in der Fassung der Bekanntmachung von 2019, zuletzt geändert durch die Bekanntmachung von 2026. Daraus folgt nicht, dass alle drei Abschnitte denselben Geltungsbereich haben: Abschnitt 1 betrifft den nationalen Bereich, Abschnitt 2 den EU-Anwendungsbereich und Abschnitt 3 verteidigungs- und sicherheitsspezifische Vergaben. Für ein konkretes Verfahren sind die einschlägige Vorschrift und die dort in Bezug genommene Fassung maßgeblich; das Veröffentlichungsdatum allein legt keinen einheitlichen Starttermin für alle Auftraggeber fest.",
       "Die VOB/A betrifft das Vergabeverfahren, etwa Leistungsbeschreibung, Eignung, Angebote und Zuschlag. Die VOB/B regelt dagegen Vertragsbedingungen für die Ausführung, die VOB/C technische Vertragsbedingungen und Abrechnungsgrundlagen.",
     ],
     keyPoints: [
@@ -167,8 +167,8 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "Die VOB/A regelt die Vergabe von Bauleistungen. Die VgV regelt grundsätzlich Liefer- und Dienstleistungen oberhalb der EU-Schwellenwerte; § 2 VgV bestimmt aber auch ihre Anwendung bei Bauaufträgen und bei bestimmten Planungsleistungen. Deshalb ist keine pauschale Entweder-oder-Aussage richtig.",
       },
       {
-        question: "Was bedeutet die VOB/A-Ausgabe 2026 für den Anwendungsbeginn?",
-        answer: "Die Bekanntmachung 2026 ändert die Abschnitte 2 und 3. Für Bauaufträge verweist § 2 VgV auf VOB/A Abschnitt 2 in der Fassung von 2019, zuletzt geändert durch die Bekanntmachung von 2026. Das BMWSB kündigte für seinen Geschäftsbereich einen gesonderten Erlass zum Anwendungsbeginn nach Änderung der Verweisungen an. Deshalb lässt sich aus dem Veröffentlichungsdatum allein kein einheitlicher Starttermin für alle Auftraggeber ableiten.",
+        question: "Welche VOB/A-Fassung nennt § 2 VgV?",
+        answer: "§ 2 VgV verweist im Übrigen auf VOB/A Abschnitt 2 in der Fassung der Bekanntmachung von 2019, zuletzt geändert durch die Bekanntmachung vom 22. Juli 2026. Die Abschnitte 1, 2 und 3 haben unterschiedliche Geltungsbereiche. Für ein konkretes Verfahren sind die einschlägige Vorschrift und die dort in Bezug genommene Fassung maßgeblich; das Veröffentlichungsdatum allein legt keinen einheitlichen Starttermin für alle Auftraggeber fest.",
       },
     ],
     relatedTerms: ["vob-b", "vob-c", "vob-a-eu", "schwellenwerte", "auftragswert", "leistungsbeschreibung", "leistungsverzeichnis", "losvergabe", "vgv-vergabeverordnung", "gwb-vergaberecht", "eignungsleihe", "nachforderung-unterlagen", "praequalifikation-pq-vob"],
@@ -180,7 +180,7 @@ export const GLOSSARY: GlossaryEntry[] = [
       { title: "§ 2 VgV – Bauaufträge", url: "https://www.gesetze-im-internet.de/vgv_2016/__2.html" },
       { title: "BMWE: Vergabeübersicht und Rechtsgrundlagen", url: "https://www.bundeswirtschaftsministerium.de/Redaktion/DE/Artikel/Wirtschaft/vergabe-uebersicht-und-rechtsgrundlagen.html" },
     ],
-    lastReviewed: "2026-11-01",
+    lastReviewed: "2026-11-03",
   },
   {
     slug: "vob-b",
@@ -1181,19 +1181,20 @@ export const GLOSSARY: GlossaryEntry[] = [
     definition: [
       "Schwellenwerte sind zentrale vergaberechtliche Grenzwerte, die bestimmen, ab welchem Auftragswert die vergaberechtlichen Vorschriften des europäischen Vergaberechts (Oberschwellenbereich) gelten. Unterhalb der Schwellenwerte gilt das nationale Vergaberecht (Unterschwellenbereich).",
       "Die Schwellenwerte werden von der Europäischen Kommission alle zwei Jahre überprüft und angepasst. Sie unterscheiden sich nach Auftragsart (Lieferungen, Dienstleistungen, Bauleistungen) und Auftraggeberart (klassische Auftraggeber, Sektorenauftraggeber).",
-      "Für 2026/2027 gelten je nach Auftraggeber und Leistungsart unterschiedliche EU-Schwellenwerte. Beispiele sind 140.000 EUR für Liefer- und Dienstleistungsaufträge zentraler Regierungsbehörden im Sinne von § 106 Absatz 2 Nummer 1 GWB, 216.000 EUR für entsprechende Aufträge anderer öffentlicher Auftraggeber im Anwendungsbereich der Richtlinie 2014/24/EU, 432.000 EUR für Liefer- und Dienstleistungen von Sektorenauftraggebern und 5.404.000 EUR für Bauaufträge klassischer Auftraggeber.",
+      "Für 2026/2027 gelten je nach Auftraggeber und Leistungsart unterschiedliche EU-Schwellenwerte. Im Anwendungsbereich der Richtlinie 2014/24/EU gelten vorbehaltlich der jeweiligen Ausnahmen 140.000 EUR für bestimmte Liefer- und Dienstleistungsaufträge oberster und oberer Bundesbehörden sowie vergleichbarer Bundeseinrichtungen und grundsätzlich 216.000 EUR für entsprechende Aufträge anderer öffentlicher Auftraggeber. Bei Sektorenauftraggebern beträgt der Schwellenwert 432.000 EUR für Liefer- und Dienstleistungen außerhalb der besonderen Dienstleistungen nach Anhang XVII der Richtlinie 2014/25/EU; für diese besonderen Dienstleistungen gelten 1.000.000 EUR. Für soziale und andere besondere Dienstleistungen klassischer Auftraggeber nach Anhang XIV der Richtlinie 2014/24/EU gelten 750.000 EUR. Für Bauaufträge klassischer Auftraggeber und von Sektorenauftraggebern sowie für Konzessionen gelten jeweils 5.404.000 EUR. Weitere Bereiche und Ausnahmen, etwa Verteidigung und Sicherheit, folgen eigenen Regeln.",
     ],
     keyPoints: [
       "Grenzwert zwischen Ober- und Unterschwellenbereich",
       "Werden alle 2 Jahre von der EU-Kommission angepasst",
-      "2026/2027: 140.000 EUR für die erfassten zentralen Regierungsbehörden, 216.000 EUR für andere Auftraggeber im Anwendungsbereich der Richtlinie 2014/24/EU",
-      "2026/2027: 432.000 EUR für Liefer- und Dienstleistungsaufträge von Sektorenauftraggebern",
-      "2026/2027: 5.404.000 EUR für Bauaufträge klassischer Auftraggeber",
+      "2026/2027: 140.000 EUR für bestimmte oberste und obere Bundesbehörden sowie vergleichbare Bundeseinrichtungen; 216.000 EUR grundsätzlich für andere Auftraggeber im Anwendungsbereich der Richtlinie 2014/24/EU",
+      "2026/2027: 432.000 EUR für Sektoren-Liefer- und Dienstleistungen außerhalb der besonderen Dienstleistungen nach Anhang XVII; dafür gilt 1.000.000 EUR",
+      "2026/2027: 750.000 EUR für besondere Dienstleistungen klassischer Auftraggeber nach Anhang XIV",
+      "2026/2027: 5.404.000 EUR für klassische und Sektoren-Bauaufträge sowie Konzessionen",
     ],
     faq: [
       {
         question: "Welche EU-Schwellenwerte gelten 2026 und 2027?",
-        answer: "Für 2026 und 2027 gelten je nach Auftraggeber und Auftragsart unterschiedliche Werte. Die zentralen Kontrollwerte sind 140.000 EUR für Liefer- und Dienstleistungsaufträge zentraler Regierungsbehörden im Sinne von § 106 Absatz 2 Nummer 1 GWB, 216.000 EUR für entsprechende Aufträge anderer öffentlicher Auftraggeber im Anwendungsbereich der Richtlinie 2014/24/EU, 432.000 EUR für Liefer- und Dienstleistungen von Sektorenauftraggebern sowie 5.404.000 EUR für Bauaufträge klassischer Auftraggeber; Konzessionen liegen ebenfalls bei 5.404.000 EUR.",
+        answer: "Für 2026/2027 gelten unter anderem 140.000 EUR für bestimmte Liefer- und Dienstleistungsaufträge oberster und oberer Bundesbehörden sowie vergleichbarer Bundeseinrichtungen und grundsätzlich 216.000 EUR für entsprechende Aufträge anderer öffentlicher Auftraggeber im Anwendungsbereich der Richtlinie 2014/24/EU. Bei Sektorenauftraggebern gelten 432.000 EUR für Liefer- und Dienstleistungen außerhalb der besonderen Dienstleistungen nach Anhang XVII (dafür 1.000.000 EUR); für besondere Dienstleistungen klassischer Auftraggeber nach Anhang XIV gelten 750.000 EUR. Für Bauaufträge klassischer und Sektorenauftraggeber sowie für Konzessionen gelten 5.404.000 EUR. Maßgeblich bleiben Auftraggeber, Auftragsart und Anwendungsbereich.",
       },
       {
         question: "Was passiert bei Überschreitung des Schwellenwerts?",
@@ -1214,7 +1215,7 @@ export const GLOSSARY: GlossaryEntry[] = [
       { title: "Delegierte Verordnung (EU) 2025/2151 für Konzessionen", url: "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32025R2151" },
       { title: "Delegierte Verordnung (EU) 2025/2150 für Sektorenauftraggeber", url: "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32025R2150" },
     ],
-    lastReviewed: "2026-09-29",
+    lastReviewed: "2026-11-03",
   },
   {
     slug: "auftragswert",
@@ -1243,7 +1244,7 @@ export const GLOSSARY: GlossaryEntry[] = [
       },
     ],
     relatedTerms: ["schwellenwerte", "losvergabe", "vgv-vergabeverordnung", "uvgo", "vob-a", "vob-a-eu", "gwb-vergaberecht", "rahmenvereinbarung"],
-    relatedArticles: ["schwellenwerte-vergabe", "vergaberecht-leitfaden"],
+    relatedArticles: ["schwellenwerte-vergabe", "vergaberecht-leitfaden", "vob-vergabe"],
     sources: [
       { title: "§ 3 VgV – Schätzung des Auftragswerts", url: "https://www.gesetze-im-internet.de/vgv_2016/__3.html" },
       { title: "§ 106 GWB – Schwellenwerte", url: "https://www.gesetze-im-internet.de/gwb/__106.html" },

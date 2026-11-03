@@ -36,43 +36,33 @@ export default function SchwellenwertRechnerPage() {
     ],
   };
 
+  const faqItems = [
+    {
+      question: "Was ist der aktuelle Schwellenwert für Bauleistungen?",
+      answer: "Der EU-Schwellenwert für Bauaufträge beträgt 5.404.000 € für 2026/2027. Maßgeblich sind Auftraggeber und Leistungsart; bei Bauaufträgen klassischer Auftraggeber im Richtlinien-Anwendungsbereich sind oberhalb des Schwellenwerts GWB, VOB/A Abschnitt 2 und die nach § 2 VgV anwendbaren Vorschriften zu prüfen.",
+    },
+    {
+      question: "Was ist der Schwellenwert für Liefer- und Dienstleistungen?",
+      answer: "Für Liefer- und Dienstleistungen im Anwendungsbereich der Richtlinie 2014/24/EU gelten 2026/2027 grundsätzlich 140.000 € für bestimmte oberste und obere Bundesbehörden sowie vergleichbare Bundeseinrichtungen und 216.000 € für andere öffentliche Auftraggeber. Sonderfälle, insbesondere soziale und andere besondere Dienstleistungen, haben eigene Schwellenwerte.",
+    },
+    {
+      question: "Was bedeutet Unterschwellenvergabe?",
+      answer: "Bei Aufträgen unterhalb der EU-Schwellenwerte gelten die Regeln des zuständigen Auftraggebers, etwa die UVgO auf Bundesebene oder Landesvergaberecht. Eine EU-Bekanntmachungspflicht folgt daraus nicht automatisch; nationale Vorgaben bleiben zu beachten.",
+    },
+    {
+      question: "Wann gilt die SektVO?",
+      answer: "Die SektVO gilt für Auftraggeber in den Sektoren Trinkwasser, Energie, Verkehr und Postdienste (§ 100 GWB). Für 2026/2027 beträgt der Schwellenwert für Sektorenbau 5.404.000 € und für Liefer-/Dienstleistungen außerhalb der besonderen Dienstleistungen nach Anhang XVII 432.000 €. Für diese besonderen Dienstleistungen gilt 1.000.000 €.",
+    },
+  ];
+
   const faqJsonLd = {
     "@context": "https://schema.org",
     "@type": "FAQPage",
-    mainEntity: [
-      {
-        "@type": "Question",
-        name: "Was ist der aktuelle Schwellenwert für Bauleistungen?",
-        acceptedAnswer: {
-          "@type": "Answer",
-          text: "Der EU-Schwellenwert für Bauaufträge beträgt 5.404.000 € für 2026/2027. Maßgeblich sind der Auftraggeber und die Leistungsart; oberhalb greifen GWB, VOB/A Abschnitt 2 und die nach § 2 VgV anwendbaren Vorschriften.",
-        },
-      },
-      {
-        "@type": "Question",
-        name: "Was ist der Schwellenwert für Liefer- und Dienstleistungen?",
-        acceptedAnswer: {
-          "@type": "Answer",
-          text: "Für Liefer- und Dienstleistungen gelten 2026/2027 je nach Auftraggeber 140.000 € oder 216.000 €. Diese Werte gelten nicht pauschal für jede öffentliche Beschaffung; oberhalb ist grundsätzlich das einschlägige EU-Vergaberecht zu prüfen.",
-        },
-      },
-      {
-        "@type": "Question",
-        name: "Was bedeutet Unterschwellenvergabe?",
-        acceptedAnswer: {
-          "@type": "Answer",
-          text: "Bei Aufträgen unterhalb der EU-Schwellenwerte gelten die Regeln des zuständigen Auftraggebers, etwa die UVgO auf Bundesebene oder Landesvergaberecht. Eine EU-Bekanntmachungspflicht folgt daraus nicht automatisch; nationale Vorgaben bleiben zu beachten.",
-        },
-      },
-      {
-        "@type": "Question",
-        name: "Wann gilt die SektVO?",
-        acceptedAnswer: {
-          "@type": "Answer",
-          text: "Die SektVO gilt für Auftraggeber in den Sektoren Trinkwasser, Energie, Verkehr und Postdienste (§ 100 GWB). Für 2026/2027 beträgt der Schwellenwert für Sektorenbau 5.404.000 € und für Liefer-/Dienstleistungen 432.000 €.",
-        },
-      },
-    ],
+    mainEntity: faqItems.map(({ question, answer }) => ({
+      "@type": "Question",
+      name: question,
+      acceptedAnswer: { "@type": "Answer", text: answer },
+    })),
   };
 
   const webAppJsonLd = {
@@ -142,12 +132,35 @@ export default function SchwellenwertRechnerPage() {
               Die wichtigsten Schwellenwerte im Überblick
             </Typography>
             <Box component="ul" sx={{ m: 0, pl: 2.5, color: "text.secondary" }}>
-              <li><strong>Bauaufträge:</strong> 5.404.000 €</li>
-              <li><strong>Liefer-/Dienstleistungen (bestimmte zentrale Behörden):</strong> 140.000 €</li>
-              <li><strong>Liefer-/Dienstleistungen (sonstige bestimmte Auftraggeber):</strong> 216.000 €</li>
-              <li><strong>Sektoren (Liefer/Dienst):</strong> 432.000 €</li>
-              <li><strong>Soziale und besondere Dienstleistungen:</strong> 750.000 €</li>
+              <li><strong>Bauaufträge klassischer Auftraggeber:</strong> 5.404.000 €</li>
+              <li><strong>Liefer-/Dienstleistungen bestimmter oberster und oberer Bundesbehörden sowie vergleichbarer Bundeseinrichtungen im Anwendungsbereich der Richtlinie 2014/24/EU:</strong> 140.000 €</li>
+              <li><strong>Liefer-/Dienstleistungen anderer öffentlicher Auftraggeber im Anwendungsbereich der Richtlinie 2014/24/EU (grundsätzlich, soweit keine Sonderregel gilt):</strong> 216.000 €</li>
+              <li><strong>Sektoren-Liefer-/Dienstleistungen (außer besonderen Dienstleistungen nach Anhang XVII):</strong> 432.000 €</li>
+              <li><strong>Soziale und andere besondere Dienstleistungen klassischer Auftraggeber nach Anhang XIV:</strong> 750.000 €</li>
+              <li><strong>Bauaufträge von Sektorenauftraggebern:</strong> 5.404.000 €</li>
+              <li><strong>Soziale und andere besondere Dienstleistungen von Sektorenauftraggebern nach Anhang XVII:</strong> 1.000.000 €</li>
+              <li><strong>Konzessionen:</strong> 5.404.000 €</li>
+              <li><strong>Verteidigungs- und Sicherheitsbereich (Liefer-/Dienstleistungen):</strong> 432.000 €</li>
+              <li><strong>Verteidigungs- und Sicherheitsbereich (Bauaufträge):</strong> 5.404.000 €</li>
             </Box>
+          </Paper>
+
+          <Paper elevation={0} sx={{ mt: 3, p: { xs: 3, md: 4 }, border: 1, borderColor: "divider" }}>
+            <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
+              Häufige Fragen zu Schwellenwerten
+            </Typography>
+            <Stack spacing={2.5}>
+              {faqItems.map(({ question, answer }) => (
+                <Box key={question}>
+                  <Typography variant="subtitle1" component="h3" fontWeight={700}>
+                    {question}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, lineHeight: 1.7 }}>
+                    {answer}
+                  </Typography>
+                </Box>
+              ))}
+            </Stack>
           </Paper>
         </Container>
       </Box>
