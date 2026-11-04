@@ -1,7 +1,7 @@
 # Tenderhunter Brand System
 
 Status: active
-Last updated: 2026-11-02
+Last updated: 2026-11-04
 
 This is the product-wide source of truth for Tenderhunter's brand behavior. Campaign production tasks remain in `marketing/backlog.md`; product brand decisions and follow-up work belong in `BRAND_BACKLOG.md`.
 
@@ -71,6 +71,10 @@ Tender cards, fit scores, deadline states, and tender detail panels are one deci
 - International opportunity surfaces use the same semantic palette as the German product; distinguish market or opportunity type with existing `info` and `primary` roles, never with local market colors or translucent accents.
 - Progress and result transitions use the MUI theme timing and must provide a reduced-motion path. Use a restrained radar or scan cue for active analysis, never a target or crosshair.
 - Discovery, tracked-tender, and international opportunity resource states use the shared `ResourceState`; during revalidation, prior results remain visible with `aria-busy`. Tabular views use `ResponsiveTableFrame` with keyboard-scrollable horizontal overflow and a mobile scrolling hint.
+
+## Loading And Error States
+
+The shared app loading and error shells use the semantic `background.default` canvas and the shared `BrandLockup`; the root SEO navigation is visually hidden and is not a visible brand touchpoint. Error recovery actions retain the shared 44px touch target and stack at narrow widths.
 
 ## Voice
 
