@@ -113,9 +113,9 @@ export const getEffectiveQueuePriority = (
 /** Hard ceilings prevent one hung portal, browser, or model call from occupying a worker forever. */
 const JOB_MAX_RUNTIME_MS: Partial<Record<JobType, number>> = {
   [JOB_CRAWL]: minutes(120),
-  // Full public runs are sequential; aggregate portal timeouts alone can take
-  // nearly four hours, before tender persistence and continuation scheduling.
-  [JOB_SCRAPE_PUBLIC]: minutes(300),
+  // Full public runs are sequential; 39 portal timeouts can consume 273 minutes,
+  // so retain 87 minutes for tender persistence and continuation scheduling.
+  [JOB_SCRAPE_PUBLIC]: minutes(360),
   [JOB_SCRAPE_US]: minutes(120),
   [JOB_FETCH_DOCUMENTS]: minutes(20),
   [JOB_FETCH_US_DOCUMENTS]: minutes(30),

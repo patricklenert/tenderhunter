@@ -66,7 +66,7 @@ assert.equal(criticalTypeOrder?.at(-1), CRITICAL_JOB_TYPES[1]);
 assert.equal(new Set(criticalTypeOrder).size, CRITICAL_JOB_TYPES.length);
 
 assert.equal(getJobMaxRuntimeMs("fetch_documents"), 20 * 60 * 1_000);
-assert.equal(getJobMaxRuntimeMs("scrape_public_tenders"), 300 * 60 * 1_000);
+assert.equal(getJobMaxRuntimeMs("scrape_public_tenders"), 360 * 60 * 1_000);
 assert.equal(isJobRuntimeStale(new Date(Date.now() - 21 * 60 * 1_000), "fetch_documents"), true);
 assert.equal(isJobRuntimeStale(new Date(Date.now() - 19 * 60 * 1_000), "fetch_documents"), false);
 const staleRuntime = new Date(Date.now() - 21 * 60 * 1_000);
