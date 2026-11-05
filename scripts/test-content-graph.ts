@@ -375,6 +375,69 @@ for (const slug of ["vergabeverfahren-uebersicht", "wie-funktioniert-ausschreibu
   }
 }
 
+const auftragsbekanntmachung = GLOSSARY_MAP["auftragsbekanntmachung"];
+const announcementTerms = [
+  "vgv-vergabeverordnung",
+  "vob-a",
+  "uvgo",
+  "schwellenwerte",
+  "vergabeunterlagen",
+  "teilnahmewettbewerb",
+  "e-vergabe",
+  "eforms",
+  "ted",
+];
+const announcementArticles = [
+  "vergabeverfahren-uebersicht",
+  "eu-vergabe",
+  "oeffentliche-auftraege-finden",
+  "vob-vergabe",
+];
+if (!auftragsbekanntmachung) {
+  errors.push("process cluster -> missing glossary entry: auftragsbekanntmachung");
+} else {
+  if (auftragsbekanntmachung.category !== "Vergabeprozess") {
+    errors.push("auftragsbekanntmachung.category -> expected Vergabeprozess");
+  }
+  if (!auftragsbekanntmachung.lastReviewed) {
+    errors.push("auftragsbekanntmachung.lastReviewed -> missing review date");
+  }
+  for (const phrase of ["§ 37 Absatz 1 VgV", "§ 10a Absatz 6", "§ 39 VgV", "30 Tage", "Eignungs- und Zuschlagskriterien können bereits in der Bekanntmachung stehen"]) {
+    if (!auftragsbekanntmachung.definition.join(" ").includes(phrase)) {
+      errors.push(`auftragsbekanntmachung.definition -> missing scoped legal distinction: ${phrase}`);
+    }
+  }
+  if (!auftragsbekanntmachung.faq.some((item) => item.question === "Was ist der Unterschied zwischen Auftragsbekanntmachung und Vergabebekanntmachung?")) {
+    errors.push("auftragsbekanntmachung.faq -> missing pre-award/post-award distinction");
+  }
+  for (const slug of announcementTerms) {
+    if (!auftragsbekanntmachung.relatedTerms?.includes(slug)) {
+      errors.push(`auftragsbekanntmachung.relatedTerms -> missing cluster link: ${slug}`);
+    }
+    if (!GLOSSARY_MAP[slug]?.relatedTerms?.includes("auftragsbekanntmachung")) {
+      errors.push(`${slug}.relatedTerms -> missing reciprocal Auftragsbekanntmachung link`);
+    }
+  }
+  for (const slug of announcementArticles) {
+    if (!auftragsbekanntmachung.relatedArticles?.includes(slug)) {
+      errors.push(`auftragsbekanntmachung.relatedArticles -> missing ${slug}`);
+    }
+    if (!ARTICLES[slug]?.relatedGlossaryTerms?.includes("auftragsbekanntmachung")) {
+      errors.push(`${slug}.relatedGlossaryTerms -> missing Auftragsbekanntmachung link`);
+    }
+  }
+  for (const url of [
+    "https://www.gesetze-im-internet.de/vgv_2016/__37.html",
+    "https://www.gesetze-im-internet.de/vgv_2016/__10a.html",
+    "https://www.gesetze-im-internet.de/vgv_2016/__39.html",
+    "https://www.gesetze-im-internet.de/gwb/__106.html",
+  ]) {
+    if (!auftragsbekanntmachung.sources?.some((source) => source.url === url)) {
+      errors.push(`auftragsbekanntmachung.sources -> missing primary source: ${url}`);
+    }
+  }
+}
+
 const nachforderung = GLOSSARY_MAP["nachforderung-unterlagen"];
 if (!nachforderung) {
   errors.push("process cluster -> missing glossary entry: nachforderung-unterlagen");

@@ -93,7 +93,7 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "Für Sektorenauftraggeber und Konzessionen gelten regelmäßig besondere Regelwerke. Bei Bauaufträgen gilt nicht pauschal ein vollständiger Ausschluss der VgV: § 2 VgV ordnet die Anwendung bestimmter VgV-Teile an und verweist im Übrigen auf VOB/A Abschnitt 2.",
       },
     ],
-    relatedTerms: ["uvgo", "vob-a", "vob-a-eu", "gwb-vergaberecht", "sektvo", "konzvgv", "rahmenvereinbarung"],
+    relatedTerms: ["uvgo", "vob-a", "vob-a-eu", "gwb-vergaberecht", "sektvo", "konzvgv", "rahmenvereinbarung", "auftragsbekanntmachung"],
     relatedCategories: ["Planungsleistungen", "IT-Dienstleistungen", "Lieferung"],
     relatedArticles: ["vergaberecht-leitfaden", "vob-vergabe"],
     sources: [
@@ -132,7 +132,7 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "Die UVgO ist grundsätzlich keine allgemeine Bauvergabeordnung. Für Bauleistungen im nationalen Bereich ist grundsätzlich VOB/A Abschnitt 1 einschlägig; die konkrete Anwendung richtet sich zusätzlich nach dem maßgeblichen Landes- und Haushaltsrecht.",
       },
     ],
-    relatedTerms: ["vgv-vergabeverordnung", "vob-a", "vol-a", "rahmenvereinbarung"],
+    relatedTerms: ["vgv-vergabeverordnung", "vob-a", "vol-a", "rahmenvereinbarung", "auftragsbekanntmachung"],
     relatedCategories: ["IT-Dienstleistungen", "Lieferung", "Planungsleistungen"],
     relatedArticles: ["vergaberecht-leitfaden"],
   },
@@ -171,7 +171,7 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "§ 2 VgV verweist im Übrigen auf VOB/A Abschnitt 2 in der Fassung der Bekanntmachung von 2019, zuletzt geändert durch die Bekanntmachung vom 22. Juli 2026. Die Abschnitte 1, 2 und 3 haben unterschiedliche Geltungsbereiche. Für ein konkretes Verfahren sind die einschlägige Vorschrift und die dort in Bezug genommene Fassung maßgeblich; das Veröffentlichungsdatum allein legt keinen einheitlichen Starttermin für alle Auftraggeber fest.",
       },
     ],
-    relatedTerms: ["vob-b", "vob-c", "vob-a-eu", "schwellenwerte", "auftragswert", "leistungsbeschreibung", "leistungsverzeichnis", "losvergabe", "vgv-vergabeverordnung", "gwb-vergaberecht", "eignungsleihe", "nachforderung-unterlagen", "praequalifikation-pq-vob"],
+    relatedTerms: ["vob-b", "vob-c", "vob-a-eu", "schwellenwerte", "auftragswert", "leistungsbeschreibung", "leistungsverzeichnis", "losvergabe", "vgv-vergabeverordnung", "gwb-vergaberecht", "eignungsleihe", "nachforderung-unterlagen", "praequalifikation-pq-vob", "auftragsbekanntmachung"],
     relatedCategories: ["Bauarbeiten", "Tiefbau", "TGA", "Gartenarbeiten"],
     relatedArticles: ["vob-vergabe", "schwellenwerte-vergabe", "vergaberecht-leitfaden"],
     sources: [
@@ -1205,7 +1205,7 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "Der Auftragswert wird nach der jeweils einschlägigen Berechnungsvorschrift als geschätzter Gesamtwert ohne Umsatzsteuer ermittelt. Optionen, Verlängerungen, Lose und wiederkehrende Leistungen können einzubeziehen sein; entscheidend sind Auftragsart, Laufzeit und das anwendbare Regelwerk.",
       },
     ],
-    relatedTerms: ["auftragswert", "losvergabe", "vgv-vergabeverordnung", "uvgo", "vob-a", "vob-a-eu", "gwb-vergaberecht", "eu-vergaberichtlinien"],
+    relatedTerms: ["auftragswert", "losvergabe", "vgv-vergabeverordnung", "uvgo", "vob-a", "vob-a-eu", "gwb-vergaberecht", "eu-vergaberichtlinien", "auftragsbekanntmachung"],
     relatedArticles: ["schwellenwerte-vergabe", "vob-vergabe", "vergaberecht-leitfaden"],
     sources: [
       { title: "§ 106 GWB – Schwellenwerte", url: "https://www.gesetze-im-internet.de/gwb/__106.html" },
@@ -1448,7 +1448,7 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "Für unionsrechtlich erfasste Bekanntmachungen sind eForms seit dem 25. Oktober 2023 der maßgebliche Standard. Welche Bekanntmachung konkret erforderlich ist, richtet sich weiterhin nach dem Verfahren und den geltenden Bekanntmachungsregeln.",
       },
     ],
-    relatedTerms: ["cpv-code", "eu-vergaberichtlinien", "gaeb"],
+    relatedTerms: ["cpv-code", "eu-vergaberichtlinien", "gaeb", "auftragsbekanntmachung"],
     sources: [
       { title: "Durchführungsverordnung (EU) 2019/1780 – eForms", url: "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32019R1780" },
     ],
@@ -1509,7 +1509,7 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "Nein. Auf TED werden grundsätzlich die unionsrechtlich bekanntmachungspflichtigen Vergaben veröffentlicht. Unterschwellenvergaben werden regelmäßig national oder regional bekannt gemacht; für Ausnahmen und besondere Auftraggeber gelten die jeweiligen Vorschriften.",
       },
     ],
-    relatedTerms: ["eu-vergaberichtlinien", "schwellenwerte", "cpv-code"],
+    relatedTerms: ["eu-vergaberichtlinien", "schwellenwerte", "cpv-code", "auftragsbekanntmachung"],
     sources: [
       { title: "TED – Tenders Electronic Daily der Europäischen Union", url: "https://ted.europa.eu/de/" },
     ],
@@ -1537,7 +1537,7 @@ export const GLOSSARY: GlossaryEntry[] = [
       { question: "Muss ein Angebot elektronisch abgegeben werden?", answer: "Ob und in welcher Form ein Angebot elektronisch einzureichen ist, ergibt sich aus dem anwendbaren Regelwerk und den konkreten Vergabeunterlagen. Bei EU-Vergaben ist die elektronische Kommunikation grundsätzlich vorgesehen; die Bekanntmachung nennt die maßgebliche Plattform und die technischen Vorgaben." },
       { question: "Was sollten Bieter bei der E-Vergabe prüfen?", answer: "Bieter sollten Registrierung, Benutzerrechte, Dateiformate, Größenlimits, erforderliche Signaturen und die tatsächliche Übermittlung vor Fristablauf prüfen. Eine bloße Speicherung als Entwurf ersetzt die erfolgreiche Einreichung nicht." },
     ],
-    relatedTerms: ["vergabeunterlagen", "teilnahmewettbewerb", "eforms", "ted", "angebot", "nachforderung-unterlagen"],
+    relatedTerms: ["vergabeunterlagen", "teilnahmewettbewerb", "eforms", "ted", "angebot", "nachforderung-unterlagen", "auftragsbekanntmachung"],
     relatedArticles: ["wie-funktioniert-ausschreibung", "vergabeverfahren-uebersicht", "vergabeportal-vergleich", "eu-vergabe"],
     sources: [
       { title: "§ 9 VgV – Grundsätze der Kommunikation", url: "https://www.gesetze-im-internet.de/vgv_2016/__9.html" },
@@ -1545,6 +1545,54 @@ export const GLOSSARY: GlossaryEntry[] = [
       { title: "§ 11 VgV – Anforderungen an elektronische Kommunikation", url: "https://www.gesetze-im-internet.de/vgv_2016/__11.html" },
     ],
     lastReviewed: "2026-09-24",
+  },
+  {
+    slug: "auftragsbekanntmachung",
+    term: "Auftragsbekanntmachung",
+    category: "Vergabeprozess",
+    shortDefinition: "Die Auftragsbekanntmachung informiert vor der Vergabe darüber, dass ein öffentlicher Auftrag oder eine Rahmenvereinbarung vergeben werden soll.",
+    definition: [
+      "Nach § 37 Absatz 1 VgV teilt ein öffentlicher Auftraggeber mit der Auftragsbekanntmachung seine Absicht mit, einen öffentlichen Auftrag zu vergeben oder eine Rahmenvereinbarung abzuschließen. Sie macht das Verfahren für Unternehmen auffindbar und gibt die wichtigsten Verfahrensangaben bekannt.",
+      "Für Bekanntmachungen im Anwendungsbereich der VgV schreibt § 10a VgV die elektronische Erstellung mit eForms und die Übermittlung über den Datenservice Öffentlicher Einkauf an das Amt für Veröffentlichungen der Europäischen Union vor. Die Bekanntmachung wird außerdem über den Bekanntmachungsservice des Datenservice veröffentlicht. § 10a Absatz 6 nimmt Aufträge unterhalb der Schwellenwerte nach § 106 GWB von diesen eForms-Vorgaben aus; daraus folgt nicht, dass alle Vergaben denselben Veröffentlichungsweg nutzen.",
+      "Die Bekanntmachung ist nicht das vollständige Angebotspaket. Nach § 29 VgV umfassen die Vergabeunterlagen alle Angaben, die für die Teilnahmeentscheidung nötig sind, und enthalten in der Regel die Verfahrensbedingungen sowie Leistungsbeschreibung und Vertragsbedingungen. Eignungs- und Zuschlagskriterien können bereits in der Bekanntmachung stehen; andernfalls gehören sie in die Verfahrensbedingungen. Nach § 37 Absatz 3 VgV ist außerdem die zuständige Vergabekammer anzugeben.",
+      "Nicht zu verwechseln ist die Auftragsbekanntmachung vor der Vergabe mit der Vergabebekanntmachung nach Zuschlag: § 39 VgV verlangt im Anwendungsbereich der VgV die Übermittlung der Ergebnisse grundsätzlich spätestens 30 Tage nach Vergabe des Auftrags oder Abschluss der Rahmenvereinbarung.",
+    ],
+    keyPoints: [
+      "Vor der Vergabe: informiert über die beabsichtigte Auftragserteilung oder Rahmenvereinbarung",
+      "Für VgV-Bekanntmachungen: elektronische Erstellung mit eForms und Übermittlung nach § 10a VgV",
+      "Die eForms-Vorgaben des § 10a gelten nicht automatisch für Vergaben unterhalb der EU-Schwellenwerte",
+      "Ersetzt nicht die vollständigen Vergabeunterlagen",
+      "Enthält im VgV-Anwendungsbereich die zuständige Vergabekammer",
+    ],
+    faq: [
+      {
+        question: "Was ist der Unterschied zwischen Auftragsbekanntmachung und Vergabebekanntmachung?",
+        answer: "Die Auftragsbekanntmachung kündigt vor dem Zuschlag die beabsichtigte Vergabe an (§ 37 VgV). Die Vergabebekanntmachung teilt nach dem Zuschlag die Ergebnisse des Verfahrens mit; im Anwendungsbereich der VgV ist sie grundsätzlich spätestens 30 Tage nach der Vergabe zu übermitteln (§ 39 VgV).",
+      },
+      {
+        question: "Wird jede Ausschreibung über TED veröffentlicht?",
+        answer: "Nein. § 10a VgV sieht für Bekanntmachungen im Anwendungsbereich der VgV die elektronische Übermittlung an das Amt für Veröffentlichungen der Europäischen Union vor. Die Vorschrift nimmt Aufträge unterhalb der Schwellenwerte nach § 106 GWB von diesen eForms-Vorgaben aus; für andere Regelwerke und Veröffentlichungswege sind deren jeweilige Vorschriften maßgeblich.",
+      },
+      {
+        question: "Ersetzt die Auftragsbekanntmachung die Vergabeunterlagen?",
+        answer: "Nein. Die Bekanntmachung fasst wichtige Angaben zum Verfahren zusammen. Die vollständigen Anforderungen, Vertragsbedingungen und Angebotsformulare stehen in den Vergabeunterlagen und den dort genannten Anlagen.",
+      },
+      {
+        question: "Was sollten Bieter in der Auftragsbekanntmachung zuerst prüfen?",
+        answer: "Prüfen Sie insbesondere Fristen, Teilnahme- und Angebotsweg, Losaufteilung, Eignungsanforderungen, Zuschlagskriterien und den Zugang zu den Vergabeunterlagen. Maßgeblich sind anschließend auch die vollständigen Unterlagen sowie Antworten und Änderungen im Vergabeportal.",
+      },
+    ],
+    relatedTerms: ["vgv-vergabeverordnung", "vob-a", "uvgo", "schwellenwerte", "vergabeunterlagen", "teilnahmewettbewerb", "e-vergabe", "eforms", "ted"],
+    relatedArticles: ["vergabeverfahren-uebersicht", "eu-vergabe", "oeffentliche-auftraege-finden", "vob-vergabe"],
+    sources: [
+      { title: "§ 37 VgV – Auftragsbekanntmachung", url: "https://www.gesetze-im-internet.de/vgv_2016/__37.html" },
+      { title: "§ 10a VgV – eForms und Übermittlung von Bekanntmachungen", url: "https://www.gesetze-im-internet.de/vgv_2016/__10a.html" },
+      { title: "§ 29 VgV – Vergabeunterlagen", url: "https://www.gesetze-im-internet.de/vgv_2016/__29.html" },
+      { title: "§ 39 VgV – Vergabebekanntmachung nach Zuschlag", url: "https://www.gesetze-im-internet.de/vgv_2016/__39.html" },
+      { title: "§ 106 GWB – Schwellenwerte", url: "https://www.gesetze-im-internet.de/gwb/__106.html" },
+      { title: "TED – Tenders Electronic Daily der Europäischen Union", url: "https://ted.europa.eu/de/" },
+    ],
+    lastReviewed: "2026-11-05",
   },
   {
     slug: "vergabeunterlagen",
@@ -1567,7 +1615,7 @@ export const GLOSSARY: GlossaryEntry[] = [
       { question: "Wo finde ich die Vergabeunterlagen?", answer: "Die Bekanntmachung nennt die zuständige Vergabeplattform und den Zugang. Bei elektronischen Verfahren werden die Unterlagen dort bereitgestellt; Bieter sollten auch spätere Antworten und Änderungen im selben Verfahren abrufen." },
       { question: "Was tun bei unklaren Vergabeunterlagen?", answer: "Unklarheiten sollten innerhalb der angegebenen Frist über den vorgesehenen Kommunikationsweg als Bieterfrage gestellt werden. Die Antwort kann für alle Bieter relevant sein und die Unterlagen ergänzen oder erläutern." },
     ],
-    relatedTerms: ["leistungsbeschreibung", "leistungsverzeichnis", "e-vergabe", "eignungskriterien", "zuschlagskriterien", "bieterfragen", "nachforderung-unterlagen", "rahmenvereinbarung"],
+    relatedTerms: ["leistungsbeschreibung", "leistungsverzeichnis", "e-vergabe", "eignungskriterien", "zuschlagskriterien", "bieterfragen", "nachforderung-unterlagen", "rahmenvereinbarung", "auftragsbekanntmachung"],
     relatedArticles: ["ausschreibung-schreiben", "ausschreibung-muster", "wie-funktioniert-ausschreibung", "vob-vergabe"],
     sources: [
       { title: "§ 29 VgV – Vergabeunterlagen", url: "https://www.gesetze-im-internet.de/vgv_2016/__29.html" },
@@ -1641,7 +1689,7 @@ export const GLOSSARY: GlossaryEntry[] = [
       { question: "Ist ein Teilnahmeantrag schon ein Angebot?", answer: "Nein. Der Teilnahmeantrag dient grundsätzlich der Auswahl geeigneter Bewerber. Ein Angebot wird erst in der anschließenden Angebotsphase abgegeben, wenn die Vergabestelle dazu auffordert." },
       { question: "Welche Nachweise werden im Teilnahmewettbewerb verlangt?", answer: "Verlangt werden die in der Bekanntmachung genannten Eignungsnachweise, zum Beispiel Angaben zur beruflichen Befähigung, Referenzen oder zur wirtschaftlichen Leistungsfähigkeit. Maßgeblich sind die konkreten Anforderungen des Verfahrens." },
     ],
-    relatedTerms: ["beschraenktes-verfahren", "eignungskriterien", "eigenerklaerung", "referenzen", "e-vergabe", "nachforderung-unterlagen"],
+    relatedTerms: ["beschraenktes-verfahren", "eignungskriterien", "eigenerklaerung", "referenzen", "e-vergabe", "nachforderung-unterlagen", "auftragsbekanntmachung"],
     relatedArticles: ["vergabeverfahren-uebersicht", "wie-funktioniert-ausschreibung", "eu-vergabe"],
     sources: [
       { title: "§ 16 VgV – Nichtoffenes Verfahren", url: "https://www.gesetze-im-internet.de/vgv_2016/__16.html" },
