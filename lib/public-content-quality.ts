@@ -49,7 +49,7 @@ const OBVIOUS_FORM_DUMP_MARKERS = [
   /\beforms?\s*[-–—:]\s*(?:auftrags)?bekanntmachung\b/iu,
   /\b(?:auftrags)?bekanntmachung\s*[-–—:]\s*eforms?\b/iu,
 ];
-const SERVICE_BUND_PUBLICATION_TEMPLATE_FRAGMENT = /\bauftragsbekanntmachung\b[\s\S]{0,120}\bausgabe\s+\d{1,2}\/\d{4}\s+seite\s+\d+\s+von\s+\d+[\s\S]{0,1000}\bvergabeunterlagen\s+werden\s+elektronisch\s+zur\s+verfügung\s+gestellt\b[\s\S]{0,1000}\bmaßnahmen\s+zum\s+schutz\s+vertraulicher\s+informationen\b/iu;
+const SERVICE_BUND_PUBLICATION_TEMPLATE_FRAGMENT = /\bauftragsbekanntmachung\b(?:[\s\S]{0,120}\bausgabe\s+\d{1,2}\/\d{4}\s+seite\s+\d+\s+von\s+\d+[\s\S]{0,1000}\bvergabeunterlagen\s+werden\s+elektronisch\s+zur\s+verfügung\s+gestellt\b[\s\S]{0,1000}\bmaßnahmen\s+zum\s+schutz\s+vertraulicher\s+informationen\b|[\s\S]{0,120}\bausgabe\s+\d{1,2}\/\d{4}\s+seite\s+\d+\s+von\s+\d+\s+vhb\s+formular\s+412a\b)/iu;
 const SERVICE_BUND_OFFER_SUBMISSION_TEMPLATE_FRAGMENT = /\bzugelassene\s+angebotsabgabe\b[\s\S]{0,120}\belektronisch\s+in\s+textform\b[\s\S]{0,100}\bfortgeschrittener\s*\/\s*m\s+signatur\s*\/\s*siegel\b[\s\S]{0,100}\bqualifizierter\s*\/\s*m\s+signatur\s*\/\s*siegel\b/iu;
 const SERVICE_BUND_OFFER_SUBMISSION_OPTION_FRAGMENT = /\bzugelassene\s+angebotsabgabe\b[\s\S]{0,120}\belektronisch\s+in\s+textform\b[\s\S]{0,100}\bfortgeschrittener\s*\/\s*m\s+signatur\s*\/\s*siegel\b/iu;
 const SERVICE_BUND_CONFIDENTIALITY_TEMPLATE_FRAGMENT = /\bmaßnahmen\s+zum\s+schutz\s+vertraulicher\s+informationen\s*:\s*abgabe\s+verschwiegenheitserklärung\b/iu;
@@ -404,6 +404,25 @@ const isLoginOrParticipationWall = (value: string): boolean =>
   || /(?:m(?:ü|u)ssen sie|bitte).{0,100}(?:am vergabeverfahren teilnehmen|die teilnahme(?: am verfahren)? best(?:ä|ae)tigen)/iu.test(value)
   || /(?:vollst(?:ä|ae)ndige leistungsbeschreibung|vergabeunterlagen).{0,180}nach teilnahme/iu.test(value);
 
+const TRAILING_PUBLIC_ARTIFACT_START = /^(?:service\.bund\.de|haupt[- ]navigations[- ]men(?:ü|u)|meta[- ]navigation|andere ausschreibungen im bereich|ausschreibungen abonnieren|login\b|log\s*in\b|sign\s*in\b|anmelden\b|registrieren\b|registrierung\s+oder\s+anmeldung\b|bitte\s+melden\s+sie\s+sich\b|um\s+zugriff\b|zugriff\s+auf\b|(?:teilnahme|anmeldung|registrierung)\s+(?:ist\s+)?(?:erforderlich|notwendig)\b|(?:passwort|benutzername)\b|(?:vollst(?:ä|ae)ndige\s+leistungsbeschreibung|vergabeunterlagen|unterlagen|leistungsbeschreibung)\b|auftragsbekanntmachung\b|zugelassene\s+angebotsabgabe\b|maßnahmen\s+zum\s+schutz\s+vertraulicher\s+informationen\b|vhb\b|formular\b)/iu;
+
+const isKnownPublicArtifactSuffix = (value: string): boolean =>
+  TRAILING_PUBLIC_ARTIFACT_START.test(value)
+  && (isPublicNavigationSummary(value)
+    || isLoginOrParticipationWall(value)
+    || isPdfFormBoilerplateFragment(value));
+
+/** Remove known portal/document suffixes only when separated from prior prose. */
+const stripKnownPublicArtifactSuffix = (value: string): string => {
+  for (const match of value.matchAll(/[.!?]\s+/gu)) {
+    const boundaryEnd = (match.index ?? 0) + match[0].length;
+    const prefix = value.slice(0, (match.index ?? 0) + 1).trim();
+    const suffix = value.slice(boundaryEnd).trim();
+    if (prefix && isKnownPublicArtifactSuffix(suffix)) return prefix;
+  }
+  return value;
+};
+
 export const isRawPortalDescription = (value: string): boolean => {
   const normalized = foldGerman(normalizePublicQualityText(value))
     .replace(/\s+/g, " ")
@@ -663,7 +682,7 @@ const normalizePublicDisplayCandidateInternal = (value: unknown, allowInlineMark
     .replace(/[\u0000-\u001f\u007f]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-  const procedureNormalized = normalizeProcedurePortalFragment(normalized);
+  const procedureNormalized = normalizeProcedurePortalFragment(stripKnownPublicArtifactSuffix(normalized));
   if (!procedureNormalized) return null;
   const generated = normalizeGeneratedAccessLimitedSummary(procedureNormalized);
   if (generated === null) return null;

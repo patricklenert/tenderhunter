@@ -36,6 +36,8 @@ import { formatDeadlineDE, parseDeadlineDate } from "@/lib/date-utils";
 // Document-summary cache and generation use this shared normalization before display.
 assert.equal(normalizePublicDisplayCandidate("## Bekanntmachung"), null);
 assert.equal(normalizePublicDisplayCandidate(""), null);
+const summarySeparatorArtifact = "- Verfahren - - - Lose - Ergebnisse - Verträge - - - -";
+assert.equal(normalizePublicDisplayCandidate(summarySeparatorArtifact), null);
 assert.equal(normalizePublicDisplayCandidate("SERVICE.BUND.DE - Aktuelle Ausschreibungen"), null);
 assert.equal(normalizePublicDisplayCandidate("Anmelden erforderlich, um Zugriff zu erhalten"), null);
 assert.equal(normalizePublicDisplayCandidate("Dokumentierte Bauleistungen in Mainz"), "Dokumentierte Bauleistungen in Mainz");
@@ -298,7 +300,7 @@ assert.equal(
 // non-null description, across list, modal, detail, index, and search surfaces.
 const structuredSummaryTitle = "Sanierung der Grundschule Mainz";
 const structuredSummaryText = "Die Grundschule erhält eine neue Heizungsanlage und eine verbesserte Wärmedämmung.";
-const invalidDescriptionMetadata = { description: "## Bekanntmachung", client: "Stadt Mainz" };
+const invalidDescriptionMetadata = { description: summarySeparatorArtifact, client: "Stadt Mainz" };
 const structuredSummary = { summary: structuredSummaryText, hard_facts: { buyer: "Stadt Mainz" } };
 const structuredSummaryNormalized = normalizeStructured(structuredSummary, structuredSummaryTitle);
 const structuredSummaryList = projectPublicTenderRecord({
@@ -309,7 +311,7 @@ const structuredSummaryList = projectPublicTenderRecord({
 const structuredSummaryModal = projectPublicDisplayFields({
   title: structuredSummaryTitle,
   client: [structuredSummaryNormalized, invalidDescriptionMetadata],
-  summary: [structuredSummaryNormalized, invalidDescriptionMetadata],
+  summary: [invalidDescriptionMetadata, structuredSummaryNormalized],
 });
 const structuredSummaryDetail = projectPublicTenderDetailFallback({
   title: structuredSummaryTitle,

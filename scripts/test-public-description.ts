@@ -267,6 +267,37 @@ const gluedBundNavigation = "SERVICE.BUND.DEHaupt-Navigations-Men&#xFC;Meta-Navi
 if (!isPublicNavigationSummary(gluedBundNavigation) || normalizePublicDisplayCandidate(gluedBundNavigation) !== null) {
   throw new Error("Verklebte/HTML-kodierte Service-Bund-Navigation wurde als Beschreibung akzeptiert");
 }
+const validSuffixBase = "Die Stadt Mainz saniert die Turnhalle.";
+const appendedPortalArtifacts = [
+  "SERVICE.BUND.DE Haupt-Navigations-Menü Meta-Navigation Andere Ausschreibungen im Bereich",
+  gluedBundNavigation,
+  "Haupt-Navigations-Menü Meta-Navigation Andere Ausschreibungen im Bereich",
+];
+for (const artifact of appendedPortalArtifacts) {
+  if (normalizePublicDisplayCandidate(artifact) !== null
+    || normalizePublicDisplayCandidate(`${validSuffixBase} ${artifact}`) !== validSuffixBase) {
+    throw new Error(`Portalnavigation muss standalone verworfen und als abtrennbarer Suffix entfernt werden: ${artifact}`);
+  }
+}
+const appendedParticipationWall = "Bitte melden Sie sich an, um die vollständigen Vergabeunterlagen einzusehen.";
+if (normalizePublicDisplayCandidate(participationWallText) !== null
+  || normalizePublicDisplayCandidate(appendedParticipationWall) !== null
+  || normalizePublicDisplayCandidate(`${validSuffixBase} ${appendedParticipationWall}`) !== validSuffixBase
+  || normalizePublicDisplayCandidate(`${validSuffixBase} ${participationWallText}`) !== validSuffixBase) {
+  throw new Error("Teilnahme-/Login-Wände müssen standalone verworfen und als Suffix entfernt werden");
+}
+const appendedPdfBoilerplate = "Auftragsbekanntmachung Ausgabe 03/2026 Seite 1 von 2 VHB Formular 412a";
+if (!isPdfFormBoilerplateFragment(appendedPdfBoilerplate)
+  || normalizePublicDisplayCandidate(appendedPdfBoilerplate) !== null
+  || normalizePublicDisplayCandidate(`${validSuffixBase} ${appendedPdfBoilerplate}`) !== validSuffixBase) {
+  throw new Error("PDF-Formularboilerplate muss standalone verworfen und als abtrennbarer Suffix entfernt werden");
+}
+const summarySeparatorArtifact = "- Verfahren - - - Lose - Ergebnisse - Verträge - - - -";
+if (normalizePublicDisplayCandidate("##") !== null
+  || normalizePublicDisplayCandidate(summarySeparatorArtifact) !== null
+  || projectPublicDisplayFields({ location: ["##", "55116 Mainz"] }).location !== "55116 Mainz") {
+  throw new Error("Ungültiger Standort oder Summary-Separator blieb sichtbar oder blockierte den Fallback");
+}
 if (normalizePublicDisplayCandidate(legitTeilnahmeText) !== legitTeilnahmeText) {
   throw new Error("Legitime deutsche Ausschreibungsprosa mit Teilnahme-Bezug wurde als Zugangs-Wand verworfen");
 }
