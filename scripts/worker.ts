@@ -98,24 +98,15 @@ const shouldEnqueuePublicScrape = async (): Promise<boolean> => {
   }
 
   if (lastRun[0].status === "failed") {
-    const continuation = await loadPublicContinuationCursors();
-    if (continuation.length === 0 && !shouldRetryFailedPublicFullRun(lastRun[0].finishedAt)) {
+    if (!shouldRetryFailedPublicFullRun(lastRun[0].finishedAt)) {
       console.log("[scheduler] Öffentliche Ausschreibungen: Full-Run fehlgeschlagen, Retry-Cooldown aktiv.");
       return false;
     }
-    const canRetry = continuation.length === 0 || continuation.some((row) => shouldSchedulePublicContinuation(
-      row.cursorJson as Record<string, JsonValue>,
-      row.exhausted,
-      row.continuationRequired,
-      row.lastStatus,
-      row.lastError,
-    ));
-    if (canRetry) {
-      console.log(`[scheduler] Oeffentliche Ausschreibungen: letzter Lauf ${lastRun[0].status}, starte Recovery-Scrape.`);
-      return true;
-    }
-    console.log("[scheduler] Oeffentliche Ausschreibungen: letzter Lauf fehlgeschlagen, aber alle Quellen sind noch im Backoff.");
-    return false;
+    // A failed full run can fail before its source cursors are persisted, or
+    // leave only parked/permanent source cursors behind. Those cursors must
+    // not prevent the full scrape from retrying after its cooldown.
+    console.log("[scheduler] Oeffentliche Ausschreibungen: letzter Full-Run fehlgeschlagen, starte Recovery-Scrape.");
+    return true;
   }
 
   if (lastRun[0].status === "partial") {
