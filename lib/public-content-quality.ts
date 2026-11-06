@@ -441,8 +441,8 @@ const isMarkdownRemnant = (value: string): boolean => {
   const separatorTokens = value.match(/(?:^|\s)[-–—_=|]{1,3}(?=\s|$)/g) ?? [];
   return lines.length === 0
     || lines.some((line) => /^#{1,6}(?:\s|$)/.test(line) || /^[-*+]\s/.test(line))
-    || separatorTokens.length >= 5
-    || lines.every((line) => /^[-–—=*_|#:]+$/.test(line));
+    || lines.some((line) => /^[-–—_=|#*+:\s]+$/u.test(line))
+    || separatorTokens.length >= 5;
 };
 
 // Some portals glue the end of a navigation label to the procedure value,

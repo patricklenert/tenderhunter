@@ -295,8 +295,15 @@ if (!isPdfFormBoilerplateFragment(appendedPdfBoilerplate)
 const summarySeparatorArtifact = "- Verfahren - - - Lose - Ergebnisse - Verträge - - - -";
 if (normalizePublicDisplayCandidate("##") !== null
   || normalizePublicDisplayCandidate(summarySeparatorArtifact) !== null
+  || normalizePublicDisplayCandidate("— — —") !== null
+  || normalizePublicDisplayCandidate("| | |") !== null
+  || pickValidatedPublicCandidate("— — —", cleanText) !== cleanText
   || projectPublicDisplayFields({ location: ["##", "55116 Mainz"] }).location !== "55116 Mainz") {
   throw new Error("Ungültiger Standort oder Summary-Separator blieb sichtbar oder blockierte den Fallback");
+}
+if (normalizePublicDisplayCandidate("Die Schule wird saniert – die Arbeiten erfolgen im laufenden Betrieb.")
+  !== "Die Schule wird saniert – die Arbeiten erfolgen im laufenden Betrieb.") {
+  throw new Error("Legitime deutsche Prosa mit Gedankenstrich wurde als Separator verworfen");
 }
 if (normalizePublicDisplayCandidate(legitTeilnahmeText) !== legitTeilnahmeText) {
   throw new Error("Legitime deutsche Ausschreibungsprosa mit Teilnahme-Bezug wurde als Zugangs-Wand verworfen");

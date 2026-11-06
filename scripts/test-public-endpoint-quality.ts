@@ -36,7 +36,7 @@ import { formatDeadlineDE, parseDeadlineDate } from "@/lib/date-utils";
 // Document-summary cache and generation use this shared normalization before display.
 assert.equal(normalizePublicDisplayCandidate("## Bekanntmachung"), null);
 assert.equal(normalizePublicDisplayCandidate(""), null);
-const summarySeparatorArtifact = "- Verfahren - - - Lose - Ergebnisse - Verträge - - - -";
+const summarySeparatorArtifact = "— — —";
 assert.equal(normalizePublicDisplayCandidate(summarySeparatorArtifact), null);
 assert.equal(normalizePublicDisplayCandidate("SERVICE.BUND.DE - Aktuelle Ausschreibungen"), null);
 assert.equal(normalizePublicDisplayCandidate("Anmelden erforderlich, um Zugriff zu erhalten"), null);
@@ -366,7 +366,7 @@ const sharedQualityMetadata = {
 const sharedQualityStructured = {
   title: sharedQualityTitle,
   client: "Anmelden erforderlich, um Zugriff zu erhalten",
-  summary: "- Verfahren - - - Lose - Ergebnisse - Verträge - - - -",
+  summary: "— — —",
   description: "## Bekanntmachung",
   descriptionMarkdown: `- **Anforderungen:** ${sharedQualityOfferBoilerplate}`,
   hard_facts: { buyer: "Anmelden erforderlich, um Zugriff zu erhalten", location: "##" },
