@@ -2,7 +2,13 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { jsPDF } from "jspdf";
-import { extractTextFromFile, formatExtractedDocumentText, type ExtractedDocument } from "@/lib/parser";
+import { extractTextFromFile, formatExtractedDocumentText, repairPdfExtractedText, type ExtractedDocument } from "@/lib/parser";
+
+assert.equal(
+  repairPdfExtractedText("Die st�dtischen Gebäude werden saniert."),
+  "Die städtischen Gebäude werden saniert.",
+  "known German encoding damage is repaired for extracted PDF text",
+);
 
 function makeTextPdf(pages: string[]): string {
   const doc = new jsPDF();

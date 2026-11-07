@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { execFileSync } from "node:child_process";
-import { decodeTextBuffer } from "@/lib/text-normalization";
+import { decodeTextBuffer, repairKnownGermanEncoding } from "@/lib/text-normalization";
 import { htmlToBasicMarkdown } from "@/lib/firecrawl";
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
@@ -49,6 +49,9 @@ export const formatExtractedDocumentText = (
 ): string => extracted.method === "ocr" || extracted.pages.length === 0
   ? extracted.text
   : extracted.pages.map((page, index) => `[Seite ${index + 1}]\n${page}`).join("\n\n");
+
+/** Repair known German encoding damage in text extracted from PDF content streams. */
+export const repairPdfExtractedText = (text: string): string => repairKnownGermanEncoding(text);
 
 function parseIntEnv(name: string, fallback: number): number {
   const raw = process.env[name];
@@ -402,17 +405,17 @@ export const extractTextFromFile = async (filePath: string, contentType?: string
          max: MAX_NATIVE_PAGES,
          pagerender: async (pageData: { getTextContent: () => Promise<{ items?: Array<{ str?: unknown }> }> }) => {
            const content = await pageData.getTextContent();
-           const pageText = (content.items ?? [])
+           const pageText = repairPdfExtractedText((content.items ?? [])
              .map((item) => typeof item.str === "string" ? item.str : "")
              .join(" ")
              .replace(/\s+/g, " ")
-             .trim();
+             .trim());
            nativePages.push(pageText);
            return pageText;
          },
        });
       nativePageCount = typeof parsed.numpages === "number" ? parsed.numpages : null;
-      nativeText = parsed.text.trim();
+      nativeText = repairPdfExtractedText(parsed.text.trim());
       if (nativeText.length >= MIN_NATIVE_TEXT_CHARS) {
         return {
           text: nativeText,
@@ -431,7 +434,12 @@ export const extractTextFromFile = async (filePath: string, contentType?: string
     // 1b. Optionaler lokaler Fallback für PDFs, die pdf-parse wegen
     // fehlerhafter XRef-Tabellen nicht lesen kann. Beide Befehle erhalten den
     // Dateipfad als Argument (kein Shell-Aufruf/keine String-Interpolation).
-    const commandFallback = parsePdfWithOptionalCommands(filePath);
+    const commandFallbackResult = parsePdfWithOptionalCommands(filePath);
+    const commandFallback = {
+      ...commandFallbackResult,
+      text: repairPdfExtractedText(commandFallbackResult.text),
+      pages: commandFallbackResult.pages.map(repairPdfExtractedText),
+    };
     if (commandFallback.pageCount !== null) nativePageCount = commandFallback.pageCount;
     if (commandFallback.pages.length > nativePages.length) {
       nativePages.splice(0, nativePages.length, ...commandFallback.pages);
@@ -452,7 +460,7 @@ export const extractTextFromFile = async (filePath: string, contentType?: string
     if (OPENROUTER_API_KEY && fileSize !== null && fileSize <= MAX_OCR_FILE_SIZE) {
       try {
         console.log(`[parser] Parsing PDF mit OpenRouter cloudflare-ai (${(fileSize / 1024 / 1024).toFixed(1)} MB):`, filePath);
-        const ocrText = await parsePdfWithOpenRouter(filePath);
+        const ocrText = repairPdfExtractedText(await parsePdfWithOpenRouter(filePath));
         return {
           text: ocrText,
           pages: nativePages,
@@ -464,7 +472,7 @@ export const extractTextFromFile = async (filePath: string, contentType?: string
         const message = error instanceof Error ? error.message : String(error);
         console.warn("[parser] cloudflare-ai fehlgeschlagen, versuche mistral-ocr:", message);
         try {
-          const ocrText = await parsePdfWithMistralOCR(filePath);
+          const ocrText = repairPdfExtractedText(await parsePdfWithMistralOCR(filePath));
           return {
             text: ocrText,
             pages: nativePages,
@@ -497,7 +505,7 @@ export const extractTextFromFile = async (filePath: string, contentType?: string
       const payload = fs.readFileSync(filePath);
        const parsed = await pdfParse(payload);
        nativePageCount = typeof parsed.numpages === "number" ? parsed.numpages : null;
-       return { text: parsed.text.trim(), pages: nativePages, pageCount: nativePageCount, method: "fallback_native", truncated: false };
+       return { text: repairPdfExtractedText(parsed.text.trim()), pages: nativePages, pageCount: nativePageCount, method: "fallback_native", truncated: false };
      } catch {
        return { text: "", pages: nativePages, pageCount: nativePageCount, method: "fallback_native", truncated: false };
      }

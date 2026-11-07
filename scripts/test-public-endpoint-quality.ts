@@ -348,6 +348,11 @@ assert.equal(structuredSummaryModal.description, structuredSummaryText);
 assert.equal(structuredSummaryDetail.description, structuredSummaryText);
 assert.equal(structuredSummaryIndex.description, structuredSummaryText);
 assert.equal(structuredSummarySearchHit.description, structuredSummaryText);
+assert.equal(
+  readPublicTenderMeta(invalidDescriptionMetadata, { title: structuredSummaryTitle }).description,
+  "",
+  "fixture ensures the metadata description has already been cleaned away",
+);
 
 // One corrupt public record must resolve to the same validated fields for the
 // list, modal, detail API fallback, and server-rendered detail page.
@@ -1211,5 +1216,7 @@ assert.match(meiliSearchSource, /title:\s*\[currentDisplay\.title\]/);
 assert.match(searchRouteSource, /bundesland:\s*hit\.bundesland/);
 assert.match(meiliSearchSource, /\.filter\(\(hit\) => !params\.bundesland \|\| hit\.bundesland === params\.bundesland\)/);
 assert.match(pipelineSource, /parseDeadlineDate\(tender\.deadline\)/);
+assert.match(pipelineSource, /const cachedStructuredChanged = !isDeepStrictEqual\(normalizedCached, blob\)/);
+assert.match(pipelineSource, /if \(cachedStructuredChanged\) \{[\s\S]*?markCatalogDirty\(\);[\s\S]*?enqueueJob\(JOB_SYNC_MEILI/);
 
 console.log("Public endpoint quality tests passed.");

@@ -1,5 +1,6 @@
 import * as cheerio from "cheerio";
 import { createHash, randomUUID } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import fs from "node:fs";
 import path from "node:path";
 import { and, asc, eq, ne, isNotNull, isNull, lt, inArray, or, sql } from "drizzle-orm";
@@ -3415,12 +3416,19 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
       const normalizedCached = normalizeStructured(blob, tender.title ?? "", {
         summary: pickPublicTenderDescription({ metadata: cachedMetadata }) || null,
       });
+      const cachedStructuredChanged = !isDeepStrictEqual(normalizedCached, blob);
       const persisted = await withCurrentPipelineVersion(tenderId, payload, async (tx) => {
-        await tx.update(structuredData)
-          .set({ jsonBlob: normalizedCached, updatedAt: new Date() })
-          .where(eq(structuredData.tenderId, tenderId));
+        if (cachedStructuredChanged) {
+          await tx.update(structuredData)
+            .set({ jsonBlob: normalizedCached, updatedAt: new Date() })
+            .where(eq(structuredData.tenderId, tenderId));
+        }
       });
       if (!persisted.current) return { skipped: true, reason: "veraltete Tender-Version" };
+      if (cachedStructuredChanged) {
+        await markCatalogDirty();
+        await enqueueJob(JOB_SYNC_MEILI, {}, { jobKey: JOB_SYNC_MEILI, dedupeCompleted: false });
+      }
       return { cached: true, detail_cached: true };
     }
   }
