@@ -27,7 +27,7 @@ async function main() {
       await page.setViewportSize({ width, height: 900 });
       const hydrationErrorCount = hydrationErrors.length;
       const runtimeErrorCount = runtimeErrors.length;
-      const response = await page.goto(pageUrl, { waitUntil: "commit" });
+      const response = await page.goto(pageUrl, { waitUntil: "networkidle" });
 
       assert.equal(response?.status(), 200, `${width}px: profile page must respond successfully`);
       await page.getByRole("heading", { level: 1 }).waitFor();
@@ -46,6 +46,7 @@ async function main() {
         return button !== null && getComputedStyle(button).backgroundColor === expectedColor;
       }, expectedActionColor);
       assert.equal(await submitButton.evaluate((button) => getComputedStyle(button).backgroundColor), expectedActionColor, `${width}px: use the shared primary action color`);
+      assert.equal(await submitButton.evaluate((button) => getComputedStyle(button).boxShadow), "none", `${width}px: contained actions must remain flat`);
       const submitButtonHeight = await submitButton.evaluate((button) => button.getBoundingClientRect().height);
       assert.ok(submitButtonHeight >= 44, `${width}px: primary action must retain a practical touch target`);
 
@@ -71,7 +72,7 @@ async function main() {
 }
 
 main().then(() => {
-  console.log("U.S. profile passed hydration, action-token, overflow, and /us redirect checks at 390, 768, 1024, and 1440px.");
+  console.log("U.S. profile passed hydration, flat action, action-token, overflow, and /us redirect checks at 390, 768, 1024, and 1440px.");
 }).catch((error) => {
   console.error(error);
   process.exitCode = 1;

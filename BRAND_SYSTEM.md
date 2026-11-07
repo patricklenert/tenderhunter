@@ -18,6 +18,8 @@ Tenderhunter is the intelligent public-procurement scout for German Mittelstand 
 
 The product is a quiet working tool for bid and business-development teams. Use off-white surfaces, slate text, restrained borders, controlled radii, and one clear signal color. Navy establishes trust and orientation; coral marks brand presence, with a darker coral shade for filled actions. Green means a positive match, amber means a deadline or warning, and red means a real error.
 
+Filled MUI actions remain flat. Use semantic color, borders, and visible focus states for hierarchy instead of drop shadows.
+
 Do not use weapon, target, camouflage, militaristic, neon, cyber, glass, decorative gradient, or cartoon language in the product UI. Radar and scan references should be sparse and functional.
 
 ## Semantic Tokens
