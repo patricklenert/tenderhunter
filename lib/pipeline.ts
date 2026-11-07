@@ -370,6 +370,11 @@ export const resolveEffectiveRawText = (
   return boundedRawText !== null && boundedRawText.trim().length > 0 ? boundedRawText : null;
 };
 
+export const hasTenderLlmRelevanceChanged = (
+  current: boolean | null | undefined,
+  next: boolean | undefined,
+): boolean => next !== undefined && current !== next;
+
 const stableValue = (value: unknown): unknown => {
   if (Array.isArray(value)) return value.map(stableValue);
   if (value && typeof value === "object") {
@@ -714,7 +719,8 @@ const upsertTender = async ({ source, sourceKey, url, title, externalId, metadat
         (mergedMeta !== undefined && !sameValue(current.metadataJson, mergedMeta)) ||
         (effectiveDeadline !== undefined && !sameDate(current.deadlineAt, effectiveDeadline)) ||
         (category !== undefined && current.category !== category) ||
-        (effectiveRawText !== undefined && current.rawText !== effectiveRawText);
+        (effectiveRawText !== undefined && current.rawText !== effectiveRawText) ||
+        hasTenderLlmRelevanceChanged(current.llmRelevant, llmRelevant);
       const nextMetadata = mergedMeta ?? current.metadataJson;
       const resourceSnapshotChanged = hasResourceSnapshotChanged(current.url, current.metadataJson, url, nextMetadata);
 
@@ -746,6 +752,7 @@ const upsertTender = async ({ source, sourceKey, url, title, externalId, metadat
         if (effectiveDeadline !== undefined) updateData.deadlineAt = effectiveDeadline;
         if (category !== undefined) updateData.category = category;
         if (effectiveRawText !== undefined) updateData.rawText = effectiveRawText;
+        if (llmRelevant !== undefined) updateData.llmRelevant = llmRelevant;
         updateData.qualityStatus = "candidate";
         updateData.qualityReason = null;
         updateData.readinessStatus = "pending";
@@ -759,11 +766,6 @@ const upsertTender = async ({ source, sourceKey, url, title, externalId, metadat
         updateData.procedureType = null;
       }
       await tx.update(tenders).set(updateData).where(eq(tenders.id, id));
-      // The relevance flag is bookkeeping, not content: persisting it must not
-      // count as `changed` (no version bump, no derived-state invalidation).
-      if (llmRelevant !== undefined && current.llmRelevant !== llmRelevant) {
-        await tx.update(tenders).set({ llmRelevant }).where(eq(tenders.id, id));
-      }
       return { id, changed, inserted: false };
     });
     if (result.changed) await markCatalogDirty();

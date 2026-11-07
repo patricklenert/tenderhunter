@@ -20,6 +20,7 @@ import {
   isStoredDocumentFileMissing,
   isTerminalCacheDetailFailure,
   resolveEffectiveRawText,
+  hasTenderLlmRelevanceChanged,
   shouldRecoverFailedPipelineStage,
   shouldRetryLowConfidenceStructure,
   isTenderDocumentRefreshDue,
@@ -43,6 +44,10 @@ assert.equal(resolveEffectiveRawText(null), null, "explicit null rawText must cl
 assert.equal(resolveEffectiveRawText(""), null, "an explicit empty rawText snapshot must clear the snapshot");
 assert.equal(resolveEffectiveRawText("  \n  "), null, "whitespace-only rawText must clear the snapshot");
 assert.equal(resolveEffectiveRawText("public snapshot"), "public snapshot", "non-empty rawText must be retained");
+assert.equal(hasTenderLlmRelevanceChanged(false, true), true, "a changed relevance decision must invalidate derived analysis");
+assert.equal(hasTenderLlmRelevanceChanged(true, false), true, "relevance can change in either direction");
+assert.equal(hasTenderLlmRelevanceChanged(false, false), false, "an unchanged relevance decision must not reprocess");
+assert.equal(hasTenderLlmRelevanceChanged(false, undefined), false, "an omitted relevance decision must leave the snapshot untouched");
 assert.equal(
   shouldRefineDocumentRole({ role: "other", roleSource: "aggregator_summary", confidence: 0 }),
   false,
