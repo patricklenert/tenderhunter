@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { notFound } from "next/navigation";
+import { ALL_ARTICLE_SLUGS } from "../lib/articles";
 import { getIndexableAgency } from "../lib/agencies";
 import { matchesCpvCode } from "../lib/cpv-codes";
 import { getListingRobots, getPaginationHref, NOINDEX_FOLLOW } from "../lib/seo-indexability";
@@ -165,6 +166,17 @@ assert.match(proxySource, /resource !== "p" && resource !== "auftraggeber"/, "pr
 const nextConfigSource = readFileSync("next.config.ts", "utf8");
 assert.match(nextConfigSource, /statusCode:\s*301/, "static legacy redirects must use a direct permanent 301");
 assert.match(nextConfigSource, /skipTrailingSlashRedirect:\s*true/, "the proxy must own trailing-slash normalization to avoid redirect chains");
+assert.ok(ALL_ARTICLE_SLUGS.includes("schwellenwerte-vergabe"), "the evergreen threshold article must remain statically generated");
+assert.match(
+  nextConfigSource,
+  /\{ source: "\/wissen\/schwellenwerte-vergabe-2025", destination: "\/wissen\/schwellenwerte-vergabe", statusCode: 301 \}/,
+  "the legacy 2025 threshold article URL must permanently redirect to the evergreen article",
+);
+assert.match(
+  proxySource,
+  /pathname === "\/wissen\/schwellenwerte-vergabe-2025\/"[\s\S]*destination\.pathname = "\/wissen\/schwellenwerte-vergabe"[\s\S]*NextResponse\.redirect\(destination,\s*301\)/,
+  "the trailing-slash legacy threshold URL must redirect directly to the evergreen article",
+);
 
 const loadingSource = readFileSync("app/loading.tsx", "utf8");
 assert.doesNotMatch(loadingSource, /Hidden text for crawlers|Tenderhunter – Öffentliche Ausschreibungen in Deutschland/, "loading UI must not inject hidden generic SEO content instead of route SSR content");

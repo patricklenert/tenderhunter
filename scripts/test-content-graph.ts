@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { ARTICLES } from "../lib/articles";
 import { CATEGORY_LABELS } from "../lib/categories";
 import { GLOSSARY, GLOSSARY_MAP } from "../lib/glossary";
@@ -79,6 +80,24 @@ for (const article of Object.values(ARTICLES)) {
   checkDate(article.slug, "lastReviewed", article.lastReviewed);
   if (article.dateModified < article.datePublished) {
     errors.push(`${article.slug}.dateModified -> predates datePublished`);
+  }
+}
+
+const lexikonHubSource = readFileSync("app/lexikon/page.tsx", "utf8");
+const checkedHubClusters = new Set<string>();
+for (const [, clusterName, clusterSource] of lexikonHubSource.matchAll(
+  /const (VOB_CLUSTER|PROCESS_CLUSTER) = \[([\s\S]*?)\n\];/g,
+)) {
+  checkedHubClusters.add(clusterName);
+  for (const [, slug] of clusterSource.matchAll(/slug:\s*"([^"]+)"/g)) {
+    if (!glossarySlugs.has(slug)) {
+      errors.push(`lexikon.${clusterName} -> missing glossary slug: ${slug}`);
+    }
+  }
+}
+for (const clusterName of ["VOB_CLUSTER", "PROCESS_CLUSTER"]) {
+  if (!checkedHubClusters.has(clusterName)) {
+    errors.push(`lexikon hub -> missing curated cluster: ${clusterName}`);
   }
 }
 
