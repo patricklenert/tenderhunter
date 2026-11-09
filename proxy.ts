@@ -24,6 +24,12 @@ export const config = {
 const hasKey = (record: Record<string, unknown>, value: string): boolean =>
   Object.prototype.hasOwnProperty.call(record, value);
 
+const isFirstPageAlias = (value: string | null): boolean => {
+  if (value === null) return false;
+  const page = Number.parseInt(value, 10);
+  return !Number.isFinite(page) || page <= 1;
+};
+
 const PUBLIC_STATIC_SLUGS: Record<string, ReadonlySet<string>> = {
   wissen: new Set(ALL_ARTICLE_SLUGS),
   lexikon: new Set(ALL_GLOSSARY_SLUGS),
@@ -109,9 +115,9 @@ export async function proxy(request: NextRequest): Promise<NextResponse | Respon
 
   if (
     (resource === "ausschreibungen" || resource === "auftraggeber")
-    &&
-    request.nextUrl.searchParams.size === 1
-    && request.nextUrl.searchParams.get("page") === "1"
+    && request.nextUrl.searchParams.has("page")
+    && [...request.nextUrl.searchParams.keys()].every((key) => key === "page")
+    && isFirstPageAlias(request.nextUrl.searchParams.get("page"))
   ) {
     const destination = new URL(request.url);
     destination.pathname = pathname.length > 1 && hasTrailingSlash ? pathname.slice(0, -1) : pathname;

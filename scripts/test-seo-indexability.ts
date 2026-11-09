@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { notFound } from "next/navigation";
+import { NextRequest } from "next/server";
 import { ALL_ARTICLE_SLUGS } from "../lib/articles";
 import { getIndexableAgency } from "../lib/agencies";
 import { matchesCpvCode } from "../lib/cpv-codes";
@@ -9,7 +10,7 @@ import { dependencyUnavailableResponse, optionalPublicRows, rethrowNavigationErr
 import { isCanonicalTenderId } from "../lib/tender-canonical";
 import { getSiteUrl } from "../lib/site-config";
 import { decodeRouteParam } from "../lib/route-params";
-import { isKnownPublicAusschreibungenPath, isKnownPublicStaticPath } from "../proxy";
+import { isKnownPublicAusschreibungenPath, isKnownPublicStaticPath, proxy } from "../proxy";
 
 assert.equal(getListingRobots({}, 1, true), undefined);
 assert.deepEqual(getListingRobots({ q: "bau" }, 1, true), { index: false, follow: true });
@@ -151,7 +152,7 @@ assert.match(readFileSync("app/not-found.tsx", "utf8"), /alternates:\s*\{\s*cano
 
 const proxySource = readFileSync("proxy.ts", "utf8");
 assert.match(proxySource, /pathname === "\/"[\s\S]*searchParams\.size === 1[\s\S]*searchParams\.get\("q"\) === "\{search_term_string\}"[\s\S]*NextResponse\.redirect\(destination, 301\)/, "the obsolete WebSite search placeholder must redirect directly to the clean homepage");
-assert.match(proxySource, /searchParams\.size === 1[\s\S]*searchParams\.get\("page"\) === "1"[\s\S]*NextResponse\.redirect\(destination, 301\)/, "standalone page=1 URLs must directly redirect to the clean listing URL");
+assert.match(proxySource, /searchParams\.has\("page"\)[\s\S]*keys\(\)\]\.every\(\(key\) => key === "page"\)[\s\S]*isFirstPageAlias\(request\.nextUrl\.searchParams\.get\("page"\)\)[\s\S]*NextResponse\.redirect\(destination, 301\)/, "page-one aliases must directly redirect to the clean listing URL");
 assert.match(proxySource, /NextResponse\.redirect\(destination,\s*301\)/, "canonical tender redirects must use a direct permanent 301");
 assert.match(proxySource, /pathname\.endsWith\("\/"\)/, "trailing-slash URLs must be normalized in the proxy");
 assert.match(proxySource, /hasTrailingSlash\s*\|\|/, "canonical tender URLs with a trailing slash must redirect in one hop");
@@ -213,6 +214,16 @@ assert.equal(unavailable.headers.get("retry-after"), "60");
 assert.equal(unavailable.headers.get("x-robots-tag"), "noindex, follow");
 
 void (async () => {
+  for (const value of ["1", "01", "0", "-1", "junk", "1.5"]) {
+    for (const path of ["/ausschreibungen/bauarbeiten", "/auftraggeber/stadt-muenchen"]) {
+      const response = await proxy(new NextRequest(`https://palemaz.com${path}?page=${value}`));
+      assert.equal(response.status, 301, `${path}?page=${value} must redirect to the clean page-one URL`);
+      assert.equal(response.headers.get("location"), `https://palemaz.com${path}`);
+    }
+  }
+  const duplicatePage = await proxy(new NextRequest("https://palemaz.com/ausschreibungen/bauarbeiten?page=0&page=2"));
+  assert.equal(duplicatePage.status, 301, "duplicate page-one parameters must redirect directly to the clean URL");
+
   assert.deepEqual(await optionalPublicRows(() => Promise.resolve([{ id: 1 }])), [{ id: 1 }]);
   assert.deepEqual(await optionalPublicRows(() => Promise.reject(new Error("optional query failed"))), []);
   console.log("SEO indexability tests passed.");
