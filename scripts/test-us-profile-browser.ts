@@ -30,8 +30,10 @@ async function main() {
       const response = await page.goto(pageUrl, { waitUntil: "networkidle" });
 
       assert.equal(response?.status(), 200, `${width}px: profile page must respond successfully`);
-      await page.getByRole("heading", { level: 1 }).waitFor();
-      assert.equal(await page.getByRole("heading", { level: 1 }).count(), 1, `${width}px: render one page heading`);
+      const heading = page.getByRole("heading", { level: 1 });
+      await heading.waitFor();
+      assert.equal(await heading.count(), 1, `${width}px: render one page heading`);
+      assert.equal(await heading.textContent(), "Make every pursuit brief specific to your company.", `${width}px: describe the profile without assuming a legal entity type`);
 
       await page.keyboard.press("Tab");
       const focusOutlineWidth = await page.evaluate(() => Number.parseFloat(getComputedStyle(document.activeElement!).outlineWidth));
