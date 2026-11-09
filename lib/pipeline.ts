@@ -528,6 +528,7 @@ const primaryDocumentRole = (roles: DocumentRole[]): DocumentRole =>
 export const mergeMetadata = (
   existing: unknown,
   incoming: Record<string, JsonValue> | undefined,
+  title?: unknown,
 ): Record<string, JsonValue> | undefined => {
   if (!incoming) return undefined;
   const existingRecord = (existing && typeof existing === "object")
@@ -557,6 +558,27 @@ export const mergeMetadata = (
     if (isEmpty) continue;
     merged[key] = value;
   }
+
+  const incomingDisplay = projectPublicDisplayFields({
+    title,
+    client: [incoming.client, incoming.buyer, incoming.hard_facts, incoming.hardFacts],
+    location: [incoming.location, incoming.city, incoming.hard_facts, incoming.hardFacts],
+  });
+  const existingDisplay = projectPublicDisplayFields({
+    title,
+    client: [existingRecord.client, existingRecord.buyer, existingRecord.hard_facts, existingRecord.hardFacts],
+    location: [existingRecord.location, existingRecord.city, existingRecord.hard_facts, existingRecord.hardFacts],
+  });
+  const mergedDisplay = projectPublicDisplayFields({
+    title,
+    client: [incomingDisplay.client, existingDisplay.client],
+    location: [incomingDisplay.location, existingDisplay.location],
+  });
+  if (mergedDisplay.client) merged.client = mergedDisplay.client;
+  else delete merged.client;
+  if (mergedDisplay.location) merged.location = mergedDisplay.location;
+  else delete merged.location;
+
   if (Object.prototype.hasOwnProperty.call(existingRecord, "descriptionMarkdown")
     || Object.prototype.hasOwnProperty.call(existingRecord, "description_markdown")
     || Object.prototype.hasOwnProperty.call(incoming, "descriptionMarkdown")
@@ -597,6 +619,7 @@ export const mergeMetadata = (
 };
 
 const upsertTender = async ({ source, sourceKey, url, title, externalId, metadata, deadlineAt, category, rawText, llmRelevant }: UpsertTenderInput): Promise<UpsertTenderResult> => {
+  const normalizedTitle = pickValidatedPublicCandidate(title) || null;
   const boundedRawText = rawText === undefined || rawText === null
     ? rawText
     : rawText.slice(0, MAX_TENDER_TEXT_CHARS);
@@ -708,14 +731,15 @@ const upsertTender = async ({ source, sourceKey, url, title, externalId, metadat
       if (!current) throw new Error(`Tender ${id} wurde während des Upserts entfernt`);
 
       // Non-destructive merge: don't let empty new values erase non-empty existing ones.
-      const mergedMeta = mergeMetadata(current.metadataJson, metadata);
+      const nextTitle = normalizedTitle || pickValidatedPublicCandidate(current.title) || null;
+      const mergedMeta = mergeMetadata(current.metadataJson, metadata, nextTitle);
       const effectiveDeadline = deadlineAt !== undefined ? (deadlineAt ?? current.deadlineAt ?? null) : undefined;
       const effectiveRawText = resolveEffectiveRawText(boundedRawText);
 
       const changed =
         (sourceKey !== undefined && current.sourceKey !== sourceKey) ||
         current.url !== url ||
-        current.title !== title ||
+        current.title !== nextTitle ||
         (externalId !== undefined && current.externalId !== externalId) ||
         (mergedMeta !== undefined && !sameValue(current.metadataJson, mergedMeta)) ||
         (effectiveDeadline !== undefined && !sameDate(current.deadlineAt, effectiveDeadline)) ||
@@ -747,7 +771,7 @@ const upsertTender = async ({ source, sourceKey, url, title, externalId, metadat
         updateData.version = sql`${tenders.version} + 1`;
         if (sourceKey !== undefined) updateData.sourceKey = sourceKey;
         updateData.url = url;
-        updateData.title = title;
+        updateData.title = nextTitle;
         if (externalId !== undefined) updateData.externalId = externalId;
         if (mergedMeta !== undefined) updateData.metadataJson = mergedMeta;
         if (effectiveDeadline !== undefined) updateData.deadlineAt = effectiveDeadline;
@@ -779,9 +803,9 @@ const upsertTender = async ({ source, sourceKey, url, title, externalId, metadat
       source,
       sourceKey: sourceKey ?? undefined,
       url,
-      title,
+      title: normalizedTitle,
       externalId: externalId ?? undefined,
-      metadataJson: metadata ?? undefined,
+      metadataJson: mergeMetadata(undefined, metadata, normalizedTitle) ?? undefined,
       deadlineAt: deadlineAt ?? undefined,
       category: category ?? undefined,
       rawText: resolveEffectiveRawText(boundedRawText) ?? undefined,

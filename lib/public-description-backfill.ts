@@ -2,6 +2,8 @@ import {
   isCanonicalPublicDescriptionMarkdown,
   isPublicCandidateFromTruncatedArray,
   isTruncatedPublicTokenArray,
+  pickValidatedPublicClient,
+  pickValidatedPublicLocationForTender,
   normalizePublicTextList,
   pickValidatedPublicSummaryForTender,
 } from "./public-content-quality";
@@ -14,6 +16,13 @@ export interface PublicDescriptionRepair {
   descriptionChanged: boolean;
   summaryChanged: boolean;
   scopeChanged: boolean;
+  clientChanged: boolean;
+  locationChanged: boolean;
+}
+
+export interface PublicDescriptionDisplayFallbacks {
+  client?: readonly unknown[];
+  location?: readonly unknown[];
 }
 
 export const hasPositivePublicAccessEvidence = (
@@ -49,6 +58,77 @@ const getScopeRecords = (record: PublicDescriptionRecord): PublicDescriptionReco
 
 const getScopeSources = (records: readonly PublicDescriptionRecord[]): unknown[] =>
   records.flatMap((record) => [record.scope, record.subject]);
+
+const getHardFactRecords = (record: PublicDescriptionRecord): PublicDescriptionRecord[] => [
+  record,
+  ...[record.hard_facts, record.hardFacts]
+    .filter((value): value is PublicDescriptionRecord => Boolean(value && typeof value === "object" && !Array.isArray(value))),
+];
+
+const repairDisplayFacts = (
+  record: PublicDescriptionRecord,
+  title: unknown,
+  client: unknown,
+  fallbacks: PublicDescriptionDisplayFallbacks,
+): { clientChanged: boolean; locationChanged: boolean } => {
+  const records = getHardFactRecords(record);
+  const clientKeys = ["client", "buyer", "authority", "contractingAuthority"];
+  const locationKeys = ["location", "city"];
+  const clientCandidates = records.flatMap((item) => clientKeys.map((key) => item[key]));
+  const locationCandidates = records.flatMap((item) => locationKeys.map((key) => item[key]));
+  const titleForLocation = title;
+  let clientChanged = false;
+  let locationChanged = false;
+
+  for (let index = 0; index < records.length; index += 1) {
+    const item = records[index];
+    const nestedHardFacts = index > 0;
+    for (const key of clientKeys) {
+      if (!hasOwn(item, key)) continue;
+      const original = item[key];
+      const normalized = pickValidatedPublicClient(
+        original,
+        ...clientCandidates,
+        client,
+        ...(fallbacks.client ?? []),
+      );
+      if (normalized) {
+        if (original !== normalized) {
+          item[key] = normalized;
+          clientChanged = true;
+        }
+      } else if (typeof original === "string" && original.trim()) {
+        if (nestedHardFacts) item[key] = null;
+        else delete item[key];
+        clientChanged = true;
+      }
+    }
+    for (const key of locationKeys) {
+      if (!hasOwn(item, key)) continue;
+      const original = item[key];
+      if (original !== null && typeof original !== "string") continue;
+      const normalized = pickValidatedPublicLocationForTender(
+        titleForLocation,
+        client,
+        original,
+        ...locationCandidates,
+        ...(fallbacks.location ?? []),
+      );
+      if (normalized) {
+        if (original !== normalized) {
+          item[key] = normalized;
+          locationChanged = true;
+        }
+      } else if (typeof original === "string" && original.trim()) {
+        if (nestedHardFacts) item[key] = null;
+        else delete item[key];
+        locationChanged = true;
+      }
+    }
+  }
+
+  return { clientChanged, locationChanged };
+};
 
 const clearInvalidScopeFields = (records: readonly PublicDescriptionRecord[]): boolean => {
   let changed = false;
@@ -110,9 +190,10 @@ export const repairPublicDescriptionFields = (
   fallbacks: readonly string[] = [],
   title?: unknown,
   client?: unknown,
+  displayFallbacks: PublicDescriptionDisplayFallbacks = {},
 ): PublicDescriptionRepair => {
   const record = { ...input };
-  for (const key of ["decision_relevant", "decisionRelevant"]) {
+  for (const key of ["decision_relevant", "decisionRelevant", "hard_facts", "hardFacts"]) {
     const nested = record[key];
     if (nested && typeof nested === "object" && !Array.isArray(nested)) {
       record[key] = { ...(nested as PublicDescriptionRecord) };
@@ -121,10 +202,12 @@ export const repairPublicDescriptionFields = (
   const scopeRecords = getScopeRecords(record);
   const scopeSources = getScopeSources(scopeRecords);
   const scopeChanged = clearInvalidScopeFields(scopeRecords);
+  const displayFacts = repairDisplayFacts(record, title, client, displayFallbacks);
   return {
     record,
     descriptionChanged: repairField(record, "description", fallbacks, title, scopeSources, client),
     summaryChanged: repairField(record, "summary", fallbacks, title, scopeSources, client),
     scopeChanged,
+    ...displayFacts,
   };
 };

@@ -23,6 +23,22 @@ assert.equal(item.location, "55116 Mainz");
 assert.equal(item.description, "", "unsectioned page copy must not be promoted to a tender description");
 assert.deepEqual(item.pdfUrls, ["https://example.vergabe.rlp.de/docs/unterlagen.pdf"]);
 
+for (const [index, pageDates] of [
+  "<p>Bekanntmachungsdatum: 01.12.2026</p>",
+  "<p>Veröffentlicht am: 10.12.2026</p><p>Zuletzt aktualisiert: 15.12.2026</p>",
+].entries()) {
+  const pageDatesWithoutDeadline = extractBasicDetailFromHtml(
+    `<html><head><title>Sanierung der Schule in Mainz</title></head><body>
+      <h1>Sanierung der Schule in Mainz</h1>${pageDates}
+    </body></html>`,
+    `https://example.vergabe.rlp.de/project/${127 + index}`,
+    "rlp",
+    [],
+  );
+  assert.ok(pageDatesWithoutDeadline);
+  assert.equal(pageDatesWithoutDeadline.deadline, null, "page dates without an explicit deadline label must not become bid deadlines");
+}
+
 const genericHtmlFallback = htmlToBasicMarkdown(`<html><body>
   <nav>SERVICE.BUND.DE Haupt-Navigations-Menü Meta-Navigation Andere Ausschreibungen im Bereich</nav>
   <main><h1>Sanierung der Turnhalle in Mainz</h1><p>Die Stadt Mainz saniert die Turnhalle.</p></main>
@@ -47,6 +63,7 @@ const sectionedItem = extractBasicDetailFromHtml(
   [],
 );
 assert.ok(sectionedItem);
+assert.equal(sectionedItem.deadline, "31.12.2026", "an explicitly labeled Angebotsfrist should be retained");
 assert.equal(
   sectionedItem.description,
   "Die Stadt Mainz lässt öffentliche Kanäle im gesamten Stadtgebiet fachgerecht reinigen und inspizieren.",

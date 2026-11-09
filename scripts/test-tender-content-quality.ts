@@ -118,6 +118,14 @@ const main = async (): Promise<void> => {
   assert.deepEqual(regexFallback.procurement.cpv_codes, ["90910000-7"]);
   assert.equal(regexFallback.procurement.procedure_type, "offen");
 
+  const invalidStructuredTitle = normalizeStructured({ title: "## Bekanntmachung", summary: "Dokumentierte Bauleistungen" }, "Sanierung der Turnhalle in Mainz");
+  assert.equal(invalidStructuredTitle.title, "Sanierung der Turnhalle in Mainz");
+  assert.equal(
+    normalizeStructured({ title: "## Bekanntmachung" }, "## Kurzinfo").title,
+    "",
+    "invalid structured and fallback titles must not be persisted as display facts",
+  );
+
   const summaryAfterInvalidCandidates = await extractStructuredData(
     "Sanierung der Turnhalle in Mainz",
     [
@@ -551,6 +559,18 @@ const main = async (): Promise<void> => {
     source: "dtvp",
     pdfUrls: [],
   };
+  const normalizedScrapedDisplay = withDescriptionMarkdown({
+    ...scrapedListBase,
+    title: "## Bekanntmachung",
+    location: "##",
+    description: "Die Stadt Mainz erneuert die Heizungsanlage der Grundschule.",
+  });
+  assert.equal(normalizedScrapedDisplay.title, "");
+  assert.equal(normalizedScrapedDisplay.location, null);
+  assert.equal(normalizedScrapedDisplay.description, "Die Stadt Mainz erneuert die Heizungsanlage der Grundschule.");
+  assert.match(normalizedScrapedDisplay.descriptionMarkdown, /Zusammenfassung/);
+  assert.doesNotMatch(normalizedScrapedDisplay.descriptionMarkdown, /## Bekanntmachung|##/);
+
   const normalizedScrapedTokens = withDescriptionMarkdown({
     ...scrapedListBase,
     requirements: manualTokens24246,

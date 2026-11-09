@@ -948,6 +948,38 @@ if (!summaryFallback.descriptionChanged
   || summaryFallback.record.summary !== "Dokumentierte Bauleistungen in Mainz") {
   throw new Error("Backfill verwendet keinen gültigen Summary-Fallback");
 }
+const displayFactRepair = repairPublicDescriptionFields({
+  client: "Anmelden erforderlich, um Zugriff zu erhalten",
+  buyer: "Stadt Mainz",
+  location: "##",
+  city: "55116 Mainz",
+  hard_facts: {
+    buyer: "##",
+    client: "Stadt Mainz",
+    location: "##",
+    city: "55116 Mainz",
+  },
+}, [], "Sanierung der Grundschule Mainz", "Stadt Mainz", {
+  client: ["Stadt Mainz"],
+  location: ["55116 Mainz"],
+});
+const displayFactRepairAgain = repairPublicDescriptionFields(
+  displayFactRepair.record,
+  [],
+  "Sanierung der Grundschule Mainz",
+  "Stadt Mainz",
+  { client: ["Stadt Mainz"], location: ["55116 Mainz"] },
+);
+if (displayFactRepair.record.client !== "Stadt Mainz"
+  || displayFactRepair.record.location !== "55116 Mainz"
+  || (displayFactRepair.record.hard_facts as { buyer: string; location: string }).buyer !== "Stadt Mainz"
+  || (displayFactRepair.record.hard_facts as { buyer: string; location: string }).location !== "55116 Mainz"
+  || !displayFactRepair.clientChanged
+  || !displayFactRepair.locationChanged
+  || displayFactRepairAgain.clientChanged
+  || displayFactRepairAgain.locationChanged) {
+  throw new Error("Backfill bereinigt ungültige Auftraggeber-/Standortwerte nicht fallback-validiert und idempotent");
+}
 const checkboxBackfill = repairPublicDescriptionFields({
   description: subcontractorCheckboxFormFragment,
   summary: subcontractorCheckboxFormFragment,

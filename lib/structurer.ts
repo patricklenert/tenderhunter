@@ -586,7 +586,7 @@ const normalizeFlatReferenceFact = (value: unknown): string | null => {
 
 export function normalizeStructured(raw: unknown, fallbackTitle: string, fallbackFacts: StructuredFallbackFacts = {}): StructuredData {
   const obj = recordValue(raw);
-  const safeFallbackTitle = sanitizeTenderText(fallbackTitle);
+  const safeFallbackTitle = pickValidatedPublicCandidate(fallbackTitle);
   if (obj && typeof obj === "object" && (obj.decision_relevant || obj.decisionRelevant)) {
     const structured = obj as unknown as StructuredData;
     const decisionRelevant = mergeStructuredRecords(obj.decision_relevant, obj.decisionRelevant);
@@ -639,7 +639,11 @@ export function normalizeStructured(raw: unknown, fallbackTitle: string, fallbac
     ) ?? "";
     const structuredSummaryCandidates = structuredAliasValues([obj], ["summary", "description"])
       .filter((candidate) => !isPublicCandidateFromTruncatedArray(candidate, rawScope));
-    const structuredTitle = sanitizeTenderText(structured.title) || safeFallbackTitle;
+    const structuredTitle = pickValidatedPublicCandidate(
+      structured.title,
+      (structured as unknown as Record<string, unknown>).name,
+      safeFallbackTitle,
+    );
     const normalizedSummary = pickValidatedPublicSummaryForTender(
       structuredTitle,
       normalizePublicClient(fallbackFacts.buyer) || structuredBuyer || null,
@@ -728,7 +732,7 @@ export function normalizeStructured(raw: unknown, fallbackTitle: string, fallbac
   const scopeStr = firstValidStructuredValue([flat], ["scope", "subject"], (value) => sanitizeTenderText(value) || null) ?? "";
   const reqArr = firstValidTextList([flat], ["requirements", "participation_requirements", "participationRequirements"]);
   const awardArr = firstValidTextList([flat], ["awardCriteria", "award_criteria"]);
-  const titleStr = sanitizeTenderText(flat.title) || safeFallbackTitle;
+  const titleStr = pickValidatedPublicCandidate(flat.title, flat.name, safeFallbackTitle);
   const buyerStr = firstValidStructuredValue([flat], ["client", "buyer"], (value) => normalizePublicClient(value) || null)
     || normalizePublicClient(fallbackFacts.buyer)
     || null;
@@ -1114,7 +1118,7 @@ export const extractStructuredData = async (
   rawText: string,
   options: { useLLM?: boolean; reference?: string | null } = {},
 ): Promise<StructuredData> => {
-  const safeTitle = pickValidatedPublicCandidate(title) || "Ausschreibung";
+  const safeTitle = pickValidatedPublicCandidate(title);
   const normalizedRawText = decodeHtmlEntities(rawText);
   const opportunityStatus = classifyOpportunityStatus(title, normalizedRawText);
   const lines = normalizedRawText

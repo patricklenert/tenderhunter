@@ -410,6 +410,32 @@ assert.equal(
   "canonical markdown updates without text changes retain their existing accepted behavior",
 );
 
+const normalizedDisplayMetadata = mergeMetadata(
+  { location: "##", city: "55116 Mainz", client: "Anmelden erforderlich, um Zugriff zu erhalten" },
+  { location: "##", client: "Meta-Navigation" },
+  "Sanierung der Grundschule Mainz",
+);
+assert.equal(normalizedDisplayMetadata?.location, "55116 Mainz");
+assert.equal(normalizedDisplayMetadata?.client, undefined, "invalid stored and incoming client labels are cleared");
+assert.equal(
+  mergeMetadata(
+    { location: "55116 Mainz", client: "Stadt Mainz" },
+    { location: "##", client: "Anmelden erforderlich, um Zugriff zu erhalten" },
+    "Sanierung der Grundschule Mainz",
+  )?.location,
+  "55116 Mainz",
+  "invalid incoming location and client values must not replace valid persisted values",
+);
+assert.equal(
+  mergeMetadata(
+    {},
+    { location: "##", city: "55116 Mainz", buyer: "Stadt Mainz" },
+    "Sanierung der Grundschule Mainz",
+  )?.location,
+  "55116 Mainz",
+  "a valid metadata alias must be selected after an invalid first display candidate",
+);
+
 assert.equal(isFetchableResourceCandidate(combinedCandidate), true, "extensionless download resources are fetchable");
 assert.equal(isPermanentResourceFailure("Dokument konnte nicht geladen werden: 401"), true, "authentication-required resources are not retried forever");
 assert.equal(isPermanentResourceFailure("Zugriffsblockierte Seite statt Dokument (participation_required)"), true, "participation-required resources are permanent without user access");

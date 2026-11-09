@@ -349,11 +349,12 @@ const normalizePublicList = (value: unknown): string[] => {
 
 export const withDescriptionMarkdown = (tender: ExtractedTenderInput): ExtractedTender => {
   const accessLimited = tender.accessLimited === true || isAccessLimitedSummary(tender.description);
-  const title = cleanTenderTitle(String(tender.title ?? ""));
+  const cleanedTitle = cleanTenderTitle(String(tender.title ?? ""));
   const baseDisplay = projectPublicDisplayFields({
-    title,
+    title: cleanedTitle,
     client: tender.client,
   });
+  const title = baseDisplay.title || "";
   const client = baseDisplay.client || "";
   const accessDescription = accessLimited
     ? buildPublicAccessLimitedDescription(title, extractPublicPortalFacts(tender.description ?? ""))
@@ -1576,8 +1577,7 @@ export function extractBasicDetailFromHtml(
   const portalFacts = extractPublicPortalFacts(text);
   const cpvCodes = extractPublicCpvCodes(text);
 
-  const deadline = text.match(/(?:Angebotsfrist|Abgabefrist|Ablauf der Angebotsfrist|Einreichungsfrist)[\s\S]{0,120}?(\d{1,2}\.\d{1,2}\.\d{4})/i)?.[1]
-    ?? text.match(/\b\d{1,2}\.\d{1,2}\.\d{4}\b/)?.[0]
+  const deadline = text.match(/(?:Angebotsfrist|Abgabefrist|Ablauf der Angebotsfrist|Einreichungsfrist|Frist)[\s\S]{0,120}?(\d{1,2}\.\d{1,2}\.\d{4})/i)?.[1]
     ?? null;
   const parsedClientCandidates = [
     valueAfterSection(

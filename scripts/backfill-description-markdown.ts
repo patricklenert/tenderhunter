@@ -172,12 +172,12 @@ const isAccessLimited = (metadata: JsonRecord, rawText: string, description: str
   || isParticipationWallText(description)
   || /vollständige Leistungsbeschreibung[\s\S]{0,180}nach Teilnahme/i.test(`${rawText} ${description}`);
 
-const buildRowDescriptionMarkdown = (row: TenderRow, metadata: JsonRecord, blob: JsonRecord): string => {
+const buildRowDescriptionMarkdown = (row: TenderRow, metadata: JsonRecord, blob: JsonRecord, title = row.title): string => {
   const description = text(metadata.description);
   const portalText = [row.raw_text, description].filter((value): value is string => Boolean(value && value.trim())).join(" ");
   if (isAccessLimited(metadata, row.raw_text ?? "", description)) {
     return buildPublicAccessLimitedDescriptionMarkdown(
-      row.title ?? "",
+      title ?? "",
       extractPublicPortalFacts(portalText),
     );
   }
@@ -186,11 +186,11 @@ const buildRowDescriptionMarkdown = (row: TenderRow, metadata: JsonRecord, blob:
   return buildTenderDescriptionMarkdown(facts);
 };
 
-const buildAccessDescriptionFallback = (row: TenderRow, metadata: JsonRecord): string => {
+const buildAccessDescriptionFallback = (row: TenderRow, metadata: JsonRecord, title = row.title): string => {
   const description = text(metadata.description);
   const portalText = [row.raw_text, description].filter((value): value is string => Boolean(value && value.trim())).join(" ");
   if (!isAccessLimited(metadata, row.raw_text ?? "", description)) return "";
-  return buildPublicAccessLimitedDescription(row.title ?? "", extractPublicPortalFacts(portalText));
+  return buildPublicAccessLimitedDescription(title ?? "", extractPublicPortalFacts(portalText));
 };
 
 const canonicalMarkdown = (record: JsonRecord, markdown: string, publicFieldsChanged: boolean): JsonRecord => {
@@ -271,9 +271,14 @@ async function main(): Promise<void> {
     let metadataDescriptionRepaired = 0;
     let metadataSummaryRepaired = 0;
     let metadataScopeRepaired = 0;
+    let metadataClientRepaired = 0;
+    let metadataLocationRepaired = 0;
     let structuredDescriptionRepaired = 0;
     let structuredSummaryRepaired = 0;
     let structuredScopeRepaired = 0;
+    let structuredClientRepaired = 0;
+    let structuredLocationRepaired = 0;
+    let titleChanged = 0;
     let skippedMalformed = 0;
     let failed = 0;
 
@@ -286,32 +291,42 @@ async function main(): Promise<void> {
           metadata: parsedMetadata.value,
           structured: parsedStructured.value,
         });
+        const nextTitle = publicDisplay.title;
+        const rowTitleChanged = row.title !== nextTitle;
         const publicDescription = publicDisplay.description;
-        const accessDescription = buildAccessDescriptionFallback(row, parsedMetadata.value);
+        const accessDescription = buildAccessDescriptionFallback(row, parsedMetadata.value, nextTitle);
         const publicFallbacks = [publicDescription, accessDescription]
           .filter((value): value is string => Boolean(value));
         const repairedMetadata = repairPublicDescriptionFields(
           parsedMetadata.value,
           publicFallbacks,
-          row.title,
+          nextTitle,
           publicDisplay.client,
+          { client: [publicDisplay.client], location: [publicDisplay.location] },
         );
         const repairedStructured = repairPublicDescriptionFields(
           parsedStructured.value,
           publicFallbacks,
-          row.title,
+          nextTitle,
           publicDisplay.client,
+          { client: [publicDisplay.client], location: [publicDisplay.location] },
         );
         const publicFieldsChanged = repairedMetadata.descriptionChanged
           || repairedMetadata.summaryChanged
           || repairedMetadata.scopeChanged
+          || repairedMetadata.clientChanged
+          || repairedMetadata.locationChanged
           || repairedStructured.descriptionChanged
           || repairedStructured.summaryChanged
-          || repairedStructured.scopeChanged;
+          || repairedStructured.scopeChanged
+          || repairedStructured.clientChanged
+          || repairedStructured.locationChanged
+          || rowTitleChanged;
         const generatedMarkdown = buildRowDescriptionMarkdown(
           row,
           repairedMetadata.record,
           repairedStructured.record,
+          nextTitle,
         );
         const nextMetadata = canonicalMarkdown(
           repairedMetadata.record,
@@ -340,18 +355,28 @@ async function main(): Promise<void> {
         if (shouldUpdateMetadata && repairedMetadata.descriptionChanged) metadataDescriptionRepaired += 1;
         if (shouldUpdateMetadata && repairedMetadata.summaryChanged) metadataSummaryRepaired += 1;
         if (shouldUpdateMetadata && repairedMetadata.scopeChanged) metadataScopeRepaired += 1;
+        if (shouldUpdateMetadata && repairedMetadata.clientChanged) metadataClientRepaired += 1;
+        if (shouldUpdateMetadata && repairedMetadata.locationChanged) metadataLocationRepaired += 1;
         if (shouldUpdateStructured && repairedStructured.descriptionChanged) structuredDescriptionRepaired += 1;
         if (shouldUpdateStructured && repairedStructured.summaryChanged) structuredSummaryRepaired += 1;
         if (shouldUpdateStructured && repairedStructured.scopeChanged) structuredScopeRepaired += 1;
+        if (shouldUpdateStructured && repairedStructured.clientChanged) structuredClientRepaired += 1;
+        if (shouldUpdateStructured && repairedStructured.locationChanged) structuredLocationRepaired += 1;
+        if (rowTitleChanged) titleChanged += 1;
 
         if (dryRun) {
           const repairedFields = [
             repairedMetadata.descriptionChanged && shouldUpdateMetadata ? "metadata.description" : "",
             repairedMetadata.summaryChanged && shouldUpdateMetadata ? "metadata.summary" : "",
             repairedMetadata.scopeChanged && shouldUpdateMetadata ? "metadata.scope" : "",
+            repairedMetadata.clientChanged && shouldUpdateMetadata ? "metadata.client" : "",
+            repairedMetadata.locationChanged && shouldUpdateMetadata ? "metadata.location" : "",
             repairedStructured.descriptionChanged && shouldUpdateStructured ? "structured.description" : "",
             repairedStructured.summaryChanged && shouldUpdateStructured ? "structured.summary" : "",
             repairedStructured.scopeChanged && shouldUpdateStructured ? "structured.scope" : "",
+            repairedStructured.clientChanged && shouldUpdateStructured ? "structured.client" : "",
+            repairedStructured.locationChanged && shouldUpdateStructured ? "structured.location" : "",
+            rowTitleChanged ? "title" : "",
           ].filter(Boolean);
           console.log(`#${row.id} ${row.title ?? "(ohne Titel)"}: metadata=${shouldUpdateMetadata ? "update" : "ok"}, structured=${shouldUpdateStructured ? "update" : "skip"}${repairedFields.length > 0 ? `, repaired=${repairedFields.join(",")}` : ""}${markdownChanges.length > 0 ? `, markdown=${markdownChanges.join(",")}` : ""}`);
           continue;
@@ -361,6 +386,13 @@ async function main(): Promise<void> {
           await client`
             UPDATE tenders
             SET metadata_json = ${client.json(nextMetadata as never)}, updated_at = NOW()
+            WHERE id = ${row.id}
+          `;
+        }
+        if (rowTitleChanged) {
+          await client`
+            UPDATE tenders
+            SET title = ${nextTitle}, updated_at = NOW()
             WHERE id = ${row.id}
           `;
         }
@@ -385,13 +417,18 @@ async function main(): Promise<void> {
       metadataDescriptionRepaired,
       metadataSummaryRepaired,
       metadataScopeRepaired,
+      metadataClientRepaired,
+      metadataLocationRepaired,
       structuredDescriptionRepaired,
       structuredSummaryRepaired,
       structuredScopeRepaired,
+      structuredClientRepaired,
+      structuredLocationRepaired,
+      titleChanged,
       skippedMalformed,
       failed,
     }));
-    if (!dryRun && (metadataChanged > 0 || structuredChanged > 0)) {
+    if (!dryRun && (titleChanged > 0 || metadataChanged > 0 || structuredChanged > 0)) {
       await markCatalogDirty();
     }
     if (shouldSyncPublicDescriptionBackfillMeili(dryRun, syncMeili)) {
