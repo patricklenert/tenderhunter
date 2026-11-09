@@ -357,22 +357,33 @@ assert.equal(
 // One corrupt public record must resolve to the same validated fields for the
 // list, modal, detail API fallback, and server-rendered detail page.
 const sharedQualityTitle = "Erneuerung der Energiezentrale in Bautzen";
-const sharedQualitySummary = "Die Energiezentrale des Verwaltungsgebäudes wird umfassend modernisiert.";
 const sharedQualityLocation = "02625 Bautzen";
-const sharedQualityMarkdown = `- **Leistungsumfang:** ${sharedQualitySummary}`;
-const sharedQualityNavigation = "SERVICE.BUND.DEHaupt-Navigations-Men&#xFC;Meta-NavigationAndere Ausschreibungen im Bereich";
+const sharedQualityCheckboxFormFragment = "☐ Ich/wir beabsichtige(n), Teile des Auftrags an Nachunternehmer zu vergeben: Angabe der übernommenen Auftragsteile/des Leistungsbereiches";
+const sharedQualitySubcontractorProse = "Die Vergabestelle gestattet die Vergabe von Teilleistungen an Nachunternehmer; die Verantwortung verbleibt beim Auftragnehmer.";
+const sharedQualityAccessFallback = getPublicAccessLimitedFallback({
+  title: sharedQualityTitle,
+  factsText: [
+    "Vergabestelle: Stadt Bautzen",
+    `Erfüllungsort: ${sharedQualityLocation}`,
+    `Leistungsumfang: ${sharedQualitySubcontractorProse}`,
+  ].join("\n"),
+  evidenceText: "Um Zugriff auf dieses Modul zu erhalten müssen Sie am Vergabeverfahren teilnehmen.",
+});
+assert.ok(sharedQualityAccessFallback, "shared fixture must have a neutral access-limited fallback");
+const sharedQualitySummary = sharedQualityAccessFallback.description;
+const sharedQualityMarkdown = sharedQualityAccessFallback.descriptionMarkdown;
 const sharedQualityOfferBoilerplate = "Zugelassene Angebotsabgabe elektronisch in Textform mit fortgeschrittener/m Signatur/Siegel.";
 const sharedQualityMetadata = {
   client: "Anmelden erforderlich, um Zugriff zu erhalten",
   location: "##",
-  description: `## Bekanntmachung\n${sharedQualityNavigation}`,
+  description: sharedQualitySummary,
   descriptionMarkdown: `- **Anforderungen:** ${sharedQualityOfferBoilerplate}`,
 };
 const sharedQualityStructured = {
   title: sharedQualityTitle,
   client: "Anmelden erforderlich, um Zugriff zu erhalten",
-  summary: "— — —",
-  description: "## Bekanntmachung",
+  summary: sharedQualityCheckboxFormFragment,
+  description: sharedQualityCheckboxFormFragment,
   descriptionMarkdown: `- **Anforderungen:** ${sharedQualityOfferBoilerplate}`,
   hard_facts: { buyer: "Anmelden erforderlich, um Zugriff zu erhalten", location: "##" },
 };
@@ -380,7 +391,7 @@ const sharedQualityFacts = {
   buyer: "Stadt Bautzen",
   location: sharedQualityLocation,
   summary: sharedQualitySummary,
-  scope: sharedQualitySummary,
+  scope: sharedQualitySubcontractorProse,
 };
 const sharedQualityStructuredNormalized = normalizeStructured(
   sharedQualityStructured,
@@ -446,10 +457,12 @@ assert.equal(sharedQualityExpected.client, "Stadt Bautzen");
 assert.equal(sharedQualityExpected.location, sharedQualityLocation);
 assert.equal(sharedQualityExpected.summary, sharedQualitySummary);
 assert.equal(sharedQualityExpected.description, sharedQualitySummary);
+assert.equal(normalizePublicDisplayCandidate(sharedQualityCheckboxFormFragment), null);
+assert.equal(normalizePublicDisplayCandidate(sharedQualitySubcontractorProse), sharedQualitySubcontractorProse);
 assert.ok(isCanonicalPublicDescriptionMarkdown(sharedQualityExpected.descriptionMarkdown));
 assert.doesNotMatch(
   `${sharedQualityExpected.summary} ${sharedQualityExpected.descriptionMarkdown}`,
-  /SERVICE\.BUND\.DE|Haupt-Navigations-Menü|Meta-Navigation|Andere Ausschreibungen im Bereich|fortgeschrittener\/m/u,
+  /SERVICE\.BUND\.DE|Haupt-Navigations-Menü|Meta-Navigation|Andere Ausschreibungen im Bereich|fortgeschrittener\/m|☐ Ich\/wir beabsichtige/u,
 );
 
 // cache_detail persists a validated scope as a sentence/list item, and list,

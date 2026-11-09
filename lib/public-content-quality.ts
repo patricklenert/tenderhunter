@@ -40,6 +40,7 @@ const PDF_FORM_MARKERS = [
   /(?:baumassnahme|baumaßnahme)\s+leistung\s+bewerber/iu,
   /(?:ausgabe\s+\d{4}\s+stand\s+\d{4}|mitglied\s+der\s+bewerber)/iu,
 ];
+const SUBCONTRACTOR_CHECKBOX_FORM_FRAGMENT = /^☐\s*ich\/wir\s+beabsichtige\(n\),\s*teile\s+des\s+auftrags\s+an\s+nachunternehmer\s+zu\s+vergeben:\s*angabe\s+der\s+übernommenen\s+auftragsteile\/des\s+leistungsbereiches[.!]?$/iu;
 
 const OBVIOUS_FORM_DUMP_MARKERS = [
   /\bvhb(?:\s*[-/]\s*|\s+)nrw\b.{0,120}\bformular\s+412a\b.{0,40}\b\d{1,2}\s*[/.]\s*\d{4}\b.{0,100}\bauftragsbekanntmachung\b/iu,
@@ -344,6 +345,7 @@ export const isPdfFormBoilerplate = (value: string): boolean => {
   // Ignore this known fragment for whole-document checks only if other text remains.
   const documentText = withoutServiceBundTemplate.length >= 30 ? withoutServiceBundTemplate : normalized;
   if (isPublicDocumentArtifact(documentText)) return true;
+  if (SUBCONTRACTOR_CHECKBOX_FORM_FRAGMENT.test(documentText)) return true;
   if (documentText.length < 30) return false;
   return OBVIOUS_FORM_DUMP_MARKERS.some((pattern) => pattern.test(documentText))
     || PDF_FORM_MARKERS.filter((pattern) => pattern.test(documentText)).length >= 2;
@@ -407,10 +409,11 @@ const isLoginOrParticipationWall = (value: string): boolean =>
 const TRAILING_PUBLIC_ARTIFACT_START = /^(?:service\.bund\.de|haupt[- ]navigations[- ]men(?:ü|u)|meta[- ]navigation|andere ausschreibungen im bereich|ausschreibungen abonnieren|login\b|log\s*in\b|sign\s*in\b|anmelden\b|registrieren\b|registrierung\s+oder\s+anmeldung\b|bitte\s+melden\s+sie\s+sich\b|um\s+zugriff\b|zugriff\s+auf\b|(?:teilnahme|anmeldung|registrierung)\s+(?:ist\s+)?(?:erforderlich|notwendig)\b|(?:passwort|benutzername)\b|(?:vollst(?:ä|ae)ndige\s+leistungsbeschreibung|vergabeunterlagen|unterlagen|leistungsbeschreibung)\b|auftragsbekanntmachung\b|zugelassene\s+angebotsabgabe\b|maßnahmen\s+zum\s+schutz\s+vertraulicher\s+informationen\b|vhb\b|formular\b)/iu;
 
 const isKnownPublicArtifactSuffix = (value: string): boolean =>
-  TRAILING_PUBLIC_ARTIFACT_START.test(value)
-  && (isPublicNavigationSummary(value)
-    || isLoginOrParticipationWall(value)
-    || isPdfFormBoilerplateFragment(value));
+  SUBCONTRACTOR_CHECKBOX_FORM_FRAGMENT.test(normalizePublicQualityText(value))
+  || (TRAILING_PUBLIC_ARTIFACT_START.test(value)
+    && (isPublicNavigationSummary(value)
+      || isLoginOrParticipationWall(value)
+      || isPdfFormBoilerplateFragment(value)));
 
 /** Remove known portal/document suffixes only when separated from prior prose. */
 const stripKnownPublicArtifactSuffix = (value: string): string => {

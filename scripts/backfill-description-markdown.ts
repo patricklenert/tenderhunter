@@ -325,6 +325,14 @@ async function main(): Promise<void> {
         );
         const shouldUpdateMetadata = parsedMetadata.valid && !sameJson(parsedMetadata.value, nextMetadata);
         const shouldUpdateStructured = row.json_blob !== null && parsedStructured.valid && !sameJson(parsedStructured.value, nextStructured);
+        const markdownChanges = [
+          shouldUpdateMetadata && parsedMetadata.value.descriptionMarkdown !== nextMetadata.descriptionMarkdown
+            ? "metadata.descriptionMarkdown"
+            : "",
+          shouldUpdateStructured && parsedStructured.value.descriptionMarkdown !== nextStructured.descriptionMarkdown
+            ? "structured.descriptionMarkdown"
+            : "",
+        ].filter(Boolean);
 
         if (!parsedMetadata.valid || (row.json_blob !== null && !parsedStructured.valid)) skippedMalformed += 1;
         if (shouldUpdateMetadata) metadataChanged += 1;
@@ -345,7 +353,7 @@ async function main(): Promise<void> {
             repairedStructured.summaryChanged && shouldUpdateStructured ? "structured.summary" : "",
             repairedStructured.scopeChanged && shouldUpdateStructured ? "structured.scope" : "",
           ].filter(Boolean);
-          console.log(`#${row.id} ${row.title ?? "(ohne Titel)"}: metadata=${shouldUpdateMetadata ? "update" : "ok"}, structured=${shouldUpdateStructured ? "update" : "skip"}${repairedFields.length > 0 ? `, repaired=${repairedFields.join(",")}` : ""}`);
+          console.log(`#${row.id} ${row.title ?? "(ohne Titel)"}: metadata=${shouldUpdateMetadata ? "update" : "ok"}, structured=${shouldUpdateStructured ? "update" : "skip"}${repairedFields.length > 0 ? `, repaired=${repairedFields.join(",")}` : ""}${markdownChanges.length > 0 ? `, markdown=${markdownChanges.join(",")}` : ""}`);
           continue;
         }
 

@@ -46,6 +46,8 @@ import { normalizeStructured } from "@/lib/structurer";
 
 const rawPortalText = "(Bekanntmachung Öffentliche Ausschreibung) a)Öffentlicher Auftraggeber (Vergabestelle) NameGrün und Gruga StraßeLührmannstraße 82 Telefon0201 Fax0201";
 const cleanText = "Die Stadt beauftragt die Ausführung von Wegebauarbeiten im öffentlichen Raum.";
+const subcontractorCheckboxFormFragment = "☐ Ich/wir beabsichtige(n), Teile des Auftrags an Nachunternehmer zu vergeben: Angabe der übernommenen Auftragsteile/des Leistungsbereiches";
+const legitimateSubcontractorProse = "Die Vergabestelle gestattet die Vergabe von Teilleistungen an Nachunternehmer; die Verantwortung verbleibt beim Auftragnehmer.";
 const serviceBundPdfTemplateFragment = "Auftragsbekanntmachung © Ausgabe 03/2020 Seite 2 von 2 Vergabeunterlagen werden elektronisch zur Verfügung gestellt. Maßnahmen zum Schutz vertraulicher Informationen";
 const serviceBundOfferSubmissionTemplateFragment = "Zugelassene Angebotsabgabe elektronisch in Textform mit fortgeschrittener/m Signatur/Siegel. mit qualifizierter/m Signatur/Siegel. schriftlich; Maßnahmen zum Schutz vertraulicher Informationen: Abgabe Verschwiegenheitserklärung";
 const serviceBundOfferSubmissionOptionFragment = "Zugelassene Angebotsabgabe elektronisch in Textform mit fortgeschrittener/m Signatur/Siegel.";
@@ -332,6 +334,26 @@ if (!isPdfFormBoilerplateFragment(serviceBundOfferSubmissionOptionFragment)
 }
 if (normalizePublicDisplayCandidate("VHB-Bund-Ausgabe 2019 Eigenerklärung zur Eignung und rechtsverbindliche Unterschrift") !== null) {
   throw new Error("PDF-Formularboilerplate wurde als Beschreibung akzeptiert");
+}
+if (!isPdfFormBoilerplateFragment(subcontractorCheckboxFormFragment)
+  || normalizePublicDisplayCandidate(subcontractorCheckboxFormFragment) !== null) {
+  throw new Error("Das konkrete Nachunternehmer-Checkbox-Formular wurde als öffentliche Beschreibung akzeptiert");
+}
+if (isPdfFormBoilerplateFragment(legitimateSubcontractorProse)
+  || normalizePublicDisplayCandidate(legitimateSubcontractorProse) !== legitimateSubcontractorProse) {
+  throw new Error("Legitime deutsche Prosa über Nachunternehmer wurde als Formularboilerplate verworfen");
+}
+if (normalizePublicDisplayCandidate(`${legitimateSubcontractorProse} ${subcontractorCheckboxFormFragment}`)
+  !== legitimateSubcontractorProse) {
+  throw new Error("Gültige Prosa wurde durch angehängte Checkbox-Formulartexte nicht erhalten");
+}
+if (pickValidatedPublicSummaryForTender(
+  "Erneuerung der Energiezentrale in Bautzen",
+  "Stadt Bautzen",
+  subcontractorCheckboxFormFragment,
+  legitimateSubcontractorProse,
+) !== legitimateSubcontractorProse) {
+  throw new Error("Ungültige erste Nachunternehmer-Zusammenfassung blockiert keinen gültigen Folge-Kandidaten");
 }
 const populatedVhbNotice = "[Seite 1] VHB-VOL NRW VOL 3a 01/2015 Vergabebekanntmachung Öffentliche Ausschreibung Bekanntmachung Aktenzeichen: Vergabe-Nr.: 1088_044-FL Bezeichnung des Verfahrens: Erneuerung der Fahrleitungsmaste an der Hafenstraße in Krefeld 1. Art der Vergabe 2. Bezeichnung der zur Angebotsabgabe auffordernden Stelle Bezeichnung SWK MOBIL GmbH Postanschrift Telefon-Nummer Telefax-Nummer E-Mail-Adresse Ablauf der Angebotsfrist 22.10.2026 13:00 Uhr";
 const populatedVhbNoticeWithScope = "[Seite 1] 121 Bekanntmachung Öffentliche Ausschreibung VHB-Bund Vergabenummer R34/6-2026/08 a) Öffentlicher Auftraggeber Name Struktur-und Genehmigungsdirektion Süd Straße Industriestraße 70 Art der Leistung: Rodungsarbeiten Umfang ca. 3.000 m2 Ablauf der Angebotsfrist am 18.11.2099 um 14:00 Uhr";
@@ -925,6 +947,38 @@ if (!summaryFallback.descriptionChanged
   || summaryFallback.record.description !== "Dokumentierte Bauleistungen in Mainz"
   || summaryFallback.record.summary !== "Dokumentierte Bauleistungen in Mainz") {
   throw new Error("Backfill verwendet keinen gültigen Summary-Fallback");
+}
+const checkboxBackfill = repairPublicDescriptionFields({
+  description: subcontractorCheckboxFormFragment,
+  summary: subcontractorCheckboxFormFragment,
+}, [legitimateSubcontractorProse], "Erneuerung der Energiezentrale in Bautzen", "Stadt Bautzen");
+const checkboxBackfillAgain = repairPublicDescriptionFields(
+  checkboxBackfill.record,
+  [legitimateSubcontractorProse],
+  "Erneuerung der Energiezentrale in Bautzen",
+  "Stadt Bautzen",
+);
+const oldCheckboxMarkdown = buildTenderDescriptionMarkdown({ summary: "Die bisherige öffentliche Zusammenfassung bleibt bestehen." });
+const generatedCheckboxMarkdown = buildTenderDescriptionMarkdown({ summary: legitimateSubcontractorProse });
+const repairedCheckboxMarkdown = selectPublicDescriptionMarkdown(
+  { descriptionMarkdown: oldCheckboxMarkdown },
+  generatedCheckboxMarkdown,
+  checkboxBackfill.descriptionChanged || checkboxBackfill.summaryChanged,
+);
+const secondPassCheckboxMarkdown = selectPublicDescriptionMarkdown(
+  { descriptionMarkdown: repairedCheckboxMarkdown },
+  buildTenderDescriptionMarkdown({ summary: legitimateSubcontractorProse }),
+  checkboxBackfillAgain.descriptionChanged || checkboxBackfillAgain.summaryChanged,
+);
+if (!checkboxBackfill.descriptionChanged
+  || !checkboxBackfill.summaryChanged
+  || checkboxBackfill.record.description !== legitimateSubcontractorProse
+  || checkboxBackfill.record.summary !== legitimateSubcontractorProse
+  || checkboxBackfillAgain.descriptionChanged
+  || checkboxBackfillAgain.summaryChanged
+  || repairedCheckboxMarkdown !== generatedCheckboxMarkdown
+  || secondPassCheckboxMarkdown !== repairedCheckboxMarkdown) {
+  throw new Error("Checkbox-Backfill übernimmt den gültigen Fallback samt Markdown nicht idempotent");
 }
 
 const repairTitle = "Sanierung der Kläranlage in Mainz";
