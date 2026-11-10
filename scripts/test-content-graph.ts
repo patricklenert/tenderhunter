@@ -86,7 +86,7 @@ for (const article of Object.values(ARTICLES)) {
 const lexikonHubSource = readFileSync("app/lexikon/page.tsx", "utf8");
 const checkedHubClusters = new Set<string>();
 for (const [, clusterName, clusterSource] of lexikonHubSource.matchAll(
-  /const (VOB_CLUSTER|PROCESS_CLUSTER) = \[([\s\S]*?)\n\];/g,
+  /const (VOB_CLUSTER|PROCESS_CLUSTER|RIGHTS_CLUSTER) = \[([\s\S]*?)\n\];/g,
 )) {
   checkedHubClusters.add(clusterName);
   for (const [, slug] of clusterSource.matchAll(/slug:\s*"([^"]+)"/g)) {
@@ -95,10 +95,15 @@ for (const [, clusterName, clusterSource] of lexikonHubSource.matchAll(
     }
   }
 }
-for (const clusterName of ["VOB_CLUSTER", "PROCESS_CLUSTER"]) {
+for (const clusterName of ["VOB_CLUSTER", "PROCESS_CLUSTER", "RIGHTS_CLUSTER"]) {
   if (!checkedHubClusters.has(clusterName)) {
     errors.push(`lexikon hub -> missing curated cluster: ${clusterName}`);
   }
+}
+
+const toolsHubSource = readFileSync("app/tools/page.tsx", "utf8");
+if (!toolsHubSource.includes("GLOSSARY.length") || toolsHubSource.includes("48 Begriffe")) {
+  errors.push("tools hub -> glossary count must use the live glossary data, not a hardcoded count");
 }
 
 const vergaberechtLeitfaden = ARTICLES["vergaberecht-leitfaden"];
@@ -159,6 +164,48 @@ for (const slug of requiredVobLinks) {
   if (!vobA?.relatedTerms?.includes(slug)) {
     errors.push(`vob-a.relatedTerms -> required cluster link missing: ${slug}`);
   }
+}
+
+const informationDuty = GLOSSARY_MAP["informations-und-wartepflicht"];
+if (!informationDuty) {
+  errors.push("legal protection cluster -> missing informations-und-wartepflicht glossary entry");
+} else {
+  for (const phrase of ["15 Kalendertage", "zehn Kalendertage", "Tag nach der Absendung", "§ 134 Absatz 3", "§ 160 GWB", "§ 135 GWB"]) {
+    if (!informationDuty.definition.join(" ").includes(phrase)) {
+      errors.push(`informations-und-wartepflicht.definition -> missing scoped detail: ${phrase}`);
+    }
+  }
+  for (const url of [
+    "https://www.gesetze-im-internet.de/gwb/__134.html",
+    "https://www.gesetze-im-internet.de/gwb/__135.html",
+    "https://www.gesetze-im-internet.de/gwb/__160.html",
+  ]) {
+    if (!informationDuty.sources?.some((source) => source.url === url)) {
+      errors.push(`informations-und-wartepflicht.sources -> missing primary source: ${url}`);
+    }
+  }
+  for (const slug of ["zuschlag", "zuschlagserteilung", "nachpruefungsverfahren", "ruege", "vergabekammer", "gwb-vergaberecht"]) {
+    if (!informationDuty.relatedTerms?.includes(slug)) {
+      errors.push(`informations-und-wartepflicht.relatedTerms -> missing cluster link: ${slug}`);
+    }
+    if (!GLOSSARY_MAP[slug]?.relatedTerms?.includes("informations-und-wartepflicht")) {
+      errors.push(`${slug}.relatedTerms -> missing reciprocal informations-und-wartepflicht link`);
+    }
+  }
+  for (const slug of ["nachpruefungsverfahren-vergabe", "vergaberecht-leitfaden", "vob-vergabe"]) {
+    if (!informationDuty.relatedArticles?.includes(slug)) {
+      errors.push(`informations-und-wartepflicht.relatedArticles -> missing ${slug}`);
+    }
+    if (!ARTICLES[slug]?.relatedGlossaryTerms?.includes("informations-und-wartepflicht")) {
+      errors.push(`${slug}.relatedGlossaryTerms -> missing informations-und-wartepflicht`);
+    }
+  }
+}
+if (GLOSSARY_MAP["zuschlag"]?.definition.join(" ").includes("Nach erfolgtem Zuschlag müssen die nicht berücksichtigten Bieter informiert werden")) {
+  errors.push("zuschlag.definition -> incorrectly places the § 134 information after the award");
+}
+if (!ARTICLES["nachpruefungsverfahren-vergabe"]?.content.includes("beginnt am Tag nach der Absendung")) {
+  errors.push("nachpruefungsverfahren-vergabe.content -> missing § 134 waiting-period start rule");
 }
 
 const vobCluster = ["vob-a", "vob-b", "vob-c", "vob-a-eu"];

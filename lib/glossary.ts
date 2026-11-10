@@ -54,7 +54,7 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "Den vollständigen Text des GWB finden Sie auf gesetze-im-internet.de unter der offiziellen Veröffentlichung des Bundesministeriums der Justiz. Für die Einordnung sind insbesondere die Vorschriften des vierten Teils und die jeweils aktuelle Fassung maßgeblich.",
       },
     ],
-    relatedTerms: ["vgv-vergabeverordnung", "uvgo", "vob-a", "vob-a-eu", "schwellenwerte", "nachpruefungsverfahren", "rahmenvereinbarung"],
+    relatedTerms: ["vgv-vergabeverordnung", "uvgo", "vob-a", "vob-a-eu", "schwellenwerte", "nachpruefungsverfahren", "informations-und-wartepflicht", "rahmenvereinbarung"],
     relatedArticles: ["vergaberecht-leitfaden", "schwellenwerte-vergabe", "vob-vergabe"],
     sources: [
       { title: "§ 97 GWB – Grundsätze der Vergabe", url: "https://www.gesetze-im-internet.de/gwb/__97.html" },
@@ -790,13 +790,13 @@ export const GLOSSARY: GlossaryEntry[] = [
     definition: [
       "Der Zuschlag ist die verbindliche Annahme eines Angebots durch den öffentlichen Auftraggeber. Mit dem Zuschlag kommt der Vertrag zwischen Auftraggeber und Bieter zustande. Die Zuschlagsentscheidung und ihre Mitteilung müssen den jeweils anwendbaren Formvorschriften entsprechen.",
       "Der Zuschlag muss auf Basis der vorab bekannt gemachten Zuschlagskriterien erfolgen. Das wirtschaftlichste Angebot erhält den Zuschlag — das muss nicht zwingend das billigste sein, wenn andere Kriterien wie Qualität, Laufzeit oder Nachhaltigkeit berücksichtigt werden.",
-      "Nach erfolgtem Zuschlag müssen die nicht berücksichtigten Bieter informiert werden. Sie können innerhalb bestimmter Fristen den Zuschlag angreifen, wenn sie der Meinung sind, dass das Verfahren fehlerhaft war.",
+      "Soweit § 134 GWB anwendbar ist, werden die betroffenen Bieter vor dem Vertragsschluss über den vorgesehenen Zuschlag informiert. Daran schließt sich die gesetzliche Wartefrist an; sie ist von den Rüge- und Antragsfristen zu unterscheiden.",
     ],
     keyPoints: [
       "Verbindliche Annahme eines Angebots",
       "Führt zum Vertragsabschluss",
       "Muss auf Basis der Zuschlagskriterien erfolgen",
-      "Nicht berücksichtigte Bieter müssen informiert werden",
+      "Informations- und Wartepflicht nach § 134 GWB gilt vor Vertragsschluss, soweit anwendbar",
     ],
     faq: [
       {
@@ -807,15 +807,19 @@ export const GLOSSARY: GlossaryEntry[] = [
         question: "Kann der Zuschlag angegriffen werden?",
         answer: "Unter den Voraussetzungen des vierten Teils des GWB können antragsbefugte Unternehmen ein Nachprüfungsverfahren einleiten. Die Fristen richten sich insbesondere nach § 160 Absatz 3 GWB; sie sind nicht pauschal mit der 15- oder 10-tägigen Wartefrist aus § 134 GWB gleichzusetzen.",
       },
+      {
+        question: "Wann werden unterlegene Bieter über den geplanten Zuschlag informiert?",
+        answer: "Soweit § 134 GWB gilt, informiert der Auftraggeber die betroffenen Bieter vor Vertragsschluss in Textform über den vorgesehenen Auftragnehmer, die Gründe der Nichtberücksichtigung und den frühesten Zeitpunkt des Vertragsschlusses. Danach ist grundsätzlich die gesetzliche Wartefrist einzuhalten.",
+      },
     ],
-    relatedTerms: ["zuschlagskriterien", "bindefrist", "nachpruefungsverfahren", "rahmenvereinbarung"],
-    relatedArticles: ["vergaberecht-leitfaden"],
+    relatedTerms: ["zuschlagskriterien", "bindefrist", "nachpruefungsverfahren", "informations-und-wartepflicht", "rahmenvereinbarung"],
+    relatedArticles: ["vergaberecht-leitfaden", "nachpruefungsverfahren-vergabe"],
     sources: [
       { title: "§ 127 GWB – Zuschlag", url: "https://www.gesetze-im-internet.de/gwb/__127.html" },
       { title: "§ 134 GWB – Informations- und Wartepflicht", url: "https://www.gesetze-im-internet.de/gwb/__134.html" },
       { title: "§ 160 GWB – Einleitung, Antrag", url: "https://www.gesetze-im-internet.de/gwb/__160.html" },
     ],
-    lastReviewed: "2026-09-27",
+    lastReviewed: "2026-11-10",
   },
   {
     slug: "angebot",
@@ -1283,14 +1287,64 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "Die Dauer hängt vom konkreten Verfahren, der Auslastung und der Komplexität des Falls ab. Gegen die Entscheidung der Vergabekammer kann unter den Voraussetzungen des GWB sofortige Beschwerde beim zuständigen Oberlandesgericht eingelegt werden.",
       },
     ],
-    relatedTerms: ["ruege", "vergabekammer", "vergabesenat", "gwb-vergaberecht"],
-    relatedArticles: ["vergaberecht-leitfaden"],
+    relatedTerms: ["ruege", "vergabekammer", "vergabesenat", "gwb-vergaberecht", "informations-und-wartepflicht"],
+    relatedArticles: ["vergaberecht-leitfaden", "nachpruefungsverfahren-vergabe"],
     sources: [
       { title: "§ 155 GWB – Nachprüfungsbehörden", url: "https://www.gesetze-im-internet.de/gwb/__155.html" },
       { title: "§ 160 GWB – Einleitung, Antrag", url: "https://www.gesetze-im-internet.de/gwb/__160.html" },
       { title: "§ 172 GWB – Frist, Form, Inhalt der sofortigen Beschwerde", url: "https://www.gesetze-im-internet.de/gwb/__172.html" },
     ],
     lastReviewed: "2026-09-27",
+  },
+  {
+    slug: "informations-und-wartepflicht",
+    term: "Informations- und Wartepflicht nach § 134 GWB",
+    category: "Nachprüfung",
+    shortDefinition: "§ 134 GWB verpflichtet öffentliche Auftraggeber im Anwendungsbereich des vierten Teils des GWB, betroffene Bieter vor dem Vertragsschluss über den vorgesehenen Zuschlag zu informieren. Grundsätzlich muss danach eine Wartefrist von 15 Kalendertagen, bei elektronischer Übermittlung oder Fax von zehn Kalendertagen, eingehalten werden.",
+    definition: [
+      "Die umgangssprachlich oft „Vorabinformation“ genannte Mitteilung nach § 134 GWB informiert betroffene Bieter vor dem Vertragsschluss über den Namen des vorgesehenen Auftragnehmers, die Gründe, aus denen ihr Angebot nicht berücksichtigt werden soll, und den frühesten Zeitpunkt des Vertragsschlusses. Die Mitteilung muss unverzüglich in Textform erfolgen. Erfasst sind außerdem bestimmte Bewerber, die nicht bereits vorher über die Ablehnung ihrer Bewerbung informiert wurden.",
+      "Die Wartefrist beträgt grundsätzlich 15 Kalendertage ab Absendung der Information. Wird sie elektronisch oder per Fax übermittelt, sind es zehn Kalendertage. Die Frist beginnt am Tag nach der Absendung; der Zeitpunkt des Zugangs beim Bieter ist dafür nicht maßgeblich.",
+      "§ 134 Absatz 3 GWB nimmt bestimmte Fälle von der Informations- und Wartepflicht aus, darunter ein wegen besonderer Dringlichkeit zulässiges Verhandlungsverfahren ohne Teilnahmewettbewerb sowie Einzelvergaben unter einer Rahmenvereinbarung oder einem dynamischen Beschaffungssystem. Deshalb ist die Pflicht nicht pauschal auf jede öffentliche Vergabe übertragbar.",
+      "Die Wartefrist ist nicht mit den Rüge- und Antragsfristen nach § 160 GWB gleichzusetzen. Ein Verstoß gegen § 134 führt auch nicht ohne Weiteres automatisch zur Vertragsaufhebung: § 135 GWB regelt eine mögliche Unwirksamkeit unter den dort genannten Voraussetzungen und im Nachprüfungsverfahren.",
+    ],
+    keyPoints: [
+      "Mitteilung vor Vertragsschluss, nicht erst nach Zuschlag",
+      "Sie nennt den vorgesehenen Auftragnehmer, die Nichtberücksichtigungsgründe und den frühesten Vertragsschluss",
+      "Wartefrist: grundsätzlich 15 Tage, elektronisch oder per Fax 10 Tage; Beginn am Tag nach Absendung",
+      "Gilt im Anwendungsbereich des vierten Teils des GWB und hat gesetzliche Ausnahmen",
+      "Von Rüge- und Antragsfristen nach § 160 GWB unterscheiden",
+    ],
+    faq: [
+      {
+        question: "Was ist eine Vorabinformation nach § 134 GWB?",
+        answer: "„Vorabinformation“ ist die gebräuchliche Bezeichnung für die Mitteilung nach § 134 GWB. Sie informiert betroffene Bieter vor Vertragsschluss in Textform darüber, wer den Zuschlag erhalten soll, warum ihr Angebot nicht berücksichtigt wird und wann der Vertrag frühestens geschlossen werden darf.",
+      },
+      {
+        question: "Wie lange ist die Wartefrist nach § 134 GWB?",
+        answer: "Grundsätzlich 15 Kalendertage ab Absendung der Information. Bei elektronischer Übermittlung oder Fax sind es zehn Kalendertage. Die Frist beginnt am Tag nach der Absendung, nicht erst mit dem Zugang beim Bieter.",
+      },
+      {
+        question: "Gilt die Wartepflicht bei jeder öffentlichen Ausschreibung?",
+        answer: "Nein. § 134 GWB gilt im Anwendungsbereich des vierten Teils des GWB und enthält Ausnahmen, etwa für bestimmte dringliche Verhandlungsverfahren und Einzelvergaben unter Rahmenvereinbarungen oder dynamischen Beschaffungssystemen. Unterhalb dieses Bereichs können andere Informations- oder Wartepflichten gelten.",
+      },
+      {
+        question: "Ist die Wartefrist dieselbe wie die Rügefrist?",
+        answer: "Nein. Die Wartefrist nach § 134 GWB verschiebt den frühestmöglichen Vertragsschluss. Rüge- und Antragsfristen nach § 160 GWB regeln dagegen, bis wann ein Vergabeverstoß beanstandet oder ein Nachprüfungsantrag gestellt werden muss.",
+      },
+      {
+        question: "Ist ein Vertrag bei einem Verstoß gegen § 134 GWB automatisch unwirksam?",
+        answer: "Nicht automatisch. § 135 GWB sieht eine mögliche Unwirksamkeit vor, wenn die Voraussetzungen erfüllt und der Verstoß in einem Nachprüfungsverfahren festgestellt worden ist. Die gesetzlichen Fristen, Ausnahmen und der konkrete Sachverhalt sind gesondert zu prüfen.",
+      },
+    ],
+    relatedTerms: ["zuschlag", "zuschlagserteilung", "nachpruefungsverfahren", "ruege", "vergabekammer", "gwb-vergaberecht"],
+    relatedArticles: ["nachpruefungsverfahren-vergabe", "vergaberecht-leitfaden", "vob-vergabe"],
+    sources: [
+      { title: "§ 134 GWB – Informations- und Wartepflicht", url: "https://www.gesetze-im-internet.de/gwb/__134.html" },
+      { title: "§ 135 GWB – Unwirksamkeit", url: "https://www.gesetze-im-internet.de/gwb/__135.html" },
+      { title: "§ 160 GWB – Einleitung, Antrag und Fristen", url: "https://www.gesetze-im-internet.de/gwb/__160.html" },
+      { title: "§ 106 GWB – Schwellenwerte", url: "https://www.gesetze-im-internet.de/gwb/__106.html" },
+    ],
+    lastReviewed: "2026-11-10",
   },
   {
     slug: "ruege",
@@ -1318,8 +1372,8 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "Die Rüge sollte den konkreten Vorgang und den vermuteten Vergaberechtsverstoß nachvollziehbar benennen und über den vorgesehenen Kommunikationsweg übermittelt werden. Eine pauschale Unzufriedenheit reicht nicht aus; ein bestimmtes Antwort- oder Abhilfedatum ist keine allgemeine gesetzliche Voraussetzung.",
       },
     ],
-    relatedTerms: ["nachpruefungsverfahren", "vergabekammer"],
-    relatedArticles: ["vergaberecht-leitfaden"],
+    relatedTerms: ["nachpruefungsverfahren", "vergabekammer", "informations-und-wartepflicht"],
+    relatedArticles: ["vergaberecht-leitfaden", "nachpruefungsverfahren-vergabe"],
     sources: [
       { title: "§ 160 Absatz 3 GWB – Rügefristen", url: "https://www.gesetze-im-internet.de/gwb/__160.html" },
     ],
@@ -1351,8 +1405,8 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "Die Vergabekammer wird durch einen förmlichen Nachprüfungsantrag angerufen. Voraussetzung ist in der Regel, dass der Bieter zunächst versucht hat, den Verstoß im Vergabeverfahren selbst zu rügen (Rügepflicht). Der Antrag muss innerhalb bestimmter Fristen gestellt werden.",
       },
     ],
-    relatedTerms: ["nachpruefungsverfahren", "ruege", "vergabesenat"],
-    relatedArticles: ["vergaberecht-leitfaden"],
+    relatedTerms: ["nachpruefungsverfahren", "ruege", "vergabesenat", "informations-und-wartepflicht"],
+    relatedArticles: ["vergaberecht-leitfaden", "nachpruefungsverfahren-vergabe"],
   },
   {
     slug: "vergabesenat",
@@ -1874,7 +1928,8 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "Soweit § 134 GWB anwendbar ist, werden die betroffenen Bieter zunächst in Textform informiert. Der Vertrag darf grundsätzlich erst nach 15 Kalendertagen ab Absendung geschlossen werden, bei elektronischer Übermittlung nach 10 Kalendertagen. Ausnahmen und die konkreten Voraussetzungen müssen geprüft werden.",
       },
     ],
-    relatedTerms: ["zuschlag", "nachpruefungsverfahren", "bindefrist"],
+    relatedTerms: ["zuschlag", "nachpruefungsverfahren", "bindefrist", "informations-und-wartepflicht"],
+    relatedArticles: ["nachpruefungsverfahren-vergabe"],
     sources: [
       { title: "§ 134 GWB – Informations- und Wartepflicht", url: "https://www.gesetze-im-internet.de/gwb/__134.html" },
     ],

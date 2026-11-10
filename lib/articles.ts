@@ -114,7 +114,7 @@ Unterhalb des jeweils einschlägigen Werts gelten die nationalen Regeln des Auft
     lastReviewed: "2026-11-03",
     relatedCategories: ["Bauarbeiten", "Tiefbau", "TGA", "Planungsleistungen"],
     relatedArticles: ["vergabeverfahren-uebersicht", "schwellenwerte-vergabe", "ausschreibung-muster", "bietergemeinschaft-gruenden"],
-    relatedGlossaryTerms: ["vob-a", "vob-b", "vob-c", "vob-a-eu", "schwellenwerte", "auftragswert", "losvergabe", "leistungsbeschreibung", "leistungsverzeichnis", "vgv-vergabeverordnung", "gwb-vergaberecht", "eignungsleihe", "praequalifikation-pq-vob", "nachforderung-unterlagen", "auftragsbekanntmachung"],
+    relatedGlossaryTerms: ["vob-a", "vob-b", "vob-c", "vob-a-eu", "schwellenwerte", "auftragswert", "losvergabe", "leistungsbeschreibung", "leistungsverzeichnis", "vgv-vergabeverordnung", "gwb-vergaberecht", "eignungsleihe", "praequalifikation-pq-vob", "nachforderung-unterlagen", "auftragsbekanntmachung", "informations-und-wartepflicht"],
     sources: [
       { title: "Bundesanzeiger: Bekanntmachung der Vergabe- und Vertragsordnung für Bauleistungen Teil A – Abschnitt 2 und Abschnitt 3 (VOB/A) – Ausgabe 2026 – (BAnz AT 24.08.2026 B6)", url: "https://www.bundesanzeiger.de/pub/publication/73xO0rpP1jfX5HRt0Ja/content/73xO0rpP1jfX5HRt0Ja/BAnz%20AT%2024.08.2026%20B6.pdf?inline" },
       { title: "VOB/A, Bekanntmachung vom 31. Januar 2019 (BAnz AT 19.02.2019 B2)", url: "https://www.verwaltungsvorschriften-im-internet.de/bsvwvbund_31012019_BWI781063060120180001604634.htm" },
@@ -960,14 +960,15 @@ Ausschreibungen gewinnen ist keine Glückssache — es erfordert Systematik, Vor
     description:
       "Vergabefehler erkennen, Rüge aussprechen und Nachprüfungsverfahren einleiten. Alle Rechte der Bieter bei Vergabeverstößen — von der Rüge bis zur Vergabekammer.",
     datePublished: "2025-06-01",
-    dateModified: "2026-09-17",
-    lastReviewed: "2026-09-17",
+    dateModified: "2026-11-10",
+    lastReviewed: "2026-11-10",
     relatedCategories: ["Bauarbeiten", "Tiefbau"],
     relatedArticles: ["vob-vergabe", "vergabeverfahren-uebersicht", "ausschreibung-gewinnen"],
-    relatedGlossaryTerms: ["nachpruefungsverfahren", "ruege", "vergabekammer", "vergabesenat", "gwb-vergaberecht"],
+    relatedGlossaryTerms: ["nachpruefungsverfahren", "ruege", "vergabekammer", "vergabesenat", "gwb-vergaberecht", "informations-und-wartepflicht"],
     sources: [
       { title: "§ 160 GWB – Einleitung, Antrag", url: "https://www.gesetze-im-internet.de/gwb/__160.html" },
       { title: "§ 134 GWB – Informations- und Wartepflicht", url: "https://www.gesetze-im-internet.de/gwb/__134.html" },
+      { title: "§ 135 GWB – Unwirksamkeit", url: "https://www.gesetze-im-internet.de/gwb/__135.html" },
       { title: "§ 172 GWB – Frist, Form, Inhalt der sofortigen Beschwerde", url: "https://www.gesetze-im-internet.de/gwb/__172.html" },
       { title: "§ 182 GWB – Kosten des Verfahrens vor der Vergabekammer", url: "https://www.gesetze-im-internet.de/gwb/__182.html" },
     ],
@@ -1003,6 +1004,12 @@ Das Nachprüfungsverfahren ist das vergaberechtliche Instrument, mit dem Unterne
 - Geheime Verhandlungen mit ausgewählten Bietern
 - Zuschlag ohne ordnungsgemäße Bekanntmachung
 - Verstoß gegen die Wartepflicht
+
+## Vorabinformation und Wartefrist vor Vertragsschluss
+
+Soweit § 134 GWB anwendbar ist, muss der Auftraggeber die betroffenen Bieter vor Vertragsschluss in Textform über den vorgesehenen Auftragnehmer, die Gründe der Nichtberücksichtigung und den frühesten Vertragsschluss informieren. Die Wartefrist beträgt grundsätzlich 15 Kalendertage ab Absendung, bei elektronischer Übermittlung oder Fax zehn Kalendertage. Sie beginnt am Tag nach der Absendung, nicht erst mit dem Zugang.
+
+Diese Wartefrist ist von den Rüge- und Antragsfristen nach § 160 GWB zu unterscheiden. § 134 Absatz 3 enthält Ausnahmen, unter anderem für bestimmte dringliche Verhandlungsverfahren und Einzelvergaben unter Rahmenvereinbarungen oder dynamischen Beschaffungssystemen. Ein Verstoß macht einen Vertrag nicht automatisch unwirksam; § 135 GWB verlangt dafür die dort geregelten Voraussetzungen und eine Feststellung im Nachprüfungsverfahren.
 
 ## Schritt 1: Vergabefehler erkennen
 
@@ -1211,10 +1218,10 @@ Nein. Entscheidend sind die vorab bekannt gemachten Zuschlagskriterien. Der Prei
     description:
       "Umfassender Leitfaden zum Vergaberecht in Deutschland: Gesetzliche Grundlagen, Zuständigkeiten, Rechtsschutz und praktische Tipps für Unternehmen bei öffentlichen Ausschreibungen.",
     datePublished: "2025-02-01",
-    dateModified: "2026-11-01",
+    dateModified: "2026-11-10",
     relatedCategories: ["Bauarbeiten", "IT-Dienstleistungen", "Planungsleistungen"],
     relatedArticles: ["vergabeverfahren-uebersicht", "vob-vergabe", "nachpruefungsverfahren-vergabe", "schwellenwerte-vergabe"],
-    relatedGlossaryTerms: ["gwb-vergaberecht", "vgv-vergabeverordnung", "uvgo", "vob-a", "schwellenwerte", "auftragswert", "nachpruefungsverfahren", "ruege", "vergabekammer", "zuschlag"],
+    relatedGlossaryTerms: ["gwb-vergaberecht", "vgv-vergabeverordnung", "uvgo", "vob-a", "schwellenwerte", "auftragswert", "nachpruefungsverfahren", "ruege", "vergabekammer", "zuschlag", "informations-und-wartepflicht"],
     sources: [
       { title: "§ 97 GWB – Allgemeine Grundsätze", url: "https://www.gesetze-im-internet.de/gwb/__97.html" },
       { title: "§ 106 GWB – Schwellenwerte", url: "https://www.gesetze-im-internet.de/gwb/__106.html" },
@@ -1224,7 +1231,7 @@ Nein. Entscheidend sind die vorab bekannt gemachten Zuschlagskriterien. Der Prei
       { title: "§ 160 GWB – Einleitung, Antrag", url: "https://www.gesetze-im-internet.de/gwb/__160.html" },
       { title: "§ 169 GWB – Aussetzung des Vergabeverfahrens", url: "https://www.gesetze-im-internet.de/gwb/__169.html" },
     ],
-    lastReviewed: "2026-10-29",
+    lastReviewed: "2026-11-10",
     content: `
 ## Was ist Vergaberecht?
 
@@ -1289,6 +1296,12 @@ Die Vergabesenate der Oberlandesgerichte entscheiden über die sofortige Beschwe
 Für Nachprüfungsverfahren im Anwendungsbereich des vierten Teils des GWB gelten die differenzierten Rüge- und Antragsfristen des § 160 Absatz 3 GWB. Ein bereits erkannter Verstoß ist grundsätzlich innerhalb von zehn Kalendertagen gegenüber dem Auftraggeber zu rügen. Verstöße, die aus der Bekanntmachung oder den Vergabeunterlagen erkennbar sind, müssen spätestens bis zum Ablauf der dort genannten Bewerbungs- oder Angebotsfrist gerügt werden. Nach einer Mitteilung, dass der Auftraggeber einer Rüge nicht abhilft, läuft grundsätzlich eine weitere Frist von 15 Kalendertagen für den Nachprüfungsantrag.
 
 § 160 Absatz 3 GWB formuliert keine allgemeine Pflicht, jede Rüge schriftlich einzureichen. Bieter sollten den in Bekanntmachung und Vergabeunterlagen vorgesehenen Kommunikationsweg nutzen und Inhalt sowie fristgerechten Zugang nachvollziehbar dokumentieren. Für die konkrete Zulässigkeit sind der erkennbare Verstoß, der Zeitpunkt der Kenntnis und mögliche gesetzliche Ausnahmen entscheidend.
+
+### Vorabinformation und Wartepflicht vor Vertragsschluss
+
+Im Anwendungsbereich des § 134 GWB erhalten betroffene Bieter vor dem Vertragsschluss eine Information über den vorgesehenen Auftragnehmer und die Gründe der Nichtberücksichtigung. Der Vertrag darf grundsätzlich erst nach einer Wartefrist von 15 Kalendertagen geschlossen werden, bei elektronischer Übermittlung oder Fax nach zehn Kalendertagen. Die Frist beginnt am Tag nach der Absendung der Information.
+
+Diese Wartefrist ist keine Rügefrist: Die Rüge- und Antragsfristen richten sich gesondert nach § 160 GWB. § 134 Absatz 3 sieht Ausnahmen vor; ob die Vorschriften im konkreten Verfahren gelten, hängt vom Anwendungsbereich und den Umständen ab.
 
 ### Nachprüfungsantrag
 

@@ -61,6 +61,15 @@ const PROCESS_CLUSTER = [
   { slug: "angebot", label: "Angebot" },
 ];
 
+const RIGHTS_CLUSTER = [
+  { slug: "zuschlag", label: "Zuschlag" },
+  { slug: "zuschlagserteilung", label: "Zuschlagserteilung" },
+  { slug: "informations-und-wartepflicht", label: "Informations- und Wartepflicht (§ 134 GWB)" },
+  { slug: "nachpruefungsverfahren", label: "Nachprüfungsverfahren" },
+  { slug: "ruege", label: "Rüge" },
+  { slug: "vergabekammer", label: "Vergabekammer" },
+];
+
 export default function LexikonHubPage() {
   const byCategory = getGlossaryByCategory();
 
@@ -127,6 +136,22 @@ export default function LexikonHubPage() {
             </Typography>
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
               {PROCESS_CLUSTER.map((item) => (
+                <Link key={item.slug} href={`/lexikon/${item.slug}`} style={{ textDecoration: "none" }}>
+                  <Chip clickable label={item.label} variant="outlined" sx={{ fontWeight: 500 }} />
+                </Link>
+              ))}
+            </Stack>
+          </Paper>
+
+          <Paper elevation={0} sx={{ mb: 5, p: { xs: 2.5, md: 3 }, border: 1, borderColor: "divider" }}>
+            <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 0.75 }}>
+              Zuschlag und Rechtsschutz für Bieter
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2, maxWidth: "75ch", lineHeight: 1.7 }}>
+              Von der Information vor Vertragsschluss nach § 134 GWB bis zur Rüge und Nachprüfung: Diese Begriffe erklären wichtige Schritte und Fristen für Bieter.
+            </Typography>
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              {RIGHTS_CLUSTER.map((item) => (
                 <Link key={item.slug} href={`/lexikon/${item.slug}`} style={{ textDecoration: "none" }}>
                   <Chip clickable label={item.label} variant="outlined" sx={{ fontWeight: 500 }} />
                 </Link>
