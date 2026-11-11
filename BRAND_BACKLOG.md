@@ -36,6 +36,7 @@ Product-wide brand and UI consistency work is tracked here. This backlog is cumu
 | TH-BR-029 | P1 | Completed | Global loading and error shells used generic grey and omitted the visible shared mark; error recovery actions stayed side by side on mobile | Reused the semantic MUI canvas and `BrandLockup` in both states, then stacked the existing error recovery actions at narrow widths without changing either recovery path. | TH-BR-001, TH-BR-006, TH-BR-020 |
 | TH-BR-030 | P1 | Completed | MUI contained actions still used default elevation, conflicting with the product's flat, restrained surface language | Disabled elevation centrally for MUI buttons and added a responsive browser regression for the profile action; semantic fill, focus, and touch target remain intact. | TH-BR-020 |
 | TH-BR-031 | P2 | Completed | The U.S. profile headline assumed every supported company was an LLC, although the form does not collect or validate legal entity type | Replaced the headline with company-neutral wording and asserted the exact copy in the responsive profile browser regression. | None |
+| TH-BR-032 | P1 | Completed | The small-vendor deep analysis used a teal-tinted panel, local status colors, a 10px radius, and a fixed model label | Reused semantic MUI surface, text, divider, status, and action roles; aligned the panel to 8px, labeled the analysis as Tenderhunter's, and added a regression check against local color literals. Analysis behavior and source data remain unchanged. | TH-BR-020 |
 
 ## Open
 

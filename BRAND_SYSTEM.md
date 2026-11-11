@@ -68,6 +68,7 @@ Tender cards, fit scores, deadline states, and tender detail panels are one deci
 - Fit values use the shared thresholds and tabular numerals: `Stark` (70-100), `Solide` (40-69), or `Offen` (0-39). The shared classifier is `lib/fit-score.ts`.
 - Green is reserved for strong matches and positive states; medium and low fit remain slate (`info` and `text.secondary` respectively). Amber is reserved for deadlines and caution, never for a medium fit; lower fit values are not errors.
 - Analysis result cards and metric bars use the same semantic MUI roles and 70/40 thresholds as `FitScore`; do not add local hex, RGBA, or generic grey values to this decision surface.
+- Tool and deep-analysis surfaces use shared text, surface, divider, and status roles. Keep assessments neutral unless the underlying data establishes a positive or caution state; active analysis uses the shared info role.
 - Company-profile summaries and tender-section headers use the same semantic MUI roles; best-fit values and distributions follow the `FitScore` thresholds and verbal states.
 - The canonical public tender detail route uses the same semantic roles for readiness, deadlines, sources, documents, and related opportunities; use dividers and surfaces instead of local shadows to separate decisions.
 - International opportunity surfaces use the same semantic palette as the German product; distinguish market or opportunity type with existing `info` and `primary` roles, never with local market colors or translucent accents.

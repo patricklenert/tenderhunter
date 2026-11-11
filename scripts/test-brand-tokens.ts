@@ -5,6 +5,7 @@ import { BRAND_COLORS } from "../lib/brand-tokens";
 import { FIT_SCORE_LEVELS, getFitScoreTier } from "../lib/fit-score";
 
 const css = readFileSync(resolve(process.cwd(), "app/globals.css"), "utf8");
+const smallVendorDeepDive = readFileSync(resolve(process.cwd(), "components/SmallVendorDeepDive.tsx"), "utf8");
 const declarations = new Map(
   [...css.matchAll(/--color-([\w-]+):\s*([^;]+);/g)].map(([, name, value]) => [name, value.trim()])
 );
@@ -82,6 +83,12 @@ const sharedTokens = {
 for (const [color, token] of Object.entries(sharedTokens) as [keyof typeof sharedTokens, string][]) {
   assertParity(color, token);
 }
+
+assert.doesNotMatch(
+  smallVendorDeepDive,
+  /#[\da-f]{3,8}\b|rgba?\(/i,
+  "SmallVendorDeepDive must use shared semantic MUI colors instead of local color literals",
+);
 
 for (const [left, right] of [
   ["brand-primary", "action-secondary"],

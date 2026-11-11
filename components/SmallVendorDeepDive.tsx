@@ -52,14 +52,14 @@ const formatDateTime = (value: string): string => {
 };
 
 const blockHeadingSx = {
-  color: "#2d3544",
+  color: "text.primary",
   fontSize: "1rem",
   fontWeight: 700,
   mb: 0.75,
 } as const;
 
 const bodyTextSx = {
-  color: "#38505b",
+  color: "text.secondary",
   fontSize: "0.9375rem",
   lineHeight: 1.65,
 } as const;
@@ -76,7 +76,7 @@ function TextBlock({ title, children }: { title: string; children: ReactNode }) 
 }
 
 function ListBlock({ title, items, warn = false }: { title: string; items: string[]; warn?: boolean }) {
-  const color = warn ? "#92400e" : "#38505b";
+  const color = warn ? "warning.dark" : "text.secondary";
   return (
     <Box>
       <Typography component="h3" sx={blockHeadingSx}>
@@ -213,17 +213,18 @@ export function SmallVendorDeepDive({ tenderId, initial }: SmallVendorDeepDivePr
       sx={{
         mb: { xs: 4, md: 5 },
         p: { xs: 2, sm: 2.5 },
-        borderRadius: 2.5,
-        bgcolor: "#eef7f5",
-        border: "1px solid #b8ddd4",
+        borderRadius: 2,
+        bgcolor: "background.paper",
+        border: 1,
+        borderColor: "divider",
       }}
     >
-      <Stack direction="row" spacing={1.25} alignItems="center" sx={{ mb: 1.25 }}>
+      <Stack direction="row" spacing={1.25} alignItems="center" sx={{ mb: 1.25, flexWrap: "wrap" }}>
         <Typography
           id="deepdive-heading"
           component="h2"
           sx={{
-            color: "#163b4a",
+            color: "text.primary",
             fontSize: { xs: "1.25rem", md: "1.375rem" },
             fontWeight: 700,
             letterSpacing: "-0.015em",
@@ -233,12 +234,13 @@ export function SmallVendorDeepDive({ tenderId, initial }: SmallVendorDeepDivePr
           KI-Tiefenanalyse
         </Typography>
         <Chip
-          label="GLM"
+          label="Von Tenderhunter"
           size="small"
+          color="primary"
+          variant="outlined"
+          aria-label="KI-Tiefenanalyse von Tenderhunter"
           sx={{
             height: 22,
-            bgcolor: "#0f766e",
-            color: "#ffffff",
             fontWeight: 700,
             borderRadius: 1,
             "& .MuiChip-label": { px: 0.75 },
@@ -248,12 +250,12 @@ export function SmallVendorDeepDive({ tenderId, initial }: SmallVendorDeepDivePr
 
       {showIntro && (
         <Box>
-          <Typography sx={{ maxWidth: "72ch", color: "#38505b", lineHeight: 1.65 }}>
-            Lädt fehlgeschlagene Dokumente neu, analysiert alle Unterlagen mit GLM und erklärt in einfacher Sprache,
-            was der Auftraggeber will. Dauer 1–3 Minuten.
+          <Typography sx={{ maxWidth: "72ch", color: "text.secondary", lineHeight: 1.65 }}>
+            Lädt fehlgeschlagene Dokumente neu, wertet die verfügbaren Unterlagen aus und erklärt verständlich,
+            was der Auftraggeber verlangt. Dauer 1–3 Minuten.
           </Typography>
           {view.error && (
-            <Typography sx={{ mt: 1.25, color: "#b91c1c", fontWeight: 600 }}>
+            <Typography sx={{ mt: 1.25, color: "error.main", fontWeight: 600 }}>
               Fehler: {view.error}
             </Typography>
           )}
@@ -261,7 +263,7 @@ export function SmallVendorDeepDive({ tenderId, initial }: SmallVendorDeepDivePr
             variant="contained"
             disabled={busy}
             onClick={handleStart}
-            sx={{ mt: 1.75, bgcolor: "#0f766e", "&:hover": { bgcolor: "#0d5f57" } }}
+            sx={{ mt: 1.75 }}
           >
             {view.status === "none" ? "Tiefenanalyse starten" : "Erneut versuchen"}
           </Button>
@@ -270,9 +272,9 @@ export function SmallVendorDeepDive({ tenderId, initial }: SmallVendorDeepDivePr
 
       {isActive && (
         <Stack direction="row" spacing={1.25} alignItems="center">
-          <CircularProgress size={18} sx={{ color: "#0f766e" }} />
-          <Typography sx={{ color: "#38505b", lineHeight: 1.55 }}>
-            Dokumente werden geladen und mit GLM analysiert … Dies kann 1–3 Minuten dauern.
+          <CircularProgress size={18} color="info" />
+          <Typography sx={{ color: "text.secondary", lineHeight: 1.55 }}>
+            Dokumente werden geladen und von Tenderhunter ausgewertet … Dies kann 1–3 Minuten dauern.
           </Typography>
         </Stack>
       )}
@@ -280,7 +282,7 @@ export function SmallVendorDeepDive({ tenderId, initial }: SmallVendorDeepDivePr
       {view.status === "ready" && result && (
         <Stack spacing={2.25}>
           {result.zusammenfassung && (
-            <Typography sx={{ color: "#163b4a", fontSize: "1.0625rem", fontWeight: 600, lineHeight: 1.5 }}>
+            <Typography sx={{ color: "text.primary", fontSize: "1.0625rem", fontWeight: 600, lineHeight: 1.5 }}>
               {result.zusammenfassung}
             </Typography>
           )}
@@ -319,7 +321,7 @@ export function SmallVendorDeepDive({ tenderId, initial }: SmallVendorDeepDivePr
           )}
           {result.einschaetzung && (
             <TextBlock title="Einschätzung">
-              <Typography sx={{ color: "#0f766e", fontSize: "0.9375rem", fontWeight: 600, lineHeight: 1.65 }}>
+              <Typography sx={{ color: "text.primary", fontSize: "0.9375rem", fontWeight: 600, lineHeight: 1.65 }}>
                 {result.einschaetzung}
               </Typography>
             </TextBlock>
@@ -334,7 +336,7 @@ export function SmallVendorDeepDive({ tenderId, initial }: SmallVendorDeepDivePr
               </Typography>
               <Stack spacing={0.25}>
                 {result.quellen.map((quelle, index) => (
-                  <Typography key={`${quelle.dokument}-${index}`} variant="caption" sx={{ color: "#667288" }}>
+                  <Typography key={`${quelle.dokument}-${index}`} variant="caption" sx={{ color: "text.secondary" }}>
                     {quelle.dokument}
                     {quelle.seite ? ` (Seite ${quelle.seite})` : ""}
                   </Typography>
@@ -347,9 +349,9 @@ export function SmallVendorDeepDive({ tenderId, initial }: SmallVendorDeepDivePr
             spacing={1}
             alignItems={{ sm: "center" }}
             justifyContent="space-between"
-            sx={{ borderTop: "1px solid rgba(184, 221, 212, 0.7)", pt: 1.5 }}
+            sx={{ borderTop: 1, borderColor: "divider", pt: 1.5 }}
           >
-            <Typography variant="caption" sx={{ color: "#667288" }}>
+            <Typography variant="caption" sx={{ color: "text.secondary" }}>
               {[
                 view.model ?? "",
                 view.updatedAt ? `Analysiert am ${formatDateTime(view.updatedAt)}` : "",
@@ -358,9 +360,9 @@ export function SmallVendorDeepDive({ tenderId, initial }: SmallVendorDeepDivePr
             <Button
               size="small"
               variant="outlined"
+              color="primary"
               disabled={busy}
               onClick={handleRerun}
-              sx={{ color: "#0f766e", borderColor: "#0f766e", "&:hover": { borderColor: "#0d5f57", bgcolor: "rgba(15, 118, 110, 0.04)" } }}
             >
               Neu analysieren
             </Button>
