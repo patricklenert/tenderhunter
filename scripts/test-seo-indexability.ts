@@ -35,6 +35,11 @@ assert.equal(isKnownPublicStaticPath(["wissen", "not-a-real-article"]), false);
 assert.equal(matchesCpvCode("34144510", "34000000"), true);
 assert.equal(matchesCpvCode("90911200-4", "90911000"), true);
 assert.equal(matchesCpvCode("72000000", "71000000"), false);
+const cpvRootRoute = readFileSync("app/ausschreibungen/cpv/[code]/page.tsx", "utf8");
+assert.match(cpvRootRoute, /getCpvCodePrefix\(code\)/, "CPV root pages must query matching CPV subdivisions");
+assert.match(cpvRootRoute, /left\(regexp_replace\(cpv\.value, '\[\^0-9\]', '', 'g'\), 8\) LIKE/, "CPV root pages must use the same prefix matching as sitemap taxonomy generation");
+assert.match(cpvRootRoute, /'cpv_codes',[\s\S]*'cpvCodes'/, "CPV root pages must support both structured-data CPV key variants");
+assert.doesNotMatch(cpvRootRoute, /\?\| array\[/, "CPV root pages must not use exact-only JSON array matching");
 assert.equal(decodeRouteParam("freih%C3%A4ndige-vergabe"), "freihändige-vergabe");
 assert.equal(decodeRouteParam("malformed%"), "malformed%");
 assert.match(

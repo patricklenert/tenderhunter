@@ -20,7 +20,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
-import { CPV_CODES, ALL_CPV_CODES } from "@/lib/cpv-codes";
+import { CPV_CODES, ALL_CPV_CODES, getCpvCodePrefix } from "@/lib/cpv-codes";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 import { getListingRobots, getPageNumber, getPaginationHref, type SeoSearchParams } from "@/lib/seo-indexability";
 import { rethrowNavigationError } from "@/lib/public-route-resilience";
@@ -35,6 +35,28 @@ export const runtime = "nodejs";
 import { getSiteUrl } from "@/lib/site-config";
 
 const siteUrl = getSiteUrl();
+
+function cpvMatchSql(prefix: string) {
+  return sql`EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements_text(
+      CASE
+        WHEN jsonb_typeof(COALESCE(
+          ${structuredData.jsonBlob}->'procurement'->'cpv_codes',
+          ${structuredData.jsonBlob}->'procurement'->'cpvCodes',
+          '[]'::jsonb
+        )) = 'array'
+        THEN COALESCE(
+          ${structuredData.jsonBlob}->'procurement'->'cpv_codes',
+          ${structuredData.jsonBlob}->'procurement'->'cpvCodes',
+          '[]'::jsonb
+        )
+        ELSE '[]'::jsonb
+      END
+    ) AS cpv(value)
+    WHERE left(regexp_replace(cpv.value, '[^0-9]', '', 'g'), 8) LIKE ${`${prefix}%`}
+  )`;
+}
 
 // SEO: CPV landing pages — pre-render top CPV codes from the EU procurement vocabulary
 export async function generateStaticParams() {
@@ -88,9 +110,8 @@ export default async function CpvPage({ params, searchParams }: PageProps) {
   let totalPages = 1;
 
   try {
-    // SEO: Query structured_data for tenders whose CPV codes include this code or its subdivisions
-    // Match both exact code and codes starting with the first 2 digits (division level)
-    const divisionPrefix = code.slice(0, 2);
+    // Match this CPV code and all of its subdivisions, as the sitemap does.
+    const cpvMatch = cpvMatchSql(getCpvCodePrefix(code));
 
     const countRow = await db
       .select({ count: sql<number>`count(*)` })
@@ -101,7 +122,7 @@ export default async function CpvPage({ params, searchParams }: PageProps) {
           eq(tenders.qualityStatus, "qualified"),
           or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
           sql`${tenders.rawText} IS NOT NULL AND BTRIM(${tenders.rawText}) <> ''`,
-          sql`(${structuredData.jsonBlob}->'procurement'->'cpv_codes')::jsonb ?| array[${code}, ${divisionPrefix + "000000"}]`,
+          cpvMatch,
         ),
       );
     totalCount = countRow[0]?.count ?? 0;
@@ -127,7 +148,7 @@ export default async function CpvPage({ params, searchParams }: PageProps) {
           eq(tenders.qualityStatus, "qualified"),
           or(isNull(tenders.deadlineAt), gt(tenders.deadlineAt, now)),
           sql`${tenders.rawText} IS NOT NULL AND BTRIM(${tenders.rawText}) <> ''`,
-          sql`(${structuredData.jsonBlob}->'procurement'->'cpv_codes')::jsonb ?| array[${code}, ${divisionPrefix + "000000"}]`,
+          cpvMatch,
         ),
       )
       .orderBy(desc(tenders.createdAt))
