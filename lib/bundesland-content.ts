@@ -11,7 +11,7 @@ export interface BundeslandContent {
 export const BUNDESLAND_CONTENT: Record<string, BundeslandContent> = {
   "Baden-Württemberg": {
     tips: [
-      "Die L-Bank und das Landesvergaberecht Baden-Württemberg haben eigene Schwellenwerte — prüfen Sie, ob Ihre Ausschreibung unter die Landes- oder Bundesvergabeordnung fällt.",
+      "Bei öffentlichen und geförderten Aufträgen in Baden-Württemberg können neben dem Vergaberecht auch landes- und förderrechtliche Vorgaben relevant sein. Prüfen Sie die konkreten Vergabeunterlagen und Förderbedingungen statt von einem einheitlichen landesweiten Schwellenwert auszugehen.",
       "Stuttgart, Karlsruhe und Mannheim sind die vergabestärksten Städte — konzentrieren Sie Ihre Bietersuche auf diese Ballungsräume.",
       "Baden-Württemberg legt großen Wert auf Nachhaltigkeit bei öffentlichen Aufträgen — dokumentieren Sie Umweltmanagement-Zertifikate (ISO 14001) in Ihren Eignungsunterlagen.",
     ],
@@ -33,7 +33,7 @@ export const BUNDESLAND_CONTENT: Record<string, BundeslandContent> = {
       },
       {
         question: "Gibt es besondere Vergaberegeln in Baden-Württemberg?",
-        answer: "Baden-Württemberg hat seit 2024 ein eigenes Landesvergabegesetz (LVerG BW) für Unterschwellenvergaben. Oberhalb der EU-Schwellenwerte gelten die bundesweiten Regelungen (VgV, VOB/A).",
+        answer: "Baden-Württemberg hat seit 2024 ein eigenes Landesvergabegesetz (LVerG BW) für Unterschwellenvergaben. Oberhalb der einschlägigen EU-Schwellenwerte gelten die jeweils anwendbaren bundes- und unionsrechtlichen Regeln; bei Bauaufträgen bestimmt § 2 VgV das Zusammenspiel von VgV und VOB/A.",
       },
     ],
   },
@@ -48,7 +48,7 @@ export const BUNDESLAND_CONTENT: Record<string, BundeslandContent> = {
       "Berufshaftpflichtversicherung (Höhe je nach Auftragsart)",
       "Referenzprojekte vergleichbarer Art und Größe",
       "Einhaltung des Bayerischen Vergabegesetzes (BayVgG) bei Unterschwellenvergaben",
-      "PQ-VOLK-Zertifikat wird bei vielen bayerischen Kommunen gefordert",
+      "PQ-VOB kann bei Bauleistungen Eignungsnachweise bündeln; prüfen Sie, welche Nachweise die konkreten Vergabeunterlagen verlangen",
     ],
     faq: [
       {
@@ -244,7 +244,7 @@ export const BUNDESLAND_CONTENT: Record<string, BundeslandContent> = {
       "Berufshaftpflichtversicherung",
       "Referenzen vergleichbarer Projekte",
       "Einhaltung des Niedersächsischen Vergabegesetzes (NVgG) bei Unterschwellenvergaben",
-      "PQ-VOLK-Zertifikat wird bei vielen niedersächsischen Kommunen gefordert",
+      "PQ-VOB kann bei Bauleistungen Eignungsnachweise bündeln; prüfen Sie, welche Nachweise die konkreten Vergabeunterlagen verlangen",
     ],
     faq: [
       {

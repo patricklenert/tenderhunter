@@ -1,5 +1,8 @@
 import { readFileSync } from "node:fs";
 import { ARTICLES } from "../lib/articles";
+import { BRANCHEN } from "../lib/branchen";
+import { BUNDESLAND_CONTENT } from "../lib/bundesland-content";
+import { CATEGORY_CONTENT } from "../lib/category-content";
 import { CATEGORY_LABELS } from "../lib/categories";
 import { GLOSSARY, GLOSSARY_MAP } from "../lib/glossary";
 
@@ -81,6 +84,41 @@ for (const article of Object.values(ARTICLES)) {
   if (article.dateModified < article.datePublished) {
     errors.push(`${article.slug}.dateModified -> predates datePublished`);
   }
+}
+
+const procurementEditorialContent = JSON.stringify({ BRANCHEN, BUNDESLAND_CONTENT, CATEGORY_CONTENT });
+for (const staleClaim of [
+  "PQ-VOL V",
+  "PQ-VOLK",
+  "5,538 Mio. €",
+  "§ 648a BGB",
+  "Bauhandwerkersicherungshypothek",
+  "DIN 18234 (Kanalbau)",
+  "DIN 4033",
+  "Ab EU-Schwellenwert muss der Auftrag in Lose aufgeteilt werden",
+  "§ 4 Tariftreuegesetz (TTG)",
+  "European Meaurege",
+  "alle Mitarbeiter (jährlich)",
+  "SektVO-Regime für Krankenhäuser",
+  "Krankenhäuser der öffentlichen Hand sind Sektorenauftraggeber",
+]) {
+  if (procurementEditorialContent.includes(staleClaim)) {
+    errors.push(`procurement editorial content -> contains stale or overbroad claim: ${staleClaim}`);
+  }
+}
+
+const constructionBranchContent = BRANCHEN.filter((entry) =>
+  ["tiefbau-infrastruktur", "hochbau"].includes(entry.slug),
+);
+const constructionContent = JSON.stringify(constructionBranchContent);
+if (!constructionContent.includes("5.404.000 €") || !constructionContent.includes("2026/2027")) {
+  errors.push("construction industry content -> missing current 2026/2027 EU threshold for works");
+}
+if (!constructionContent.includes("VOB/A Abschnitt 2") || !constructionContent.includes("§ 2 VgV")) {
+  errors.push("construction industry content -> missing scoped EU-level VOB/A and VgV rules");
+}
+if (!constructionContent.includes("PQ-VOB") || !constructionContent.includes("nicht allgemein vorgeschrieben")) {
+  errors.push("construction industry content -> missing scoped, non-mandatory PQ-VOB guidance");
 }
 
 const lexikonHubSource = readFileSync("app/lexikon/page.tsx", "utf8");

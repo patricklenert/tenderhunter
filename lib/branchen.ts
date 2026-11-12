@@ -27,8 +27,8 @@ export const BRANCHEN: BrancheEntry[] = [
       "Öffentliche Ausschreibungen für Tiefbau und Infrastruktur: Straßenbau, Kanalisation, Leitungsbau, Brückenbau. CPV-Codes, Verfahren, Eignungskriterien und Besonderheiten der Tiefbauvergabe.",
     intro: [
       "Der Tiefbau ist einer der umsatzstärksten Bereiche der öffentlichen Vergabe in Deutschland. Straßen-, Wege- und Kanalbau, aber auch Leitungsbau für Wasser, Gas, Strom und Telekommunikation werden fast ausschließlich öffentlich vergeben — von Bund, Ländern, Kommunen und Versorgern.",
-      "Charakteristisch für den Tiefbau sind große Auftragsvolumina, lange Projektlaufzeiten und hohe Anforderungen an die technische Eignung. Viele Vergaben erfolgen als Generalunternehmer-Verträge mit komplexen Leistungsbeschreibungen nach VOB/StLB.",
-      "Die Vergabe erfolgt meist als offenes Verfahren oberhalb der EU-Schwellenwerte. Präqualifikation (PQ-VOL V) ist Standard, die VOB Vergabe- und Vertragsordnung ist die maßgebliche Rechtsgrundlage.",
+      "Charakteristisch für den Tiefbau sind große Auftragsvolumina, lange Projektlaufzeiten und hohe Anforderungen an die technische Eignung. Je nach Zuschnitt werden einzelne Gewerke oder Generalunternehmerleistungen ausgeschrieben; die Vergabeunterlagen können auf VOB/C-ATV und die Standardleistungsbücher Bezug nehmen.",
+      "Bei Bauaufträgen im EU-Oberschwellenbereich sind nach § 2 VgV bestimmte Vorschriften der VgV und im Übrigen VOB/A Abschnitt 2 anzuwenden. Eine Präqualifikation nach PQ-VOB kann Eignungsnachweise bündeln, ist aber nicht allgemein vorgeschrieben.",
     ],
     cpvCodes: [
       { code: "45200000", label: "Bauarbeiten, Hoch- und Tiefbau" },
@@ -38,22 +38,26 @@ export const BRANCHEN: BrancheEntry[] = [
       { code: "45233200", label: "Bauarbeiten für Wasser- und Abwasserbehandlung" },
       { code: "45233141", label: "Bau von Abwasserkanälen" },
     ],
-    typischeVerfahren: ["Offenes Verfahren (VgV)", "Verhandlungsverfahren bei komplexen GU-Verträgen"],
+    typischeVerfahren: [
+      "National: öffentliche oder beschränkte Ausschreibung nach VOB/A Abschnitt 1",
+      "EU-Oberschwellenbereich: offenes oder nicht offenes Verfahren nach VOB/A Abschnitt 2 und den nach § 2 VgV anwendbaren Vorschriften",
+      "Verhandlungsverfahren nur, wenn die gesetzlichen Voraussetzungen erfüllt sind",
+    ],
     schwellenwert: "5.404.000 € (EU-Schwellenwert für Bauaufträge 2026/2027) — darunter VOB/A Abschnitt 1 und anwendbares Landes-/Haushaltsrecht",
     eignungskriterien: [
-      "Präqualifikation nach PQ-VOL V (in der Regel erforderlich)",
-      "Referenzen vergleichbarer Größenordnung (mind. 2 Referenzen der letzten 3 Jahre)",
+      "Präqualifikation nach PQ-VOB als möglicher gebündelter Eignungsnachweis; maßgeblich sind die Vergabeunterlagen",
+      "Referenzen vergleichbarer Art und Größenordnung, soweit gefordert; Anzahl und Zeitraum ergeben sich aus den Vergabeunterlagen",
       "Nachweis Fachkunde: Bauleiter mit entsprechendem Qualifikationsnachweis",
       "Nachweis Leistungsfähigkeit: Maschinenpark, Personalstärke, Jahresumsatz",
       "Berufsgenossenschafts-Bescheinigung und Steuernachweise",
       "Eigenerklärung zur Zuverlässigkeit (keine Eintragung im Gewerbezentralregister)",
     ],
     besonderheiten: [
-      "VOB Teil A und Teil B sind verbindlich — Abweichungen von der VOB müssen explizit vereinbart werden",
-      "Leistungsbeschreibung mit Standardleistungsbeschreibung für das Bauwesen (StLB) ist häufig",
-      "Sicherheitsleistung: 5 % Vertragssicherheit und 2 % Gewährleistungssicherheit sind üblich",
-      "Bauhandwerkersicherungshypothek nach § 648a BGB bei Bauvorhaben > 500.000 €",
-      "GAEB-Austausch ist Standard — Angebote meist im D83- oder X83-Format einzureichen",
+      "VOB/A enthält Vergaberegeln für Bauleistungen; VOB/B enthält Vertragsbedingungen und gilt nur, wenn sie wirksam in den Vertrag einbezogen wurde",
+      "Leistungsbeschreibungen können auf die Standardleistungsbücher für das Bauwesen (StLB) Bezug nehmen",
+      "Ob Vertragserfüllungs- oder Mängelsicherheiten verlangt werden und in welcher Höhe, ergibt sich aus den Vergabe- und Vertragsunterlagen",
+      "Die Bauhandwerkersicherung nach § 650f BGB und die Sicherungshypothek nach § 650e BGB sind unterschiedliche Instrumente. § 650f Absatz 6 Nummer 1 nimmt bestimmte juristische Personen des öffentlichen Rechts von der Bauhandwerkersicherung aus",
+      "GAEB-Formate wie D83 oder X83 sind verbreitet; maßgeblich ist das in den Vergabeunterlagen verlangte Format",
       "Bauzeitenplan und Baustelleneinrichtung sind oft Vertragsbestandteil",
     ],
     saison: "Hauptsaison April bis Oktober (witterungsabhängig)",
@@ -61,12 +65,12 @@ export const BRANCHEN: BrancheEntry[] = [
       {
         question: "Brauche ich eine Präqualifikation für Tiefbauausschreibungen?",
         answer:
-          "Die Präqualifikation nach PQ-VOL V ist nicht gesetzlich vorgeschrieben, wird aber von den meisten öffentlichen Auftraggebern als Eignungsnachweis akzeptiert und beschleunigt das Verfahren erheblich. Ohne PQ müssen Sie alle Eignungsnachweise individuell für jede Vergabe erbringen.",
+          "Eine Präqualifikation nach PQ-VOB ist nicht allgemein gesetzlich vorgeschrieben. Sie kann geeignete Eignungsnachweise bündeln; welche Nachweise verlangt werden und in welcher Form sie einzureichen sind, steht in den Vergabeunterlagen.",
       },
       {
         question: "Was ist der Unterschied zwischen VOB und VgV beim Tiefbau?",
         answer:
-          "Die VOB (Vergabe- und Vertragsordnung für Bauleistungen) regelt die Durchführung der Vergabe und die Vertragsbedingungen für Bauleistungen. Das VgV (Vergabeverordnung) regelt das Vergabeverfahren oberhalb der EU-Schwellenwerte. Beide greifen ineinander: oberhalb 5,538 Mio. € gilt VgV + VOB, darunter UVgO + VOB.",
+          "VOB/A regelt Vergabeverfahren für Bauleistungen; VOB/B enthält Vertragsbedingungen und gilt nur bei wirksamer Einbeziehung. Für Bauaufträge oberhalb des EU-Schwellenwerts bestimmt § 2 VgV, welche VgV-Vorschriften gelten; im Übrigen ist VOB/A Abschnitt 2 anzuwenden. Unterhalb des Schwellenwerts gilt grundsätzlich VOB/A Abschnitt 1 zusammen mit den einschlägigen nationalen und landesrechtlichen Vorgaben – nicht pauschal die UVgO. Der EU-Schwellenwert für Bauaufträge beträgt 5.404.000 € für 2026/2027.",
       },
       {
         question: "Wie finde ich Tiefbauausschreibungen in meiner Region?",
@@ -83,9 +87,9 @@ export const BRANCHEN: BrancheEntry[] = [
     metaDescription:
       "Öffentliche Ausschreibungen für Hochbau: Neubau, Sanierung, Schlüsselbau, Fassade, Dach. CPV-Codes, Verfahren, Eignungskriterien und Besonderheiten der Hochbauvergabe.",
     intro: [
-      "Der Hochbau umfasst die Errichtung, Sanierung und Instandhaltung von Gebäuden aller Art — von Schulen und Verwaltungsgebäuden über Krankenhäuser bis zu Wohngebäuden. Öffentliche Auftraggeber vergeben Hochbauaufträge nach VOB und VgV, bei Sanierungen oft als Generalunternehmer-Vertrag.",
+      "Der Hochbau umfasst die Errichtung, Sanierung und Instandhaltung von Gebäuden aller Art — von Schulen und Verwaltungsgebäuden über Krankenhäuser bis zu Wohngebäuden. Welche Vergaberegeln gelten, hängt unter anderem vom Auftragswert und Auftraggeber ab; bei Bauaufträgen ordnet § 2 VgV das Zusammenspiel von VgV und VOB/A Abschnitt 2 im EU-Oberschwellenbereich.",
       "Die Besonderheit des Hochbaus liegt in der Komplexität: Viele Gewerke (Rohbau, Fassade, Dach, Ausbau) müssen koordiniert werden. Häufig werden Generalunternehmer beauftragt, die die Gesamtverantwortung tragen.",
-      "Schlüsselfertigbau-Vergaben nach VgV sind verbreitet — hier bietet der Generalunternehmer ein Komplettpaket aus Bau und Technik an.",
+      "Schlüsselfertigbau bezeichnet ein Vertragsmodell, nicht automatisch ein bestimmtes Vergabeverfahren. Für Bauaufträge gelten je nach Auftragswert und Anwendungsbereich die einschlägigen Abschnitte der VOB/A und die nach § 2 VgV anwendbaren Vorschriften.",
     ],
     cpvCodes: [
       { code: "45210000", label: "Bauwerke, Hochbau" },
@@ -95,10 +99,14 @@ export const BRANCHEN: BrancheEntry[] = [
       { code: "45262520", label: "Fassadenarbeiten" },
       { code: "45261000", label: "Dachdeckungs- und Dachabdichtungsarbeiten" },
     ],
-    typischeVerfahren: ["Offenes Verfahren (Standard)", "Verhandlungsverfahren bei GU/Schlüsselfertig"],
+    typischeVerfahren: [
+      "National: Verfahren nach VOB/A Abschnitt 1",
+      "EU-Oberschwellenbereich: Verfahren nach VOB/A Abschnitt 2 und den nach § 2 VgV anwendbaren Vorschriften",
+      "Verhandlungsverfahren nur bei Vorliegen der gesetzlichen Voraussetzungen",
+    ],
     schwellenwert: "5.404.000 € (EU-Schwellenwert für Bauaufträge 2026/2027) — darunter VOB/A Abschnitt 1 und anwendbares Landes-/Haushaltsrecht",
     eignungskriterien: [
-      "Präqualifikation nach PQ-VOL V empfohlen",
+      "Präqualifikation nach PQ-VOB kann Eignungsnachweise bündeln; Anforderungen und zulässige Nachweisformen stehen in den Vergabeunterlagen",
       "Referenzen aus vergleichbaren Bauvorhaben (Schule, Verwaltung, Krankenhaus)",
       "Nachweis Bauleiter mit Hochbau-Qualifikation",
       "Finanzkraft: Umsatz der letzten 3 Jahre ≥ 2× Auftragswert",
@@ -106,11 +114,11 @@ export const BRANCHEN: BrancheEntry[] = [
       "Gewerbeanmeldung und Eintragung im Handelsregister",
     ],
     besonderheiten: [
-      "VOB Teil A/B zwingend — Gewährleistungsfrist 4 Jahre (§ 13 VOB/B)",
-      "Schlüsselfertigbau: Gewährleistungsfrist 5 Jahre nach BGB, wenn VOB nicht vereinbart",
-      "Bauhandwerkersicherungshypothek (§ 648a BGB) bei Bauvorhaben > 500.000 € möglich",
-      "Sicherheitsleistung: 5 % Vertragssicherheit, 2 % Gewährleistungssicherheit",
-      "GAEB-D83/X83 für die Angebotsabgabe ist Standard",
+      "VOB/A und VOB/B haben unterschiedliche Funktionen: VOB/B gilt nur bei wirksamer Einbeziehung; § 13 VOB/B enthält je nach Art der Leistung unterschiedliche Verjährungsfristen für Mängelansprüche",
+      "Für Mängelansprüche an Bauwerken sieht § 634a Absatz 1 Nummer 2 BGB grundsätzlich eine fünfjährige Verjährung vor; Fristbeginn und Vertragsgestaltung sind gesondert zu prüfen",
+      "Die Bauhandwerkersicherung nach § 650f BGB ist von der Sicherungshypothek nach § 650e BGB zu unterscheiden; § 650f Absatz 6 Nummer 1 nimmt bestimmte juristische Personen des öffentlichen Rechts von der Bauhandwerkersicherung aus",
+      "Ob Vertragserfüllungs- oder Mängelsicherheiten verlangt werden und in welcher Höhe, ergibt sich aus den Vergabe- und Vertragsunterlagen",
+      "GAEB-Formate wie D83/X83 sind verbreitet; maßgeblich ist das in den Vergabeunterlagen verlangte Format",
       "Bei Sanierungen: Bestandspläne und Schadstoffgutachten (PCB, Asbest) prüfen",
     ],
     faq: [
@@ -122,7 +130,7 @@ export const BRANCHEN: BrancheEntry[] = [
       {
         question: "Welche Gewährleistungsfrist gilt beim Hochbau?",
         answer:
-          "Nach VOB/B beträgt die Gewährleistungsfrist 4 Jahre für das Bauwerk als Ganzes, 2 Jahre für Nachträge. Wird BGB vereinbart (ohne VOB), gelten 5 Jahre. Bei Schlüsselfertigbau sind 5 Jahre nach BGB üblich.",
+          "Es gibt keine einheitliche Frist allein wegen der Bauart oder einer Schlüsselfertigvergabe. Bei wirksam vereinbarter VOB/B richtet sich die Verjährung von Mängelansprüchen nach § 13 VOB/B und der Art der Leistung. Für Mängelansprüche an Bauwerken sieht § 634a Absatz 1 Nummer 2 BGB grundsätzlich fünf Jahre vor; der Fristbeginn richtet sich nach § 634a Absatz 2 BGB.",
       },
     ],
     relatedCategories: ["Bauarbeiten"],
@@ -161,7 +169,7 @@ export const BRANCHEN: BrancheEntry[] = [
       "GEG (Gebäudeenergiegesetz) muss eingehalten werden — Energieeffizienz ist Prüfkriterium",
       "Brandschutz: Nachweis nach Landesbauordnung (Akustik, Brandmeldung, Entrauchung)",
       "Smart-Building: BACnet, KNX oder LONMARK als Kommunikationsprotokolle spezifiziert",
-      "Inbetriebnahmeprotokoll und Dokumentation nach DIN 18380 (Heizung), DIN 18381 (Gas), DIN 18382 (Elektro)",
+      "Für TGA-Gewerke gelten die im Vertrag benannten technischen Regeln und VOB/C-ATV; prüfen Sie die einschlägigen Ausgaben und Dokumentationspflichten in den Vergabeunterlagen",
       "Wartungsverträge: Häufig als Folgewartung im Anschluss vereinbart",
     ],
     faq: [
@@ -173,7 +181,7 @@ export const BRANCHEN: BrancheEntry[] = [
       {
         question: "Welche Normen gelten für die TGA-Vergabe?",
         answer:
-          "Die TGA-Vergabe richtet sich nach VOB Teil C mit den einzelnen DIN-Normen: DIN 18380 (Heizungsanlagen), DIN 18381 (Gas-, Wasser- und Abwasseranlagen), DIN 18382 (Elektroanlagen), DIN 18384 (Lüftungsanlagen). Diese Normen sind Vertragsbestandteil bei VOB-Vergaben.",
+          "Die VOB/C enthält gewerkespezifische Allgemeine Technische Vertragsbedingungen (ATV). Welche ATV und welche Ausgabe gelten, ergibt sich aus den vereinbarten Vergabe- und Vertragsunterlagen; die VOB/C wird nicht allein dadurch Vertragsbestandteil, dass es sich um eine Bauvergabe handelt.",
       },
     ],
     relatedCategories: ["TGA"],
@@ -185,8 +193,8 @@ export const BRANCHEN: BrancheEntry[] = [
     metaDescription:
       "Öffentliche Ausschreibungen für IT-Dienstleistungen: Softwareentwicklung, Cloud, IT-Infrastruktur, Cybersecurity, Digitalisierung. CPV-Codes, Verfahren und Besonderheiten der IT-Vergabe.",
     intro: [
-      "IT-Dienstleistungen sind der am stärksten wachsende Vergabebereich in Deutschland. Digitalisierung von Behörden (Onlinezugangsgesetz), Cloud-Migration, Cybersecurity und Softwareentwicklung treiben das Volumen. Charakteristisch: Verhandlungsverfahren ist hier der Standard, weil Anforderungen oft nicht abschließend spezifiziert werden können.",
-      "Die Vergabe erfolgt bei EU-relevanten Werten nach dem einschlägigen Regelwerk; für Liefer- und Dienstleistungen gelten 2026/2027 je nach Auftraggeber 140.000 € oder 216.000 €. Rahmenverträge über 4 Jahre sind verbreitet, um Flexibilität zu gewährleisten.",
+      "IT-Dienstleistungen umfassen unter anderem Digitalisierung, Cloud-Migration, Cybersecurity und Softwareentwicklung. Bei komplexen Aufträgen können – sofern die gesetzlichen Voraussetzungen erfüllt sind – Verhandlungsverfahren oder wettbewerblicher Dialog in Betracht kommen; ein Verhandlungsverfahren ist nicht automatisch der Regelfall.",
+      "Für Liefer- und Dienstleistungen gelten 2026/2027 je nach Auftraggeber unterschiedliche EU-Schwellenwerte, darunter 140.000 € oder 216.000 €. Bei Vergaben nach VgV darf eine Rahmenvereinbarung grundsätzlich höchstens vier Jahre laufen; Ausnahmen müssen durch einen Sonderfall im Gegenstand begründet sein.",
       "Besonderheiten: Due Diligence des Auftraggebers (Referenzkunden, Sicherheitskonzept), Pilotphase im Verfahren, TOTAL-Cost-of-Ownership (TCO) als Bewertungskriterium.",
     ],
     cpvCodes: [
@@ -198,7 +206,7 @@ export const BRANCHEN: BrancheEntry[] = [
       { code: "72600000", label: "Softwaredienstleistungen" },
     ],
     typischeVerfahren: [
-      "Verhandlungsverfahren mit Teilnahmewettbewerb (Standard bei komplexer Software)",
+      "Verhandlungsverfahren mit Teilnahmewettbewerb bei Vorliegen der gesetzlichen Voraussetzungen",
       "Offenes Verfahren bei Standard-IT (Hardware, Lizenzen)",
       "Wettbewerblicher Dialog bei Großprojekten (z. B. Behörden-IT)",
     ],
@@ -213,29 +221,29 @@ export const BRANCHEN: BrancheEntry[] = [
       "Membership in Bitkom oder digitalem Vereine (optional, aber vertrauensbildend)",
     ],
     besonderheiten: [
-      "Verhandlungsverfahren ist Standard — Bieter müssen im Dialog Lösungen entwickeln",
-      "Rahmenvertrag über 4 Jahre mit Laufzeitverlängerung ist typisch",
+      "Bei komplexen IT-Aufträgen kann ein Verhandlungsverfahren in Betracht kommen, wenn die gesetzlichen Voraussetzungen erfüllt sind",
+      "Bei Rahmenvereinbarungen nach VgV gilt grundsätzlich eine Höchstlaufzeit von vier Jahren; Ausnahmen setzen einen begründeten Sonderfall voraus",
       "TOTAL Cost of Ownership (TCO) als Zuschlagskriterium, nicht nur Anschaffungspreis",
       "Sicherheitsanforderungen: BSI IT-Grundschutz-Kompendium, AVV, Verschlusssachenverordnung",
       "Open Source wird bevorzugt (Sovereign Cloud, Open Source Strategy des Bundes)",
-      "Sanktionsprüfung: Lieferkettengesetz, keine IT aus China/Russland (Bund/Länder)",
+      "Sanktions- und Sicherheitsvorgaben sind auftragsbezogen anhand des geltenden Rechts und der Vergabeunterlagen zu prüfen; Herkunft allein sollte nicht pauschal als Ausschlussgrund dargestellt werden",
       "Beta-Test oder Prototyp als Verfahrensbestandteil bei komplexer Software",
     ],
     faq: [
       {
-        question: "Warum wird IT meist im Verhandlungsverfahren vergeben?",
+        question: "Wann kommt ein Verhandlungsverfahren bei IT-Aufträgen in Betracht?",
         answer:
-          "IT-Projekte sind oft komplex und die Anforderungen lassen sich vorab nicht abschließend spezifizieren. Das Verhandlungsverfahren (§ 15 VgV) erlaubt den Dialog mit Bietern, um Lösungen zu entwickeln. Voraussetzung: Teilnahmewettbewerb, d. h. Vorqualifikation der Bieter vor Verhandlungsbeginn.",
+          "Komplexität allein macht ein Verhandlungsverfahren nicht automatisch zulässig. Ob es in Betracht kommt, richtet sich nach den gesetzlichen Voraussetzungen des anwendbaren Vergaberechts und den Vergabeunterlagen. Beim Verhandlungsverfahren mit Teilnahmewettbewerb werden zunächst Teilnahmeanträge geprüft; ausgewählte Unternehmen werden anschließend zur Angebotsabgabe und gegebenenfalls zu Verhandlungen aufgefordert.",
       },
       {
         question: "Was ist ein Rahmenvertrag in der IT-Vergabe?",
         answer:
-          "Ein Rahmenvertrag legt die Konditionen für zukünftige Einzelaufträge fest. Laufzeit maximal 4 Jahre nach VgV. Vorteile für AG: Flexibilität, kurze Reaktionszeiten. Bieter liefern nach Bedarf ab. Rahmenverträge sind in der IT besonders verbreitet, weil Anforderungen oft erst im Verlauf konkretisiert werden.",
+          "Eine Rahmenvereinbarung legt Bedingungen für spätere Einzelaufträge fest. Nach § 21 Absatz 6 VgV darf ihre Laufzeit grundsätzlich höchstens vier Jahre betragen; ein im Gegenstand begründeter Sonderfall kann eine längere Laufzeit rechtfertigen. Einzelaufträge werden nach den Bedingungen der Vereinbarung vergeben.",
       },
       {
         question: "Brauche ich ISO 27001 für öffentliche IT-Aufträge?",
         answer:
-          "Für Cloud-Dienste und sicherheitsrelevante IT ist ISO 27001 oft Eignungskriterium. Für den Bund und viele Länder ist zudem BSI C5 (Cloud Computing Compliance Criteria Catalog) erforderlich. Bei behördenkritischer IT kann das BSI IT-Grundschutz-Kompendium verpflichtend sein.",
+          "Welche Sicherheitsnachweise – etwa ISO 27001, BSI C5 oder Anforderungen des IT-Grundschutzes – verlangt werden, hängt vom Schutzbedarf, Auftrag und den Vergabeunterlagen ab. Sie sind nicht pauschal für jeden öffentlichen IT-Auftrag vorgeschrieben.",
       },
     ],
     relatedCategories: ["Lieferung", "Sonstiges"],
@@ -248,7 +256,7 @@ export const BRANCHEN: BrancheEntry[] = [
       "Öffentliche Ausschreibungen für Gebäudereinigung: Unterhaltsreinigung, Glasreinigung, Fassadenreinigung, Sonderreinigung. CPV-Codes, Verfahren und Besonderheiten der Reinigung-Vergabe.",
     intro: [
       "Gebäudereinigung ist ein klassischer Dienstleistungsbereich der öffentlichen Vergabe. Schulen, Verwaltungsgebäude, Krankenhäuser, Kindergärten — alle öffentlichen Liegenschaften müssen regelmäßig gereinigt werden. Vergaben erfolgen meist als Rahmenvertrag mit 2–4 Jahren Laufzeit.",
-      "Die Vergabe ist wettbewerbsintensiv und preissensibel. Eine Besonderheit: Nach § 4 Tariftreuegesetz (TTG) bzw. den Landesvergabegesetzen muss sich der Bieter zur Zahlung des Tariflohns verpflichten. In einigen Bundesländern gilt ein Mindestlohn über dem gesetzlichen.",
+      "Tariftreue- und Mindestentgeltvorgaben können sich aus einschlägigem Bundes- oder Landesrecht und den Vergabeunterlagen ergeben. Prüfen Sie, welche Vorgaben für den Auftrag, den Leistungszeitraum und gegebenenfalls Nachunternehmen gelten.",
       "Bewertung: Wirtschaftlichkeit dominiert, aber Qualität (Qualitätsmanagement, Personalfluktuation) gewinnt an Bedeutung.",
     ],
     cpvCodes: [
@@ -265,13 +273,13 @@ export const BRANCHEN: BrancheEntry[] = [
       "Mitgliedschaft im Bundesverband Gebäudereinigung (BIV) — vertrauensbildend",
       "RAL-Gütezeichen Reinigung (qualitätsgesichert)",
       "Referenzobjekte vergleichbarer Größenordnung",
-      "Nachweis Tariftreue (Tarifvertrag Gebäudereinigung) bzw. Anerkennung TVG",
+      "Erklärung zu Tariftreue- oder Mindestentgeltvorgaben, soweit sie nach dem anwendbaren Recht oder den Vergabeunterlagen verlangt wird",
       "Qualitätsmanagement: DIN EN ISO 9001 (optional, aber vorteilhaft)",
       "Berufshaftpflichtversicherung (mindestens 1 Mio. €)",
     ],
     besonderheiten: [
-      "Tariftreue: Pflicht zur Zahlung des Tariflohns nach TVG / Landesvergabegesetz",
-      "Mindestlohn: In einigen Bundesländern gilt ein Branchenmindestlohn (Berlin, NRW, Hessen)",
+      "Tariftreue und Mindestentgelt richten sich nach dem jeweils anwendbaren Bundes- oder Landesrecht und den Vergabeunterlagen",
+      "Für den maßgeblichen Leistungszeitraum sind die dann geltenden gesetzlichen und tariflichen Mindestentgelte zu prüfen",
       "Rahmenvertrag 2–4 Jahre, Verlängerungsoption um 1–2 Jahre",
       "Leistungsbeschreibung nach Reinigungsleistung (m²) oder nach Objekt mit Leistungsverzeichnis",
       "Personalfluktuation ist Problem — hohe Fluktuation führt zu Qualitätsverlust",
@@ -282,7 +290,7 @@ export const BRANCHEN: BrancheEntry[] = [
       {
         question: "Was bedeutet Tariftreue bei der Gebäudereinigung?",
         answer:
-          "Nach § 4 Tariftreuegesetz (TTG) bzw. den Landesvergabegesetzen muss sich der Auftragnehmer verpflichten, seinen Beschäftigten mindestens den tarifvertraglichen Lohn zu zahlen. Bei der Gebäudereinigung gilt der flächentarifvertrag mit einem Branchenmindestlohn, der über dem gesetzlichen Mindestlohn liegt.",
+          "Welche Tariftreue- oder Mindestentgeltpflichten gelten, hängt vom Auftrag, Leistungszeitraum, anwendbaren Bundes- oder Landesrecht und den Vergabeunterlagen ab. Prüfen Sie die konkrete Erklärungspflicht und die geltenden Entgelte vor Angebotsabgabe.",
       },
       {
         question: "Wie läuft eine Gebäudereinigungs-Vergabe typischerweise ab?",
@@ -348,8 +356,8 @@ export const BRANCHEN: BrancheEntry[] = [
     metaDescription:
       "Öffentliche Ausschreibungen für Sicherheitsdienstleistungen: Objektschutz, Personenschutz, Veranstaltungssicherheit, Alarmverfolgung. CPV-Codes, Verfahren und Besonderheiten.",
     intro: [
-      "Sicherheitsdienstleistungen sind ein personalintensiver Vergabebereich. Behörden, Krankenhäuser, Schulen und Verkehrsbetriebe benötigen Objektschutz, Empfangsdienste und Alarmverfolgung. Die Vergabe ist stark reguliert — GewO § 34a (Bewachungsgewerbe) ist Pflicht.",
-      "Besonderheit: Tariftreue und Branchenmindestlohn sind verpflichtend. Der Mindestlohn in der Sicherheitsbranche liegt über dem gesetzlichen. Subunternehmer müssen offengelegt werden und denselben Anforderungen entsprechen.",
+      "Sicherheitsdienstleistungen sind ein personalintensiver Vergabebereich. Behörden, Krankenhäuser, Schulen und Verkehrsbetriebe benötigen Objektschutz, Empfangsdienste und Alarmverfolgung. Je nach konkreter Tätigkeit sind Erlaubnis- und Qualifikationspflichten nach § 34a GewO für das Bewachungsgewerbe relevant.",
+      "Tariftreue- und Mindestentgeltvorgaben richten sich nach dem anwendbaren Recht und den Vergabeunterlagen. Anforderungen an Nachunternehmen sind ebenfalls dort zu prüfen.",
       "Vergaben erfolgen meist als Rahmenvertrag über 2–4 Jahre mit Schichtbetrieb 24/7.",
     ],
     cpvCodes: [
@@ -364,16 +372,15 @@ export const BRANCHEN: BrancheEntry[] = [
     eignungskriterien: [
       "Gewerbeanmeldung nach § 34a GewO (Bewachungsgewerbe)",
       "Zuverlässigkeitsprüfung nach § 34a GewO (Führungszeugnis)",
-      "Sachkundenachweis nach § 34a GewO (IHK-Prüfung)",
+      "Unterrichtungs- oder Sachkundenachweis nach § 34a GewO, soweit für die konkrete Tätigkeit erforderlich",
       "Referenzobjekte vergleichbarer Art (Behörde, Krankenhaus, Schule)",
       "Nachweis Tariftreue nach TVG / Landesvergabegesetz",
       "Berufshaftpflichtversicherung (mindestens 3 Mio. €)",
       "24/7-Erreichbarkeit und Leitstelle (TÜV-geprüft)",
     ],
     besonderheiten: [
-      "§ 34a GewO: Zwingende Voraussetzung für das Bewachungsgewerbe",
-      "Branchenmindestlohn: Liegt über dem gesetzlichen Mindestlohn, Aktualisierung alle 6 Monate",
-      "Tariftreue: Pflicht zur Zahlung des Branchenmindestlohns nach TVG",
+      "§ 34a GewO: Für das gewerbsmäßige Bewachen von Leben oder Eigentum ist eine Erlaubnis erforderlich; Qualifikationsnachweise richten sich nach der konkreten Tätigkeit",
+      "Maßgebliche Mindestentgelte und Tariftreuevorgaben hängen von Tätigkeit, Einsatzort, Leistungszeitraum und anwendbarem Recht ab",
       "Subunternehmer: Erlaubt, aber Offenlegung und Nachweis § 34a GewO erforderlich",
       "Objektschutz: Schichtbetrieb 24/7, Wochenendarbeit, Feiertagszuschläge",
       "Alarmverfolgung: VdS-anerkannte Leitstelle (VdS 3138) erforderlich",
@@ -447,7 +454,7 @@ export const BRANCHEN: BrancheEntry[] = [
       "Öffentliche Ausschreibungen für Catering und Gemeinschaftsverpflegung: Schulen, Kitas, Krankenhäuser, Behördenkantinen. CPV-Codes, Verfahren und Besonderheiten.",
     intro: [
       "Catering und Gemeinschaftsverpflegung sind ein stark wachsender Vergabebereich. Schulverpflegung (angesichts des Rechtsanspruchs auf Ganztagsbetreuung), Kantine in Behörden und Krankenhäusern — die öffentliche Hand ist ein großer Auftraggeber.",
-      "Die Vergabe folgt der DSE (Dienstleistungsvorschrift für Essen) und der European Meaurege (EU-Verordnung 852/2004 über Lebensmittelhygiene). Bio und Regionalität werden zunehmend Zuschlagskriterien.",
+      "Die Vergabe richtet sich nach dem für den Auftrag geltenden Vergaberecht. Daneben sind die einschlägigen Lebensmittelhygienevorgaben zu beachten; Bio- und Regionalitätsmerkmale können nach Maßgabe der Vergabeunterlagen eine Rolle spielen.",
       "Rahmenverträge 2–4 Jahre sind Standard, mit Option auf Verlängerung.",
     ],
     cpvCodes: [
@@ -462,15 +469,15 @@ export const BRANCHEN: BrancheEntry[] = [
     eignungskriterien: [
       "Gewerbeanmeldung Gaststätten- oder Cateringgewerbe",
       "Lebensmittelhygiene-Belehrung nach § 43 IfSG",
-      "HACCP-Konzept (EU-Verordnung 852/2004)",
+      "Lebensmittelhygiene- und Eigenkontrollverfahren; konkrete Nachweise richten sich nach den einschlägigen Vorgaben und Vergabeunterlagen",
       "Referenzküche und Transportlogistik",
       "Bio-Zertifizierung (für Bio-Catering)",
       "Nachweis Diätküche (für Krankenhäuser)",
       "Berufshaftpflichtversicherung (1 Mio. €)",
     ],
     besonderheiten: [
-      "Hygiene: HACCP-Konzept nach EU-Verordnung 852/2004 ist Pflicht",
-      "Belehrung nach § 43 IfSG für alle Mitarbeiter (jährlich)",
+      "Hygiene: Lebensmittelunternehmen müssen die für ihre Tätigkeit geltenden Hygieneanforderungen erfüllen; ob ein gesondertes HACCP-Dokument gefordert wird, ergibt sich aus den Vergabeunterlagen",
+      "Belehrung nach § 43 IfSG gilt für die in § 42 IfSG bezeichneten Tätigkeiten; Arbeitgeber müssen sie nach Tätigkeitsaufnahme und anschließend alle zwei Jahre durchführen",
       "Bio und Regional: Werden zunehmend Zuschlagskriterium (Nachhaltigkeit)",
       "Allergenkennzeichnung nach LMIV (Lebensmittel-Informationsverordnung)",
       "DGE-Qualitätsstandard für Schulverpflegung (empfohlen)",
@@ -479,9 +486,9 @@ export const BRANCHEN: BrancheEntry[] = [
     ],
     faq: [
       {
-        question: "Was ist HACCP und warum ist es Pflicht?",
+        question: "Welche Rolle spielt HACCP bei Catering-Ausschreibungen?",
         answer:
-          "HACCP (Hazard Analysis Critical Control Points) ist ein System zur Lebensmittelsicherheit, das Gefahren identifiziert und kontrolliert. Es ist nach EU-Verordnung 852/2004 für alle Lebensmittelunternehmen verpflichtend. Ohne HACCP-Konzept keine Vergabe von Catering-Leistungen.",
+          "HACCP (Hazard Analysis and Critical Control Points) ist ein systematischer Ansatz zur Ermittlung und Kontrolle von Gefahren für die Lebensmittelsicherheit. Welche Hygienemaßnahmen und Nachweise für einen konkreten Catering-Auftrag verlangt werden, richtet sich nach den einschlägigen Hygienevorgaben und Vergabeunterlagen; ein bestimmtes Dokument ist nicht pauschal Voraussetzung jeder Vergabe.",
       },
     ],
     relatedCategories: ["Lieferung", "Sonstiges"],
@@ -527,9 +534,9 @@ export const BRANCHEN: BrancheEntry[] = [
     ],
     faq: [
       {
-        question: "Was ist der Unterschied zwischen SektVO und VgV?",
+        question: "Wann gilt bei Energieaufträgen die SektVO statt der VgV?",
         answer:
-          "Die SektVO (Sektorenvergabeverordnung) gilt für Auftraggeber in den Sektoren Trinkwasser, Energie, Verkehr und Post (§ 100 GWB). Für 2026/2027 beträgt der Schwellenwert 432.000 € für Liefer-/Dienstleistungen bzw. 5.404.000 € für Bauaufträge. Für Energieversorger ist die SektVO maßgeblich.",
+          "Die SektVO gilt nicht automatisch für jedes Unternehmen oder jeden Energieauftrag. Entscheidend ist, ob der Auftraggeber die Voraussetzungen des § 100 GWB erfüllt und die Beschaffung einer Sektorentätigkeit zuzuordnen ist. Soweit die SektVO anwendbar ist, beträgt der EU-Schwellenwert für Liefer- und Dienstleistungen 432.000 € und für Bauaufträge 5.404.000 € (2026/2027).",
       },
     ],
     relatedCategories: ["Lieferung"],
@@ -588,7 +595,7 @@ export const BRANCHEN: BrancheEntry[] = [
     metaDescription:
       "Öffentliche Ausschreibungen für Gesundheitswesen und Medizintechnik: Krankenhausbedarf, Medizingeräte, Pflegedienstleistungen, Rettungsdienst. CPV-Codes und Besonderheiten.",
     intro: [
-      "Das Gesundheitswesen ist ein hochregulierter Vergabebereich. Öffentliche Krankenhäuser, Universitätskliniken und Rehabilitationseinrichtungen vergeben Medizintechnik, Pflegedienstleistungen, Rettungsdienste und Medizinbedarf. Die Vergabe folgt dem SektVO-Regime für Krankenhäuser (§ 100 GWB).",
+      "Das Gesundheitswesen ist ein hochregulierter Vergabebereich. Öffentliche Krankenhäuser, Universitätskliniken und Rehabilitationseinrichtungen vergeben Medizintechnik, Pflegedienstleistungen, Rettungsdienste und Medizinbedarf. Ob ein Krankenhaus Sektorenauftraggeber ist und die SektVO auf einen Auftrag Anwendung findet, richtet sich nach den Voraussetzungen des § 100 GWB und der konkreten Sektorentätigkeit.",
       "Medizinprodukte müssen CE-gekennzeichnet sein und den Anforderungen des MPG (Medizinproduktegesetz) und der MDR (Medical Device Regulation) entsprechen. Bei Arzneimitteln gilt das AMG.",
       "Charakteristisch: Lange Rahmenverträge (4 Jahre), hohe Qualitätsanforderungen, Bieter-Due Diligence mit Audit.",
     ],
@@ -612,7 +619,7 @@ export const BRANCHEN: BrancheEntry[] = [
       "Berufshaftpflicht und Produkthaftpflicht (5 Mio. €)",
     ],
     besonderheiten: [
-      "SektVO: Krankenhäuser der öffentlichen Hand sind Sektorenauftraggeber",
+      "Die öffentliche Trägerschaft allein macht ein Krankenhaus nicht automatisch zum Sektorenauftraggeber; maßgeblich sind § 100 GWB und die konkrete Tätigkeit",
       "MDR (Medical Device Regulation): Ersetzt seit 2021 die MDD, Übergangsfristen bis 2028",
       "AMG (Arzneimittelgesetz): Zulassungspflicht für Arzneimittel",
       "Rahmenvertrag 4 Jahre, oft mit Option auf Verlängerung",

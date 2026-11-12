@@ -9,17 +9,17 @@ export interface CategoryContent {
 export const CATEGORY_CONTENT: Record<string, CategoryContent> = {
   Bauarbeiten: {
     intro:
-      "Bauarbeiten umfassen Rohbau, Innenausbau, Instandsetzung und Abbrucharbeiten an öffentlichen Gebäuden und Infrastruktur. Aufträge der öffentlichen Hand reichen von der Sanierung einer Schule über den Neubau einer Feuerwache bis zur Instandsetzung von Brücken. Vergaben erfolgen meist als offenes oder beschränktes Verfahren nach VOB/A.",
+      "Bauarbeiten umfassen Rohbau, Innenausbau, Instandsetzung und Abbrucharbeiten an öffentlichen Gebäuden und Infrastruktur. Aufträge der öffentlichen Hand reichen von der Sanierung einer Schule über den Neubau einer Feuerwache bis zur Instandsetzung von Brücken. Im nationalen Bereich gilt für Bauaufträge grundsätzlich VOB/A Abschnitt 1; im EU-Oberschwellenbereich sind VOB/A Abschnitt 2 und die nach § 2 VgV anwendbaren Vorschriften maßgeblich.",
     tips: [
-      "Prüfen Sie die Eignungskriterien frühzeitig – Nachweise wie Präqualifikation (PQ-VOLK), Berufshaftpflicht und Referenzprojekte werden zwingend gefordert.",
+      "Prüfen Sie die Eignungskriterien frühzeitig. Eine PQ-VOB-Präqualifikation kann Nachweise bündeln, ist aber nicht allgemein vorgeschrieben; maßgeblich sind die Anforderungen und Nachweisformen in den Vergabeunterlagen.",
       "Achten Sie auf die Zuschlagsfrist und die Ausführungsfrist – öffentliche Auftraggeber haben feste Bauzeiten, die im Terminplan eingehalten werden müssen.",
-      "Bei VOB-Vergaben müssen Nebenangebote genau spezifiziert werden – Abweichungen ohne entsprechende Klausel führen zum Ausschluss.",
+      "Nebenangebote sind nur zulässig, wenn die Vergabeunterlagen sie erlauben und die dort genannten Bedingungen erfüllen; prüfen Sie diese Vorgaben vor der Angebotsabgabe.",
     ],
     requirements: [
       "Eintragung im Berufsregister (Handwerkskarte oder Gewerbeanmeldung)",
       "Berufshaftpflichtversicherung mit ausreichender Deckungssumme",
       "Referenzen vergleichbarer Größenordnung aus den letzten 3–5 Jahren",
-      "PQ-VOLK-Zertifikat (Vergabeordnung für Leistungen) bei vielen Vergabestellen",
+      "PQ-VOB-Präqualifikation als möglicher gebündelter Eignungsnachweis; konkrete Anforderungen stehen in den Vergabeunterlagen",
     ],
     faq: [
       {
@@ -28,7 +28,7 @@ export const CATEGORY_CONTENT: Record<string, CategoryContent> = {
       },
       {
         question: "Welche Anforderungen gelten bei Bauarbeiten-Vergaben?",
-        answer: "Typische Anforderungen sind Eintragung im Berufsregister, Berufshaftpflichtversicherung, Referenzen vergleichbarer Projekte aus den letzten 3–5 Jahren sowie häufig ein PQ-VOLK-Zertifikat.",
+        answer: "Typische Eignungsnachweise können eine Eintragung im Berufsregister, eine Berufshaftpflichtversicherung und Referenzen vergleichbarer Projekte sein. Eine PQ-VOB-Präqualifikation kann Nachweise bündeln, ist aber nicht allgemein vorgeschrieben; maßgeblich sind die konkreten Vergabeunterlagen.",
       },
       {
         question: "Welche Auftraggeber schreiben Bauarbeiten am häufigsten aus?",
@@ -39,12 +39,12 @@ export const CATEGORY_CONTENT: Record<string, CategoryContent> = {
         answer: "Für Bauaufträge gilt im nationalen Bereich grundsätzlich VOB/A Abschnitt 1. Im EU-Oberschwellenbereich sind VOB/A Abschnitt 2 sowie GWB und die nach § 2 VgV anwendbaren Vorschriften zu beachten; der maßgebliche EU-Schwellenwert für Bauaufträge beträgt 5.404.000 € für 2026/2027.",
       },
       {
-        question: "Wie viel kostet ein PQ-VOLK-Zertifikat und wie lange dauert die Beantragung?",
-        answer: "Die Kosten für ein PQ-VOLK-Zertifikat variieren je nach Stelle und Umfang zwischen 200 und 600 €. Die Bearbeitungszeit beträgt in der Regel 2–4 Wochen. Viele Vergabestellen fordern das Zertifikat als Eignungsnachweis.",
+        question: "Ist eine PQ-VOB-Präqualifikation bei Bauaufträgen vorgeschrieben?",
+        answer: "Eine PQ-VOB-Präqualifikation ist nicht allgemein gesetzlich vorgeschrieben. Sie kann Eignungsnachweise bündeln; welche Nachweise und Nachweisformen verlangt werden, ergibt sich aus den jeweiligen Vergabeunterlagen.",
       },
       {
         question: "Kleine Bauunternehmen — wie finde ich passende Ausschreibungen?",
-        answer: "Kleine Bauunternehmen profitieren von Teillosevergaben: Ab EU-Schwellenwert muss der Auftrag in Lose aufgeteilt werden. Nutzen Sie Tenderhunter, um gezielt nach kleinen Losen in Ihrer Region zu filtern.",
+        answer: "§ 97 Absatz 4 GWB nennt die vornehmliche Berücksichtigung mittelständischer Interessen. Ob und welche Teillose ausgeschrieben sind, ergibt sich aus den konkreten Vergabeunterlagen; allein aus dem EU-Schwellenwert folgt nicht, dass jedes Vorhaben in kleine Lose aufgeteilt wird. Filtern Sie gezielt nach passenden Teil- und Fachlosen in Ihrer Region.",
       },
     ],
   },
@@ -52,13 +52,13 @@ export const CATEGORY_CONTENT: Record<string, CategoryContent> = {
     intro:
       "Tiefbau- und Infrastrukturleistungen umfassen Kanalbau, Straßenbau, Erdarbeiten, Versorgungsleitungen und Wasserbau. Diese Vergaben stammen häufig von Kommunen, Wasser- und Abwasserzweckverbänden sowie Landesbetrieben. Die Auftragsvolumina sind oft erheblich, und die technischen Anforderungen an Material und Ausführung sind hoch.",
     tips: [
-      "Tiefbau-Vergaben erfordern oft spezielle Nachweise wie DIN 18234 (Kanalbau) oder TL Asphalt – prüfen Sie die technischen Lieferbedingungen genau.",
-      "Bodenklassen und Grundwasserstände werden häufig erst während der Bauzeit endgültig festgestellt – bedenken Sie Mehrvergütungsansprüche bei abweichenden Baugrundverhältnissen.",
+      "Prüfen Sie die in den Vergabeunterlagen genannten technischen Regeln, Ausführungsnormen und Lieferbedingungen für das konkrete Tiefbaugewerk.",
+      "Abweichende Baugrundverhältnisse begründen nicht automatisch einen Mehrvergütungsanspruch. Dokumentieren Sie die tatsächlichen Umstände und prüfen Sie Leistungsbeschreibung, Risikozuweisung und vertragliche Nachtragsregeln.",
       "Verkehrsmanagement und Baustellenabsicherung sind oft eigener Vergabeteil – koordinieren Sie sich mit anderen Gewerken.",
     ],
     requirements: [
-      "Präqualifikation nach VOB/A (PQ-VOB)",
-      "Fachbetriebnachweis für Kanalsanierung (z.B. nach DIN 4033 oder DWA-Richtlinien)",
+      "PQ-VOB-Präqualifikation als möglicher gebündelter Eignungsnachweis, soweit für die konkrete Vergabe passend",
+      "Fachbetriebnachweis für Kanalsanierung, soweit in den Vergabeunterlagen gefordert",
       "Erfahrung mit vergleichbaren Tiefbauvorhaben (Wertangabe und Referenz)",
       "Sicherheits- und Gesundheitsschutzkoordinator (SiGeKo) Benennung",
     ],
@@ -69,19 +69,19 @@ export const CATEGORY_CONTENT: Record<string, CategoryContent> = {
       },
       {
         question: "Welche Anforderungen gelten bei Tiefbau-Vergaben?",
-        answer: "Typische Anforderungen sind Präqualifikation nach VOB/A, Fachbetriebnachweise für Kanalsanierung, Erfahrung mit vergleichbaren Tiefbauvorhaben sowie die Benennung eines SiGeKo.",
+        answer: "Typische Anforderungen können Fachbetriebnachweise für Kanalsanierung, Erfahrung mit vergleichbaren Tiefbauvorhaben und die Benennung eines SiGeKo sein. Eine PQ-VOB-Präqualifikation kann Eignungsnachweise bündeln; entscheidend sind die Vergabeunterlagen.",
       },
       {
         question: "Welche Auftraggeber schreiben Tiefbau am häufigsten aus?",
         answer: "Die wichtigsten Auftraggeber im Tiefbau sind Kommunen, Wasser- und Abwasserzweckverbände, Landesbetriebe und Straßenbauämter. Auch Autobahnmeistereien vergeben regelmäßig Tiefbauaufträge.",
       },
       {
-        question: "Welche Vorschriften gelten bei Kanalbau-Ausschreibungen?",
-        answer: "Kanalbau-Ausschreibungen folgen den technischen Lieferbedingungen DIN 18234 und den DWA-Richtlinien. Typische Anforderungen sind Fachbetriebnachweis nach DIN 4033 und Erfahrung mit Grabensicherung und Rohrverlegung.",
+        question: "Welche technischen Vorschriften gelten bei Kanalbau-Ausschreibungen?",
+        answer: "Maßgeblich sind die technischen Regeln und Ausführungsnormen, auf die die konkreten Vergabe- und Vertragsunterlagen Bezug nehmen. Prüfen Sie insbesondere die dort benannten Ausgaben, Anforderungen an Material und Ausführung sowie gegebenenfalls geforderte Fachbetriebnachweise.",
       },
       {
         question: "Was sind Mehrvergütungsansprüche bei abweichenden Baugrundverhältnissen?",
-        answer: "Wenn sich während der Bauzeit herausstellt, dass der Baugrund von der Ausschreibung abweicht (z.B. andere Bodenklasse, Grundwasser), können Tiefbauunternehmen Mehrvergütungsansprüche nach §2 Nr. 5 VOB/B geltend machen.",
+        answer: "Eine Abweichung zwischen beschriebenem und tatsächlichem Baugrund führt nicht automatisch zu einem Mehrvergütungsanspruch. Entscheidend sind unter anderem die Ausschreibungs- und Vertragsgrundlagen, die Risikozuweisung und die konkreten Umstände. Dokumentieren Sie den Befund und prüfen Sie die vertraglichen Nachtragsregeln, bevor Sie Ansprüche bewerten.",
       },
     ],
   },
@@ -330,7 +330,7 @@ export const CATEGORY_CONTENT: Record<string, CategoryContent> = {
   },
   Planungsleistungen: {
     intro:
-      "Planungsleistungen umfassen Architektur, Ingenieurbau, TGA-Planung, Landschaftsarchitektur und Projektsteuerung. Öffentliche Vergaben richten sich an freiberuflich tätige Planer und Planungsgemeinschaften. Vergaben erfolgen nach VgV oder UVgO, oft als Verhandlungsverfahren mit Teilnahmewettbewerb.",
+      "Planungsleistungen umfassen Architektur, Ingenieurbau, TGA-Planung, Landschaftsarchitektur und Projektsteuerung. Öffentliche Vergaben richten sich an freiberuflich tätige Planer und Planungsgemeinschaften. Das anwendbare Vergaberecht hängt unter anderem vom Auftragswert, Auftraggeber und Zuschnitt des Auftrags ab; § 2 VgV regelt auch Planungsleistungen, die als Los eines Bauauftrags vergeben werden.",
     tips: [
       "Die Honorarzone und -satz berechnen sich nach HOAI (bzw. dem neuen Honorarrahmen) – prüfen Sie, ob die geforderte Leistungstiefe zur Honorarzone passt.",
       "Planungswerkzeuge wie BIM (Building Information Modeling) werden zunehmend Vergabevoraussetzung – dokumentieren Sie Ihre Softwarekompetenz (Revit, Allplan, Archicad).",
@@ -353,7 +353,7 @@ export const CATEGORY_CONTENT: Record<string, CategoryContent> = {
       },
       {
         question: "Welche Auftraggeber schreiben Planungsleistungen am häufigsten aus?",
-        answer: "Die wichtigsten Auftraggeber sind Bund, Länder, Kommunen und öffentliche Unternehmen. Vergaben erfolgen nach VgV oder UVgO, oft als Verhandlungsverfahren mit Teilnahmewettbewerb.",
+        answer: "Die wichtigsten Auftraggeber sind Bund, Länder, Kommunen und öffentliche Unternehmen. Welches Regelwerk und Verfahren anwendbar ist, hängt vom Auftraggeber, Auftragswert und Zuschnitt des Auftrags ab; Planungsleistungen als Los eines Bauauftrags fallen nach § 2 VgV unter diese Verordnung.",
       },
       {
         question: "Was ist BIM und warum wird es bei Planungsvergaben gefordert?",
@@ -367,14 +367,14 @@ export const CATEGORY_CONTENT: Record<string, CategoryContent> = {
   },
   "IT-Dienstleistungen": {
     intro:
-      "IT-Dienstleistungen in der öffentlichen Verwaltung umfassen Softwareentwicklung, IT-Betrieb, Cloud-Services, Cybersecurity und Digitalisierungsvorhaben. Vergaben richten sich nach UVgO oder VgV und erfordern oft hohe Sicherheitsstandards (BSI-Grundschutz, ISO 27001). Der Trend geht zu Rahmenvereinbarungen und agilen Vergaben.",
+      "IT-Dienstleistungen in der öffentlichen Verwaltung umfassen Softwareentwicklung, IT-Betrieb, Cloud-Services, Cybersecurity und Digitalisierungsvorhaben. Das anwendbare Vergaberecht richtet sich unter anderem nach Auftraggeber und Auftragswert; je nach Leistungsgegenstand und Schutzbedarf können besondere Sicherheitsanforderungen in den Vergabeunterlagen stehen. Der Trend geht zu Rahmenvereinbarungen und agilen Vergaben.",
     tips: [
-      "Datenschutz und Informationssicherheit sind kritisch – BSI-Grundschutz-Kompatibilität oder ISO 27001-Zertifizierung sind oft Mindestanforderung.",
-      "Open-Source-Präferenz: Viele Bundes- und Landesbehörden bevorzugen Open-Source-Lösungen – dokumentieren Sie Ihre Kompetenz.",
-      "Sovereign Cloud (Gaia-X, BSI C5) wird zunehmend gefordert – nicht jede Public-Cloud-Lösung ist zulässig.",
+      "Datenschutz und Informationssicherheit sind auftragsabhängig – geforderte Nachweise wie BSI-Grundschutz oder ISO 27001 stehen in den Vergabeunterlagen.",
+      "Prüfen Sie, ob und in welcher Form offene Standards oder Open-Source-Komponenten in der konkreten Ausschreibung berücksichtigt werden.",
+      "Cloud-Anforderungen zu Datenverarbeitung, Rechtsraum und Kontrolle sind schutzbedarfs- und auftragsabhängig; entnehmen Sie sie den Vergabeunterlagen.",
     ],
     requirements: [
-      "ISO/IEC 27001-Zertifizierung (Information Security Management)",
+      "ISO/IEC 27001-Zertifizierung oder ein anderer geforderter Sicherheitsnachweis, soweit in den Vergabeunterlagen verlangt",
       "Erfahrung mit öffentlichen Auftraggebern (Referenzprojekte)",
       "Sicherheitsüberprüfung des Personals (Ü3 oder Φ nach SÜG bei Bundesbehörden)",
       "SLA-basierte Service-Level-Agreements mit Verfügbarkeitsgarantien",
@@ -386,19 +386,19 @@ export const CATEGORY_CONTENT: Record<string, CategoryContent> = {
       },
       {
         question: "Welche Anforderungen gelten bei IT-Vergaben?",
-        answer: "Typische Anforderungen sind ISO 27001-Zertifizierung, Erfahrung mit öffentlichen Auftraggebern, Sicherheitsüberprüfung des Personals bei Bundesbehörden und SLA-basierte Verfügbarkeitsgarantien.",
+        answer: "Je nach Auftrag können Sicherheitsnachweise wie ISO 27001, einschlägige Referenzen, erforderliche Personalüberprüfungen oder SLA-Vorgaben verlangt werden. Maßgeblich sind Schutzbedarf und konkrete Vergabeunterlagen.",
       },
       {
         question: "Welche Auftraggeber schreiben IT-Dienstleistungen am häufigsten aus?",
         answer: "Die aktivsten IT-Auftraggeber sind Bundes- und Landesbehörden, Kommunen und öffentliche Unternehmen. Der Trend geht zu Rahmenvereinbarungen und agilen Vergaben im Bereich Digitalisierung.",
       },
       {
-        question: "Was ist BSI-Grundschutz und warum wird er bei IT-Vergaben gefordert?",
-        answer: "Der BSI-Grundschutz ist ein Standard des Bundesamts für Sicherheit in der Informationstechnik für IT-Sicherheit. Viele öffentliche Auftraggeber fordern BSI-Grundschutz-Kompatibilität oder ISO 27001 als Mindestanforderung für IT-Dienstleister.",
+        question: "Was ist BSI-Grundschutz und wann wird er bei IT-Vergaben relevant?",
+        answer: "Der BSI-Grundschutz ist ein Rahmenwerk des Bundesamts für Sicherheit in der Informationstechnik für Informationssicherheit. Ob ein Auftrag BSI-Grundschutz, ISO 27001 oder einen anderen Nachweis verlangt, hängt vom Schutzbedarf und den Vergabeunterlagen ab.",
       },
       {
         question: "Was bedeutet Sovereign Cloud bei öffentlichen IT-Ausschreibungen?",
-        answer: "Sovereign Cloud (Gaia-X, BSI C5) beschreibt Cloud-Lösungen mit Datenhoheit in Deutschland/Europa. Nicht jede Public-Cloud-Lösung ist für öffentliche Auftraggeber zulässig — achten Sie auf die Konformität.",
+        answer: "Sovereign Cloud bezeichnet Cloud-Angebote mit besonderen Anforderungen an Kontrolle, Datenverarbeitung oder Rechtsraum. Welche Anforderungen für eine öffentliche Stelle gelten, ist auftrags- und schutzbedarfsabhängig und muss den Vergabeunterlagen entnommen werden.",
       },
     ],
   },
