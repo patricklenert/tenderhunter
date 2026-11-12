@@ -5287,7 +5287,7 @@ const runScrapeUsTenders = async (_payload: Record<string, JsonValue>): Promise<
 
   const sourceErrors = Object.entries(result.errors);
   if (sourceErrors.length > 0) {
-    throw new Error(`${sourceErrors.length} US-Quellen konnten nicht verarbeitet werden: ${sourceErrors.slice(0, 3).map(([source, message]) => `${source}: ${message}`).join("; ")}`);
+    console.warn(`[us-scraper] ${sourceErrors.length} US-Quellen fehlgeschlagen; erfolgreiche Quellen wurden verarbeitet: ${sourceErrors.slice(0, 3).map(([source, message]) => `${source}: ${message}`).join("; ")}`);
   }
 
   try {

@@ -5,6 +5,8 @@ import { dedupeUsAttachments, normalizeUsDate, type UsExtractedTender } from "@/
 const GPR_URL = "https://ssl.doas.state.ga.us/gpr/index";
 const cleanText = (value: string): string => value.replace(/\s+/g, " ").trim();
 const GPR_ATTACHMENT_HINT = /(?:downloadAttachment|attachment|document|download|\.pdf(?:$|[?#])|\.docx?(?:$|[?#])|\.xlsx?(?:$|[?#])|\.zip(?:$|[?#]))/i;
+const DETAIL_ENRICHMENT_TIMEOUT_MS = 120_000;
+const DETAIL_PAGE_TIMEOUT_MS = 15_000;
 
 export const parseGeorgiaGprDetailAttachments = (html: string, baseUrl: string): Array<{ name: string; url: string }> => {
   const $ = cheerio.load(html);
@@ -48,14 +50,29 @@ export async function fetchGeorgiaGprOpportunities(): Promise<UsExtractedTender[
   });
 
   const detailAttachments = new Map<string, Array<{ name: string; url: string }>>();
+  const detailDeadline = Date.now() + DETAIL_ENRICHMENT_TIMEOUT_MS;
+  let skippedDetails = 0;
   for (let index = 0; index < candidates.length; index += 4) {
+    const remainingMs = detailDeadline - Date.now();
+    if (remainingMs <= 0) {
+      skippedDetails = candidates.length - index;
+      break;
+    }
+    const detailTimeoutMs = Math.min(DETAIL_PAGE_TIMEOUT_MS, remainingMs);
     const details = await Promise.allSettled(candidates.slice(index, index + 4).map(async (candidate) => {
-      const detail = await scrapeWebsite(candidate.url, { onlyMainContent: false, waitMs: 1_000 });
+      const detail = await scrapeWebsite(candidate.url, {
+        onlyMainContent: false,
+        waitMs: 1_000,
+        signal: AbortSignal.timeout(detailTimeoutMs),
+      });
       return { url: candidate.url, attachments: parseGeorgiaGprDetailAttachments(detail.html, detail.url) };
     }));
     for (const detail of details) {
       if (detail.status === "fulfilled") detailAttachments.set(detail.value.url, detail.value.attachments);
     }
+  }
+  if (skippedDetails > 0) {
+    console.warn(`[us-scraper] georgia_gpr: skipped attachment enrichment for ${skippedDetails} opportunities after ${DETAIL_ENRICHMENT_TIMEOUT_MS / 1_000}s; listing records are still returned.`);
   }
 
   return candidates.map((candidate) => ({
