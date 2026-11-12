@@ -5,7 +5,8 @@ import { execFileSync } from "node:child_process";
 import { decodeTextBuffer, repairKnownGermanEncoding } from "@/lib/text-normalization";
 import { htmlToBasicMarkdown } from "@/lib/firecrawl";
 
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+// OpenRouter deaktiviert (kein LLM mehr): const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+const OPENROUTER_API_KEY: string | undefined = undefined;
 const OPENROUTER_BASE = "https://openrouter.ai/api/v1/chat/completions";
 
 const FETCH_TIMEOUT_MS = 300_000; // 5 Minuten Timeout für OpenRouter Aufrufe

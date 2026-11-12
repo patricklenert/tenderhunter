@@ -1,7 +1,8 @@
 import OpenAI from "openai";
 import { callLLM } from "@/lib/llm";
 
-const openrouterKey = process.env.OPENROUTER_API_KEY ?? "";
+// OpenRouter deaktiviert (kein LLM mehr): const openrouterKey = process.env.OPENROUTER_API_KEY ?? "";
+const openrouterKey = "";
 
 let openaiClient: OpenAI | null = null;
 

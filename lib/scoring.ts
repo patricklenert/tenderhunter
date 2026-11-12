@@ -434,7 +434,8 @@ export async function llmBatchDomainMatch(
   regions: string[],
   tenders: TenderBatchItem[],
 ): Promise<Map<number, number>> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
+  // OpenRouter deaktiviert (kein LLM mehr): const apiKey = process.env.OPENROUTER_API_KEY;
+  const apiKey: string | undefined = undefined;
   const result = new Map<number, number>();
   if (!apiKey || tenders.length === 0 || capabilities.length === 0) {
     return result;

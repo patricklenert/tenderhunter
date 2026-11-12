@@ -3469,7 +3469,8 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
   let location = pickValidatedPublicLocationForTender(tender.title, client, meta.location);
 
   // Only use LLM if we have substantial page content to extract from
-  const openrouterKey = process.env.OPENROUTER_API_KEY ?? "";
+  // OpenRouter deaktiviert (kein LLM mehr): const openrouterKey = process.env.OPENROUTER_API_KEY ?? "";
+  const openrouterKey = "";
   let result: Record<string, unknown> | undefined;
 
   // Avoid an expensive browser round-trip when a substantial document was

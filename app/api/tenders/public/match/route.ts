@@ -12,7 +12,8 @@ import { pickPublicTenderDescription, readPublicTenderMeta } from "@/lib/tender-
 import { pickValidatedPublicLocationForTender } from "@/lib/public-content-quality";
 import { normalizeStructured } from "@/lib/structurer";
 
-const openrouterKey = process.env.OPENROUTER_API_KEY ?? "";
+// OpenRouter deaktiviert (kein LLM mehr): const openrouterKey = process.env.OPENROUTER_API_KEY ?? "";
+const openrouterKey = "";
 
 let openaiClient: OpenAI | null = null;
 

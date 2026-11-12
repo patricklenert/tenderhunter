@@ -53,7 +53,8 @@ import {
   type RankedSubpageCandidate,
 } from "@/lib/resource-discovery";
 
-const openrouterKey = process.env.OPENROUTER_API_KEY ?? "";
+// OpenRouter deaktiviert (kein LLM mehr): const openrouterKey = process.env.OPENROUTER_API_KEY ?? "";
+const openrouterKey = "";
 
 function fixBrokenUmlauts(text: string): string {
   // Preserve unknown replacement characters so public-field validation can

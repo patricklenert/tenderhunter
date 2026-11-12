@@ -106,6 +106,8 @@ async function main(): Promise<void> {
     }
   });
 
+  // [OpenRouter deaktiviert – kein LLM] Decider-Tests: zum Reaktivieren von OpenRouter entkommentieren
+  /*
   // Decider above and below threshold
   await withEnv({ OPENROUTER_API_KEY: "test-key" }, async () => {
     resetTenderRelevanceCacheForTests();
@@ -137,7 +139,10 @@ async function main(): Promise<void> {
       belowHandle.restore();
     }
   });
+  */
 
+  // [OpenRouter deaktiviert – kein LLM] Cache-Decider-Test: zum Reaktivieren entkommentieren
+  /*
   // Cache: identical state is answered from the cache
   await withEnv({ OPENROUTER_API_KEY: "test-key" }, async () => {
     resetTenderRelevanceCacheForTests();
@@ -152,7 +157,10 @@ async function main(): Promise<void> {
       handle.restore();
     }
   });
+  */
 
+  // [OpenRouter deaktiviert – kein LLM] Schwellen-Override via Decider: zum Reaktivieren entkommentieren
+  /*
   // Threshold override
   await withEnv({ OPENROUTER_API_KEY: "test-key", TENDER_RELEVANCE_THRESHOLD: "0.3" }, async () => {
     resetTenderRelevanceCacheForTests();
@@ -164,7 +172,10 @@ async function main(): Promise<void> {
       handle.restore();
     }
   });
+  */
 
+  // [OpenRouter deaktiviert – kein LLM] Decider-Ausfall-Tests: zum Reaktivieren entkommentieren
+  /*
   // Decider outage: deterministic fallback heuristic
   await withEnv({ OPENROUTER_API_KEY: "test-key" }, async () => {
     resetTenderRelevanceCacheForTests();
@@ -190,7 +201,10 @@ async function main(): Promise<void> {
       handle.restore();
     }
   });
+  */
 
+  // [OpenRouter deaktiviert – kein LLM] HTTP-500/Retry-Test: zum Reaktivieren entkommentieren
+  /*
   // HTTP 500 twice: also falls back to the heuristic
   await withEnv({ OPENROUTER_API_KEY: "test-key" }, async () => {
     resetTenderRelevanceCacheForTests();
@@ -206,6 +220,7 @@ async function main(): Promise<void> {
       handle.restore();
     }
   });
+  */
 
   // Missing API key: heuristic without network
   await withEnv({ OPENROUTER_API_KEY: undefined }, async () => {

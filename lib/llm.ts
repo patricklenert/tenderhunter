@@ -43,14 +43,16 @@ export const SMALL_VENDOR_OPENROUTER_MODELS = [
 
 const ZAI_BASE_URL = "https://api.z.ai/api/paas/v4";
 
-const zaiKey = process.env.ZAI_API_KEY ?? "";
+// Z.AI deaktiviert (kein LLM mehr): const zaiKey = process.env.ZAI_API_KEY ?? "";
+const zaiKey = "";
 
 let openaiClient: OpenAI | null = null;
 let zaiClient: OpenAI | null = null;
 
 export function getOpenAI(): OpenAI {
   if (!openaiClient) {
-    const openrouterKey = process.env.OPENROUTER_API_KEY ?? "";
+    // OpenRouter deaktiviert (kein LLM mehr): const openrouterKey = process.env.OPENROUTER_API_KEY ?? "";
+    const openrouterKey = "";
     if (!openrouterKey) throw new Error("OPENROUTER_API_KEY ist nicht gesetzt.");
     openaiClient = new OpenAI({ apiKey: openrouterKey, baseURL: "https://openrouter.ai/api/v1", timeout: 120_000, maxRetries: 0 });
   }

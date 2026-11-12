@@ -19,7 +19,8 @@ import { readPublicTenderMeta } from "@/lib/tender-meta";
 
 const MEILI_HOST = process.env.MEILI_HOST ?? "http://localhost:7700";
 const MEILI_KEY = process.env.MEILI_MASTER_KEY ?? "";
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY ?? "";
+// OpenRouter deaktiviert (kein LLM mehr): const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY ?? "";
+const OPENROUTER_API_KEY = "";
 const MEILI_EMBEDDINGS_ENABLED = process.env.MEILI_EMBEDDINGS_ENABLED === "true";
 const INDEX_NAME = "tenders";
 

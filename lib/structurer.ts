@@ -26,7 +26,8 @@ import {
 } from "@/lib/commercial-brief";
 import { classifyOpportunityStatus } from "@/lib/opportunity-status";
 
-const openrouterKey = process.env.OPENROUTER_API_KEY ?? "";
+// OpenRouter deaktiviert (kein LLM mehr): const openrouterKey = process.env.OPENROUTER_API_KEY ?? "";
+const openrouterKey = "";
 
 let openaiClient: OpenAI | null = null;
 

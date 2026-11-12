@@ -89,7 +89,8 @@ const DECIDER_ATTEMPTS = 2;
 // Returns P(yes), or null when the decider is unreachable/invalid so callers
 // can fall back to the deterministic heuristic.
 const callDeciderNoul = async (state: Record<string, string>): Promise<number | null> => {
-  const apiKey = process.env.OPENROUTER_API_KEY ?? "";
+  // OpenRouter deaktiviert (kein LLM mehr): const apiKey = process.env.OPENROUTER_API_KEY ?? "";
+  const apiKey = "";
   if (!apiKey) return null;
   const body = JSON.stringify({
     model: deciderModel(),
