@@ -691,7 +691,7 @@ const normalizePublicDisplayCandidateInternal = (value: unknown, allowInlineMark
   if (generated === null) return null;
   const candidate = generated ?? procedureNormalized;
   if (!candidate || candidate.length > 5_000 || hasUnbalancedDelimiters(candidate)) return null;
-  if (/�|Ã.|Â.|â[\u0080-\u00bf]|ð[\u0080-\u00bf]|&(?:#\d+|#x[\da-f]+|[a-z]+);/iu.test(candidate)) return null;
+  if (/�|Ã.|Â.|â[\u0080-\u00bf]|ð[\u0080-\u00bf]|&(?:#[\da-z]+|[a-z][\w-]*);/iu.test(candidate)) return null;
   if (SOURCE_ERROR.test(candidate)) return null;
   if (/<\/?[a-z][^>]*>/iu.test(candidate)) return null;
   if (PLACEHOLDER.test(candidate)
@@ -1344,6 +1344,7 @@ export interface PublicTenderProjectionInput {
   clientFallbacks?: readonly unknown[];
   locationFallbacks?: readonly unknown[];
   summaryFallbacks?: readonly unknown[];
+  preferredDescriptionMarkdownFallbacks?: readonly unknown[];
   descriptionMarkdownFallbacks?: readonly unknown[];
 }
 
@@ -1358,7 +1359,7 @@ export const projectPublicTenderRecord = (
 ): PublicDisplayProjection => {
   const structured = input.structured === undefined ? [] : [input.structured];
   const metadata = input.metadata === undefined ? [] : [input.metadata];
-  return projectPublicDisplayFields({
+  const display = projectPublicDisplayFields({
     title: [input.title, ...structured, ...metadata],
     client: [...structured, ...metadata, ...(input.clientFallbacks ?? [])],
     location: [...structured, ...metadata, ...(input.locationFallbacks ?? [])],
@@ -1369,4 +1370,9 @@ export const projectPublicTenderRecord = (
       ...(input.descriptionMarkdownFallbacks ?? []),
     ],
   });
+  const descriptionMarkdown = pickCanonicalPublicDescriptionMarkdown(
+    ...(input.preferredDescriptionMarkdownFallbacks ?? []),
+    display.descriptionMarkdown,
+  );
+  return { ...display, descriptionMarkdown };
 };

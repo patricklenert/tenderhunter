@@ -75,7 +75,7 @@ import {
   hasCanonicalPublicDescriptionSection,
   normalizePublicDisplayCandidate,
   pickValidatedPublicCandidate,
-  projectPublicDisplayFields,
+  projectPublicTenderRecord,
 } from "@/lib/public-content-quality";
 
 interface ApiTender {
@@ -103,11 +103,13 @@ interface ApiTender {
   smallVendor?: { fit: number; priceWeightPct: number | null; badges: string[] };
 }
 
-const projectTenderDisplay = (tender: ApiTender) => projectPublicDisplayFields({
+const projectTenderDisplay = (tender: ApiTender) => projectPublicTenderRecord({
   title: tender.title,
-  client: tender.client,
-  location: tender.location,
-  summary: tender.description,
+  metadata: {
+    client: tender.client,
+    location: tender.location,
+    description: tender.description,
+  },
 });
 
 const PAGE_SIZE = 30;
@@ -1118,12 +1120,20 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
             const smallVendorBadges = Array.isArray(smallVendorDetail?.badges)
               ? smallVendorDetail.badges.filter((item): item is string => typeof item === "string" && item.length > 0)
               : [];
-            const display = projectPublicDisplayFields({
-              title: [d.title, t.title],
-              client: [d.client, t.client],
-              location: [d.location, t.location],
-              summary: [d.summary, d.description, t.description],
-              descriptionMarkdown: d.descriptionMarkdown,
+            const display = projectPublicTenderRecord({
+              title: d.title,
+              structured: {
+                client: d.client,
+                location: d.location,
+                summary: [d.summary, d.description],
+                descriptionMarkdown: d.descriptionMarkdown,
+              },
+              metadata: {
+                title: t.title,
+                client: t.client,
+                location: t.location,
+                description: t.description,
+              },
             });
             const title = display.title ?? "";
             const client = display.client ?? "";

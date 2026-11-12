@@ -1,4 +1,4 @@
-import { pickCanonicalPublicDescriptionMarkdown, projectPublicTenderRecord } from "@/lib/public-content-quality";
+import { projectPublicTenderRecord } from "@/lib/public-content-quality";
 import { normalizeStructured, type StructuredFallbackFacts, type StructuredData } from "@/lib/structurer";
 import { readPublicTenderMeta } from "@/lib/tender-meta";
 
@@ -40,22 +40,18 @@ export const projectPublicTenderDetailFallback = (input: PublicTenderDetailFallb
       ...(input.summaryFallbacks ?? []),
       tenderMeta.description,
     ],
+    preferredDescriptionMarkdownFallbacks: input.accessLimited
+      ? [input.accessLimitedDescriptionMarkdown]
+      : [],
     descriptionMarkdownFallbacks: [
       metadataStructured.descriptionMarkdown,
       tenderMeta.descriptionMarkdown,
       ...(input.descriptionMarkdownFallbacks ?? []),
     ],
   });
-  const descriptionMarkdown = pickCanonicalPublicDescriptionMarkdown(
-    ...(input.accessLimited ? [input.accessLimitedDescriptionMarkdown] : []),
-    structured.descriptionMarkdown,
-    display.descriptionMarkdown,
-    tenderMeta.descriptionMarkdown,
-    ...(input.descriptionMarkdownFallbacks ?? []),
-  );
 
   return {
     structured,
-    display: { ...display, descriptionMarkdown },
+    display,
   };
 };

@@ -20,7 +20,6 @@ import { resolvePublicTenderDeadline, resolvePublicTenderDisplayFacts } from "@/
 import { repairKnownGermanEncoding } from "@/lib/text-normalization";
 import {
   normalizePublicDisplayCandidate,
-  pickCanonicalPublicDescriptionMarkdown,
   projectPublicTenderRecord,
 } from "@/lib/public-content-quality";
 
@@ -445,7 +444,8 @@ export async function POST(request: Request): Promise<Response> {
                   cachedAccessFallback?.description,
                   fallbackFacts.scope,
                ],
-               descriptionMarkdownFallbacks: [descriptionMarkdownCandidate, cachedMeta.descriptionMarkdown, tenderMeta.descriptionMarkdown],
+               preferredDescriptionMarkdownFallbacks: [descriptionMarkdownCandidate],
+               descriptionMarkdownFallbacks: [cachedMeta.descriptionMarkdown, tenderMeta.descriptionMarkdown],
              });
             const cachedResources = buildResourceMetadata(
             tender.url,
@@ -464,17 +464,11 @@ export async function POST(request: Request): Promise<Response> {
             const smallVendor = smallVendorMode
               ? analyzeTenderForSmallVendor(tender.title ?? "", blob)
               : null;
-              const cachedDescriptionMarkdown = pickCanonicalPublicDescriptionMarkdown(
-                descriptionMarkdownCandidate,
-                cachedDisplay.descriptionMarkdown,
-                cachedMeta.descriptionMarkdown,
-                tenderMeta.descriptionMarkdown,
-              );
               return json({
               title: cachedDisplay.title ?? normalized.title,
                summary: cachedDisplay.summary ?? "",
                description: cachedDisplay.description ?? "",
-              descriptionMarkdown: cachedDescriptionMarkdown,
+              descriptionMarkdown: cachedDisplay.descriptionMarkdown,
               client: cachedDisplay.client || "Unbekannt",
              deadline: cachedDeadline,
               deadlineISO: cachedDeadlineAt?.toISOString() ?? null,

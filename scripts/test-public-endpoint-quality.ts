@@ -38,9 +38,28 @@ assert.equal(normalizePublicDisplayCandidate("## Bekanntmachung"), null);
 assert.equal(normalizePublicDisplayCandidate(""), null);
 const summarySeparatorArtifact = "— — —";
 assert.equal(normalizePublicDisplayCandidate(summarySeparatorArtifact), null);
+const rejectedDescriptionArtifacts = [
+  "## Kurzinfo",
+  "SERVICE.BUND.DE - Aktuelle Ausschreibungen Haupt-Navigations-Menü Meta-Navigation Andere Ausschreibungen im Bereich",
+  "Anmelden erforderlich, um Zugriff zu erhalten",
+  "Bitte melden Sie sich an, um die vollständigen Vergabeunterlagen einzusehen.",
+  "Zugelassene Angebotsabgabe elektronisch in Textform mit fortgeschrittener/m Signatur/Siegel. mit qualifizierter/m Signatur/Siegel.",
+  "Ã–ffentliche Ausschreibung",
+  "�ffentliche Ausschreibung",
+  "Die Kl&#xZZ;ranlage wird saniert.",
+  "HüpstedtVergabeartBeschränkte AusschreibungAngebotsfrist03.08.2026",
+];
+for (const artifact of rejectedDescriptionArtifacts) {
+  assert.equal(normalizePublicDisplayCandidate(artifact), null, `must reject public-description artifact: ${artifact}`);
+}
 assert.equal(normalizePublicDisplayCandidate("SERVICE.BUND.DE - Aktuelle Ausschreibungen"), null);
 assert.equal(normalizePublicDisplayCandidate("Anmelden erforderlich, um Zugriff zu erhalten"), null);
 assert.equal(normalizePublicDisplayCandidate("Dokumentierte Bauleistungen in Mainz"), "Dokumentierte Bauleistungen in Mainz");
+assert.equal(
+  normalizePublicDisplayCandidate("Die Stadt saniert die Kl&#228;ranlage in Mainz."),
+  "Die Stadt saniert die Kläranlage in Mainz.",
+  "legitimate German tender prose with an HTML entity is decoded before display",
+);
 assert.equal(
   normalizePublicDisplayCandidate("Die Unterlagen beschreiben die auszuführenden Bauarbeiten."),
   "Die Unterlagen beschreiben die auszuführenden Bauarbeiten.",
@@ -105,6 +124,11 @@ const projectedAccessDisplay = projectPublicTenderRecord({
 });
 assert.equal(projectedAccessDisplay.summary, "Dokumentierte Bauleistungen in Mainz");
 assert.equal(pickCanonicalPublicDescriptionMarkdown("## ungeprüft", accessMarkdown), accessMarkdown);
+assert.equal(projectPublicTenderRecord({
+  structured: { descriptionMarkdown: "## ungeprüft" },
+  preferredDescriptionMarkdownFallbacks: ["## auch ungeprüft", accessMarkdown],
+  descriptionMarkdownFallbacks: [cleanTenderMarkdown],
+}).descriptionMarkdown, accessMarkdown, "each preferred Markdown fallback is validated before selection");
 
 // One access-limited fixture must project the same safe text through list,
 // Meilisearch, modal and server-rendered detail consumers.
@@ -228,11 +252,20 @@ const qualityFixtureDetail = projectPublicTenderDetailFallback({
   staleStructuredJson: qualityFixtureStructured,
   fallbackFacts: {},
 }).display;
-const qualityFixtureModal = projectPublicDisplayFields({
-  title: [qualityFixtureDetail.title, qualityFixtureDisplayTitle],
-  client: ["##Auftraggeber", "Stadt Mainz"],
-  location: ["##Leistungsort", "55116 Mainz"],
-  summary: ["##Kurzinfo", "##Bekanntmachung", qualityFixtureSummary],
+const qualityFixtureModal = projectPublicTenderRecord({
+  title: qualityFixtureTitle,
+  structured: {
+    title: qualityFixtureDisplayTitle,
+    client: "##Auftraggeber",
+    location: "##Leistungsort",
+    summary: ["##Kurzinfo", "##Bekanntmachung", qualityFixtureSummary],
+  },
+  metadata: {
+    title: qualityFixtureTitle,
+    client: "Stadt Mainz",
+    location: "55116 Mainz",
+    description: invalidPortalSummary,
+  },
 });
 const qualityFixtureIndex = buildTenderIndexDocument({
   id: 907,
@@ -1211,10 +1244,13 @@ assert.match(detailRouteSource, /getPublicAccessLimitedFallback/);
 assert.match(detailRouteSource, /resolvePublicTenderDisplayFacts\(/);
 assert.match(ssrPageSource, /getPublicAccessLimitedFallback/);
 assert.match(ssrPageSource, /resolvePublicTenderDisplayFacts\(/);
-assert.match(detailModalSource, /projectPublicDisplayFields/);
-assert.match(detailModalSource, /title:\s*\[d\.title,\s*t\.title\]/);
+assert.match(detailModalSource, /const projectTenderDisplay = \(tender: ApiTender\) => projectPublicTenderRecord\(/);
+assert.match(detailModalSource, /const display = projectPublicTenderRecord\(/);
+assert.match(detailModalSource, /title:\s*d\.title,/);
+assert.match(detailModalSource, /title:\s*t\.title,/);
 assert.match(detailModalSource, /location:\s*tender\.location,/);
-assert.match(detailModalSource, /location:\s*\[d\.location,\s*t\.location\]/);
+assert.match(detailModalSource, /location:\s*d\.location,/);
+assert.match(detailModalSource, /location:\s*t\.location,/);
 assert.doesNotMatch(detailModalSource, /location:\s*\[tender\.location,\s*tender\.city,\s*tender\.bundesland\]/);
 assert.doesNotMatch(detailModalSource, /location:\s*\[d\.location,\s*t\.location,\s*t\.city,\s*t\.bundesland\]/);
 assert.match(detailModalSource, /const displayLocation = display\.location \?\? "–";/);
@@ -1225,7 +1261,7 @@ assert.match(ssrPageSource, /!markdownHasSection\(fact\.markdownLabel\)/);
 assert.match(detailModalSource, /client && !markdownHasSection\("Auftraggeber"\)/);
 assert.match(detailModalSource, /!markdownHasSection\("Leistungsort"\) && <Box>/);
 assert.match(searchRouteSource, /searchTenders\(/);
-assert.match(meiliSearchSource, /title:\s*\[currentDisplay\.title\]/);
+assert.match(meiliSearchSource, /const display = currentDisplay;/);
 assert.match(searchRouteSource, /bundesland:\s*hit\.bundesland/);
 assert.match(meiliSearchSource, /\.filter\(\(hit\) => !params\.bundesland \|\| hit\.bundesland === params\.bundesland\)/);
 assert.match(pipelineSource, /parseDeadlineDate\(tender\.deadline\)/);

@@ -509,7 +509,10 @@ export default async function TenderDetailPage({ params }: PageProps) {
       fallbackFacts.location,
     ],
     summaryFallbacks: [accessFallback?.description, fallbackFacts.summary, fallbackFacts.scope],
-    descriptionMarkdownFallbacks: [accessFallback?.descriptionMarkdown, normalizedStructured.descriptionMarkdown, tenderMeta.descriptionMarkdown],
+    preferredDescriptionMarkdownFallbacks: accessLimited && accessFallback
+      ? [accessFallback.descriptionMarkdown]
+      : [],
+    descriptionMarkdownFallbacks: [normalizedStructured.descriptionMarkdown, tenderMeta.descriptionMarkdown],
   });
   const client = display.client || "";
   const location = display.location || "";
@@ -560,26 +563,23 @@ export default async function TenderDetailPage({ params }: PageProps) {
   const contractValue = estimatedValue
     || (tender.contractValueMax ? `${tender.contractValueMax.toLocaleString("de-DE", { maximumFractionDigits: 0 })} EUR` : "");
 
-  const descriptionMarkdown = pickCanonicalPublicDescriptionMarkdown(
-    ...(accessLimited && accessFallback ? [accessFallback.descriptionMarkdown] : []),
-    normalizedStructured.descriptionMarkdown,
-    display.descriptionMarkdown,
-    tenderMeta.descriptionMarkdown,
-    buildTenderDescriptionMarkdown({
-      client,
-      procedure,
-      deadline,
-      location,
-      value: contractValue,
-      duration,
-      reference: referenceNumber,
-      summary: description,
-      scope,
-      requirements,
-      awardCriteria,
-      cpv: (procurement.cpv_codes ?? procurement.cpvCodes) as unknown,
-    }),
-  ) ?? "";
+  const generatedDescriptionMarkdown = buildTenderDescriptionMarkdown({
+    client,
+    procedure,
+    deadline,
+    location,
+    value: contractValue,
+    duration,
+    reference: referenceNumber,
+    summary: description,
+    scope,
+    requirements,
+    awardCriteria,
+    cpv: (procurement.cpv_codes ?? procurement.cpvCodes) as unknown,
+  });
+  const descriptionMarkdown = display.descriptionMarkdown
+    ?? pickCanonicalPublicDescriptionMarkdown(generatedDescriptionMarkdown)
+    ?? "";
   const markdownHasSection = (label: string): boolean => hasCanonicalPublicDescriptionSection(descriptionMarkdown, label);
   const markdownHasScope = markdownHasSection("Leistungsumfang");
   const markdownHasRequirements = markdownHasSection("Anforderungen");

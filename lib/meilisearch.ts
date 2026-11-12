@@ -9,7 +9,6 @@ import { getPublicSourceBundesland } from "@/lib/public-source-registry";
 import {
   pickValidatedPublicProcedure,
   projectPublicTenderRecord,
-  projectPublicDisplayFields,
 } from "@/lib/public-content-quality";
 import { acquireCatalogSync, finishCatalogSync, getCatalogState, releaseCatalogSync, touchCatalogSync } from "@/lib/catalog";
 import { analyzeTenderForSmallVendor, toCompact } from "@/lib/small-vendor";
@@ -453,12 +452,7 @@ export const projectTenderSearchHit = (
     clientFallbacks: [publicFacts.fallbackFacts.buyer],
     locationFallbacks: [publicFacts.fallbackFacts.location],
   });
-  const display = projectPublicDisplayFields({
-    title: [currentDisplay.title],
-    client: [currentDisplay.client],
-    location: [currentDisplay.location],
-    summary: [currentDisplay.description],
-  });
+  const display = currentDisplay;
   const location = display.location || "";
 
   return {
