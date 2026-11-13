@@ -1,0 +1,4 @@
+// Backup der Meilisearch-Embedder-Einstellungen (OpenRouter deaktiviert am 2026-11-13).
+// Zum Reaktivieren: diese Konfiguration via PATCH /indexes/tenders/settings/embedders wieder setzen
+// (apiKey muss aus .env OPENROUTER_API_KEY eingesetzt werden, Meilisearch maskiert sie hier).
+{"default":{"source":"rest","apiKey":"sk-orXXXXXX...","dimensions":3072,"documentTemplate":"{% for field in fields %}{% if field.is_searchable and field.value != nil %}{{ field.name }}: {{ field.value }}\n{% endif %}{% endfor %}","documentTemplateMaxBytes":400,"url":"https://openrouter.ai/api/v1/embeddings","request":{"model":"google/gemini-embedding-2","input":["{{text}}"]},"response":{"data":[{"embedding":"{{embedding}}"}]},"headers":{}}}
