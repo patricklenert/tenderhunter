@@ -17,6 +17,7 @@ import {
 import { buildTenderIndexDocument, getStaleIds, projectTenderSearchHit } from "@/lib/meilisearch";
 import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
 import { projectHomeTenderTitle } from "@/components/seo/HomeTenderList";
+import { hasSufficientNestedCachedDetail } from "@/lib/cache-detail-quality";
 
 const sourceUrl = "https://vergabe.vmstart.de/NetServer/PublicationControllerServlet?function=Detail";
 const title = "Heinrich-Völker-Bad - Bestandsbadehalle - Raumlufttechnische Anlagen 79-2026";
@@ -735,6 +736,24 @@ const main = async (): Promise<void> => {
     scope: "Dokumentierter Leistungsumfang",
   }, title);
   assert.deepEqual(flatScope.decision_relevant.scope, ["Dokumentierter", "Leistungsumfang"]);
+
+  const invalidNestedCache = {
+    hard_facts: { deadline: "14.08.2026 10:00" },
+    decision_relevant: { scope: ["## Kurzinfo"] },
+  };
+  const normalizedInvalidNestedCache = normalizeStructured(invalidNestedCache, title);
+  assert.deepEqual(normalizedInvalidNestedCache.decision_relevant.scope, []);
+  assert.equal(hasSufficientNestedCachedDetail(invalidNestedCache), false);
+  assert.equal(hasSufficientNestedCachedDetail(normalizedInvalidNestedCache), false);
+  const normalizedInvalidNestedCacheAgain = normalizeStructured(normalizedInvalidNestedCache, title);
+  assert.deepEqual(normalizedInvalidNestedCacheAgain.decision_relevant.scope, normalizedInvalidNestedCache.decision_relevant.scope);
+  assert.equal(hasSufficientNestedCachedDetail(normalizedInvalidNestedCacheAgain), false);
+  const validNestedCache = {
+    hard_facts: { deadline: "14.08.2026 10:00" },
+    decision_relevant: { scope: ["Die Lieferung von Büromaterial umfasst den Versand an mehrere Standorte."] },
+  };
+  assert.equal(hasSufficientNestedCachedDetail(validNestedCache), true);
+  assert.equal(hasSufficientNestedCachedDetail(normalizeStructured(validNestedCache, title)), true);
 
   const titleOnly = await extractStructuredData("Kurzer Ausschreibungstitel", "Kurzer Ausschreibungstitel", { useLLM: false });
   assert.equal(titleOnly.summary, "");

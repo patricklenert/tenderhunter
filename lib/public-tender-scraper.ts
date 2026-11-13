@@ -154,6 +154,14 @@ function normalizePublicMarkupText(value: string): string {
     .trim();
 }
 
+function publicMarkupToText(markup: string): string {
+  const text = markup
+    .replace(/<br\b[^>]*\/?>/gi, "\n")
+    .replace(/<\/?(?:address|article|blockquote|dd|div|dl|dt|fieldset|figcaption|figure|footer|form|h[1-6]|header|li|main|ol|p|section|table|tbody|td|tfoot|th|thead|tr|ul)\b[^>]*>/gi, "\n")
+    .replace(/<[^>]+>/g, " ");
+  return normalizePublicMarkupText(text);
+}
+
 /** Rejects login/navigation text that was accidentally captured as an authority. */
 export function normalizePublicClient(value: unknown, fallback = ""): string {
   return normalizeSharedPublicClient(value, fallback);
@@ -1879,7 +1887,10 @@ export function parseSachsenAnhaltListing(
       const url = new URL(href, baseUrl).href;
       const idp = new URL(url).searchParams.get("idp") ?? "";
       const container = $(element).closest("tr, article, li, td").first();
-      const rawContainerText = normalizePublicMarkupText(container.text() || $(element).parent().text());
+      const rawContainerMarkup = container.html() || $(element).parent().html() || "";
+      const rawContainerText = rawContainerMarkup
+        ? publicMarkupToText(rawContainerMarkup)
+        : normalizePublicMarkupText(container.text() || $(element).parent().text());
       const title = cleanTenderTitle(rawContainerText.replace(/\s*mehr\s*>>.*$/i, ""));
       if (!idp || title.length < 5 || seenIds.has(idp)) return;
       seenIds.add(idp);
@@ -1896,7 +1907,11 @@ export function parseSachsenAnhaltDetail(html: string, sourceUrl: string): Sachs
   if (!html || html.trim().length < 100) return null;
   const $ = cheerio.load(html);
   const value = (className: string): string | null => {
-    const text = normalizePublicMarkupText($(`.${className} .tsaid_data`).first().text());
+    const data = $(`.${className} .tsaid_data`).first();
+    const markup = data.html();
+    const text = markup
+      ? publicMarkupToText(markup)
+      : normalizePublicMarkupText(data.text());
     return text || null;
   };
   const title = cleanTenderTitle(value("tsaid_TOPIC") ?? "");

@@ -99,6 +99,35 @@ const sachsenRows = parseSachsenAnhaltListing(`
 assert.equal(sachsenRows.length, 1);
 assert.equal(sachsenRows[0].title, "Wachschutzleistungen 2026");
 
+const sachsenRowWithFacts = parseSachsenAnhaltListing(`
+  <ul>
+    <li>
+      <span>Hüpstedt</span>
+      <div><span>Vergabeart</span><strong>Beschränkte Ausschreibung</strong></div>
+      <p><label>Angebotsfrist</label><br><time>03.08.2026</time></p>
+      <a href="/recherche-aktueller-vergaben?idp=abc124">mehr &gt;&gt;</a>
+    </li>
+  </ul>
+`, "https://evergabe.sachsen-anhalt.de/");
+assert.equal(sachsenRowWithFacts.length, 1);
+assert.equal(
+  sachsenRowWithFacts[0].title,
+  "Hüpstedt Vergabeart Beschränkte Ausschreibung Angebotsfrist 03.08.2026",
+  "HTML block, inline, and br boundaries should separate listing facts",
+);
+
+const sachsenDetailWithMarkup = parseSachsenAnhaltDetail(`
+  <div class="tsaid_TOPIC"><div class="tsaid_data"><span>Sanierung</span><span>in Hüpstedt</span></div></div>
+  <div class="tsaid_DEADLINE"><div class="tsaid_data"><span>Angebotsfrist</span><br><time>03.08.2026</time></div></div>
+  <div class="tsaid_MANDANT"><div class="tsaid_data"><span>Stadt</span><span>Halle (Saale)</span></div></div>
+  <div class="tsaid_AREA"><div class="tsaid_data"><span>Halle</span><span>(Saale)</span></div></div>
+  <div class="tsaid_PROCESSTYPE"><div class="tsaid_data"><span>Beschränkte</span><span>Ausschreibung</span></div></div>
+`, "https://evergabe.sachsen-anhalt.de/recherche-aktueller-vergaben?idp=abc125");
+assert.equal(sachsenDetailWithMarkup?.title, "Sanierung in Hüpstedt");
+assert.equal(sachsenDetailWithMarkup?.deadline, "Angebotsfrist 03.08.2026");
+assert.equal(sachsenDetailWithMarkup?.client, "Stadt Halle (Saale)");
+assert.equal(sachsenDetailWithMarkup?.procedure, "Beschränkte Ausschreibung");
+
 const sachsenDetail = parseSachsenAnhaltDetail(`
   <div class="tsaid_TOPIC"><div class="tsaid_data">Wachschutzleistungen 2026</div></div>
   <div class="tsaid_DEADLINE"><div class="tsaid_data">28.08.2026 12:00</div></div>

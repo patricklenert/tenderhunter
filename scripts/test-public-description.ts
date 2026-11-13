@@ -1477,6 +1477,24 @@ const testResponseEncoding = async (): Promise<void> => {
   if (decodePublicResponseBytes(Buffer.from("UTF-8 fallback"), "text/html; charset=unbekannt") !== "UTF-8 fallback") {
     throw new Error("Unbekanntes Charset verhindert den sicheren UTF-8-Fallback");
   }
+  const utf8German = "Öffentliche Ausschreibung für Straße";
+  const wronglyDeclaredUtf8 = decodePublicResponseBytes(
+    Buffer.from(utf8German, "utf8"),
+    "text/html; charset=windows-1252",
+  );
+  if (wronglyDeclaredUtf8 !== utf8German) {
+    throw new Error(`Gültige UTF-8-Bytes wurden trotz falscher, gültiger Charset-Angabe nicht erkannt: ${wronglyDeclaredUtf8}`);
+  }
+  const utf8WithPunctuation = "Planung – Sanierung der Gebäude";
+  if (decodePublicResponseBytes(
+    Buffer.from(utf8WithPunctuation, "utf8"),
+    "text/html; charset=windows-1252",
+  ) !== utf8WithPunctuation) {
+    throw new Error("Mojibake aus falsch deklariertem UTF-8 mit typografischem Gedankenstrich wurde nicht erkannt");
+  }
+  if (decodePublicResponseBytes(Buffer.from(utf8German, "utf8"), "text/html; charset=utf-8") !== utf8German) {
+    throw new Error("Korrekt deklarierter UTF-8-Text wurde verändert");
+  }
   if (normalizePublicDisplayCandidate("�ffentliche Ausschreibung Ã–ffentliche Straße") !== null) {
     throw new Error("U+FFFD/Mojibake wurde als öffentlicher Anzeigetext akzeptiert");
   }

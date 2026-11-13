@@ -39,6 +39,7 @@ import { ensureExtension, fetchAndStore, objectAbsolutePath, suggestedFilename }
 import { fetchAndStoreWithParallelFallback, fetchEvergabeDocumentsViaParallel } from "@/lib/parallel-extract";
 import { ColdStorageError, ensureLocalStored } from "@/lib/object-store-cold";
 import { buildStructuredDescriptionMarkdown, extractStructuredData, normalizeStructured, type StructuredData } from "@/lib/structurer";
+import { hasSufficientNestedCachedDetail } from "@/lib/cache-detail-quality";
 import { assessTenderQuality, withCanonicalTenderDeadline } from "@/lib/tender-quality";
 import { resolveSourceItem } from "@/lib/tender-sources";
 import { classifyTenderRelevance } from "@/lib/tender-relevance";
@@ -3428,14 +3429,8 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
     const hasFlatDescription = typeof blob.description === "string" && cleanPublicDescription(blob.description).length > 200;
     const hasKeyFields = blob.estimatedValue && blob.procedure && blob.duration;
 
-    // Check nested format (from structure_tender) — look at summary and hard_facts
-    const hasNestedData = blob.decision_relevant && typeof blob.decision_relevant === "object";
-    const hardFacts = hasNestedData ? (blob.hard_facts as Record<string, unknown>) : null;
-    const hasNestedDeadline = hardFacts?.deadline;
-    const hasNestedScope = hasNestedData && Array.isArray((blob.decision_relevant as Record<string, unknown>).scope) && ((blob.decision_relevant as Record<string, unknown>).scope as unknown[]).length > 0;
-
-    // Skip if we have good flat data OR rich nested data with deadline + scope
-    if ((hasFlatDescription && hasKeyFields) || (hasNestedDeadline && hasNestedScope)) {
+    // Skip if we have good flat data OR nested data with a deadline and usable normalized scope
+    if ((hasFlatDescription && hasKeyFields) || hasSufficientNestedCachedDetail(blob)) {
       const cachedMetadata = parseRecord(tender.metadataJson as string);
       const normalizedCached = normalizeStructured(blob, tender.title ?? "", {
         summary: pickPublicTenderDescription({ metadata: cachedMetadata }) || null,

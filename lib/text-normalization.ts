@@ -14,6 +14,10 @@ const normalizeCharset = (value: string): string => {
 
 const replacementCount = (value: string): number => value.split(REPLACEMENT_CHARACTER).length - 1;
 
+const MOJIBAKE_SEQUENCE = /(?:Ã|Â)(?:[\u0080-\u00ff€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ])|â(?:[\u0080-\u00bf]|€[™šœžŸ“”‘’•–—˜])/gu;
+
+const mojibakeCount = (value: string): number => value.match(MOJIBAKE_SEQUENCE)?.length ?? 0;
+
 /** Detect a page encoding from its header or a meta/XML declaration. */
 export function detectTextEncoding(raw: Uint8Array, contentType?: string | null): string {
   const declared = typeof contentType === "string" ? contentType.match(CHARSET_PATTERN)?.[1] : null;
@@ -34,13 +38,16 @@ export function decodeTextBuffer(raw: Uint8Array, contentType?: string | null): 
   } catch {
     preferred = new TextDecoder("utf-8").decode(raw);
   }
-  if (replacementCount(preferred) === 0) return preferred;
 
-  const alternatives = ["windows-1252", "iso-8859-1", "utf-8"];
+  const alternatives = Array.from(new Set([preferredEncoding, "windows-1252", "iso-8859-1", "utf-8"]));
   return alternatives.reduce((best, encoding) => {
     try {
       const candidate = new TextDecoder(encoding).decode(raw);
-      return replacementCount(candidate) < replacementCount(best) ? candidate : best;
+      const candidateReplacements = replacementCount(candidate);
+      const bestReplacements = replacementCount(best);
+      if (candidateReplacements < bestReplacements) return candidate;
+      if (candidateReplacements > bestReplacements) return best;
+      return mojibakeCount(candidate) < mojibakeCount(best) ? candidate : best;
     } catch {
       return best;
     }
