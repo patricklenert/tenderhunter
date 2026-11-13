@@ -5298,6 +5298,10 @@ const runScrapeUsTenders = async (_payload: Record<string, JsonValue>): Promise<
     console.warn("[us-alerts] Alert processing failed without failing the scrape:", error);
   }
 
+  if (sourceErrors.length > 0) {
+    throw new Error(`${sourceErrors.length} US-Quelle(n) fehlgeschlagen; Retry: ${sourceErrors.slice(0, 3).map(([source, message]) => `${source}: ${message}`).join("; ")}`);
+  }
+
   return {
     total_found: result.tenders.length,
     inserted,
