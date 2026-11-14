@@ -279,9 +279,10 @@ check("Enterprise-Tender hat Ausschluss-/Barrier-Hinweise", () => {
   assert.ok(largeEnterpriseTender.why.length >= 1);
 });
 
-check("Badges für den kleinen IT-Tender enthalten High Winability und Preis 100 %", () => {
-  assert.ok(smallClearItTender.badges.includes("High Winability"));
+check("Badges für den kleinen IT-Tender zeigen hohe Passung und Preis 100 %", () => {
+  assert.ok(smallClearItTender.badges.includes("Hohe Passung für kleine Unternehmen"));
   assert.ok(smallClearItTender.badges.some((badge) => badge.startsWith("Preis")));
+  assert.ok(!smallClearItTender.badges.includes("Remote"));
 });
 
 console.log("\n=== Small Vendor Mode: Los-Heuristik ===");
@@ -314,8 +315,8 @@ check("Los 3 in großer Vergabe wird als Los erkannt und hoch bewertet", () => {
     lotInLargeTender.fit >= 65,
     `erwartet >= 65, erhalten ${lotInLargeTender.fit}`,
   );
-  assert.ok(lotInLargeTender.badges.includes("Small Lot"));
-  assert.ok(lotInLargeTender.badges.includes("Subcontracting Allowed"));
+  assert.ok(lotInLargeTender.badges.includes("Kleines Los"));
+  assert.ok(lotInLargeTender.badges.includes("Unterauftrag oder Eignungsleihe zulässig"));
 });
 
 check("Kill-Regel: Ü3 cappt den Fit hart", () => {
@@ -350,7 +351,7 @@ check("Nicht-IT-Domäne ohne Preisgewichtung bleibt niedrig", () => {
 
 console.log("\n=== Small Vendor Mode: Kompakte Badges ===");
 
-check("deriveCompactBadges erzeugt High Winability bei hohem Fit", () => {
+check("deriveCompactBadges kennzeichnet hohe Passung bei hohem Fit", () => {
   const badges = deriveCompactBadges({
     fit: 85,
     priceWeightPct: 100,
@@ -359,13 +360,14 @@ check("deriveCompactBadges erzeugt High Winability bei hohem Fit", () => {
     isItDomain: true,
     isLot: false,
   });
-  assert.ok(badges.includes("High Winability"));
+  assert.ok(badges.includes("Hohe Passung für kleine Unternehmen"));
   assert.ok(badges.includes("Preis 100 %"));
-  assert.ok(badges.includes("Low Entry Barrier"));
-  assert.ok(badges.includes("Remote"));
+  assert.ok(badges.includes("Keine erkannten Einstiegshürden"));
+  assert.ok(badges.includes("Ortsunabhängig möglich"));
+  assert.ok(!badges.includes("Remote"));
 });
 
-check("deriveCompactBadges ohne High-Fit keinen High-Winability-Badge", () => {
+check("deriveCompactBadges kennzeichnet niedrigen Fit nicht als hohe Passung", () => {
   const badges = deriveCompactBadges({
     fit: 40,
     priceWeightPct: null,
@@ -374,10 +376,10 @@ check("deriveCompactBadges ohne High-Fit keinen High-Winability-Badge", () => {
     isItDomain: false,
     isLot: false,
   });
-  assert.ok(!badges.includes("High Winability"));
+  assert.ok(!badges.includes("Hohe Passung für kleine Unternehmen"));
 });
 
-check("toCompact markiert Low Entry Barrier korrekt", () => {
+check("toCompact erkennt Einstiegshürden korrekt", () => {
   const clean = toCompact(smallClearItTender);
   assert.equal(clean.lowEntryBarrier, true);
   const barred = toCompact(largeEnterpriseTender);

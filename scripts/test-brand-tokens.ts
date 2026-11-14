@@ -6,6 +6,8 @@ import { FIT_SCORE_LEVELS, getFitScoreTier } from "../lib/fit-score";
 
 const css = readFileSync(resolve(process.cwd(), "app/globals.css"), "utf8");
 const smallVendorDeepDive = readFileSync(resolve(process.cwd(), "components/SmallVendorDeepDive.tsx"), "utf8");
+const tenderSearch = readFileSync(resolve(process.cwd(), "components/AusschreibungenSection.tsx"), "utf8");
+const smallVendor = readFileSync(resolve(process.cwd(), "lib/small-vendor.ts"), "utf8");
 const declarations = new Map(
   [...css.matchAll(/--color-([\w-]+):\s*([^;]+);/g)].map(([, name, value]) => [name, value.trim()])
 );
@@ -89,6 +91,13 @@ assert.doesNotMatch(
   /#[\da-f]{3,8}\b|rgba?\(/i,
   "SmallVendorDeepDive must use shared semantic MUI colors instead of local color literals",
 );
+assert.doesNotMatch(css, /--color-smallvendor-(?:soft|border)\s*:/i, "Small-vendor fit must not introduce dedicated color tokens");
+assert.doesNotMatch(tenderSearch, /var\(--color-smallvendor-(?:soft|border)\)/i, "Tender search must use shared semantic success colors");
+assert.match(tenderSearch, /SMALL_VENDOR_HIGHLIGHT_THRESHOLD/, "Tender search must use the shared small-vendor fit threshold");
+assert.match(tenderSearch, /bgcolor: "success\.light"/, "High fit must reuse the shared success surface");
+assert.match(tenderSearch, /Hohe Passung für kleine Unternehmen/, "High fit must have a visible, localized label");
+assert.doesNotMatch(tenderSearch, /Small Vendor Fit/, "Tender search labels must use the German product voice");
+assert.doesNotMatch(smallVendor, /No Revenue Requirement|Small Team|Personal References OK|Subcontracting Allowed|Low Entry Barrier|Small Lot|High Winability/, "Small-vendor badges must use the German product voice");
 
 for (const [left, right] of [
   ["brand-primary", "action-secondary"],

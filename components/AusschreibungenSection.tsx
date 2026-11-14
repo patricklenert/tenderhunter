@@ -71,6 +71,7 @@ import { SafeMarkdown } from "@/components/SafeMarkdown";
 import { ResourceState } from "@/components/ResourceState";
 import { ResponsiveTableFrame } from "@/components/ResponsiveTableFrame";
 import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
+import { SMALL_VENDOR_HIGHLIGHT_THRESHOLD } from "@/lib/small-vendor";
 import {
   hasCanonicalPublicDescriptionSection,
   normalizePublicDisplayCandidate,
@@ -130,7 +131,7 @@ const DEADLINE_FILTER_LABELS: Record<TenderDeadlineFilter, string> = {
 const DEADLINE_SORT_LABELS: Record<DeadlineSort, string> = {
   deadline: "Früheste Frist",
   newest: "Neueste zuerst",
-  smallVendorFit: "Small Vendor Fit",
+  smallVendorFit: "Passung für kleine Unternehmen",
 };
 
 interface TenderSearchOptions {
@@ -182,7 +183,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
     deadlineFrom,
     deadlineTo,
     sort: smallVendorMode ? sortKey : sortKey === "smallVendorFit" ? "deadline" : sortKey,
-    smallVendorFitMin: smallVendorMode && smallVendorOnly ? 75 : undefined,
+    smallVendorFitMin: smallVendorMode && smallVendorOnly ? SMALL_VENDOR_HIGHLIGHT_THRESHOLD : undefined,
   }), [deadlineFilter, deadlineFrom, deadlineTo, searchQuery, selectedLocation, smallVendorMode, smallVendorOnly, sortKey, todayNewOnly]);
 
   useEffect(() => {
@@ -966,17 +967,33 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                   const client = display.client ?? "–";
                   const description = display.description ?? "–";
                   const location = display.location ?? "–";
+                  const highSmallVendorFit = (tender.smallVendor?.fit ?? 0) >= SMALL_VENDOR_HIGHLIGHT_THRESHOLD;
 
                   return (
                     <TableRow
                       key={tender.id}
                       hover
-                      sx={tender.smallVendor && tender.smallVendor.fit >= 75 ? { bgcolor: "var(--color-smallvendor-soft)" } : undefined}
+                      sx={highSmallVendorFit ? { bgcolor: "success.light" } : undefined}
                     >
                       <TableCell>
                         <Typography variant="body2" fontWeight={600} sx={{ color: "text.primary", fontSize: "0.9375rem" }}>
                           {title}
                         </Typography>
+                        {highSmallVendorFit && (
+                          <Chip
+                            label="Hohe Passung für kleine Unternehmen"
+                            size="small"
+                            variant="outlined"
+                            sx={{
+                              mt: 0.75,
+                              height: 22,
+                              color: "success.dark",
+                              borderColor: "success.main",
+                              bgcolor: "success.light",
+                              fontSize: "0.6875rem",
+                            }}
+                          />
+                        )}
                         <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.75rem", display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
                           {description}
                         </Typography>
@@ -1313,17 +1330,18 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
                 {smallVendorFitValue !== null && (
                   <Box
                     sx={{
-                      border: "1px solid var(--color-smallvendor-border)",
-                      bgcolor: smallVendorFitValue >= 75 ? "var(--color-smallvendor-soft)" : "transparent",
+                      border: "1px solid",
+                      borderColor: smallVendorFitValue >= SMALL_VENDOR_HIGHLIGHT_THRESHOLD ? "success.main" : "divider",
+                      bgcolor: smallVendorFitValue >= SMALL_VENDOR_HIGHLIGHT_THRESHOLD ? "success.light" : "transparent",
                       borderRadius: 2,
                       p: 2,
                     }}
                   >
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5, flexWrap: "wrap" }}>
                       <Typography variant="overline" sx={{ fontWeight: 700, letterSpacing: 0.8, lineHeight: 1.2, color: "text.secondary", fontSize: "0.75rem" }}>
-                        Small Vendor Fit
+                        Passung für kleine Softwareunternehmen
                       </Typography>
-                      <Typography variant="body2" fontWeight={700} sx={{ color: smallVendorFitValue >= 75 ? "success.dark" : "text.secondary" }}>
+                      <Typography variant="body2" fontWeight={700} sx={{ color: smallVendorFitValue >= SMALL_VENDOR_HIGHLIGHT_THRESHOLD ? "success.dark" : "text.secondary", fontVariantNumeric: "tabular-nums" }}>
                         {smallVendorFitValue} / 100
                       </Typography>
                       {smallVendorBadges.map((badge) => (
@@ -1546,7 +1564,7 @@ function TenderCard({ tender, onDetailClick, distance }: { tender: ApiTender; on
   const description = display.description ?? "–";
   const displayLocation = display.location ?? "–";
   const smallVendor = tender.smallVendor;
-  const smallVendorHighlight = Boolean(smallVendor && smallVendor.fit >= 75);
+  const smallVendorHighlight = Boolean(smallVendor && smallVendor.fit >= SMALL_VENDOR_HIGHLIGHT_THRESHOLD);
 
   return (
     <Card
@@ -1566,10 +1584,10 @@ function TenderCard({ tender, onDetailClick, distance }: { tender: ApiTender; on
         borderRadius: 2,
         transition: "border-color 0.2s",
         ...(smallVendorHighlight
-          ? { bgcolor: "var(--color-smallvendor-soft)", border: "1px solid var(--color-smallvendor-border)" }
+          ? { bgcolor: "success.light", borderColor: "success.main" }
           : {}),
         "&:hover": {
-          borderColor: "primary.light",
+          borderColor: smallVendorHighlight ? "success.main" : "primary.light",
         },
         "&:focus-visible": {
           outline: "3px solid",

@@ -497,15 +497,15 @@ export const deriveBadges = (signals: SmallVendorSignals, fit: number): string[]
   if (signals.isItDomain !== "none") badges.push("IT / Software");
   if (signals.priceWeightPct !== null && signals.priceWeightPct >= 90) badges.push(`Preis ${signals.priceWeightPct} %`);
   else if (signals.priceWeightPct !== null && signals.priceWeightPct >= 70) badges.push(`Preis hoch (${signals.priceWeightPct} %)`);
-  if (signals.revenueMinEur === null) badges.push("No Revenue Requirement");
-  if (signals.minEmployees === null) badges.push("Small Team");
-  if (signals.referenceCountMin === null && signals.personalReferencesOk) badges.push("Personal References OK");
-  if (signals.subcontractingAllowed === true || signals.suitabilityLeaseAllowed) badges.push("Subcontracting Allowed");
-  if (signals.remoteFriendly && !signals.mandatoryOnSite) badges.push("Remote");
-  if (signals.isLot) badges.push("Small Lot");
+  if (signals.revenueMinEur === null) badges.push("Kein Mindestumsatz erkannt");
+  if (signals.minEmployees === null) badges.push("Keine Mindestteamgröße erkannt");
+  if (signals.referenceCountMin === null && signals.personalReferencesOk) badges.push("Persönliche Referenzen zulässig");
+  if (signals.subcontractingAllowed === true || signals.suitabilityLeaseAllowed) badges.push("Unterauftrag oder Eignungsleihe zulässig");
+  if (signals.remoteFriendly && !signals.mandatoryOnSite) badges.push("Ortsunabhängig möglich");
+  if (signals.isLot) badges.push("Kleines Los");
   const barriers = countBarriers(signals);
-  if (barriers === 0) badges.push("Low Entry Barrier");
-  if (fit >= SMALL_VENDOR_HIGHLIGHT_THRESHOLD) badges.push("High Winability");
+  if (barriers === 0) badges.push("Keine erkannten Einstiegshürden");
+  if (fit >= SMALL_VENDOR_HIGHLIGHT_THRESHOLD) badges.push("Hohe Passung für kleine Unternehmen");
   return badges;
 };
 
@@ -612,10 +612,10 @@ export const deriveCompactBadges = (compact: SmallVendorCompact): string[] => {
   if (compact.isItDomain) badges.push("IT / Software");
   if (compact.priceWeightPct !== null && compact.priceWeightPct >= 90) badges.push(`Preis ${compact.priceWeightPct} %`);
   else if (compact.priceWeightPct !== null && compact.priceWeightPct >= 70) badges.push(`Preis hoch (${compact.priceWeightPct} %)`);
-  if (compact.lowEntryBarrier) badges.push("Low Entry Barrier");
-  if (compact.remoteFriendly) badges.push("Remote");
-  if (compact.isLot) badges.push("Small Lot");
-  if (compact.fit >= SMALL_VENDOR_HIGHLIGHT_THRESHOLD) badges.push("High Winability");
+  if (compact.lowEntryBarrier) badges.push("Keine erkannten Einstiegshürden");
+  if (compact.remoteFriendly) badges.push("Ortsunabhängig möglich");
+  if (compact.isLot) badges.push("Kleines Los");
+  if (compact.fit >= SMALL_VENDOR_HIGHLIGHT_THRESHOLD) badges.push("Hohe Passung für kleine Unternehmen");
   return badges;
 };
 
