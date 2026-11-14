@@ -418,19 +418,10 @@ export async function POST(request: Request): Promise<Response> {
               source: tender.source,
               sourceUrl: tender.url,
             });
-              const cachedAccess = accessLimited
-                 || tenderMeta.accessLimited
-                 || cachedMeta.accessLimited
-                 || blob.accessLimited === true
-                 || blob.access_limited === true;
-              const cachedAccessFallback = cachedAccess
-                ? getPublicAccessLimitedFallback({
-                    title: tender.title ?? "",
-                    factsText: tenderMeta.description,
-                    evidenceText: tender.rawText,
-                    explicitlyAccessLimited: true,
-                  })
-                : null;
+              // Structured cache flags are stale model output, not independent
+              // evidence that the source requires participation.
+              const cachedAccess = accessLimited;
+              const cachedAccessFallback = cachedAccess ? accessFallback : null;
               const descriptionMarkdownCandidate = cachedAccess
                 ? cachedAccessFallback?.descriptionMarkdown
                 : normalized.descriptionMarkdown;

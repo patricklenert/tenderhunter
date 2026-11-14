@@ -295,7 +295,9 @@ if (!isPdfFormBoilerplateFragment(appendedPdfBoilerplate)
   throw new Error("PDF-Formularboilerplate muss standalone verworfen und als abtrennbarer Suffix entfernt werden");
 }
 const summarySeparatorArtifact = "- Verfahren - - - Lose - Ergebnisse - Verträge - - - -";
-if (normalizePublicDisplayCandidate("##") !== null
+if (normalizePublicDisplayCandidate("--") !== null
+  || normalizePublicDisplayCandidate("-") !== null
+  || normalizePublicDisplayCandidate("##") !== null
   || normalizePublicDisplayCandidate(summarySeparatorArtifact) !== null
   || normalizePublicDisplayCandidate("— — —") !== null
   || normalizePublicDisplayCandidate("| | |") !== null

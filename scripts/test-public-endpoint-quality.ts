@@ -235,8 +235,8 @@ const invalidPortalSummary = "##Kurzinfo";
 const qualityFixtureMetadata = { description: invalidPortalSummary, location: "##Leistungsort", client: "Stadt Mainz" };
 const qualityFixtureStructured = {
   title: qualityFixtureDisplayTitle,
-  summary: "##Bekanntmachung",
-  description: qualityFixtureSummary,
+  summary: qualityFixtureSummary,
+  description: "Eine neue Heizungsanlage und verbesserte Wärmedämmung werden eingebaut.",
   hard_facts: { buyer: "Stadt Mainz", location: "##Leistungsort", city: "55116 Mainz" },
   decision_relevant: { scope: ["Energetische Sanierung der Grundschule"] },
 };
@@ -311,6 +311,65 @@ assert.deepEqual(publicFields(qualityFixtureModal), qualityFixtureExpected);
 assert.deepEqual(publicFields(qualityFixtureIndex), qualityFixtureExpected);
 assert.deepEqual(publicFields(qualityFixtureSearchHit), qualityFixtureExpected);
 assert.equal(qualityFixtureModal.title, qualityFixtureDetail.title, "modal title prefers the validated detail title");
+
+// Cached LLM access flags are not authoritative: use the same source-backed
+// evidence as the list and SSR, or the modal can gain a generic access note.
+const staleAccessFlagTitle = "Erneuerung der Schulbeleuchtung";
+const staleAccessFlagSummary = "Die Stadt Mainz erneuert die Beleuchtung einer Schule.";
+const staleAccessFlagMetadata = {
+  client: "Stadt Mainz",
+  location: "55116 Mainz",
+  description: staleAccessFlagSummary,
+};
+const staleAccessFlagStructured = {
+  access_limited: true,
+  summary: staleAccessFlagSummary,
+  descriptionMarkdown: `- **Zusammenfassung:** ${staleAccessFlagSummary}`,
+  hard_facts: { buyer: "Stadt Mainz", location: "55116 Mainz" },
+};
+const staleAccessFlagMeta = readPublicTenderMeta(staleAccessFlagMetadata, { title: staleAccessFlagTitle });
+const staleAccessFlagFallback = getPublicAccessLimitedFallback({
+  title: staleAccessFlagTitle,
+  factsText: staleAccessFlagMeta.description,
+  evidenceText: staleAccessFlagSummary,
+  explicitlyAccessLimited: staleAccessFlagMeta.accessLimited,
+});
+const staleAccessFlagCachedMeta = readPublicTenderMeta(staleAccessFlagStructured, { title: staleAccessFlagTitle });
+const staleAccessFlagNormalized = normalizeStructured(staleAccessFlagStructured, staleAccessFlagTitle);
+const staleAccessFlagCachedAccess = staleAccessFlagFallback !== null;
+const staleAccessFlagCachedFallback = staleAccessFlagCachedAccess ? staleAccessFlagFallback : null;
+const staleAccessFlagList = projectPublicTenderRecord({
+  title: staleAccessFlagTitle,
+  metadata: staleAccessFlagMetadata,
+  structured: staleAccessFlagNormalized,
+  summaryFallbacks: [staleAccessFlagFallback?.description],
+});
+const staleAccessFlagModal = projectPublicTenderRecord({
+  title: staleAccessFlagTitle,
+  metadata: [staleAccessFlagCachedMeta, staleAccessFlagMeta],
+  structured: staleAccessFlagNormalized,
+  summaryFallbacks: [staleAccessFlagCachedFallback?.description],
+  preferredDescriptionMarkdownFallbacks: [
+    staleAccessFlagCachedAccess
+      ? staleAccessFlagCachedFallback?.descriptionMarkdown
+      : staleAccessFlagNormalized.descriptionMarkdown,
+  ],
+  descriptionMarkdownFallbacks: [staleAccessFlagCachedMeta.descriptionMarkdown, staleAccessFlagMeta.descriptionMarkdown],
+});
+const staleAccessFlagSsr = projectPublicTenderRecord({
+  title: staleAccessFlagTitle,
+  metadata: staleAccessFlagMetadata,
+  structured: staleAccessFlagNormalized,
+  summaryFallbacks: [staleAccessFlagFallback?.description],
+  descriptionMarkdownFallbacks: [staleAccessFlagNormalized.descriptionMarkdown, staleAccessFlagMeta.descriptionMarkdown],
+});
+assert.equal(staleAccessFlagMeta.accessLimited, false);
+assert.equal(staleAccessFlagCachedMeta.accessLimited, true, "the stale structured flag is present in the modal cache");
+assert.equal(staleAccessFlagFallback, null, "plain source prose is not access-limited evidence");
+assert.deepEqual(publicFields(staleAccessFlagModal), publicFields(staleAccessFlagList));
+assert.deepEqual(publicFields(staleAccessFlagSsr), publicFields(staleAccessFlagList));
+assert.equal(staleAccessFlagModal.descriptionMarkdown, staleAccessFlagStructured.descriptionMarkdown);
+assert.equal(staleAccessFlagSsr.descriptionMarkdown, staleAccessFlagStructured.descriptionMarkdown);
 
 const staleIndexedTitleSearchHit = projectTenderSearchHit({
   ...qualityFixtureIndex,
@@ -1241,6 +1300,7 @@ const pipelineSource = readFileSync("lib/pipeline.ts", "utf8");
 assert.match(listRouteSource, /getPublicAccessLimitedFallback/);
 assert.match(listRouteSource, /resolvePublicTenderDisplayFacts\(/);
 assert.match(detailRouteSource, /getPublicAccessLimitedFallback/);
+assert.match(detailRouteSource, /const cachedAccess = accessLimited;\s*const cachedAccessFallback = cachedAccess \? accessFallback : null;/);
 assert.match(detailRouteSource, /resolvePublicTenderDisplayFacts\(/);
 assert.match(ssrPageSource, /getPublicAccessLimitedFallback/);
 assert.match(ssrPageSource, /resolvePublicTenderDisplayFacts\(/);
