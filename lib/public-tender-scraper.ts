@@ -324,6 +324,7 @@ interface ExtractionResult {
 
 export type PublicScraperResult = PublicSourceScrapeResult<ExtractedTender>;
 type PublicScraper = (cursor: PublicSourceCursor | null) => Promise<PublicScraperResult>;
+type PublicScraperEntry = { name: string; fn: PublicScraper };
 
 const buildExtractedTenderDescriptionMarkdown = (tender: Pick<ExtractedTender, "title" | "client" | "deadline" | "description" | "procedure" | "estimatedValue" | "duration" | "requirements" | "awardCriteria" | "cpvCodes" | "scope" | "referenceNumber" | "location">): string => {
   const client = normalizePublicClient(tender.client);
@@ -5467,10 +5468,11 @@ export async function scrapeAllPublicTenders(
   onBatch?: OnSourceBatch,
   sourceFilter?: string,
   sourceCursors: Record<string, PublicSourceCursor | null> = {},
+  scraperEntries?: readonly PublicScraperEntry[],
 ): Promise<ScrapeResult> {
   console.log("[public-scraper] Starte vollstaendigen Scrape aller Quellen...");
 
-  const scrapers: Array<{ name: string; fn: PublicScraper }> = [
+  const scrapers: readonly PublicScraperEntry[] = scraperEntries ?? [
     { name: "berlin-html", fn: scrapeBerlinHtml },
     { name: "bayern-api", fn: scrapeBayernApi },
     { name: "evergabe-de", fn: scrapeEvergabeDe },
@@ -5511,6 +5513,8 @@ export async function scrapeAllPublicTenders(
     const startTime = Date.now();
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
     let warnHandle: ReturnType<typeof setTimeout> | undefined;
+    let batchTenders: ExtractedTender[] = [];
+    let sourceRun: ScrapeResult["sourceRuns"][number] | undefined;
     const cursorBefore = normalizeCursor(sourceCursors[scraper.name]);
     console.log(`[public-scraper] ${scraper.name}: Starte Scrape...`);
     try {
@@ -5541,6 +5545,7 @@ export async function scrapeAllPublicTenders(
           externalId: tender.externalId,
         }),
       }));
+      batchTenders = normalized;
       bySource[scraper.name] = normalized.length;
       allTenders.push(...normalized);
       const duration = Date.now() - startTime;
@@ -5552,7 +5557,7 @@ export async function scrapeAllPublicTenders(
       if (unexpectedEmpty) {
         console.error(`[public-scraper] ${scraper.name}: abgeschlossene Quelle lieferte 0 Ausschreibungen; Cursor bleibt zur erneuten Prüfung unverändert.`);
       }
-      sourceRuns.push({
+      sourceRun = {
         sourceKey: scraper.name,
         status,
         discoveredCount: normalized.length,
@@ -5573,7 +5578,8 @@ export async function scrapeAllPublicTenders(
         detailAttempted: result.detailAttempted,
         detailFailed: result.detailFailed,
         pendingCount: result.pendingCount,
-      });
+      };
+      sourceRuns.push(sourceRun);
       if (normalized.length === 0) {
         console.warn(`[public-scraper] ${scraper.name}: 0 Ausschreibungen nach ${duration}ms (keine Extraktion oder keine Treffer)`);
       } else {
@@ -5583,7 +5589,7 @@ export async function scrapeAllPublicTenders(
       const duration = Date.now() - startTime;
       const message = error instanceof Error ? error.message : "Unbekannter Scraperfehler";
       const timedOut = message.includes("Portal-Timeout");
-      sourceRuns.push({
+      sourceRun = {
         sourceKey: scraper.name,
         status: timedOut ? "timed_out" : "failed",
         discoveredCount: 0,
@@ -5602,12 +5608,25 @@ export async function scrapeAllPublicTenders(
         detailAttempted: 0,
         detailFailed: 0,
         pendingCount: 0,
-      });
+      };
+      sourceRuns.push(sourceRun);
       console.error(`[public-scraper] ${scraper.name} fehlgeschlagen nach ${duration}ms:`, error);
       bySource[scraper.name] = 0;
     } finally {
       if (warnHandle) clearTimeout(warnHandle);
       if (timeoutHandle) clearTimeout(timeoutHandle);
+    }
+
+    // Persist each source before starting the next portal. A long full run must
+    // not keep all discovered tenders only in memory until every source ends.
+    if (onBatch && batchTenders.length > 0 && sourceRun) {
+      try {
+        await onBatch(scraper.name, deduplicateTenders(batchTenders));
+      } catch (error) {
+        sourceRun.status = "partial";
+        sourceRun.errorMessage = error instanceof Error ? error.message : "Persistenzfehler";
+        persistenceError = sourceRun.errorMessage;
+      }
     }
   }
 
@@ -5624,15 +5643,6 @@ export async function scrapeAllPublicTenders(
     const sourceTenders = tendersBySource.get(sourceRun.sourceKey) ?? [];
     sourceRun.acceptedCount = sourceTenders.length;
     if (sourceRun.status === "success" && sourceRun.discoveredCount === 0) sourceRun.status = "empty";
-    if (onBatch && sourceTenders.length > 0) {
-      try {
-        await onBatch(sourceRun.sourceKey, sourceTenders);
-      } catch (error) {
-        sourceRun.status = "partial";
-        sourceRun.errorMessage = error instanceof Error ? error.message : "Persistenzfehler";
-        persistenceError = sourceRun.errorMessage;
-      }
-    }
   }
 
   console.log(
