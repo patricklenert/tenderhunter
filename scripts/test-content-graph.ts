@@ -4,7 +4,7 @@ import { BRANCHEN } from "../lib/branchen";
 import { BUNDESLAND_CONTENT } from "../lib/bundesland-content";
 import { CATEGORY_CONTENT } from "../lib/category-content";
 import { CATEGORY_LABELS } from "../lib/categories";
-import { GLOSSARY, GLOSSARY_MAP } from "../lib/glossary";
+import { GLOSSARY, GLOSSARY_MAP, getSupplementalGlossaryEntries } from "../lib/glossary";
 
 const errors: string[] = [];
 const articleSlugs = new Set(Object.keys(ARTICLES));
@@ -57,6 +57,14 @@ for (const duplicate of duplicates(Object.keys(ARTICLES))) {
 for (const entry of GLOSSARY) {
   checkLinks(entry.slug, entry.relatedTerms, glossarySlugs, "relatedTerms");
   checkLinks(entry.slug, entry.relatedArticles, articleSlugs, "relatedArticles");
+  const relatedCount = (entry.relatedTerms ?? []).filter((slug) => GLOSSARY_MAP[slug]).length;
+  const supplementalEntries = getSupplementalGlossaryEntries(entry);
+  if (supplementalEntries.some((relatedEntry) => entry.relatedTerms?.includes(relatedEntry.slug))) {
+    errors.push(`${entry.slug}.sameCategoryEntries -> duplicates an explicitly related term`);
+  }
+  if (supplementalEntries.length > Math.max(0, 6 - relatedCount)) {
+    errors.push(`${entry.slug}.sameCategoryEntries -> exceeds the remaining six-link related-terms limit`);
+  }
   for (const category of entry.relatedCategories ?? []) {
     if (!categoryKeys.has(category)) {
       errors.push(`${entry.slug}.relatedCategories -> missing category: ${category}`);

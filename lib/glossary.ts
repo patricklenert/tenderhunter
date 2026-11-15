@@ -2157,6 +2157,21 @@ export const GLOSSARY_MAP: Record<string, GlossaryEntry> = GLOSSARY.reduce(
   {} as Record<string, GlossaryEntry>,
 );
 
+export function getSupplementalGlossaryEntries(entry: GlossaryEntry): GlossaryEntry[] {
+  const relatedSlugs = new Set(
+    (entry.relatedTerms ?? []).filter((slug) => GLOSSARY_MAP[slug]),
+  );
+  const remainingSlots = Math.max(0, 6 - relatedSlugs.size);
+
+  return GLOSSARY
+    .filter((candidate) =>
+      candidate.category === entry.category
+      && candidate.slug !== entry.slug
+      && !relatedSlugs.has(candidate.slug),
+    )
+    .slice(0, remainingSlots);
+}
+
 export const ALL_GLOSSARY_SLUGS = GLOSSARY.map((e) => e.slug);
 
 export const GLOSSARY_CATEGORIES = [

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Box, Container, Typography, Stack, Chip } from "@mui/material";
 import { ArrowRight, CheckCircle2, BookOpen } from "lucide-react";
 import { SiteBreadcrumbs } from "@/components/seo/SiteBreadcrumbs";
-import { GLOSSARY_MAP, ALL_GLOSSARY_SLUGS, GLOSSARY } from "@/lib/glossary";
+import { GLOSSARY_MAP, ALL_GLOSSARY_SLUGS, getSupplementalGlossaryEntries } from "@/lib/glossary";
 import { ARTICLES } from "@/lib/articles";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 import { SiteFooter } from "@/components/seo/SiteFooter";
@@ -55,10 +55,7 @@ export default async function GlossaryEntryPage({ params }: { params: Promise<{ 
     .map((s) => GLOSSARY_MAP[s])
     .filter(Boolean);
 
-  // SEO: "See also" entries from same category
-  const sameCategoryEntries = GLOSSARY
-    .filter((e) => e.category === entry.category && e.slug !== entry.slug)
-    .slice(0, 6);
+  const sameCategoryEntries = getSupplementalGlossaryEntries(entry);
 
   const breadcrumbJsonLd = {
     "@context": "https://schema.org",
