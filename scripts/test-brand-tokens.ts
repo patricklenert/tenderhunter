@@ -7,6 +7,9 @@ import { FIT_SCORE_LEVELS, getFitScoreTier } from "../lib/fit-score";
 const css = readFileSync(resolve(process.cwd(), "app/globals.css"), "utf8");
 const smallVendorDeepDive = readFileSync(resolve(process.cwd(), "components/SmallVendorDeepDive.tsx"), "utf8");
 const tenderSearch = readFileSync(resolve(process.cwd(), "components/AusschreibungenSection.tsx"), "utf8");
+const authModal = readFileSync(resolve(process.cwd(), "components/AuthModal.tsx"), "utf8");
+const userMenu = readFileSync(resolve(process.cwd(), "components/UserMenu.tsx"), "utf8");
+const upgradePage = readFileSync(resolve(process.cwd(), "components/billing/UpgradePage.tsx"), "utf8");
 const smallVendor = readFileSync(resolve(process.cwd(), "lib/small-vendor.ts"), "utf8");
 const declarations = new Map(
   [...css.matchAll(/--color-([\w-]+):\s*([^;]+);/g)].map(([, name, value]) => [name, value.trim()])
@@ -98,6 +101,12 @@ assert.match(tenderSearch, /bgcolor: "success\.light"/, "High fit must reuse the
 assert.match(tenderSearch, /Hohe Passung für kleine Unternehmen/, "High fit must have a visible, localized label");
 assert.doesNotMatch(tenderSearch, /Small Vendor Fit/, "Tender search labels must use the German product voice");
 assert.doesNotMatch(smallVendor, /No Revenue Requirement|Small Team|Personal References OK|Subcontracting Allowed|Low Entry Barrier|Small Lot|High Winability/, "Small-vendor badges must use the German product voice");
+
+const accountAndUpgradeSurfaces = `${authModal}\n${userMenu}\n${upgradePage}`;
+assert.doesNotMatch(accountAndUpgradeSurfaces, /boxShadow:\s*"(?!none")[^"]+"/, "Account and upgrade surfaces must not use decorative shadows");
+assert.doesNotMatch(accountAndUpgradeSurfaces, /borderRadius:\s*2\.5\b|borderRadius:\s*3\b/, "Account and upgrade panels must use the established radii");
+assert.doesNotMatch(upgradePage, /rgba?\(/i, "Upgrade styling must use shared semantic colors instead of local translucent values");
+assert.match(tenderSearch, /Score CTA Banner[\s\S]*?borderRadius:\s*2,/, "Search CTA panels must use the shared 8px radius");
 
 for (const [left, right] of [
   ["brand-primary", "action-secondary"],

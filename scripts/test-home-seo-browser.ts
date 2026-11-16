@@ -10,6 +10,8 @@ async function main() {
   try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   const companyUrl = page.locator("#company-url");
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
 
   for (const width of [390, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });
@@ -103,11 +105,22 @@ async function main() {
 
     const tab = page.getByRole("button", { name: label, exact: true });
     assert.equal(await tab.count(), 1, `navigation must contain the ${label} tab`);
+    await page.waitForFunction(
+      (expectedLabel) => [...document.querySelectorAll("#main-navigation [aria-current='page']")]
+        .some((element) => element.textContent?.includes(expectedLabel)),
+      label,
+    );
+    assert.equal(
+      await tab.getAttribute("aria-current"),
+      "page",
+      `${label}: direct hash navigation must select its matching app view`,
+    );
     await tab.click();
     await page.waitForTimeout(150);
     assert.equal(await seoHeading.count(), 1, `${label}: SEO heading must not disappear after tab change`);
     await assertSeoIsBelowViewport(label);
   }
+  assert.deepEqual(pageErrors, [], `homepage and app navigation must not emit browser errors: ${pageErrors.join("; ")}`);
   } finally {
     await browser.close();
   }

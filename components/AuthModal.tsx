@@ -136,8 +136,10 @@ export function AuthModal({ open, onClose, defaultTab = "login", onSuccess }: Au
       fullWidth
       PaperProps={{
         sx: {
-          borderRadius: 3,
-          boxShadow: "0 25px 50px -12px rgba(0,0,0,0.15)",
+          borderRadius: 2,
+          border: "1px solid",
+          borderColor: "divider",
+          boxShadow: "none",
           overflow: "hidden",
         },
       }}
@@ -238,7 +240,6 @@ export function AuthModal({ open, onClose, defaultTab = "login", onSuccess }: Au
                 }}
                 sx={{
                   "& .MuiOutlinedInput-root": {
-                    borderRadius: 2.5,
                     bgcolor: "background.default",
                     fontSize: "1.05rem",
                   },
@@ -267,7 +268,6 @@ export function AuthModal({ open, onClose, defaultTab = "login", onSuccess }: Au
               }}
               sx={{
                 "& .MuiOutlinedInput-root": {
-                  borderRadius: 2.5,
                   bgcolor: "background.default",
                   fontSize: "1.05rem",
                 },
@@ -308,7 +308,6 @@ export function AuthModal({ open, onClose, defaultTab = "login", onSuccess }: Au
               }}
               sx={{
                 "& .MuiOutlinedInput-root": {
-                  borderRadius: 2.5,
                   bgcolor: "background.default",
                   fontSize: "1.05rem",
                 },
@@ -332,7 +331,6 @@ export function AuthModal({ open, onClose, defaultTab = "login", onSuccess }: Au
               disabled={loading}
               sx={{
                 py: 1.8,
-                borderRadius: 2.5,
                 fontWeight: 700,
                 fontSize: "1.05rem",
                 textTransform: "none",
@@ -385,7 +383,6 @@ export function AuthModal({ open, onClose, defaultTab = "login", onSuccess }: Au
               }
               sx={{
                 py: 1.5,
-                borderRadius: 2.5,
                 fontWeight: 600,
                 fontSize: "1rem",
                 textTransform: "none",
@@ -407,7 +404,6 @@ export function AuthModal({ open, onClose, defaultTab = "login", onSuccess }: Au
                 startIcon={<KeyRound size={20} />}
                 sx={{
                   py: 1.5,
-                  borderRadius: 2.5,
                   fontWeight: 600,
                   fontSize: "1rem",
                   textTransform: "none",

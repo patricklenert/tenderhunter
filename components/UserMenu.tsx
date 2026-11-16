@@ -197,7 +197,9 @@ export function UserMenu({ onOpenAuth }: UserMenuProps) {
             mt: 1,
             minWidth: 180,
             borderRadius: 2,
-            boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+            border: "1px solid",
+            borderColor: "divider",
+            boxShadow: "none",
           },
         }}
         transformOrigin={{ horizontal: "right", vertical: "top" }}

@@ -519,7 +519,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
           elevation={0}
           sx={{
             mb: 3,
-            borderRadius: { xs: 2, sm: 3 },
+            borderRadius: 2,
             bgcolor: "secondary.main",
             color: "secondary.contrastText",
             p: { xs: 2, sm: 3 },

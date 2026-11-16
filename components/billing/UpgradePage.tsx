@@ -221,11 +221,10 @@ export function UpgradePage() {
                   sx={{
                     width: 48,
                     height: 48,
-                    borderRadius: 2.5,
+                    borderRadius: 2,
                     bgcolor: "primary.light",
                     display: "grid",
                     placeItems: "center",
-                    boxShadow: "0 4px 12px rgba(233,100,77,0.15)",
                   }}
                 >
                   <Icon size={22} style={{ color: "var(--mui-palette-primary-main)" }} />
@@ -339,14 +338,13 @@ function PlanOption({
       sx={{
         p: { xs: 2, sm: 2.25 },
         border: "1px solid",
-        borderColor: recommended ? "rgba(233,100,77,0.34)" : "divider",
-        borderRadius: 2.5,
-        bgcolor: recommended ? "rgba(233,100,77,0.035)" : "background.paper",
-        boxShadow: recommended ? "0 8px 24px rgba(45,53,68,0.05)" : "none",
+        borderColor: recommended ? "primary.main" : "divider",
+        borderRadius: 2,
+        bgcolor: recommended ? "primary.light" : "background.paper",
         textAlign: "left",
         position: "relative",
-        transition: "border-color 0.15s, box-shadow 0.15s",
-        "&:hover": { borderColor: recommended ? "rgba(233,100,77,0.55)" : "text.secondary" },
+        transition: "border-color 0.15s",
+        "&:hover": { borderColor: recommended ? "primary.dark" : "text.secondary" },
       }}
     >
       <Stack spacing={1.15} sx={{ minHeight: { xs: 218, sm: 224 }, justifyContent: "space-between" }}>
@@ -355,7 +353,7 @@ function PlanOption({
             {details.label}
           </Typography>
           {recommended && (
-            <Box sx={{ px: 0.9, py: 0.2, borderRadius: 999, bgcolor: "rgba(233,100,77,0.08)", border: "1px solid rgba(233,100,77,0.2)", color: "primary.dark" }}>
+            <Box sx={{ px: 0.9, py: 0.2, borderRadius: 1, bgcolor: "primary.light", border: "1px solid", borderColor: "primary.main", color: "primary.dark" }}>
               <Typography component="span" variant="caption" fontWeight={800} sx={{ whiteSpace: "nowrap", fontSize: "0.6rem", letterSpacing: "0.01em" }}>
                 Empfohlen
               </Typography>
@@ -376,7 +374,7 @@ function PlanOption({
             </Typography>
           </Box>
           {isQuarterly && (
-            <Box sx={{ px: 1, py: 0.55, borderRadius: 1.5, bgcolor: "rgba(233,100,77,0.1)", color: "primary.dark", flexShrink: 0 }}>
+            <Box sx={{ px: 1, py: 0.55, borderRadius: 1, bgcolor: "primary.light", color: "primary.dark", flexShrink: 0 }}>
               <Typography variant="caption" fontWeight={800} sx={{ fontSize: "0.65rem", whiteSpace: "nowrap" }}>
                 73 % günstiger als der Wochenplan
               </Typography>

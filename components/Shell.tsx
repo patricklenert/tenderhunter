@@ -84,7 +84,8 @@ interface ShellProps {
 export function Shell({ children }: ShellProps) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
-  const [currentView, setCurrentView] = useState<ViewKey>(() => getViewFromHash() ?? "discovery");
+  const [currentView, setCurrentView] = useState<ViewKey>("discovery");
+  const [viewHashResolved, setViewHashResolved] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalTab, setAuthModalTab] = useState<"login" | "register">("login");
@@ -94,6 +95,16 @@ export function Shell({ children }: ShellProps) {
     }
     return false;
   });
+
+  useEffect(() => {
+    const initialView = getViewFromHash();
+    if (initialView) {
+      // URL state is client-only; apply it after hydration to keep the initial render deterministic.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCurrentView(initialView);
+    }
+    setViewHashResolved(true);
+  }, []);
 
   useEffect(() => {
     const handleTracked = () => setHasTrackedTenders(true);
@@ -110,11 +121,12 @@ export function Shell({ children }: ShellProps) {
   }, [currentView, hasTrackedTenders]);
 
   useEffect(() => {
+    if (!viewHashResolved) return;
     const hash = VIEW_TO_HASH[currentView];
     if (hash && window.location.hash !== `#${hash}`) {
       window.history.replaceState(null, "", `#${hash}`);
     }
-  }, [currentView]);
+  }, [currentView, viewHashResolved]);
 
   useEffect(() => {
     const onHashChange = () => {
