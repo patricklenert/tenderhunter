@@ -72,6 +72,7 @@ import { ResourceState } from "@/components/ResourceState";
 import { ResponsiveTableFrame } from "@/components/ResponsiveTableFrame";
 import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
 import { SMALL_VENDOR_HIGHLIGHT_THRESHOLD } from "@/lib/small-vendor";
+import { syncPublicTenderDisplay } from "@/lib/public-tender-display-sync";
 import {
   hasCanonicalPublicDescriptionSection,
   normalizePublicDisplayCandidate,
@@ -446,6 +447,7 @@ export function AusschreibungenSection({ onNavigate }: { onNavigate?: (view: Vie
             const data2 = await res2.json();
             if (res2.ok && !data2.enriching) {
               setDetailData(data2);
+              setTenders((previous) => syncPublicTenderDisplay(previous, tender.id, data2));
             }
           } catch {
             // Ignore re-fetch errors

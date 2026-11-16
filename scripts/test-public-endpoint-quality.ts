@@ -31,6 +31,7 @@ import { readPublicTenderMeta } from "@/lib/tender-meta";
 import { projectPublicTenderDetailFallback } from "@/lib/public-tender-detail-fallback";
 import { resolvePublicTenderDisplayFacts } from "@/lib/public-tender-display-facts";
 import { resolvePublicDeadlineRepair } from "@/lib/public-deadline-backfill";
+import { syncPublicTenderDisplay } from "@/lib/public-tender-display-sync";
 import { formatDeadlineDE, parseDeadlineDate } from "@/lib/date-utils";
 
 // Document-summary cache and generation use this shared normalization before display.
@@ -673,6 +674,63 @@ assert.deepEqual(publicFields(truncatedScopeIndex), truncatedScopeExpected);
 assert.deepEqual(publicFields(truncatedScopeSearchHit), truncatedScopeExpected);
 assert.equal(normalizePublicDisplayCandidate("- Verfahren - - - Lose - Ergebnisse - Verträge - - - -"), null);
 assert.equal(normalizePublicDisplayCandidate("## Bekanntmachung"), null);
+
+const enrichmentCards = [
+  {
+    id: 901,
+    title: "Ausschreibung #901",
+    client: "Unbekannt",
+    location: "",
+    description: "Alte Beschreibung",
+    category: "Bauarbeiten",
+    sourceUrl: "https://example.test/tender/901",
+  },
+  {
+    id: 902,
+    title: "Andere Ausschreibung",
+    client: "Stadt Bonn",
+    location: "53111 Bonn",
+    description: "Unverändert",
+    category: "Lieferung",
+    sourceUrl: "https://example.test/tender/902",
+  },
+];
+const enrichedCards = syncPublicTenderDisplay(enrichmentCards, 901, {
+  title: "Energetische Sanierung der Grundschule Mainz",
+  client: "Stadt Mainz",
+  location: "55116 Mainz",
+  summary: "##",
+  description: "Die Grundschule erhält eine neue Heizungsanlage.",
+});
+assert.deepEqual(enrichedCards[0], {
+  ...enrichmentCards[0],
+  title: "Energetische Sanierung der Grundschule Mainz",
+  client: "Stadt Mainz",
+  location: "55116 Mainz",
+  description: "Die Grundschule erhält eine neue Heizungsanlage.",
+});
+assert.deepEqual(enrichedCards[1], enrichmentCards[1], "enrichment must not update a card with another ID");
+assert.deepEqual(
+  syncPublicTenderDisplay(enrichmentCards, 999, {
+    title: "Mismatched response",
+    client: "Falscher Auftraggeber",
+    location: "10115 Berlin",
+    description: "Falsche Beschreibung",
+  }),
+  enrichmentCards,
+  "an unknown target ID must not update any card",
+);
+assert.deepEqual(
+  syncPublicTenderDisplay(enrichmentCards, 901, {
+    id: 902,
+    title: "Mismatched response",
+    client: "Falscher Auftraggeber",
+    location: "10115 Berlin",
+    description: "Falsche Beschreibung",
+  }),
+  enrichmentCards,
+  "a response with a different ID must not update the requested card",
+);
 const duplicateFactMarkdown = "- **Auftraggeber:** Stadt Mainz\n- **Leistungsort:** 55116 Mainz";
 assert.equal(hasCanonicalPublicDescriptionSection(duplicateFactMarkdown, "Auftraggeber"), true);
 assert.equal(hasCanonicalPublicDescriptionSection(duplicateFactMarkdown, "Leistungsort"), true);
@@ -1305,6 +1363,7 @@ assert.match(detailRouteSource, /resolvePublicTenderDisplayFacts\(/);
 assert.match(ssrPageSource, /getPublicAccessLimitedFallback/);
 assert.match(ssrPageSource, /resolvePublicTenderDisplayFacts\(/);
 assert.match(detailModalSource, /const projectTenderDisplay = \(tender: ApiTender\) => projectPublicTenderRecord\(/);
+assert.match(detailModalSource, /if \(res2\.ok && !data2\.enriching\) \{\s*setDetailData\(data2\);\s*setTenders\(\(previous\) => syncPublicTenderDisplay\(previous, tender\.id, data2\)\);\s*\}/);
 assert.match(detailModalSource, /const display = projectPublicTenderRecord\(/);
 assert.match(detailModalSource, /title:\s*d\.title,/);
 assert.match(detailModalSource, /title:\s*t\.title,/);
