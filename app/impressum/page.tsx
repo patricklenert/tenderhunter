@@ -6,6 +6,13 @@ import { SiteFooter } from "@/components/seo/SiteFooter";
 // SEO: Impressum is legally required in Germany (TMG §5) but not SEO-relevant — noindex to conserve crawl budget
 export const metadata: Metadata = {
   title: "Impressum",
+  alternates: {
+    canonical: "/impressum",
+    languages: {
+      "de-DE": "/impressum",
+      "x-default": "/impressum",
+    },
+  },
   robots: { index: false, follow: true },
 };
 

@@ -54,10 +54,11 @@ async function assertIndexable(path: string, label: string): Promise<string> {
   return body;
 }
 
-async function assertNoindex(path: string, label: string): Promise<void> {
+async function assertNoindex(path: string, label: string): Promise<string> {
   const { response, body } = await fetchPage(path);
   assert.equal(response.status, 200, `${label} must render successfully`);
   assert.match(robotsFromHtml(body) ?? "", /noindex/i, `${label} must remain noindex`);
+  return body;
 }
 
 async function main(): Promise<void> {
@@ -107,7 +108,11 @@ async function main(): Promise<void> {
   assert.equal(new URL(searchPlaceholder.response.headers.get("location") ?? baseUrl, base).search, "");
 
   await assertNoindex("/ausschreibungen/bauarbeiten?page=2", "pagination URL");
-  await assertNoindex("/impressum", "impressum");
+  const impressumBody = await assertNoindex("/impressum", "impressum");
+  const impressumCanonical = canonicalFromHtml(impressumBody);
+  assert.ok(impressumCanonical, "impressum must declare a canonical URL");
+  assert.equal(new URL(impressumCanonical!, base).origin, preferredOrigin, "impressum canonical must use the preferred host");
+  assert.equal(new URL(impressumCanonical!, base).pathname, "/impressum", "impressum must use a self-canonical");
 
   const trailingSlash = await fetchPage("/ausschreibungen/bauarbeiten/");
   assert.equal(trailingSlash.response.status, 301, "trailing slash must use one permanent redirect");
