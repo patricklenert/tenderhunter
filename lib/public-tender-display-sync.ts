@@ -37,10 +37,10 @@ export const syncPublicTenderDisplay = <Tender extends TenderDisplayFields>(
   return tenders.map((item) => item.id === tenderId
     ? {
       ...item,
-      title: display.title ?? item.title,
-      client: display.client ?? item.client,
-      location: display.location ?? item.location,
-      description: display.description ?? item.description,
+      title: display.title ?? "",
+      client: display.client ?? "",
+      location: display.location ?? "",
+      description: display.description ?? "",
     }
     : item);
 };

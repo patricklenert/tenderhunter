@@ -731,6 +731,63 @@ assert.deepEqual(
   enrichmentCards,
   "a response with a different ID must not update the requested card",
 );
+const safePreviousCard = {
+  id: 903,
+  title: "Erneuerung der Heizungsanlage in Mainz",
+  client: "Stadt Mainz",
+  location: "55116 Mainz",
+  description: "Die Stadt Mainz erneuert die Heizungsanlage eines Schulgebäudes.",
+  category: "Bauarbeiten",
+  sourceUrl: "https://example.test/tender/903",
+};
+const safePreviousCardAfterInvalidEnrichment = syncPublicTenderDisplay([safePreviousCard], 903, {
+  title: "## Bekanntmachung",
+  client: "Anmelden erforderlich, um Zugriff zu erhalten",
+  location: "##",
+  summary: "## Kurzinfo",
+  description: "##",
+});
+assert.deepEqual(
+  {
+    title: safePreviousCardAfterInvalidEnrichment[0].title,
+    client: safePreviousCardAfterInvalidEnrichment[0].client,
+    location: safePreviousCardAfterInvalidEnrichment[0].location,
+    description: safePreviousCardAfterInvalidEnrichment[0].description,
+  },
+  {
+    title: safePreviousCard.title,
+    client: safePreviousCard.client,
+    location: safePreviousCard.location,
+    description: safePreviousCard.description,
+  },
+  "invalid detail candidates must fall through to valid projected values already on the list card",
+);
+const invalidPreviousCard = {
+  id: 904,
+  title: "## Bekanntmachung",
+  client: "Anmelden erforderlich, um Zugriff zu erhalten",
+  location: "##",
+  description: "SERVICE.BUND.DE - Aktuelle Ausschreibungen Haupt-Navigations-Menü Meta-Navigation Andere Ausschreibungen im Bereich",
+  category: "Bauarbeiten",
+  sourceUrl: "https://example.test/tender/904",
+};
+const invalidPreviousCardAfterSync = syncPublicTenderDisplay([invalidPreviousCard], 904, {
+  title: "## Bekanntmachung",
+  client: "Anmelden erforderlich, um Zugriff zu erhalten",
+  location: "##",
+  summary: "## Kurzinfo",
+  description: "##",
+});
+assert.deepEqual(
+  {
+    title: invalidPreviousCardAfterSync[0].title,
+    client: invalidPreviousCardAfterSync[0].client,
+    location: invalidPreviousCardAfterSync[0].location,
+    description: invalidPreviousCardAfterSync[0].description,
+  },
+  { title: "", client: "", location: "", description: "" },
+  "invalid previous list values must not bypass the validated projection during detail sync",
+);
 const duplicateFactMarkdown = "- **Auftraggeber:** Stadt Mainz\n- **Leistungsort:** 55116 Mainz";
 assert.equal(hasCanonicalPublicDescriptionSection(duplicateFactMarkdown, "Auftraggeber"), true);
 assert.equal(hasCanonicalPublicDescriptionSection(duplicateFactMarkdown, "Leistungsort"), true);
