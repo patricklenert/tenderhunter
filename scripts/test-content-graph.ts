@@ -255,6 +255,15 @@ if (!ARTICLES["nachpruefungsverfahren-vergabe"]?.content.includes("beginnt am Ta
 }
 
 const vobCluster = ["vob-a", "vob-b", "vob-c", "vob-a-eu"];
+const vobArticle = ARTICLES["vob-vergabe"];
+for (const category of ["Bauarbeiten", "Tiefbau", "TGA", "Gartenarbeiten"]) {
+  if (!vobArticle?.relatedCategories.includes(category)) {
+    errors.push(`vob-vergabe.relatedCategories -> missing relevant construction category: ${category}`);
+  }
+}
+if (vobArticle?.relatedCategories.includes("Planungsleistungen")) {
+  errors.push("vob-vergabe.relatedCategories -> planning-services listings are not a direct VOB category");
+}
 for (const slug of vobCluster) {
   if (!GLOSSARY_MAP[slug]?.relatedArticles?.includes("vob-vergabe")) {
     errors.push(`${slug}.relatedArticles -> missing vob-vergabe`);

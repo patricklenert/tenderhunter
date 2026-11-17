@@ -112,7 +112,7 @@ Unterhalb des jeweils einschlägigen Werts gelten die nationalen Regeln des Auft
     datePublished: "2025-01-15",
     dateModified: "2026-11-03",
     lastReviewed: "2026-11-03",
-    relatedCategories: ["Bauarbeiten", "Tiefbau", "TGA", "Planungsleistungen"],
+    relatedCategories: ["Bauarbeiten", "Tiefbau", "TGA", "Gartenarbeiten"],
     relatedArticles: ["vergabeverfahren-uebersicht", "schwellenwerte-vergabe", "ausschreibung-muster", "bietergemeinschaft-gruenden"],
     relatedGlossaryTerms: ["vob-a", "vob-b", "vob-c", "vob-a-eu", "schwellenwerte", "auftragswert", "losvergabe", "leistungsbeschreibung", "leistungsverzeichnis", "vgv-vergabeverordnung", "gwb-vergaberecht", "eignungsleihe", "praequalifikation-pq-vob", "nachforderung-unterlagen", "auftragsbekanntmachung", "informations-und-wartepflicht"],
     sources: [
