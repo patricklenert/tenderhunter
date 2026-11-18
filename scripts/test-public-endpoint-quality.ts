@@ -13,6 +13,7 @@ import {
   pickValidatedPublicLocationForTender,
   projectPublicDisplayFields,
   projectPublicTenderRecord,
+  groundPublicTenderFields,
 } from "@/lib/public-content-quality";
 import { detectAccessPage } from "@/lib/access-page-detector";
 import {
@@ -20,6 +21,8 @@ import {
   buildPublicAccessLimitedDescriptionMarkdown,
   extractPublicPortalFacts,
   getPublicAccessLimitedFallback,
+  pickPublicDescription,
+  withDescriptionMarkdown,
 } from "@/lib/public-tender-scraper";
 import {
   buildTenderIndexDocument,
@@ -445,6 +448,112 @@ assert.equal(
   readPublicTenderMeta(invalidDescriptionMetadata, { title: structuredSummaryTitle }).description,
   "",
   "fixture ensures the metadata description has already been cleaned away",
+);
+
+// A source-verbatim portal/PDF artifact must not win extraction simply because
+// it occurs in the source. The valid scope fallback is what gets persisted,
+// then list, detail, modal, index, and search all project that same text.
+const groundedFallbackTitle = "Erneuerung der Kläranlage in Mainz";
+const groundedFallbackArtifact = "Cookie-Einstellungen: Eigenerklärung zur Eignung; Formblatt 1.";
+const groundedFallbackDescription = "Die Erneuerung der Kläranlage umfasst den Austausch der Pumpen (Los 2).";
+const groundedFallbackSource = [
+  groundedFallbackTitle,
+  "Auftraggeber: Stadt Mainz",
+  "Leistungsort: 55116 Mainz",
+  groundedFallbackArtifact,
+  `Leistungsumfang: ${groundedFallbackDescription}`,
+].join("\n");
+const groundedFallbackFields = groundPublicTenderFields({
+  title: groundedFallbackTitle,
+  client: "Stadt Mainz",
+  location: "55116 Mainz",
+  description: groundedFallbackArtifact,
+  scope: groundedFallbackDescription,
+}, groundedFallbackSource);
+assert.equal(groundedFallbackFields.description, "");
+assert.equal(groundedFallbackFields.scope, groundedFallbackDescription);
+const groundedFallbackTender = withDescriptionMarkdown({
+  title: groundedFallbackFields.title as string,
+  client: groundedFallbackFields.client as string,
+  deadline: null,
+  description: pickPublicDescription(groundedFallbackFields.description, groundedFallbackFields.scope),
+  scope: groundedFallbackFields.scope as string,
+  referenceNumber: null,
+  location: groundedFallbackFields.location as string,
+  category: "Bauarbeiten",
+  sourceUrl: "https://example.test/tender/grounded-fallback",
+  source: "dtvp",
+  pdfUrls: [],
+});
+assert.equal(groundedFallbackTender.description, groundedFallbackDescription);
+assert.match(groundedFallbackTender.descriptionMarkdown, /Kläranlage/);
+assert.match(groundedFallbackTender.descriptionMarkdown, /\\\(Los 2\\\)/);
+const groundedFallbackMetadata = {
+  client: groundedFallbackTender.client,
+  location: groundedFallbackTender.location,
+  description: groundedFallbackTender.description,
+  descriptionMarkdown: groundedFallbackTender.descriptionMarkdown,
+};
+const groundedFallbackStructured = {
+  title: groundedFallbackTitle,
+  summary: groundedFallbackArtifact,
+  description: groundedFallbackArtifact,
+  hard_facts: { buyer: "Stadt Mainz", location: "55116 Mainz" },
+  decision_relevant: { scope: [groundedFallbackDescription] },
+};
+const groundedFallbackNormalized = normalizeStructured(groundedFallbackStructured, groundedFallbackTitle);
+const groundedFallbackList = projectPublicTenderRecord({
+  title: groundedFallbackTitle,
+  metadata: groundedFallbackMetadata,
+  structured: groundedFallbackNormalized,
+});
+const groundedFallbackDetail = projectPublicTenderDetailFallback({
+  title: groundedFallbackTitle,
+  metadataJson: groundedFallbackMetadata,
+  staleStructuredJson: groundedFallbackStructured,
+  fallbackFacts: {},
+}).display;
+const groundedFallbackModal = projectPublicTenderRecord({
+  title: groundedFallbackTitle,
+  structured: {
+    summary: [groundedFallbackArtifact, groundedFallbackDescription],
+    descriptionMarkdown: groundedFallbackTender.descriptionMarkdown,
+  },
+  metadata: groundedFallbackMetadata,
+});
+const groundedFallbackIndex = buildTenderIndexDocument({
+  id: 909,
+  title: groundedFallbackTitle,
+  source: "dtvp",
+  sourceKey: "dtvp",
+  url: "https://example.test/tender/grounded-fallback",
+  deadlineAt: null,
+  firstSeenAt: null,
+  category: "Bauarbeiten",
+  metadataJson: groundedFallbackMetadata,
+  structuredJson: groundedFallbackStructured,
+  rawText: groundedFallbackSource,
+  contractValueMax: null,
+  slug: null,
+  readinessStatus: "pending",
+});
+const groundedFallbackSearchHit = projectTenderSearchHit(groundedFallbackIndex, {
+  title: groundedFallbackTitle,
+  source: "dtvp",
+  url: "https://example.test/tender/grounded-fallback",
+  metadataJson: groundedFallbackMetadata,
+  structuredJson: groundedFallbackStructured,
+  rawText: groundedFallbackSource,
+});
+const groundedFallbackExpected = publicFields(groundedFallbackList);
+assert.equal(groundedFallbackExpected.description, groundedFallbackDescription);
+assert.deepEqual(publicFields(groundedFallbackDetail), groundedFallbackExpected);
+assert.deepEqual(publicFields(groundedFallbackModal), groundedFallbackExpected);
+assert.deepEqual(publicFields(groundedFallbackIndex), groundedFallbackExpected);
+assert.deepEqual(publicFields(groundedFallbackSearchHit), groundedFallbackExpected);
+assert.doesNotMatch(
+  `${groundedFallbackExpected.description} ${groundedFallbackDetail.descriptionMarkdown}`,
+  /Cookie-Einstellungen|Eigenerklärung zur Eignung|Formblatt 1/,
 );
 
 // One corrupt public record must resolve to the same validated fields for the

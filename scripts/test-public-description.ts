@@ -40,6 +40,7 @@ import {
   projectPublicDisplayFields,
   projectPublicTenderRecord,
   groundPublicTenderFields,
+  isSourceBackedPublicValue,
 } from "@/lib/public-content-quality";
 import { pickPublicTenderDescription, readPublicTenderMeta } from "@/lib/tender-meta";
 import { normalizeStructured } from "@/lib/structurer";
@@ -450,6 +451,16 @@ const invalidAuditedDescriptions: ReadonlyArray<readonly [number, string]> = [
 for (const [id, invalid] of invalidAuditedDescriptions) {
   if (normalizePublicDisplayCandidate(invalid) !== null) {
     throw new Error(`Audit-Kandidat ${id} wurde als öffentliche Beschreibung akzeptiert: ${invalid}`);
+  }
+  if (isSourceBackedPublicValue(invalid, invalid)) {
+    throw new Error(`Source-grounding hat nicht-öffentlichen Audit-Kandidaten ${id} als öffentliche Prosa akzeptiert`);
+  }
+  const groundedArtifact = groundPublicTenderFields({
+    description: invalid,
+    requirements: [invalid],
+  }, invalid);
+  if (groundedArtifact.description !== "" || JSON.stringify(groundedArtifact.requirements) !== "[]") {
+    throw new Error(`Source-grounding hat nicht-öffentliche Beschreibung/Anforderung ${id} nicht entfernt`);
   }
 }
 const explicitNoTenderWithScope = "Dies ist keine konkrete Ausschreibung, sondern eine allgemeine Anleitung zu Software und Bauleistungen.";

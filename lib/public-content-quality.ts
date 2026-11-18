@@ -761,8 +761,8 @@ const hasLabeledSourceValue = (candidate: string, source: string, label: RegExp)
 };
 
 /**
- * Checks LLM-extracted public facts against source text. Free-form text must be
- * source-verbatim after only whitespace, HTML-entity, and known-encoding fixes.
+ * Checks LLM-extracted public facts against source text. Free-form prose must
+ * be display-safe and source-verbatim after whitespace, entity, and encoding fixes.
  */
 export const isSourceBackedPublicValue = (
   value: unknown,
@@ -797,6 +797,9 @@ export const isSourceBackedPublicValue = (
     return false;
   }
 
+  // Presence in the source is evidence of provenance, not of tender content:
+  // portals and attached PDF forms can be source-verbatim boilerplate.
+  if (!normalizePublicDisplayCandidate(candidate)) return false;
   if (!source.includes(candidate)) return false;
   if (field === "buyer") return hasLabeledSourceValue(candidate, source, BUYER_SOURCE_LABEL);
   if (field === "location") return hasLabeledSourceValue(candidate, source, LOCATION_SOURCE_LABEL);
