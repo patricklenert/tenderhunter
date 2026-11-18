@@ -15,10 +15,26 @@ assert.equal(PUBLIC_PROFILE_FALLBACK_CANDIDATE_LIMIT, 250);
 
 const profilePage = readFileSync("app/p/[slug]/page.tsx", "utf8");
 const profileHeader = readFileSync("components/profile/CompanyProfileHeader.tsx", "utf8");
+const profileLogo = readFileSync("components/profile/CompanyLogo.tsx", "utf8");
+const profileMatches = readFileSync("components/profile/PublicProfileMatches.tsx", "utf8");
+const profileFooter = readFileSync("components/profile/PageFooter.tsx", "utf8");
 assert.match(profileHeader, /component="h1"/, "public profile heading must remain server-rendered independently of tender results");
 assert.ok(profilePage.indexOf("<CompanyProfileHeader") < profilePage.indexOf("<Suspense"), "profile identity must render before slow tender matching suspends");
 assert.match(profilePage, /<Suspense[\s\S]*?<PublicProfileMatches company=\{company\} \/>/, "tender matching must be isolated behind a streaming boundary");
 assert.doesNotMatch(profilePage, /findPublicProfileMatches/, "slow tender match queries must not block the profile shell");
+assert.match(profilePage, /bgcolor: "background\.default"/, "public profile canvas must use the shared theme");
+assert.match(profileLogo, /borderColor: "divider"/, "company logo frame must use the shared border role");
+assert.match(profileLogo, /bgcolor: "secondary\.main"/, "company initials must use the established navy");
+assert.match(profileMatches, /bgcolor: "secondary\.light"/, "match summary must use the established pale navy surface");
+assert.match(profileMatches, /minHeight: 44/, "empty-state links must retain practical touch targets");
+assert.match(profileFooter, /BrandLockup/, "public profile footer must use the shared brand mark and wordmark");
+assert.match(profileFooter, /BRAND_METADATA\.tagline/, "public profile footer must use the canonical brand message");
+assert.match(profileFooter, /direction=\{\{\s*xs:\s*"column",\s*sm:\s*"row"\s*\}\}/, "profile footer must stack on narrow screens and align horizontally from the sm breakpoint");
+assert.doesNotMatch(
+  [profilePage, profileLogo, profileMatches, profileFooter].join("\n"),
+  /#[\da-f]{3,8}\b|rgba?\(/i,
+  "public profile surfaces must not introduce local color literals",
+);
 
 assert.equal(getDeadlineState("05.08.2026", now), "expired");
 assert.equal(getDeadlineState("07.08.2026", now), "current");

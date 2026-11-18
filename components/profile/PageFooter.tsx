@@ -1,4 +1,7 @@
-import { Box, Stack, Typography } from "@mui/material";
+import Link from "next/link";
+import { Box, Link as MuiLink, Stack, Typography } from "@mui/material";
+import { BrandLockup } from "@/components/BrandLockup";
+import { BRAND_METADATA } from "@/lib/brand-tokens";
 import { getSiteUrl } from "@/lib/site-config";
 
 export function PageFooter() {
@@ -8,7 +11,8 @@ export function PageFooter() {
       sx={{
         mt: 6,
         pt: 3,
-        borderTop: "1px solid #e2e8f0",
+        borderTop: 1,
+        borderColor: "divider",
       }}
     >
       <Stack
@@ -17,39 +21,33 @@ export function PageFooter() {
         alignItems={{ xs: "center", sm: "flex-start" }}
         spacing={1}
       >
-        <Typography sx={{ color: "#64748b", fontSize: "0.75rem" }}>
-          © {new Date().getFullYear()}{" "}
-          <Box
-            component="a"
+        <Stack direction="row" alignItems="center" spacing={1.5}>
+          <Typography variant="caption" color="text.secondary">
+            © {new Date().getFullYear()}
+          </Typography>
+          <MuiLink
+            component={Link}
             href={getSiteUrl()}
             target="_blank"
             rel="noopener noreferrer"
-            sx={{
-              color: "#475569",
-              textDecoration: "none",
-              fontWeight: 600,
-              "&:hover": { color: "#1e293b" },
-            }}
+            aria-label="Tenderhunter Startseite"
+            sx={{ display: "inline-flex", textDecoration: "none" }}
           >
-            Tenderhunter
-          </Box>
-        </Typography>
-        <Stack direction="row" spacing={2}>
-          <Box
-            component="a"
-            href={getSiteUrl()}
-            target="_blank"
-            rel="noopener noreferrer"
-            sx={{
-              color: "#64748b",
-              fontSize: "0.75rem",
-              textDecoration: "none",
-              "&:hover": { color: "#1e293b" },
-            }}
-          >
-            KI-gestützte Ausschreibungssuche
-          </Box>
+            <BrandLockup size={32} labelSize={18} gap={8} />
+          </MuiLink>
         </Stack>
+        <MuiLink
+          component={Link}
+          href={getSiteUrl()}
+          target="_blank"
+          rel="noopener noreferrer"
+          color="text.secondary"
+          variant="caption"
+          underline="hover"
+          sx={{ minHeight: 44, display: "inline-flex", alignItems: "center" }}
+        >
+          {BRAND_METADATA.tagline}
+        </MuiLink>
       </Stack>
     </Box>
   );

@@ -1,6 +1,6 @@
 import { and, desc, eq, gt, sql } from "drizzle-orm";
-import Link from "next/link";
-import { Box, Stack, Typography } from "@mui/material";
+import NextLink from "next/link";
+import { Box, Link, Stack, Typography } from "@mui/material";
 import { db } from "@/lib/db";
 import { scores, tenders, structuredData } from "@/lib/schema";
 import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
@@ -121,22 +121,22 @@ export async function PublicProfileMatches({ company }: { company: PublicProfile
   const bestFit = currentTenders.length > 0 ? Math.max(...currentTenders.map((tender) => tender.fit)) : null;
 
   return (
-    <Box component="section" aria-labelledby="profile-matches-heading" sx={{ mt: { xs: 2.5, md: 3.5 }, p: { xs: 1.5, sm: 2, md: 2.5 }, bgcolor: "#e4edf3", border: "1px solid #d3e0e8", borderRadius: "18px" }}>
-      <Typography sx={{ mb: 1, color: "#667288", fontSize: "0.8rem" }}>
+    <Box component="section" aria-labelledby="profile-matches-heading" sx={{ mt: { xs: 2.5, md: 3.5 }, p: { xs: 1.5, sm: 2, md: 2.5 }, bgcolor: "secondary.light", border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+      <Typography sx={{ mb: 1, color: "text.secondary", fontSize: "0.8rem" }}>
         {tendersList.length} Treffer · Bester Fit {bestFit === null ? "–" : `${bestFit}%`}
         {summary.expiredCount > 0 ? ` · ${summary.expiredCount} abgelaufen` : ""}
       </Typography>
       <TenderSectionHeader count={summary.currentCount} summary={summary} />
       {tendersList.length === 0 ? (
-        <Box sx={{ p: { xs: 3, md: 4 }, textAlign: "center", bgcolor: "#fbfcfd", borderRadius: "12px", border: "1px solid #dce6ed" }}>
+        <Box sx={{ p: { xs: 3, md: 4 }, textAlign: "center", bgcolor: "background.paper", borderRadius: 2, border: "1px solid", borderColor: "divider" }}>
           <Typography variant="h6" component="h2" sx={{ mb: 1, fontWeight: 700 }}>Aktuell keine passenden Ausschreibungen</Typography>
-          <Typography sx={{ color: "#667288", fontSize: "0.875rem", maxWidth: 620, mx: "auto", lineHeight: 1.7 }}>
+          <Typography sx={{ color: "text.secondary", fontSize: "0.875rem", maxWidth: 620, mx: "auto", lineHeight: 1.7 }}>
             Für dieses Firmenprofil wurden derzeit keine passenden aktiven Vergaben gefunden. Neue Ausschreibungen werden laufend ergänzt. Nutzen Sie bis dahin unsere aktuellen Vergaben, Tools und Vorlagen.
           </Typography>
           <Stack direction="row" spacing={1} justifyContent="center" flexWrap="wrap" useFlexGap sx={{ mt: 2 }}>
-            <Link href="/ausschreibungen" style={{ color: "#c45342", fontWeight: 700, textDecoration: "none" }}>Alle Ausschreibungen</Link>
-            <Link href="/tools" style={{ color: "#c45342", fontWeight: 700, textDecoration: "none" }}>Vergabe-Tools</Link>
-            <Link href="/vorlagen" style={{ color: "#c45342", fontWeight: 700, textDecoration: "none" }}>Vorlagen &amp; Muster</Link>
+            <Link component={NextLink} href="/ausschreibungen" color="primary" underline="hover" sx={{ minHeight: 44, display: "inline-flex", alignItems: "center", fontWeight: 700 }}>Alle Ausschreibungen</Link>
+            <Link component={NextLink} href="/tools" color="primary" underline="hover" sx={{ minHeight: 44, display: "inline-flex", alignItems: "center", fontWeight: 700 }}>Vergabe-Tools</Link>
+            <Link component={NextLink} href="/vorlagen" color="primary" underline="hover" sx={{ minHeight: 44, display: "inline-flex", alignItems: "center", fontWeight: 700 }}>Vorlagen &amp; Muster</Link>
           </Stack>
         </Box>
       ) : (
@@ -145,8 +145,8 @@ export async function PublicProfileMatches({ company }: { company: PublicProfile
             {currentTenders.map((tender) => <Box component="li" key={tender.id}><TenderCard {...tender} /></Box>)}
           </Stack>}
           {expiredTenders.length > 0 && <Box component="section" aria-labelledby="expired-matches-heading" sx={{ mt: { xs: 3, md: 4 } }}>
-            <Typography id="expired-matches-heading" component="h2" sx={{ fontSize: "0.95rem", fontWeight: 700, color: "#475569" }}>Abgelaufene Ausschreibungen</Typography>
-            <Typography sx={{ color: "#7b8798", fontSize: "0.75rem", mt: 0.25, mb: 1 }}>Zur Einordnung, nicht mehr im aktuellen Fokus · {expiredTenders.length} Treffer</Typography>
+            <Typography id="expired-matches-heading" component="h2" sx={{ fontSize: "0.95rem", fontWeight: 700, color: "text.primary" }}>Abgelaufene Ausschreibungen</Typography>
+            <Typography sx={{ color: "text.secondary", fontSize: "0.75rem", mt: 0.25, mb: 1 }}>Zur Einordnung, nicht mehr im aktuellen Fokus · {expiredTenders.length} Treffer</Typography>
             <Stack component="ul" spacing={1.25} sx={{ listStyle: "none", p: 0, m: 0 }}>
               {expiredTenders.map((tender) => <Box component="li" key={tender.id}><TenderCard {...tender} /></Box>)}
             </Stack>

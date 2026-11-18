@@ -1,7 +1,7 @@
 # Tenderhunter Brand System
 
 Status: active
-Last updated: 2026-11-04
+Last updated: 2026-11-18
 
 This is the product-wide source of truth for Tenderhunter's brand behavior. Campaign production tasks remain in `marketing/backlog.md`; product brand decisions and follow-up work belong in `BRAND_BACKLOG.md`.
 
@@ -71,6 +71,7 @@ Tender cards, fit scores, deadline states, and tender detail panels are one deci
 - Analysis result cards and metric bars use the same semantic MUI roles and 70/40 thresholds as `FitScore`; do not add local hex, RGBA, or generic grey values to this decision surface.
 - Tool and deep-analysis surfaces use shared text, surface, divider, and status roles. Keep assessments neutral unless the underlying data establishes a positive or caution state; active analysis uses the shared info role.
 - Company-profile summaries and tender-section headers use the same semantic MUI roles; best-fit values and distributions follow the `FitScore` thresholds and verbal states.
+- Public company profiles use semantic canvas, panel, text, and border roles throughout the page frame, company-logo fallback, match summary, and empty state. Their footer reuses `BrandLockup` and the canonical `BRAND_METADATA.tagline`.
 - The canonical public tender detail route uses the same semantic roles for readiness, deadlines, sources, documents, and related opportunities; use dividers and surfaces instead of local shadows to separate decisions.
 - International opportunity surfaces use the same semantic palette as the German product; distinguish market or opportunity type with existing `info` and `primary` roles, never with local market colors or translucent accents.
 - Progress and result transitions use the MUI theme timing and must provide a reduced-motion path. Use a restrained radar or scan cue for active analysis, never a target or crosshair.

@@ -103,7 +103,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
 
-      <Box sx={{ minHeight: "100vh", bgcolor: "#edf3f7" }}>
+      <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
         <Container maxWidth={false} sx={{ maxWidth: "1240px", mx: "auto", px: { xs: 2, sm: 3, lg: 4 }, py: { xs: 2.5, md: 3.5 } }}>
           <SiteBreadcrumbs items={[
             { label: "Start", href: "/" },
