@@ -24,7 +24,7 @@ import { searchTenders } from "@/lib/meilisearch";
 import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 import { getListingRobots, getPageNumber, getPaginationHref, type SeoSearchParams } from "@/lib/seo-indexability";
-import { rethrowNavigationError } from "@/lib/public-route-resilience";
+import { rethrowPublicDataError } from "@/lib/public-route-resilience";
 
 // SEO: Region×Category cross pages for long-tail keywords like "gebäudereinigung ausschreibung nrw"
 export const revalidate = 3600;
@@ -85,14 +85,8 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
       robots: getListingRobots(await searchParams, count),
       openGraph: { title, description, type: "website", locale: "de_DE" },
     };
-  } catch {
-    const canonicalPath = `/ausschreibungen/region/${slug}/${kategorie}`;
-    return {
-      title: `${label} Ausschreibungen ${bundesland}`,
-      description: `Öffentliche ${label}-Ausschreibungen in ${bundesland}.`,
-      alternates: { canonical: canonicalPath, languages: { "de-DE": canonicalPath } },
-      robots: { index: false, follow: true },
-    };
+  } catch (error) {
+    rethrowPublicDataError(error);
   }
 }
 
@@ -136,8 +130,7 @@ export default async function RegionCategoryPage({ params, searchParams }: PageP
       slug: getCanonicalTenderSlug(hit.slug ?? null, hit.title, { client: hit.client, location: hit.location }),
     }));
   } catch (error) {
-    rethrowNavigationError(error);
-    // Meilisearch unavailable — page renders empty with noindex
+    rethrowPublicDataError(error);
   }
 
   const itemListJsonLd = {

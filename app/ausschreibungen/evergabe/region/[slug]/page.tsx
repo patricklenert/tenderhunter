@@ -5,7 +5,7 @@ import { SLUG_TO_BUNDESLAND } from "@/lib/bundesland";
 import { searchTenders } from "@/lib/meilisearch";
 import { PortalLocationContent } from "@/components/seo/PortalLocationContent";
 import { getListingRobots, getPageNumber, type SeoSearchParams } from "@/lib/seo-indexability";
-import { rethrowNavigationError } from "@/lib/public-route-resilience";
+import { rethrowPublicDataError } from "@/lib/public-route-resilience";
 
 import { getSiteUrl } from "@/lib/site-config";
 
@@ -40,14 +40,8 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
       robots: getListingRobots(resolvedSearchParams, count),
       openGraph: { title, description, type: "website", locale: "de_DE" },
     };
-  } catch {
-    const canonicalPath = `/ausschreibungen/${portal.slug}/region/${slug}`;
-    return {
-      title: `${portal.label} Ausschreibungen ${bundesland}`,
-      description: `Öffentliche ${portal.label}-Ausschreibungen in ${bundesland}.`,
-      alternates: { canonical: canonicalPath, languages: { "de-DE": canonicalPath } },
-      robots: { index: false, follow: true },
-    };
+  } catch (error) {
+    rethrowPublicDataError(error);
   }
 }
 
@@ -92,8 +86,7 @@ export default async function EvergabeRegionPage({ params, searchParams }: PageP
       slug: hit.slug ?? null,
     }));
   } catch (error) {
-    rethrowNavigationError(error);
-    // Meilisearch unavailable
+    rethrowPublicDataError(error);
   }
 
   return (

@@ -23,6 +23,7 @@ import { getIndexableAgency } from "@/lib/agencies";
 import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 import { getListingRobots, getPageNumber, getPaginationHref, type SeoSearchParams } from "@/lib/seo-indexability";
+import { rethrowPublicDataError } from "@/lib/public-route-resilience";
 import { readPublicTenderMeta } from "@/lib/tender-meta";
 
 // SEO: Agency/Auftraggeber landing pages for long-tail keywords like "Ausschreibungen Stadt München"
@@ -94,14 +95,8 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
       robots: getListingRobots(resolvedSearchParams, count),
       openGraph: { title, description, type: "website", locale: "de_DE" },
     };
-  } catch {
-    const canonicalPath = `/auftraggeber/${slug}`;
-    return {
-      title: "Auftraggeber",
-      description: "Öffentliche Ausschreibungen dieses Auftraggebers.",
-      alternates: { canonical: canonicalPath, languages: { "de-DE": canonicalPath } },
-      robots: { index: false, follow: true },
-    };
+  } catch (error) {
+    rethrowPublicDataError(error);
   }
 }
 

@@ -5,6 +5,7 @@ import { CATEGORY_LABELS, SLUG_TO_CATEGORY } from "@/lib/categories";
 import { searchTenders } from "@/lib/meilisearch";
 import { PortalCategoryContent } from "@/components/seo/PortalCategoryContent";
 import { getListingRobots, type SeoSearchParams } from "@/lib/seo-indexability";
+import { rethrowPublicDataError } from "@/lib/public-route-resilience";
 
 import { getSiteUrl } from "@/lib/site-config";
 
@@ -32,13 +33,8 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
   let count = 0;
   try {
     count = (await searchTenders({ query: "", source: portal.sourceValues, category: categoryKey, limit: 1 })).estimatedTotalHits;
-  } catch {
-    return {
-      title,
-      description,
-      alternates: { canonical: canonicalPath, languages: { "de-DE": canonicalPath } },
-      robots: { index: false, follow: true },
-    };
+  } catch (error) {
+    rethrowPublicDataError(error);
   }
 
   return {
@@ -85,8 +81,8 @@ export default async function EvergabeCategoryPage({ params }: PageProps) {
       source: hit.source,
       slug: hit.slug ?? null,
     }));
-  } catch {
-    // Meilisearch unavailable
+  } catch (error) {
+    rethrowPublicDataError(error);
   }
 
   return (

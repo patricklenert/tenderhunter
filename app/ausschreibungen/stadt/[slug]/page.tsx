@@ -23,7 +23,7 @@ import { BUNDESLAND_SLUGS } from "@/lib/bundesland";
 import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 import { getListingRobots, getPageNumber, getPaginationHref, type SeoSearchParams } from "@/lib/seo-indexability";
-import { rethrowNavigationError } from "@/lib/public-route-resilience";
+import { rethrowPublicDataError } from "@/lib/public-route-resilience";
 
 // SEO: City landing pages for long-tail keywords like "Ausschreibungen München"
 export const revalidate = 3600;
@@ -63,14 +63,8 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
       robots: getListingRobots(await searchParams, count),
       openGraph: { title, description, type: "website", locale: "de_DE" },
     };
-  } catch {
-    const canonicalPath = `/ausschreibungen/stadt/${slug}`;
-    return {
-      title: `Ausschreibungen ${city.label}`,
-      description: `Öffentliche Ausschreibungen in ${city.label}.`,
-      alternates: { canonical: canonicalPath, languages: { "de-DE": canonicalPath } },
-      robots: { index: false, follow: true },
-    };
+  } catch (error) {
+    rethrowPublicDataError(error);
   }
 }
 
@@ -112,8 +106,7 @@ export default async function CityPage({ params, searchParams }: PageProps) {
       slug: getCanonicalTenderSlug(hit.slug ?? null, hit.title, { client: hit.client, location: hit.location }),
     }));
   } catch (error) {
-    rethrowNavigationError(error);
-    // Meilisearch unavailable — page renders empty with noindex
+    rethrowPublicDataError(error);
   }
 
   const availableCategorySlugs = new Set(

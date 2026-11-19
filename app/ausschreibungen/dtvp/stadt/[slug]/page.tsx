@@ -5,7 +5,7 @@ import { CITIES } from "@/lib/cities";
 import { searchTenders } from "@/lib/meilisearch";
 import { PortalLocationContent } from "@/components/seo/PortalLocationContent";
 import { getListingRobots, getPageNumber, type SeoSearchParams } from "@/lib/seo-indexability";
-import { rethrowNavigationError } from "@/lib/public-route-resilience";
+import { rethrowPublicDataError } from "@/lib/public-route-resilience";
 
 import { getSiteUrl } from "@/lib/site-config";
 
@@ -41,14 +41,8 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
       robots: getListingRobots(resolvedSearchParams, count),
       openGraph: { title, description, type: "website", locale: "de_DE" },
     };
-  } catch {
-    const canonicalPath = `/ausschreibungen/${portal.slug}/stadt/${slug}`;
-    return {
-      title: `${portal.label} Ausschreibungen ${city.label}`,
-      description: `Öffentliche ${portal.label}-Ausschreibungen in ${city.label}.`,
-      alternates: { canonical: canonicalPath, languages: { "de-DE": canonicalPath } },
-      robots: { index: false, follow: true },
-    };
+  } catch (error) {
+    rethrowPublicDataError(error);
   }
 }
 
@@ -93,8 +87,7 @@ export default async function DtvpCityPage({ params, searchParams }: PageProps) 
       slug: hit.slug ?? null,
     }));
   } catch (error) {
-    rethrowNavigationError(error);
-    // Meilisearch unavailable
+    rethrowPublicDataError(error);
   }
 
   return (

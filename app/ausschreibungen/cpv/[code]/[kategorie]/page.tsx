@@ -7,7 +7,7 @@ import { CPV_CODES, getCpvCodePrefix } from "@/lib/cpv-codes";
 import { CATEGORY_LABELS, CATEGORY_SLUGS, SLUG_TO_CATEGORY } from "@/lib/categories";
 import { TaxonomyCategoryContent } from "@/components/seo/TaxonomyCategoryContent";
 import { getListingRobots, getPageNumber, type SeoSearchParams } from "@/lib/seo-indexability";
-import { rethrowNavigationError } from "@/lib/public-route-resilience";
+import { rethrowPublicDataError } from "@/lib/public-route-resilience";
 import { pickValidatedPublicCandidate } from "@/lib/public-content-quality";
 import { readPublicTenderMeta } from "@/lib/tender-meta";
 
@@ -72,13 +72,8 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
          cpvMatchSql(cpvPrefix),
       ));
     count = countRow[0]?.count ?? 0;
-  } catch {
-    return {
-      title,
-      description,
-      alternates: { canonical: canonicalPath, languages: { "de-DE": canonicalPath } },
-      robots: { index: false, follow: true },
-    };
+  } catch (error) {
+    rethrowPublicDataError(error);
   }
 
   return {
@@ -196,8 +191,7 @@ export default async function CpvCategoryPage({ params, searchParams }: PageProp
       .map((row) => row.category ? CATEGORY_SLUGS[row.category] : null)
       .filter((slug): slug is string => Boolean(slug));
   } catch (error) {
-    rethrowNavigationError(error);
-    // DB unavailable
+    rethrowPublicDataError(error);
   }
 
   return (

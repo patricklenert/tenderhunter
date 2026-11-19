@@ -6,7 +6,7 @@ import { ALL_ARTICLE_SLUGS } from "../lib/articles";
 import { getIndexableAgency } from "../lib/agencies";
 import { matchesCpvCode } from "../lib/cpv-codes";
 import { getListingRobots, getPaginationHref, NOINDEX_FOLLOW } from "../lib/seo-indexability";
-import { dependencyUnavailableResponse, optionalPublicRows, rethrowNavigationError } from "../lib/public-route-resilience";
+import { dependencyUnavailableResponse, optionalPublicRows, rethrowPublicDataError } from "../lib/public-route-resilience";
 import { isCanonicalTenderId } from "../lib/tender-canonical";
 import { getSiteUrl } from "../lib/site-config";
 import { decodeRouteParam } from "../lib/route-params";
@@ -106,16 +106,40 @@ const paginatedListingRoutes = [
   "app/ausschreibungen/bauportal-deutschland/region/[slug]/page.tsx",
   "app/auftraggeber/[slug]/page.tsx",
 ];
+const otherDataBackedListingRoutes = [
+  "app/ausschreibungen/bauportal-deutschland/page.tsx",
+  "app/ausschreibungen/bauportal-deutschland/[kategorie]/page.tsx",
+  "app/ausschreibungen/dtvp/page.tsx",
+  "app/ausschreibungen/dtvp/[kategorie]/page.tsx",
+  "app/ausschreibungen/evergabe/page.tsx",
+  "app/ausschreibungen/evergabe/[kategorie]/page.tsx",
+  "app/ausschreibungen/ted/page.tsx",
+  "app/ausschreibungen/ted/[kategorie]/page.tsx",
+];
+const requestRenderedListingRoutes = [
+  "app/ausschreibungen/[kategorie]/page.tsx",
+  "app/ausschreibungen/cpv/[code]/page.tsx",
+  "app/ausschreibungen/verfahren/[type]/page.tsx",
+  "app/ausschreibungen/bauportal-deutschland/page.tsx",
+  "app/ausschreibungen/dtvp/page.tsx",
+  "app/ausschreibungen/evergabe/page.tsx",
+  "app/ausschreibungen/ted/page.tsx",
+];
 for (const route of paginatedListingRoutes) {
   const source = readFileSync(route, "utf8");
   assert.match(source, /currentPage > totalPages\) notFound\(\)/, `${route} must 404 every out-of-range page, including when no results exist`);
 }
-for (const route of paginatedListingRoutes.slice(0, -1)) {
+for (const route of [...paginatedListingRoutes, ...otherDataBackedListingRoutes]) {
   assert.match(
     readFileSync(route, "utf8"),
-    /catch \(error\) \{\s*rethrowNavigationError\(error\);/,
-    `${route} must not swallow Next.js notFound signals in its database fallback`,
+    /catch \(error\) \{\s*rethrowPublicDataError\(error\);/,
+    `${route} must not convert required public-data failures into an empty/noindex page`,
   );
+}
+for (const route of requestRenderedListingRoutes) {
+  const source = readFileSync(route, "utf8");
+  assert.match(source, /export const dynamic = "force-dynamic"/, `${route} must resolve required tender data at request time`);
+  assert.doesNotMatch(source, /generateStaticParams/, `${route} must not require a live data backend during the production build`);
 }
 
 let notFoundSignal: unknown;
@@ -125,8 +149,9 @@ try {
   notFoundSignal = error;
 }
 assert.ok(notFoundSignal, "notFound() must produce a Next.js control-flow signal");
-assert.throws(() => rethrowNavigationError(notFoundSignal), /NEXT_HTTP_ERROR_FALLBACK;404/);
-assert.doesNotThrow(() => rethrowNavigationError(new Error("ordinary data failure")));
+assert.throws(() => rethrowPublicDataError(notFoundSignal), /NEXT_HTTP_ERROR_FALLBACK;404/);
+const dataFailure = new Error("ordinary data failure");
+assert.throws(() => rethrowPublicDataError(dataFailure), (error) => error === dataFailure);
 
 for (const route of [
   "app/ausschreibungen/stadt/[slug]/page.tsx",

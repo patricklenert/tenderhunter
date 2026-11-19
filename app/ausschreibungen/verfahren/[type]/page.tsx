@@ -23,23 +23,18 @@ import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
 import { PROCEDURE_TYPES, ALL_PROCEDURE_TYPE_SLUGS, getProcedureDatabaseValues } from "@/lib/procedure-types";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 import { getListingRobots, getPageNumber, getPaginationHref, type SeoSearchParams } from "@/lib/seo-indexability";
-import { rethrowNavigationError } from "@/lib/public-route-resilience";
+import { rethrowPublicDataError } from "@/lib/public-route-resilience";
 import { pickValidatedPublicCandidate } from "@/lib/public-content-quality";
 import { readPublicTenderMeta } from "@/lib/tender-meta";
 
 const PAGE_SIZE = 20;
 
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 import { getSiteUrl } from "@/lib/site-config";
 
 const siteUrl = getSiteUrl();
-
-// SEO: Procedure type pages — pre-render all Vergabeverfahren types
-export async function generateStaticParams() {
-  return ALL_PROCEDURE_TYPE_SLUGS.map((type) => ({ type }));
-}
 
 interface PageProps {
   params: Promise<{ type: string }>;
@@ -145,7 +140,7 @@ export default async function ProcedureTypePage({ params, searchParams }: PagePr
       };
     });
   } catch (error) {
-    rethrowNavigationError(error);
+    rethrowPublicDataError(error);
     // DB unavailable
   }
 

@@ -4,13 +4,14 @@ import { searchTenders } from "@/lib/meilisearch";
 import { CATEGORY_LABELS } from "@/lib/categories";
 import { PortalPageContent } from "@/components/seo/PortalPageContent";
 import { getListingRobots, type SeoSearchParams } from "@/lib/seo-indexability";
+import { rethrowPublicDataError } from "@/lib/public-route-resilience";
 
 import { getSiteUrl } from "@/lib/site-config";
 
 const siteUrl = getSiteUrl();
 const portal = PORTALS["bauportal-deutschland"];
 
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function generateMetadata({ searchParams }: { searchParams: Promise<SeoSearchParams> }): Promise<Metadata> {
@@ -53,8 +54,8 @@ export default async function BauportalPage() {
       source: hit.source,
       slug: hit.slug ?? null,
     }));
-  } catch {
-    // Meilisearch unavailable
+  } catch (error) {
+    rethrowPublicDataError(error);
   }
 
   return (

@@ -10,9 +10,10 @@ export function dependencyUnavailableResponse(): Response {
   });
 }
 
-/** Preserve Next.js control-flow signals when broad data fallbacks catch errors. */
-export function rethrowNavigationError(error: unknown): void {
+/** Preserve Next.js control flow and surface failures from required public data. */
+export function rethrowPublicDataError(error: unknown): never {
   unstable_rethrow(error);
+  throw error;
 }
 
 /** Optional detail-page data must not turn an otherwise renderable tender into a 5xx. */

@@ -23,13 +23,13 @@ import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
 import { CPV_CODES, ALL_CPV_CODES, getCpvCodePrefix } from "@/lib/cpv-codes";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 import { getListingRobots, getPageNumber, getPaginationHref, type SeoSearchParams } from "@/lib/seo-indexability";
-import { rethrowNavigationError } from "@/lib/public-route-resilience";
+import { rethrowPublicDataError } from "@/lib/public-route-resilience";
 import { pickValidatedPublicCandidate } from "@/lib/public-content-quality";
 import { readPublicTenderMeta } from "@/lib/tender-meta";
 
 const PAGE_SIZE = 20;
 
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 import { getSiteUrl } from "@/lib/site-config";
@@ -56,11 +56,6 @@ function cpvMatchSql(prefix: string) {
     ) AS cpv(value)
     WHERE left(regexp_replace(cpv.value, '[^0-9]', '', 'g'), 8) LIKE ${`${prefix}%`}
   )`;
-}
-
-// SEO: CPV landing pages — pre-render top CPV codes from the EU procurement vocabulary
-export async function generateStaticParams() {
-  return ALL_CPV_CODES.map((code) => ({ code }));
 }
 
 interface PageProps {
@@ -174,8 +169,7 @@ export default async function CpvPage({ params, searchParams }: PageProps) {
       };
     });
   } catch (error) {
-    rethrowNavigationError(error);
-    // DB unavailable
+    rethrowPublicDataError(error);
   }
 
   const itemListJsonLd = {

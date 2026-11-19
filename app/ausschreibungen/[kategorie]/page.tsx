@@ -19,7 +19,7 @@ import {
   Calendar,
   ArrowRight,
 } from "lucide-react";
-import { CATEGORY_LABELS, CATEGORY_SLUGS, SLUG_TO_CATEGORY, ALL_CATEGORY_SLUGS } from "@/lib/categories";
+import { CATEGORY_LABELS, CATEGORY_SLUGS, SLUG_TO_CATEGORY } from "@/lib/categories";
 import { CATEGORY_CONTENT } from "@/lib/category-content";
 import { ARTICLES } from "@/lib/articles";
 import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
@@ -27,12 +27,12 @@ import { SiteFooter } from "@/components/seo/SiteFooter";
 import { getListingRobots, getPageNumber, getPaginationHref, type SeoSearchParams } from "@/lib/seo-indexability";
 import { pickValidatedPublicCandidate } from "@/lib/public-content-quality";
 import { readPublicTenderMeta } from "@/lib/tender-meta";
-import { rethrowNavigationError } from "@/lib/public-route-resilience";
+import { rethrowPublicDataError } from "@/lib/public-route-resilience";
 
 // SEO: Pagination for category pages — 20 tenders per page
 const PAGE_SIZE = 20;
 
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 import { getSiteUrl } from "@/lib/site-config";
@@ -42,10 +42,6 @@ const siteUrl = getSiteUrl();
 interface PageProps {
   params: Promise<{ kategorie: string }>;
   searchParams: Promise<SeoSearchParams>;
-}
-
-export async function generateStaticParams() {
-  return ALL_CATEGORY_SLUGS.map((slug) => ({ kategorie: slug }));
 }
 
 export async function generateMetadata({
@@ -92,13 +88,8 @@ export async function generateMetadata({
         locale: "de_DE",
       },
     };
-  } catch {
-    return {
-      title: `${label} – Aktuelle öffentliche Ausschreibungen`,
-      description: `Öffentliche ${label}-Ausschreibungen in Deutschland.`,
-      alternates: { canonical: `/ausschreibungen/${kategorie}`, languages: { "de-DE": `/ausschreibungen/${kategorie}` } },
-      robots: { index: false, follow: true },
-    };
+  } catch (error) {
+    rethrowPublicDataError(error);
   }
 }
 
@@ -216,8 +207,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
       }))
       .sort((a, b) => b.count - a.count);
   } catch (error) {
-    rethrowNavigationError(error);
-    // DB unavailable
+    rethrowPublicDataError(error);
   }
 
   const itemListJsonLd = {
