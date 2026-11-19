@@ -27,7 +27,7 @@ export const ARTICLES: Record<string, Article> = {
     dateModified: "2026-11-03",
     relatedCategories: ["Bauarbeiten", "IT-Dienstleistungen", "Planungsleistungen"],
     relatedArticles: ["vob-vergabe", "schwellenwerte-vergabe", "wie-funktioniert-ausschreibung", "oeffentliche-auftraege-finden"],
-    relatedGlossaryTerms: ["offenes-verfahren", "beschraenktes-verfahren", "verhandlungsverfahren", "teilnahmewettbewerb", "vergabeunterlagen", "e-vergabe", "vgv-vergabeverordnung", "uvgo", "vob-a", "vob-a-eu", "schwellenwerte", "auftragswert", "nachforderung-unterlagen", "auftragsbekanntmachung"],
+    relatedGlossaryTerms: ["offenes-verfahren", "beschraenktes-verfahren", "verhandlungsverfahren", "teilnahmewettbewerb", "vergabeunterlagen", "e-vergabe", "vgv-vergabeverordnung", "uvgo", "vob-a", "vob-a-eu", "schwellenwerte", "auftragswert", "nachforderung-unterlagen", "auftragsbekanntmachung", "vorinformation"],
     sources: [
       { title: "§ 119 GWB – Verfahrensarten", url: "https://www.gesetze-im-internet.de/gwb/__119.html" },
       { title: "BMWE: Vergabeübersicht und Rechtsgrundlagen", url: "https://www.bundeswirtschaftsministerium.de/Redaktion/DE/Artikel/Wirtschaft/vergabe-uebersicht-und-rechtsgrundlagen.html" },
@@ -114,7 +114,7 @@ Unterhalb des jeweils einschlägigen Werts gelten die nationalen Regeln des Auft
     lastReviewed: "2026-11-03",
     relatedCategories: ["Bauarbeiten", "Tiefbau", "TGA", "Gartenarbeiten"],
     relatedArticles: ["vergabeverfahren-uebersicht", "schwellenwerte-vergabe", "ausschreibung-muster", "bietergemeinschaft-gruenden"],
-    relatedGlossaryTerms: ["vob-a", "vob-b", "vob-c", "vob-a-eu", "schwellenwerte", "auftragswert", "losvergabe", "leistungsbeschreibung", "leistungsverzeichnis", "vgv-vergabeverordnung", "gwb-vergaberecht", "eignungsleihe", "praequalifikation-pq-vob", "nachforderung-unterlagen", "auftragsbekanntmachung", "informations-und-wartepflicht"],
+    relatedGlossaryTerms: ["vob-a", "vob-b", "vob-c", "vob-a-eu", "schwellenwerte", "auftragswert", "losvergabe", "leistungsbeschreibung", "leistungsverzeichnis", "vgv-vergabeverordnung", "gwb-vergaberecht", "eignungsleihe", "praequalifikation-pq-vob", "nachforderung-unterlagen", "auftragsbekanntmachung", "vorinformation", "informations-und-wartepflicht"],
     sources: [
       { title: "Bundesanzeiger: Bekanntmachung der Vergabe- und Vertragsordnung für Bauleistungen Teil A – Abschnitt 2 und Abschnitt 3 (VOB/A) – Ausgabe 2026 – (BAnz AT 24.08.2026 B6)", url: "https://www.bundesanzeiger.de/pub/publication/73xO0rpP1jfX5HRt0Ja/content/73xO0rpP1jfX5HRt0Ja/BAnz%20AT%2024.08.2026%20B6.pdf?inline" },
       { title: "VOB/A, Bekanntmachung vom 31. Januar 2019 (BAnz AT 19.02.2019 B2)", url: "https://www.verwaltungsvorschriften-im-internet.de/bsvwvbund_31012019_BWI781063060120180001604634.htm" },

@@ -212,6 +212,44 @@ for (const slug of requiredVobLinks) {
   }
 }
 
+const priorInformation = GLOSSARY_MAP["vorinformation"];
+if (!priorInformation) {
+  errors.push("procurement process cluster -> missing vorinformation glossary entry");
+} else {
+  const priorInformationContent = [
+    priorInformation.shortDefinition,
+    ...priorInformation.definition,
+    ...priorInformation.keyPoints,
+    ...priorInformation.faq.map((item) => `${item.question} ${item.answer}`),
+  ].join(" ");
+  for (const phrase of ["§ 38 VgV", "§ 12 EU", "§ 134 GWB", "35 Tagen", "zwölf Monaten"]) {
+    if (!priorInformationContent.includes(phrase)) {
+      errors.push(`vorinformation -> missing scoped detail: ${phrase}`);
+    }
+  }
+  for (const url of [
+    "https://www.gesetze-im-internet.de/vgv_2016/__38.html",
+    "https://www.gesetze-im-internet.de/vgv_2016/__2.html",
+    "https://www.gesetze-im-internet.de/gwb/__134.html",
+    "https://www.bundesanzeiger.de/pub/publication/73xO0rpP1jfX5HRt0Ja/content/73xO0rpP1jfX5HRt0Ja/BAnz%20AT%2024.08.2026%20B6.pdf?inline",
+  ]) {
+    if (!priorInformation.sources?.some((source) => source.url === url)) {
+      errors.push(`vorinformation.sources -> missing primary source: ${url}`);
+    }
+  }
+}
+if (!/const PROCESS_CLUSTER = \[[\s\S]*?slug:\s*"vorinformation"/.test(readFileSync("app/lexikon/page.tsx", "utf8"))) {
+  errors.push("lexikon.PROCESS_CLUSTER -> missing vorinformation");
+}
+if (!GLOSSARY_MAP["auftragsbekanntmachung"]?.relatedTerms?.includes("vorinformation")) {
+  errors.push("auftragsbekanntmachung.relatedTerms -> missing vorinformation");
+}
+for (const articleSlug of ["vergabeverfahren-uebersicht", "vob-vergabe"]) {
+  if (!ARTICLES[articleSlug]?.relatedGlossaryTerms?.includes("vorinformation")) {
+    errors.push(`${articleSlug}.relatedGlossaryTerms -> missing vorinformation`);
+  }
+}
+
 const informationDuty = GLOSSARY_MAP["informations-und-wartepflicht"];
 if (!informationDuty) {
   errors.push("legal protection cluster -> missing informations-und-wartepflicht glossary entry");

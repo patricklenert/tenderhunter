@@ -1636,7 +1636,7 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "Prüfen Sie insbesondere Fristen, Teilnahme- und Angebotsweg, Losaufteilung, Eignungsanforderungen, Zuschlagskriterien und den Zugang zu den Vergabeunterlagen. Maßgeblich sind anschließend auch die vollständigen Unterlagen sowie Antworten und Änderungen im Vergabeportal.",
       },
     ],
-    relatedTerms: ["vgv-vergabeverordnung", "vob-a", "uvgo", "schwellenwerte", "vergabeunterlagen", "teilnahmewettbewerb", "e-vergabe", "eforms", "ted"],
+    relatedTerms: ["vgv-vergabeverordnung", "vob-a", "vorinformation", "uvgo", "schwellenwerte", "vergabeunterlagen", "teilnahmewettbewerb", "e-vergabe", "eforms", "ted"],
     relatedArticles: ["vergabeverfahren-uebersicht", "eu-vergabe", "oeffentliche-auftraege-finden", "vob-vergabe"],
     sources: [
       { title: "§ 37 VgV – Auftragsbekanntmachung", url: "https://www.gesetze-im-internet.de/vgv_2016/__37.html" },
@@ -1647,6 +1647,54 @@ export const GLOSSARY: GlossaryEntry[] = [
       { title: "TED – Tenders Electronic Daily der Europäischen Union", url: "https://ted.europa.eu/de/" },
     ],
     lastReviewed: "2026-11-05",
+  },
+  {
+    slug: "vorinformation",
+    term: "Vorinformation",
+    category: "Vergabeprozess",
+    shortDefinition: "Eine Vorinformation kündigt eine geplante Auftragsvergabe vor der Auftragsbekanntmachung an. Je nach Regelwerk und Ausgestaltung kann sie auch bestimmte Vergabefristen verkürzen oder als Aufruf zum Wettbewerb dienen.",
+    definition: [
+      "Nach § 38 VgV kann ein öffentlicher Auftraggeber seine geplante Auftragsvergabe vorab bekannt machen. Die Vorinformation wird elektronisch nach den eForms-Vorgaben erstellt und über den Datenservice Öffentlicher Einkauf an das Amt für Veröffentlichungen der Europäischen Union übermittelt. Sie kann auch im Beschafferprofil erscheinen; dann ist die Veröffentlichung ebenfalls nach den gesetzlichen Vorgaben an das Amt zu melden.",
+      "Im Anwendungsbereich der VgV kann eine ordnungsgemäße Vorinformation bestimmte Angebotsfristen verkürzen: im offenen Verfahren auf 15 Tage, im nicht offenen oder Verhandlungsverfahren auf zehn Tage. Dafür muss sie die vorgeschriebenen Angaben enthalten, soweit diese bereits vorliegen, und zwischen 35 Tagen und zwölf Monaten vor Absendung der Auftragsbekanntmachung zur Veröffentlichung übermittelt worden sein.",
+      "Unter den zusätzlichen Voraussetzungen des § 38 Absatz 4 VgV kann eine Vorinformation bei nicht offenen Verfahren und Verhandlungsverfahren die gesonderte Auftragsbekanntmachung ersetzen. Diese Ausnahme gilt nicht für oberste Bundesbehörden. Die Vorinformation muss unter anderem zur Interessenbekundung auffordern; anschließend werden interessierte Unternehmen zur Bestätigung ihres Interesses aufgefordert. Dafür gilt eine Frist von 30 Tagen ab dem Tag nach Absendung der Aufforderung.",
+      "Bei Bauaufträgen ist die Anwendbarkeit der VgV nach § 2 VgV abzugrenzen. Die veröffentlichte Ausgabe 2026 der VOB/A enthält für den EU-Bereich eigene Regeln zur Vorinformation, insbesondere in § 12 EU. Welche VOB/A-Fassung im konkreten Verfahren gilt, richtet sich nach der maßgeblichen Verweisung und Inkraftsetzung. Deshalb lassen sich die Voraussetzungen und Fristen aus § 38 VgV nicht pauschal auf jede Bauvergabe übertragen.",
+      "Nicht zu verwechseln ist die Vorinformation mit der umgangssprachlich ebenfalls so genannten Vorabinformation nach § 134 GWB: Diese informiert ausgewählte Bieter nach der Zuschlagsentscheidung vor dem Vertragsschluss über den vorgesehenen Auftragnehmer und die Wartefrist.",
+    ],
+    keyPoints: [
+      "Kündigt eine geplante Auftragsvergabe frühzeitig an",
+      "Kann unter engen Voraussetzungen bestimmte Angebotsfristen verkürzen",
+      "Kann in bestimmten VgV-Verfahren die Auftragsbekanntmachung ersetzen",
+      "Für Bauaufträge die Abgrenzung zwischen VgV und VOB/A beachten",
+      "Nicht mit der Vorabinformation nach § 134 GWB verwechseln",
+    ],
+    faq: [
+      {
+        question: "Ist eine Vorinformation verpflichtend?",
+        answer: "Nach § 38 VgV ist sie grundsätzlich fakultativ. Will der Auftraggeber die dort vorgesehene Verkürzung bestimmter Angebotsfristen nutzen, muss er die Vorinformation rechtzeitig übermitteln und die Inhaltsvorgaben einhalten. Für Bauvergaben und andere Regelwerke gelten deren eigene Vorschriften.",
+      },
+      {
+        question: "Kann eine Vorinformation die Angebotsfrist verkürzen?",
+        answer: "Im Anwendungsbereich der VgV kann die Mindestfrist unter den Voraussetzungen des § 38 Absatz 3 auf 15 Tage im offenen Verfahren beziehungsweise zehn Tage im nicht offenen oder Verhandlungsverfahren verkürzt werden. Die Vorinformation muss dafür zwischen 35 Tagen und zwölf Monaten vor Absendung der Auftragsbekanntmachung zur Veröffentlichung übermittelt worden sein und die vorgeschriebenen Angaben enthalten.",
+      },
+      {
+        question: "Ersetzt eine Vorinformation die Auftragsbekanntmachung?",
+        answer: "Nur in den eng begrenzten Fällen des § 38 Absatz 4 VgV: bei nicht offenen Verfahren oder Verhandlungsverfahren, nicht für oberste Bundesbehörden und nur bei Einhaltung der dort genannten Inhalts- und Fristvorgaben. Die VOB/A regelt entsprechende Konstellationen für Bauvergaben eigenständig.",
+      },
+      {
+        question: "Ist die Vorinformation dasselbe wie die Vorabinformation nach § 134 GWB?",
+        answer: "Nein. Die Vorinformation kündigt eine geplante Vergabe vor dem Wettbewerb an. Die Vorabinformation nach § 134 GWB wird dagegen nach der Zuschlagsentscheidung an betroffene Bieter versandt und löst grundsätzlich eine Wartefrist vor Vertragsschluss aus.",
+      },
+    ],
+    relatedTerms: ["auftragsbekanntmachung", "vob-a-eu", "vob-a", "vgv-vergabeverordnung", "teilnahmewettbewerb", "informations-und-wartepflicht"],
+    relatedArticles: ["vergabeverfahren-uebersicht", "vob-vergabe"],
+    sources: [
+      { title: "§ 38 VgV – Vorinformation", url: "https://www.gesetze-im-internet.de/vgv_2016/__38.html" },
+      { title: "§ 10a VgV – Erstellung und Übermittlung von Bekanntmachungen", url: "https://www.gesetze-im-internet.de/vgv_2016/__10a.html" },
+      { title: "§ 2 VgV – Vergabe von Bauaufträgen", url: "https://www.gesetze-im-internet.de/vgv_2016/__2.html" },
+      { title: "VOB/A Abschnitt 2, § 12 EU – Vorinformation (Ausgabe 2026)", url: "https://www.bundesanzeiger.de/pub/publication/73xO0rpP1jfX5HRt0Ja/content/73xO0rpP1jfX5HRt0Ja/BAnz%20AT%2024.08.2026%20B6.pdf?inline" },
+      { title: "§ 134 GWB – Informations- und Wartepflicht", url: "https://www.gesetze-im-internet.de/gwb/__134.html" },
+    ],
+    lastReviewed: "2026-11-19",
   },
   {
     slug: "vergabeunterlagen",
