@@ -1,4 +1,4 @@
-FROM node:20-bookworm
+FROM node:22-bookworm
 
 # Browser rendering runs in the shared Obscura CDP container; the app only
 # needs the playwright client library, so browser downloads are skipped.
