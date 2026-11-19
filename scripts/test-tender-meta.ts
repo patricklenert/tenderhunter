@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { pickSourceBackedPublicCandidate } from "../lib/public-content-quality";
 import { pickPublicTenderDescription, readPublicTenderIndexMeta, readPublicTenderMeta, readTenderMeta } from "../lib/tender-meta";
 import { getCanonicalTenderSlug } from "../lib/tender-canonical";
 
@@ -91,6 +92,86 @@ assert.equal(aliasMeta.client, "Stadt Mainz");
 assert.equal(aliasMeta.location, "55116 Mainz");
 assert.equal(aliasMeta.procedure, "Offenes Verfahren");
 assert.deepEqual(aliasMeta.pdfUrls, ["https://example.test/camel.pdf"]);
+
+const invalidSnakeCaseAliases = readTenderMeta({
+  reference_number: "## Referenz",
+  referenceNumber: "VG-2026-001",
+  hard_facts: {
+    buyer: "## Auftraggeber",
+    location: "## Leistungsort",
+    contract_type: "## Verfahren",
+  },
+  hardFacts: {
+    buyer: "Stadt Mainz",
+    location: "55116 Mainz",
+    contract_type: "Offenes Verfahren",
+  },
+});
+assert.equal(invalidSnakeCaseAliases.referenceNumber, "VG-2026-001");
+assert.equal(invalidSnakeCaseAliases.client, "Stadt Mainz");
+assert.equal(invalidSnakeCaseAliases.location, "55116 Mainz");
+assert.equal(invalidSnakeCaseAliases.procedure, "Offenes Verfahren");
+assert.deepEqual(
+  readPublicTenderIndexMeta({
+    hard_facts: { buyer: "## Auftraggeber", location: "## Leistungsort" },
+    hardFacts: { buyer: "Stadt Mainz", location: "55116 Mainz" },
+  }),
+  { client: "Stadt Mainz", location: "55116 Mainz" },
+  "the lightweight metadata reader must validate each hard-fact alias before fallback",
+);
+assert.deepEqual(
+  readPublicTenderIndexMeta({
+    hard_facts: { buyer: "Stadt Mainz", location: "55116 Mainz" },
+    hardFacts: { buyer: "Stadt Bonn", location: "53111 Bonn" },
+  }),
+  { client: "Stadt Mainz", location: "55116 Mainz" },
+  "valid snake_case facts retain precedence over valid legacy aliases",
+);
+
+const validAliasPrecedence = readTenderMeta({
+  reference_number: "VG-2026-001",
+  referenceNumber: "VG-2026-002",
+  hard_facts: {
+    buyer: "Stadt Mainz",
+    location: "55116 Mainz",
+    contract_type: "Offenes Verfahren",
+  },
+  hardFacts: {
+    buyer: "Stadt Bonn",
+    location: "53111 Bonn",
+    contract_type: "Nichtoffenes Verfahren",
+  },
+});
+assert.equal(validAliasPrecedence.referenceNumber, "VG-2026-001");
+assert.equal(validAliasPrecedence.client, "Stadt Mainz");
+assert.equal(validAliasPrecedence.location, "55116 Mainz");
+assert.equal(validAliasPrecedence.procedure, "Offenes Verfahren");
+
+const groundedReferenceSource = "Vergabenummer: VG-2026-002";
+assert.equal(
+  pickSourceBackedPublicCandidate(groundedReferenceSource, "## Referenz", "VG-2026-002"),
+  "VG-2026-002",
+  "a source-grounded camelCase reference must survive an invalid snake_case alias",
+);
+assert.equal(
+  pickSourceBackedPublicCandidate(groundedReferenceSource, "VG-2026-001", "VG-2026-002"),
+  "VG-2026-002",
+  "a valid but ungrounded earlier reference must not hide a grounded later alias",
+);
+assert.equal(
+  pickSourceBackedPublicCandidate(
+    "Vergabenummer: VG-2026-001; Referenz: VG-2026-002",
+    "VG-2026-001",
+    "VG-2026-002",
+  ),
+  "VG-2026-001",
+  "a source-grounded snake_case reference retains precedence over the camelCase alias",
+);
+assert.equal(
+  pickSourceBackedPublicCandidate("Vergabenummer: VG-2026-003", "VG-2026-001", "VG-2026-002"),
+  "",
+  "reference aliases must remain source-grounded",
+);
 
 assert.equal(
   pickPublicTenderDescription({

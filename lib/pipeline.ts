@@ -3574,9 +3574,11 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
     ? `${tender.contractValueMax} EUR`
     : "";
   const groundedStoredValue = isSourceBackedPublicValue(groundedValue, sourceEvidence) ? groundedValue : null;
-  const groundedReferenceNumber = isSourceBackedPublicValue(meta.reference_number, sourceEvidence)
-    ? String(meta.reference_number)
-    : null;
+  const groundedReferenceNumber = pickSourceBackedPublicCandidate(
+    sourceEvidence,
+    meta.reference_number,
+    meta.referenceNumber,
+  ) || null;
 
   const scrapedAccessPage = detectAccessPage(fullContent, { title: tender.title ?? undefined, url: sourceUrl });
   if (scrapedAccessPage.blocked) {

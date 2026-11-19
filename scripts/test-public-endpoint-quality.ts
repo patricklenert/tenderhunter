@@ -1552,5 +1552,10 @@ assert.match(meiliSearchSource, /\.filter\(\(hit\) => !params\.bundesland \|\| h
 assert.match(pipelineSource, /parseDeadlineDate\(tender\.deadline\)/);
 assert.match(pipelineSource, /const cachedStructuredChanged = !isDeepStrictEqual\(normalizedCached, blob\)/);
 assert.match(pipelineSource, /if \(cachedStructuredChanged\) \{[\s\S]*?markCatalogDirty\(\);[\s\S]*?enqueueJob\(JOB_SYNC_MEILI/);
+assert.match(
+  pipelineSource,
+  /const groundedReferenceNumber = pickSourceBackedPublicCandidate\(\s*sourceEvidence,\s*meta\.reference_number,\s*meta\.referenceNumber,\s*\)\s*\|\|\s*null;/,
+  "cache detail must validate and source-ground both reference aliases in precedence order",
+);
 
 console.log("Public endpoint quality tests passed.");

@@ -86,23 +86,6 @@ const recordFromValue = (value: unknown): Record<string, unknown> => {
   }
 };
 
-const mergeRecords = (...values: unknown[]): Record<string, unknown> => {
-  const merged: Record<string, unknown> = {};
-  for (const value of values) {
-    for (const [key, candidate] of Object.entries(recordFromValue(value))) {
-      const current = merged[key];
-      const currentRecord = recordFromValue(current);
-      const candidateRecord = recordFromValue(candidate);
-      if (Object.keys(currentRecord).length > 0 && Object.keys(candidateRecord).length > 0) {
-        merged[key] = mergeRecords(current, candidate);
-      } else if (!(key in merged) || !hasValue(current)) {
-        merged[key] = candidate;
-      }
-    }
-  }
-  return merged;
-};
-
 const metadataRecord = (metadataJson: unknown): Record<string, unknown> => {
   if (typeof metadataJson === "string") {
     try {
@@ -227,8 +210,7 @@ export const readTenderMeta = (
   rawText?: string | null,
 ): TenderMeta => {
   const meta = metadataRecord(metadataJson);
-  const refNum = meta.reference_number ?? meta.referenceNumber;
-  const refTrimmed = typeof refNum === "string" ? refNum.trim() : "";
+  const referenceNumber = pickValidatedPublicCandidate(meta.reference_number, meta.referenceNumber);
   const resources = readResourceArray(meta, ["resources"]);
   const resourceCandidates = readResourceArray(meta, [
     "resources",
@@ -237,7 +219,8 @@ export const readTenderMeta = (
     "subpage_candidates",
     "subpageCandidates",
   ]);
-  const hardFacts = mergeRecords(meta.hard_facts, meta.hardFacts);
+  const hardFacts = recordFromValue(meta.hard_facts);
+  const legacyHardFacts = recordFromValue(meta.hardFacts);
   const procurement = recordFromValue(firstValue(meta, ["procurement"]));
   const descriptionMarkdownCandidate = [meta.descriptionMarkdown, meta.description_markdown]
     .find((value): value is string => isCanonicalPublicDescriptionMarkdown(value)) ?? "";
@@ -245,19 +228,35 @@ export const readTenderMeta = (
     description: pickPublicTenderDescription({ metadata: meta, rawText }),
     descriptionMarkdown: descriptionMarkdownCandidate,
     subject: pickValidatedPublicCandidate(meta.subject, meta.scope),
-    client: normalizePublicClient(pickValidatedPublicClient(meta.client, meta.buyer, hardFacts.buyer, hardFacts.client)),
-    location: pickValidatedPublicLocation(meta.location, meta.city, hardFacts.location, hardFacts.city),
+    client: normalizePublicClient(pickValidatedPublicClient(
+      meta.client,
+      meta.buyer,
+      hardFacts.buyer,
+      legacyHardFacts.buyer,
+      hardFacts.client,
+      legacyHardFacts.client,
+    )),
+    location: pickValidatedPublicLocation(
+      meta.location,
+      meta.city,
+      hardFacts.location,
+      legacyHardFacts.location,
+      hardFacts.city,
+      legacyHardFacts.city,
+    ),
     procedure: pickValidatedPublicProcedure(
       meta.procedure,
       meta.procedure_type,
       meta.procedureType,
       hardFacts.contract_type,
+      legacyHardFacts.contract_type,
       hardFacts.contractType,
+      legacyHardFacts.contractType,
       procurement.procedure_type,
       procurement.procedureType,
     ),
     accessLimited: meta.access_limited === true || meta.accessLimited === true,
-    referenceNumber: refTrimmed ? refTrimmed : null,
+    referenceNumber: referenceNumber || null,
     pdfUrls: stringArrayFromKeys(meta, ["pdf_urls", "pdfUrls"]),
     resources,
     resourceCandidates,
@@ -293,11 +292,26 @@ export const readPublicTenderIndexMeta = (
   options: { title?: unknown; source?: string; sourceUrl?: string | null } = {},
 ): Pick<TenderMeta, "client" | "location"> => {
   const meta = metadataRecord(metadataJson);
-  const hardFacts = mergeRecords(meta.hard_facts, meta.hardFacts);
+  const hardFacts = recordFromValue(meta.hard_facts);
+  const legacyHardFacts = recordFromValue(meta.hardFacts);
   const client = normalizePublicClient(
-    pickValidatedPublicClient(meta.client, meta.buyer, hardFacts.buyer, hardFacts.client),
+    pickValidatedPublicClient(
+      meta.client,
+      meta.buyer,
+      hardFacts.buyer,
+      legacyHardFacts.buyer,
+      hardFacts.client,
+      legacyHardFacts.client,
+    ),
   );
-  const location = pickValidatedPublicLocation(meta.location, meta.city, hardFacts.location, hardFacts.city);
+  const location = pickValidatedPublicLocation(
+    meta.location,
+    meta.city,
+    hardFacts.location,
+    legacyHardFacts.location,
+    hardFacts.city,
+    legacyHardFacts.city,
+  );
   const publicClient = normalizePublicClient(client);
   const displayTitle = pickValidatedPublicCandidate(options.title);
   const displayClient = pickValidatedPublicClient(publicClient, client);
