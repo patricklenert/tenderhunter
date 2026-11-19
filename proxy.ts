@@ -185,6 +185,16 @@ export async function proxy(request: NextRequest): Promise<NextResponse | Respon
     return NextResponse.redirect(destination, 301);
   }
 
+  // Check required listing data before Next starts streaming a page shell, so
+  // a later Server Component failure cannot be committed as HTTP 200.
+  if (resource === "ausschreibungen" && segments.length > 1 && segments.at(-1) !== "opengraph-image") {
+    try {
+      await db.execute(sql`SELECT 1`);
+    } catch {
+      return dependencyUnavailableResponse();
+    }
+  }
+
   if (resource !== "ausschreibung" && resource !== "p" && resource !== "auftraggeber") {
     return NextResponse.next();
   }

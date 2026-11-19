@@ -13,12 +13,19 @@ async function main(): Promise<void> {
   assert.equal(isKnownPublicUsPath(["us", "unknown"]), false, "unknown US paths are rejected before slash redirects");
   assert.equal(isKnownPublicUsPath(["us", "profile", "unknown"]), false, "unknown US profile paths are rejected");
 
-  for (const path of ["/p/example", "/auftraggeber/example", "/ausschreibung/42/example"]) {
+  for (const path of ["/p/example", "/auftraggeber/example", "/ausschreibung/42/example", "/ausschreibungen/bauarbeiten"]) {
     const response = await proxy(new NextRequest(`https://example.test${path}`));
     assert.equal(response.status, 503, `${path} returns a dependency status`);
     assert.equal(response.headers.get("retry-after"), "60", `${path} includes retry guidance`);
     assert.equal(response.headers.get("x-robots-tag"), "noindex, follow", `${path} is not indexable while unavailable`);
   }
+
+  const missingListing = await proxy(new NextRequest("https://example.test/ausschreibungen/not-a-category"));
+  assert.equal(missingListing.status, 404, "unknown listing taxonomy remains a 404 before database preflight");
+  const listingHub = await proxy(new NextRequest("https://example.test/ausschreibungen"));
+  assert.equal(listingHub.status, 200, "editorial listing hub remains available without catalog preflight");
+  const trailingSlash = await proxy(new NextRequest("https://example.test/ausschreibungen/bauarbeiten/"));
+  assert.equal(trailingSlash.status, 301, "canonical slash redirects do not depend on database availability");
 
   const malformedUsTender = await proxy(new NextRequest("https://example.test/us/tender/not-a-number"));
   assert.equal(malformedUsTender.status, 404, "malformed US tender IDs must be real 404s before database access");
