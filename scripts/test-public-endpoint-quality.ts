@@ -245,6 +245,19 @@ const qualityFixtureStructured = {
   decision_relevant: { scope: ["Energetische Sanierung der Grundschule"] },
 };
 const qualityFixtureNormalized = normalizeStructured(qualityFixtureStructured, qualityFixtureTitle);
+const metadataTitleStructured = normalizeStructured({
+  title: qualityFixtureDisplayTitle,
+}, "##");
+const metadataTitleProjection = projectPublicTenderRecord({
+  title: "##",
+  metadata: { client: "Stadt Mainz", location: "55116 Mainz" },
+  structured: metadataTitleStructured,
+  clientFallbacks: ["Stadt Mainz"],
+  locationFallbacks: ["55116 Mainz"],
+});
+assert.equal(metadataTitleProjection.title || "Ausschreibung #907", qualityFixtureDisplayTitle);
+assert.equal(metadataTitleProjection.client, "Stadt Mainz");
+assert.equal(metadataTitleProjection.location, "55116 Mainz");
 const qualityFixtureList = projectPublicTenderRecord({
   title: qualityFixtureTitle,
   metadata: qualityFixtureMetadata,
@@ -1521,6 +1534,10 @@ const detailModalSource = readFileSync("components/AusschreibungenSection.tsx", 
 const searchRouteSource = readFileSync("app/api/tenders/search/route.ts", "utf8");
 const meiliSearchSource = readFileSync("lib/meilisearch.ts", "utf8");
 const pipelineSource = readFileSync("lib/pipeline.ts", "utf8");
+const generateMetadataSource = ssrPageSource.slice(
+  ssrPageSource.indexOf("export async function generateMetadata"),
+  ssrPageSource.indexOf("export default async function TenderDetailPage"),
+);
 assert.match(listRouteSource, /getPublicAccessLimitedFallback/);
 assert.match(listRouteSource, /resolvePublicTenderDisplayFacts\(/);
 assert.match(detailRouteSource, /getPublicAccessLimitedFallback/);
@@ -1528,6 +1545,8 @@ assert.match(detailRouteSource, /const cachedAccess = accessLimited;\s*const cac
 assert.match(detailRouteSource, /resolvePublicTenderDisplayFacts\(/);
 assert.match(ssrPageSource, /getPublicAccessLimitedFallback/);
 assert.match(ssrPageSource, /resolvePublicTenderDisplayFacts\(/);
+assert.match(generateMetadataSource, /normalizeStructured\(row\.structuredJson \?\? row\.metadataJson,\s*row\.title \?\? ""\)/);
+assert.match(generateMetadataSource, /projectPublicTenderRecord\(\{\s*title: row\.title,\s*metadata: \{\s*client: meta\.client,\s*location: meta\.location\s*\},\s*structured: normalizedStructured,\s*clientFallbacks: \[meta\.client\],\s*locationFallbacks: \[meta\.location\],\s*\}\s*\)/);
 assert.match(detailModalSource, /const projectTenderDisplay = \(tender: ApiTender\) => projectPublicTenderRecord\(/);
 assert.match(detailModalSource, /if \(res2\.ok && !data2\.enriching\) \{\s*setDetailData\(data2\);\s*setTenders\(\(previous\) => syncPublicTenderDisplay\(previous, tender\.id, data2\)\);\s*\}/);
 assert.match(detailModalSource, /const display = projectPublicTenderRecord\(/);

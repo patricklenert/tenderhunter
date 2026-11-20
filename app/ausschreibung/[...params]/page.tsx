@@ -63,7 +63,6 @@ import {
   pickValidatedPublicLocationForTender,
   normalizePublicDisplayCandidate,
   pickCanonicalPublicDescriptionMarkdown,
-  projectPublicDisplayFields,
   projectPublicTenderRecord,
 } from "@/lib/public-content-quality";
 
@@ -124,10 +123,13 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
     title: row.title,
     source: row.source,
   });
-  const metaDisplay = projectPublicDisplayFields({
+  const normalizedStructured = normalizeStructured(row.structuredJson ?? row.metadataJson, row.title ?? "");
+  const metaDisplay = projectPublicTenderRecord({
     title: row.title,
-    client: meta.client,
-    location: meta.location,
+    metadata: { client: meta.client, location: meta.location },
+    structured: normalizedStructured,
+    clientFallbacks: [meta.client],
+    locationFallbacks: [meta.location],
   });
   const rawTitle = metaDisplay.title || `Ausschreibung #${id}`;
   const client = metaDisplay.client || "";
