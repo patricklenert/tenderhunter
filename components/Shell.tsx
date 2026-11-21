@@ -45,7 +45,7 @@ export const NAV_ITEMS: NavItem[] = [
   { key: "discovery", label: "Analyse", icon: Radar },
   { key: "trackedTenders", label: "Verfolgte Ausschreibungen", icon: BriefcaseBusiness },
   { key: "publicTenders", label: "Ausschreibungen", icon: SearchLocationIcon },
-  { key: "usOpportunities", label: "U.S. Opportunities", icon: Globe2 },
+  { key: "usOpportunities", label: "US-Aufträge", icon: Globe2 },
   { key: "mcp", label: "MCP", icon: Bot },
 ];
 
