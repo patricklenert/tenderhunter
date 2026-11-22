@@ -310,6 +310,51 @@ for (const slug of vobCluster) {
     errors.push(`vob-vergabe.relatedGlossaryTerms -> missing ${slug}`);
   }
 }
+const nebenangebot = GLOSSARY_MAP["nebenangebot"];
+if (!nebenangebot) {
+  errors.push("VOB content cluster -> missing nebenangebot glossary entry");
+} else {
+  const nebenangebotContent = [
+    nebenangebot.shortDefinition,
+    ...nebenangebot.definition,
+    ...nebenangebot.keyPoints,
+    ...nebenangebot.faq.map((item) => `${item.question} ${item.answer}`),
+  ].join(" ");
+  for (const phrase of [
+    "§ 8 EU Absatz 2 Nummer 3",
+    "sind keine Nebenangebote zugelassen",
+    "§ 8 Absatz 2 Nummer 3",
+    "§ 13 Absatz 3",
+    "besonderen Anlage",
+    "Gleichwertigkeit",
+  ]) {
+    if (!nebenangebotContent.includes(phrase)) {
+      errors.push(`nebenangebot -> missing scoped rule: ${phrase}`);
+    }
+  }
+  for (const url of [
+    "https://www.verwaltungsvorschriften-im-internet.de/bsvwvbund_31012019_BWI781063060120180001604634.htm",
+    "https://www.bundesanzeiger.de/pub/publication/73xO0rpP1jfX5HRt0Ja/content/73xO0rpP1jfX5HRt0Ja/BAnz%20AT%2024.08.2026%20B6.pdf?inline",
+  ]) {
+    if (!nebenangebot.sources?.some((source) => source.url === url)) {
+      errors.push(`nebenangebot.sources -> missing primary source: ${url}`);
+    }
+  }
+  for (const slug of ["vob-a", "vob-a-eu", "angebot", "vergabeunterlagen"]) {
+    if (!nebenangebot.relatedTerms?.includes(slug)) {
+      errors.push(`nebenangebot.relatedTerms -> missing relevant link: ${slug}`);
+    }
+    if (!GLOSSARY_MAP[slug]?.relatedTerms?.includes("nebenangebot")) {
+      errors.push(`${slug}.relatedTerms -> missing reciprocal nebenangebot link`);
+    }
+  }
+  if (!nebenangebot.relatedArticles?.includes("vob-vergabe") || !vobArticle?.relatedGlossaryTerms?.includes("nebenangebot")) {
+    errors.push("nebenangebot <-> vob-vergabe -> missing cross-link");
+  }
+  if (!/const VOB_CLUSTER = \[[\s\S]*?slug:\s*"nebenangebot"/.test(readFileSync("app/lexikon/page.tsx", "utf8"))) {
+    errors.push("lexikon.VOB_CLUSTER -> missing nebenangebot");
+  }
+}
 for (const slug of requiredVobLinks) {
   if (!ARTICLES["vob-vergabe"]?.relatedGlossaryTerms?.includes(slug)) {
     errors.push(`vob-vergabe.relatedGlossaryTerms -> missing VOB cluster term ${slug}`);

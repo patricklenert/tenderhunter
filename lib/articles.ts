@@ -110,11 +110,11 @@ Unterhalb des jeweils einschlägigen Werts gelten die nationalen Regeln des Auft
     description:
       "VOB/A, VOB/B und VOB/C verständlich erklärt: Vergabeverfahren, Bauvertragsbedingungen, technische ATV, Schwellenwerte und wichtige Hinweise für Bieter.",
     datePublished: "2025-01-15",
-    dateModified: "2026-11-03",
-    lastReviewed: "2026-11-03",
+    dateModified: "2026-11-22",
+    lastReviewed: "2026-11-22",
     relatedCategories: ["Bauarbeiten", "Tiefbau", "TGA", "Gartenarbeiten"],
     relatedArticles: ["vergabeverfahren-uebersicht", "schwellenwerte-vergabe", "ausschreibung-muster", "bietergemeinschaft-gruenden"],
-    relatedGlossaryTerms: ["vob-a", "vob-b", "vob-c", "vob-a-eu", "schwellenwerte", "auftragswert", "losvergabe", "leistungsbeschreibung", "leistungsverzeichnis", "vgv-vergabeverordnung", "gwb-vergaberecht", "eignungsleihe", "praequalifikation-pq-vob", "nachforderung-unterlagen", "auftragsbekanntmachung", "vorinformation", "informations-und-wartepflicht"],
+    relatedGlossaryTerms: ["vob-a", "vob-b", "vob-c", "vob-a-eu", "nebenangebot", "schwellenwerte", "auftragswert", "losvergabe", "leistungsbeschreibung", "leistungsverzeichnis", "vgv-vergabeverordnung", "gwb-vergaberecht", "eignungsleihe", "praequalifikation-pq-vob", "nachforderung-unterlagen", "auftragsbekanntmachung", "vorinformation", "informations-und-wartepflicht"],
     sources: [
       { title: "Bundesanzeiger: Bekanntmachung der Vergabe- und Vertragsordnung für Bauleistungen Teil A – Abschnitt 2 und Abschnitt 3 (VOB/A) – Ausgabe 2026 – (BAnz AT 24.08.2026 B6)", url: "https://www.bundesanzeiger.de/pub/publication/73xO0rpP1jfX5HRt0Ja/content/73xO0rpP1jfX5HRt0Ja/BAnz%20AT%2024.08.2026%20B6.pdf?inline" },
       { title: "VOB/A, Bekanntmachung vom 31. Januar 2019 (BAnz AT 19.02.2019 B2)", url: "https://www.verwaltungsvorschriften-im-internet.de/bsvwvbund_31012019_BWI781063060120180001604634.htm" },
@@ -184,7 +184,7 @@ Bei Bauvergaben sind die Losregeln des jeweils geltenden Regelwerks maßgeblich.
 Die aktuelle Fassung des § 97a Absatz 3 GWB erlaubt außerdem aus zeitlichen Gründen eine Zusammenfassung bei bestimmten Infrastrukturvorhaben, wenn der geschätzte Auftragswert mindestens das Doppelte des einschlägigen EU-Schwellenwerts erreicht und die im Gesetz genannten Finanzierungs- oder Infrastrukturvoraussetzungen vorliegen. Das ist keine allgemeine Ausnahme für dringliche Bauprojekte. Für Bieter sind die zulässigen Lose, mögliche Höchstzahlen für Zuschläge und kombinierbare Lose der Bekanntmachung und den Vergabeunterlagen zu entnehmen.
 
 ### Nebenangebote
-Nebenangebote sind nur zu werten, wenn der Auftraggeber sie zugelassen oder nicht ausgeschlossen hat und die bekannt gemachten Mindestanforderungen eingehalten werden.
+Die Anforderungen hängen vom Abschnitt ab: Bei VOB/A Abschnitt 2 muss die Bekanntmachung oder Aufforderung Nebenangebote zulassen oder vorschreiben; fehlt die Angabe, sind sie nicht zugelassen (§ 8 EU Absatz 2 Nummer 3). Soweit VOB/A Abschnitt 1 anwendbar ist, muss der Auftraggeber angeben, ob er Nebenangebote ausschließt und ob er sie nur zusammen mit einem Hauptangebot annimmt (§ 8 Absatz 2 Nummer 3). Für beide Bereiche gelten die jeweiligen Vorgaben zu Einreichung, Kennzeichnung und Wertung; § 13 verlangt insbesondere eine besondere Anlage und eine klare Kennzeichnung. Die Einzelheiten und die Anforderungen an technische Abweichungen stehen im Lexikoneintrag „Nebenangebot“.
 
 ### Ortstermine
 Bei komplexen Bauvorhaben werden häufig Ortstermine angeboten. Die Teilnahme ist empfehlenswert, da sie Aufschluss über die tatsächlichen Gegebenheiten gibt.

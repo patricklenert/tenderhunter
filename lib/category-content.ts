@@ -13,7 +13,7 @@ export const CATEGORY_CONTENT: Record<string, CategoryContent> = {
     tips: [
       "Prüfen Sie die Eignungskriterien frühzeitig. Eine PQ-VOB-Präqualifikation kann Nachweise bündeln, ist aber nicht allgemein vorgeschrieben; maßgeblich sind die Anforderungen und Nachweisformen in den Vergabeunterlagen.",
       "Achten Sie auf die Zuschlagsfrist und die Ausführungsfrist – öffentliche Auftraggeber haben feste Bauzeiten, die im Terminplan eingehalten werden müssen.",
-      "Nebenangebote sind nur zulässig, wenn die Vergabeunterlagen sie erlauben und die dort genannten Bedingungen erfüllen; prüfen Sie diese Vorgaben vor der Angebotsabgabe.",
+      "Prüfen Sie bei Nebenangeboten die Regeln des Verfahrens: Bei VOB/A Abschnitt 2 müssen sie ausdrücklich zugelassen oder vorgeschrieben sein; für Abschnitt 1 gelten andere Vorgaben dazu, ob sie ausgeschlossen oder nur zusammen mit einem Hauptangebot angenommen werden. Beachten Sie außerdem die Anforderungen an Einreichung und Kennzeichnung.",
     ],
     requirements: [
       "Eintragung im Berufsregister (Handwerkskarte oder Gewerbeanmeldung)",

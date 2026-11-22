@@ -171,7 +171,7 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "§ 2 VgV verweist im Übrigen auf VOB/A Abschnitt 2 in der Fassung der Bekanntmachung von 2019, zuletzt geändert durch die Bekanntmachung vom 22. Juli 2026. Die Abschnitte 1, 2 und 3 haben unterschiedliche Geltungsbereiche. Für ein konkretes Verfahren sind die einschlägige Vorschrift und die dort in Bezug genommene Fassung maßgeblich; das Veröffentlichungsdatum allein legt keinen einheitlichen Starttermin für alle Auftraggeber fest.",
       },
     ],
-    relatedTerms: ["vob-b", "vob-c", "vob-a-eu", "schwellenwerte", "auftragswert", "leistungsbeschreibung", "leistungsverzeichnis", "losvergabe", "vgv-vergabeverordnung", "gwb-vergaberecht", "eignungsleihe", "nachforderung-unterlagen", "praequalifikation-pq-vob", "auftragsbekanntmachung"],
+    relatedTerms: ["vob-b", "vob-c", "vob-a-eu", "nebenangebot", "schwellenwerte", "auftragswert", "leistungsbeschreibung", "leistungsverzeichnis", "losvergabe", "vgv-vergabeverordnung", "gwb-vergaberecht", "eignungsleihe", "nachforderung-unterlagen", "praequalifikation-pq-vob", "auftragsbekanntmachung"],
     relatedCategories: ["Bauarbeiten", "Tiefbau", "TGA", "Gartenarbeiten"],
     relatedArticles: ["vob-vergabe", "schwellenwerte-vergabe", "vergaberecht-leitfaden"],
     sources: [
@@ -251,7 +251,7 @@ export const GLOSSARY: GlossaryEntry[] = [
       { question: "Ist VOB/A EU dasselbe wie VgV?", answer: "Nein. VOB/A EU ist Abschnitt 2 der VOB/A. Bei Bauaufträgen gelten daneben die in § 2 VgV genannten VgV-Vorschriften sowie der vierte Teil des GWB." },
       { question: "Welcher EU-Schwellenwert gilt für Bauaufträge?", answer: "Für Bauaufträge klassischer öffentlicher Auftraggeber im Anwendungsbereich der Richtlinie 2014/24/EU liegt der Schwellenwert 2026 und 2027 bei 5.404.000 Euro netto. Das ist kein pauschaler Wert für jede Bauvergabe: Auftraggeber, Auftragsart, die Berechnung des geschätzten Auftragswerts und mögliche Sonderregeln müssen geprüft werden." },
     ],
-    relatedTerms: ["vob-a", "vob-b", "vob-c", "schwellenwerte", "auftragswert", "losvergabe", "vgv-vergabeverordnung", "gwb-vergaberecht", "offenes-verfahren", "beschraenktes-verfahren", "nachforderung-unterlagen", "praequalifikation-pq-vob"],
+    relatedTerms: ["vob-a", "vob-b", "vob-c", "nebenangebot", "schwellenwerte", "auftragswert", "losvergabe", "vgv-vergabeverordnung", "gwb-vergaberecht", "offenes-verfahren", "beschraenktes-verfahren", "nachforderung-unterlagen", "praequalifikation-pq-vob"],
     relatedCategories: ["Bauarbeiten", "Tiefbau", "TGA", "Gartenarbeiten"],
     relatedArticles: ["vob-vergabe", "schwellenwerte-vergabe"],
     sources: [
@@ -262,6 +262,51 @@ export const GLOSSARY: GlossaryEntry[] = [
       { title: "Delegierte Verordnung (EU) 2025/2152 – Schwellenwerte 2026/2027", url: "https://eur-lex.europa.eu/legal-content/DE/TXT/?uri=CELEX:32025R2152" },
     ],
     lastReviewed: "2026-11-01",
+  },
+  {
+    slug: "nebenangebot",
+    term: "Nebenangebot",
+    category: "Vergabeprozess",
+    shortDefinition: "Ein Nebenangebot ist eine alternative Lösung zur ausgeschriebenen Leistung. Ob und unter welchen Voraussetzungen es zulässig ist, hängt vom Vergaberegelwerk und den Vergabeunterlagen ab.",
+    definition: [
+      "Ein Nebenangebot (auch Alternativangebot) schlägt eine andere Lösung für die ausgeschriebene Leistung vor als das Hauptangebot. Es ist von einer unzulässigen Änderung der Vergabeunterlagen zu unterscheiden: Die ausgeschriebenen Unterlagen bleiben maßgeblich; das Nebenangebot muss als eigenständige Alternative die für das Verfahren geltenden Vorgaben erfüllen.",
+      "Bei Bauaufträgen im Anwendungsbereich der VOB/A Abschnitt 2 muss der Auftraggeber in der Auftragsbekanntmachung oder der Aufforderung zur Interessensbestätigung angeben, ob Nebenangebote zugelassen, vorgeschrieben oder ausgeschlossen sind. Fehlt diese Angabe, sind keine Nebenangebote zugelassen. Bei Zulassung oder Vorgabe sind auch die Einreichungsweise – einschließlich einer etwaigen Bindung an ein Hauptangebot – und die Mindestanforderungen anzugeben (§ 8 EU Absatz 2 Nummer 3 VOB/A).",
+      "Für den nationalen Bereich gilt diese ausdrückliche EU-Regel nicht unverändert. Soweit VOB/A Abschnitt 1 anwendbar ist, muss der Auftraggeber nach § 8 Absatz 2 Nummer 3 angeben, ob er Nebenangebote nicht zulässt und ob er sie ausnahmsweise nur zusammen mit einem Hauptangebot annimmt. Deshalb ist die Bekanntmachungspflicht aus Abschnitt 2 nicht pauschal auf Abschnitt 1 zu übertragen; maßgeblich bleiben das anwendbare Regelwerk und die konkreten Vergabeunterlagen.",
+      "Nach § 13 Absatz 3 beziehungsweise § 13 EU Absatz 3 VOB/A ist die Anzahl der Nebenangebote an einer in den Vergabeunterlagen bezeichneten Stelle aufzuführen; jedes Nebenangebot muss auf einer besonderen Anlage erstellt und deutlich als solches gekennzeichnet werden. Die Zuschlagskriterien müssen auf Haupt- und Nebenangebote anwendbar sein. Bei einer Abweichung von technischen Spezifikationen darf nach § 13 Absatz 2 beziehungsweise § 13 EU Absatz 2 nur ein gleichwertiges Schutzniveau für Sicherheit, Gesundheit und Gebrauchstauglichkeit angeboten werden; die Abweichung muss eindeutig bezeichnet und die Gleichwertigkeit mit dem Angebot nachgewiesen werden.",
+      "Ein Nebenangebot erlaubt nicht, die Vergabeunterlagen oder das Leistungsverzeichnis beliebig zu ändern. Prüfen Sie vor Abgabe insbesondere, ob Nebenangebote zugelassen sind, ob ein Hauptangebot zusätzlich verlangt wird, welche etwaigen Mindestanforderungen gelten und wie die Alternative einzureichen und zu kennzeichnen ist.",
+    ],
+    keyPoints: [
+      "Alternative zur ausgeschriebenen Leistung; keine beliebige Änderung der Vergabeunterlagen",
+      "VOB/A Abschnitt 2: ausdrückliche Angabe erforderlich; ohne Angabe keine Nebenangebote",
+      "VOB/A Abschnitt 1 hat eine andere Bekanntmachungsregel",
+      "Nach § 13 Absatz 3 auf besonderer Anlage und deutlich gekennzeichnet einreichen",
+      "Technische Abweichungen müssen die geforderte Gleichwertigkeit erfüllen und belegen",
+    ],
+    faq: [
+      {
+        question: "Sind Nebenangebote bei VOB/A EU zugelassen, wenn die Bekanntmachung dazu schweigt?",
+        answer: "Nein. Bei Bauaufträgen nach VOB/A Abschnitt 2 muss die Auftragsbekanntmachung oder Aufforderung zur Interessensbestätigung angeben, ob Nebenangebote zugelassen, vorgeschrieben oder ausgeschlossen sind. Fehlt die Angabe, sind keine Nebenangebote zugelassen (§ 8 EU Absatz 2 Nummer 3 VOB/A).",
+      },
+      {
+        question: "Muss ich zu einem Nebenangebot auch ein Hauptangebot abgeben?",
+        answer: "Das richtet sich nach den Vorgaben des konkreten Verfahrens. Bei VOB/A Abschnitt 2 muss die Bekanntmachung beziehungsweise Aufforderung angeben, ob Nebenangebote nur zusammen mit einem Hauptangebot eingereicht werden dürfen. Auch § 8 Absatz 2 Nummer 3 VOB/A Abschnitt 1 verlangt eine Angabe, wenn der Auftraggeber dies ausnahmsweise so beschränkt.",
+      },
+      {
+        question: "Wie muss ein Nebenangebot gekennzeichnet sein?",
+        answer: "Nach § 13 Absatz 3 VOB/A muss ein Nebenangebot auf einer besonderen Anlage erstellt und deutlich als Nebenangebot gekennzeichnet werden. Die Anzahl ist an der in den Vergabeunterlagen bezeichneten Stelle aufzuführen.",
+      },
+      {
+        question: "Darf ein Nebenangebot von technischen Vorgaben abweichen?",
+        answer: "Eine Abweichung von den vorgesehenen technischen Spezifikationen kann nach § 13 Absatz 2 beziehungsweise § 13 EU Absatz 2 VOB/A angeboten werden, wenn das geforderte Schutzniveau für Sicherheit, Gesundheit und Gebrauchstauglichkeit gleichwertig ist. Die Abweichung muss eindeutig bezeichnet und die Gleichwertigkeit mit dem Angebot nachgewiesen werden. Weitere Vorgaben aus der Bekanntmachung und den Vergabeunterlagen sind einzuhalten.",
+      },
+    ],
+    relatedTerms: ["vob-a", "vob-a-eu", "angebot", "vergabeunterlagen", "leistungsbeschreibung", "zuschlagskriterien"],
+    relatedArticles: ["vob-vergabe"],
+    sources: [
+      { title: "VOB/A Abschnitt 1, §§ 8 und 13 – Bekanntmachung vom 31. Januar 2019", url: "https://www.verwaltungsvorschriften-im-internet.de/bsvwvbund_31012019_BWI781063060120180001604634.htm" },
+      { title: "Bundesanzeiger: VOB/A Abschnitte 2 und 3, Ausgabe 2026 (BAnz AT 24.08.2026 B6)", url: "https://www.bundesanzeiger.de/pub/publication/73xO0rpP1jfX5HRt0Ja/content/73xO0rpP1jfX5HRt0Ja/BAnz%20AT%2024.08.2026%20B6.pdf?inline" },
+    ],
+    lastReviewed: "2026-11-22",
   },
   {
     slug: "vol-a",
@@ -857,7 +902,7 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "Nein. Der Zuschlag richtet sich nach den bekannt gemachten Zuschlagskriterien. Das kann der Preis allein oder das beste Preis-Leistungs-Verhältnis sein.",
       },
     ],
-    relatedTerms: ["zuschlag", "bindefrist", "eignungskriterien", "zuschlagskriterien", "leistungsbeschreibung", "vergabeunterlagen", "e-vergabe", "nachforderung-unterlagen"],
+    relatedTerms: ["zuschlag", "bindefrist", "eignungskriterien", "zuschlagskriterien", "leistungsbeschreibung", "vergabeunterlagen", "nebenangebot", "e-vergabe", "nachforderung-unterlagen"],
     relatedArticles: ["angebot-oeffentliche-ausschreibung-schreiben", "wie-funktioniert-ausschreibung"],
     sources: [
       { title: "§ 53 VgV – Form und Übermittlung von Angeboten", url: "https://www.gesetze-im-internet.de/vgv_2016/__53.html" },
@@ -1112,7 +1157,7 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "Nein, der Zuschlag geht an das wirtschaftlichste Angebot. Das muss nicht das günstigste sein, wenn andere Kriterien wie Qualität, Nachhaltigkeit oder technischer Wert berücksichtigt werden. Die Gewichtung der Kriterien entscheidet.",
       },
     ],
-    relatedTerms: ["eignungskriterien", "zuschlag", "angebot", "nachforderung-unterlagen"],
+    relatedTerms: ["eignungskriterien", "zuschlag", "angebot", "nebenangebot", "nachforderung-unterlagen"],
   },
   {
     slug: "eigenerklaerung",
@@ -1717,7 +1762,7 @@ export const GLOSSARY: GlossaryEntry[] = [
       { question: "Wo finde ich die Vergabeunterlagen?", answer: "Die Bekanntmachung nennt die zuständige Vergabeplattform und den Zugang. Bei elektronischen Verfahren werden die Unterlagen dort bereitgestellt; Bieter sollten auch spätere Antworten und Änderungen im selben Verfahren abrufen." },
       { question: "Was tun bei unklaren Vergabeunterlagen?", answer: "Unklarheiten sollten innerhalb der angegebenen Frist über den vorgesehenen Kommunikationsweg als Bieterfrage gestellt werden. Die Antwort kann für alle Bieter relevant sein und die Unterlagen ergänzen oder erläutern." },
     ],
-    relatedTerms: ["leistungsbeschreibung", "leistungsverzeichnis", "e-vergabe", "eignungskriterien", "zuschlagskriterien", "bieterfragen", "nachforderung-unterlagen", "rahmenvereinbarung", "auftragsbekanntmachung"],
+    relatedTerms: ["leistungsbeschreibung", "leistungsverzeichnis", "e-vergabe", "eignungskriterien", "zuschlagskriterien", "nebenangebot", "bieterfragen", "nachforderung-unterlagen", "rahmenvereinbarung", "auftragsbekanntmachung"],
     relatedArticles: ["ausschreibung-schreiben", "ausschreibung-muster", "wie-funktioniert-ausschreibung", "vob-vergabe"],
     sources: [
       { title: "§ 29 VgV – Vergabeunterlagen", url: "https://www.gesetze-im-internet.de/vgv_2016/__29.html" },

@@ -40,6 +40,7 @@ const CATEGORY_DESCRIPTIONS: Record<string, string> = {
 const VOB_CLUSTER = [
   { slug: "vob-a", label: "VOB/A: Vergabeverfahren" },
   { slug: "vob-a-eu", label: "VOB/A EU: Abschnitt 2" },
+  { slug: "nebenangebot", label: "Nebenangebot: alternative Leistung" },
   { slug: "vob-b", label: "VOB/B: Vertragsbedingungen" },
   { slug: "vob-c", label: "VOB/C: technische ATV" },
   { slug: "losvergabe", label: "Losvergabe: Teil- und Fachlose" },
