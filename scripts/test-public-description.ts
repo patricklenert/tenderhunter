@@ -122,6 +122,47 @@ for (const invalid of ["## Kurzinfo", "##Kurzinfo", "##Bekanntmachung", "## loca
     throw new Error(`Ungültiger öffentlicher Kandidat wurde akzeptiert: ${invalid}`);
   }
 }
+const accessOnlyDescriptionCandidates = [
+  "Bitte melden Sie sich an, um an diesem Verfahren teilzunehmen.",
+  "Teilnahme nur nach vorheriger Anmeldung im Vergabeportal.",
+  "Bitte reichen Sie Ihr Angebot über das Portal ein. Registrieren Sie sich hierzu und melden Sie sich an.",
+];
+for (const invalid of accessOnlyDescriptionCandidates) {
+  if (normalizePublicDisplayCandidate(invalid) !== null
+    || pickValidatedPublicCandidate(invalid, cleanText) !== cleanText) {
+    throw new Error(`Zugangs-/Anmeldehinweis blockiert den gültigen Beschreibungs-Fallback nicht: ${invalid}`);
+  }
+}
+const signatureOnlyFormFragment = "Mit freundlichen Grüßen / Ort und Datum / Rechtsverbindliche Unterschrift";
+if (!isPdfFormBoilerplateFragment(signatureOnlyFormFragment)
+  || normalizePublicDisplayCandidate(signatureOnlyFormFragment) !== null
+  || pickValidatedPublicCandidate(signatureOnlyFormFragment, cleanText) !== cleanText
+  || normalizePublicDisplayCandidate("Das Angebot muss unterschrieben werden; eine rechtsverbindliche Unterschrift ist erforderlich.")
+    !== "Das Angebot muss unterschrieben werden; eine rechtsverbindliche Unterschrift ist erforderlich.") {
+  throw new Error("Signaturformular-Boilerplate muss isoliert verworfen werden, ohne gültige Angebotsanforderungen zu verwerfen");
+}
+const markdownHeadingDescription = "## Bekanntmachung\nDie Stadt sucht ein Unternehmen für die Gebäudereinigung.";
+if (normalizePublicDisplayCandidate(markdownHeadingDescription)
+    !== "Die Stadt sucht ein Unternehmen für die Gebäudereinigung."
+  || pickValidatedPublicCandidate("## Bekanntmachung", markdownHeadingDescription)
+    !== "Die Stadt sucht ein Unternehmen für die Gebäudereinigung."
+  || ["##", "#", "-", "--"].some((artifact) => normalizePublicDisplayCandidate(artifact) !== null)) {
+  throw new Error("Markdown-Überschriften müssen entfernt werden, ohne gültige Prosa oder Artefaktfilter zu verlieren");
+}
+const encodedHtmlEntityDescription = "Reinigung &ouml;ffentlicher Geb&auml;ude und Anlagen.";
+if (normalizePublicDisplayCandidate(encodedHtmlEntityDescription)
+  !== "Reinigung öffentlicher Gebäude und Anlagen.") {
+  throw new Error("HTML-Entities in gültigen deutschen Beschreibungen wurden nicht dekodiert");
+}
+const mixedHtmlPdfArtifact = "<html><body>Haupt-Navigations-Menü</body></html> Auftragsbekanntmachung — Formular: Ort und Datum / Rechtsverbindliche Unterschrift";
+if (normalizePublicDisplayCandidate(mixedHtmlPdfArtifact) !== null
+  || pickValidatedPublicCandidate(mixedHtmlPdfArtifact, cleanText) !== cleanText) {
+  throw new Error("Vermischte HTML-/PDF-Artefakte wurden nicht verworfen oder blockieren den gültigen Fallback");
+}
+const validTenderRequirements = "Die Teilnahme am Vergabeverfahren setzt drei vergleichbare Referenzen voraus; das Angebot ist über das Portal einzureichen. Formblatt 1 ist beizulegen.";
+if (normalizePublicDisplayCandidate(validTenderRequirements) !== validTenderRequirements) {
+  throw new Error("Gültige Teilnahme-, Angebots- und Formularanforderungen wurden als Zugangswand verworfen");
+}
 if (JSON.stringify(normalizePublicTextList([portalSupportWall, "Der Auftragnehmer muss die Baustelle absichern."]))
   !== JSON.stringify(["Der Auftragnehmer muss die Baustelle absichern."])) {
   throw new Error("Ungültige Portal-Anforderung blockierte keinen gültigen Folge-Kandidaten");
@@ -1111,6 +1152,20 @@ if (markdown.includes("](https://example.test)")) {
 }
 if (!isCanonicalPublicDescriptionMarkdown(markdown)) {
   throw new Error("Generiertes Markdown wird nicht als kanonische Anzeige erkannt");
+}
+const dynamicMarkdown = buildTenderDescriptionMarkdown({
+  client: "Stadt < 5",
+  summary: "Softwareentwicklung [mit Link](https://example.test)",
+  reference: "AZ-42\n- **Eingeschleuste Liste:** ja",
+  requirements: ["<script>alert(1)</script>"],
+});
+if (!dynamicMarkdown.includes("Stadt \\< 5")
+  || dynamicMarkdown.includes("](https://example.test)")
+  || dynamicMarkdown.includes("<script")
+  || dynamicMarkdown.includes("\n- **Eingeschleuste Liste:**")
+  || dynamicMarkdown.includes("Eingeschleuste Liste")
+  || !isCanonicalPublicDescriptionMarkdown(dynamicMarkdown)) {
+  throw new Error("Dynamische Fakten dürfen kein HTML, keinen Link und keinen zusätzlichen Markdown-Listenblock erzeugen");
 }
 if (!hasCanonicalPublicDescriptionSection(markdown, "Auftraggeber")
   || hasCanonicalPublicDescriptionSection("## Ungeprüft", "Auftraggeber")

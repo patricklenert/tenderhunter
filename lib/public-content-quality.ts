@@ -40,6 +40,7 @@ const PDF_FORM_MARKERS = [
   /(?:baumassnahme|baumaßnahme)\s+leistung\s+bewerber/iu,
   /(?:ausgabe\s+\d{4}\s+stand\s+\d{4}|mitglied\s+der\s+bewerber)/iu,
 ];
+const SIGNATURE_FORM_BOILERPLATE_FRAGMENT = /^(?:(?:mit freundlichen grüßen|mit freundlichem gruß)\s*(?:\/|,|;|:|-)?\s*)?(?:(?:ort(?:\s+und\s+datum)?|datum)\s*(?:\/|,|;|:|-)?\s*)*(?:rechtsverbindliche\s+)?unterschrift(?:\s*(?:\/|,|;|:|-)\s*(?:(?:ort(?:\s+und\s+datum)?|datum)|(?:rechtsverbindliche\s+)?unterschrift))*[.!:]?$/iu;
 const SUBCONTRACTOR_CHECKBOX_FORM_FRAGMENT = /^☐\s*ich\/wir\s+beabsichtige\(n\),\s*teile\s+des\s+auftrags\s+an\s+nachunternehmer\s+zu\s+vergeben:\s*angabe\s+der\s+übernommenen\s+auftragsteile\/des\s+leistungsbereiches[.!]?$/iu;
 
 const OBVIOUS_FORM_DUMP_MARKERS = [
@@ -385,7 +386,8 @@ export const isPdfFormBoilerplateFragment = (value: string): boolean => {
     .replace(/\u00ad/gu, "")
     .replace(/\s+/gu, " ")
     .trim();
-  return isPdfFormBoilerplate(normalized)
+  return SIGNATURE_FORM_BOILERPLATE_FRAGMENT.test(normalized)
+    || isPdfFormBoilerplate(normalized)
     || SERVICE_BUND_PUBLICATION_TEMPLATE_FRAGMENT.test(normalized)
     || SERVICE_BUND_OFFER_SUBMISSION_TEMPLATE_FRAGMENT.test(normalized)
     || SERVICE_BUND_OFFER_SUBMISSION_OPTION_FRAGMENT.test(normalized)
@@ -404,7 +406,10 @@ const isLoginOrParticipationWall = (value: string): boolean =>
   || /zugriff\s+auf\s+(?:dieses\s+)?(?:modul|unterlagen).{0,120}(?:erhalten|teilnehmen|anmelden)/iu.test(value)
   || /(?:zugriff|unterlagen|leistungsbeschreibung).{0,120}(?:erst|nur|nach).{0,100}(?:teilnahme|registrierung|anmeldung)/iu.test(value)
   || /(?:m(?:ü|u)ssen sie|bitte).{0,100}(?:am vergabeverfahren teilnehmen|die teilnahme(?: am verfahren)? best(?:ä|ae)tigen)/iu.test(value)
-  || /(?:vollst(?:ä|ae)ndige leistungsbeschreibung|vergabeunterlagen).{0,180}nach teilnahme/iu.test(value);
+  || /(?:vollst(?:ä|ae)ndige leistungsbeschreibung|vergabeunterlagen).{0,180}nach teilnahme/iu.test(value)
+  || /^(?:bitte\s+)?melden\s+sie\s+sich\s+an,\s+um\s+(?:an\s+)?(?:diesem\s+)?(?:vergabe)?verfahren\s+teilzunehmen\.?$/iu.test(value)
+  || /^teilnahme\s+nur\s+nach\s+(?:vorheriger\s+)?(?:anmeldung|registrierung)(?:\s+im\s+vergabeportal)?[.!]?$/iu.test(value)
+  || /^(?:bitte\s+)?reichen\s+sie\s+ihr\s+angebot\s+über\s+das\s+portal\s+ein[.!]?\s+registrieren\s+sie\s+sich\s+hierzu\s+und\s+melden\s+sie\s+sich\s+an[.!]?$/iu.test(value);
 
 const TRAILING_PUBLIC_ARTIFACT_START = /^(?:service\.bund\.de|haupt[- ]navigations[- ]men(?:ü|u)|meta[- ]navigation|andere ausschreibungen im bereich|ausschreibungen abonnieren|login\b|log\s*in\b|sign\s*in\b|anmelden\b|registrieren\b|registrierung\s+oder\s+anmeldung\b|bitte\s+melden\s+sie\s+sich\b|um\s+zugriff\b|zugriff\s+auf\b|(?:teilnahme|anmeldung|registrierung)\s+(?:ist\s+)?(?:erforderlich|notwendig)\b|(?:passwort|benutzername)\b|(?:vollst(?:ä|ae)ndige\s+leistungsbeschreibung|vergabeunterlagen|unterlagen|leistungsbeschreibung)\b|auftragsbekanntmachung\b|zugelassene\s+angebotsabgabe\b|maßnahmen\s+zum\s+schutz\s+vertraulicher\s+informationen\b|vhb\b|formular\b)/iu;
 
@@ -447,6 +452,12 @@ const isMarkdownRemnant = (value: string): boolean => {
     || lines.some((line) => /^[-–—_=|#*+:\s]+$/u.test(line))
     || separatorTokens.length >= 5;
 };
+
+const stripMarkdownHeadingLines = (value: string): string =>
+  value.split(/\r?\n/u)
+    .filter((line) => !/^[ \t]{0,3}#{1,6}(?:[ \t]+.*)?[ \t]*$/u.test(line))
+    .join("\n")
+    .trim();
 
 // Some portals glue the end of a navigation label to the procedure value,
 // e.g. "Offenes Verfahren (sangaben)". These fragments are not procedure
@@ -678,10 +689,13 @@ const normalizePublicDisplayCandidateInternal = (value: unknown, allowInlineMark
   const decoded = repairPublicEncoding(decodePublicHtmlEntities(value))
     .replace(/\u00ad/g, "")
     .trim();
-  if (!decoded || isMarkdownRemnant(decoded) || INTERNAL_DOCUMENT_MARKERS.test(decoded)
-    || INLINE_MARKDOWN_HEADING.test(decoded)
-    || (!allowInlineMarkdown && hasInlineMarkdown(decoded))) return null;
-  const normalized = decoded
+  const withoutMarkdownHeadings = stripMarkdownHeadingLines(decoded);
+  if (!withoutMarkdownHeadings
+    || isMarkdownRemnant(withoutMarkdownHeadings)
+    || INTERNAL_DOCUMENT_MARKERS.test(decoded)
+    || INLINE_MARKDOWN_HEADING.test(withoutMarkdownHeadings)
+    || (!allowInlineMarkdown && hasInlineMarkdown(withoutMarkdownHeadings))) return null;
+  const normalized = withoutMarkdownHeadings
     .replace(/[\u0000-\u001f\u007f]/g, " ")
     .replace(/\s+/g, " ")
     .trim();

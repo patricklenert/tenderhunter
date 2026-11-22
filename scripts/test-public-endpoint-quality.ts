@@ -235,11 +235,24 @@ assert.equal(projectedMeiliAccessHit.description, accessFixtureFallback.descript
 const qualityFixtureTitle = "##Bekanntmachung";
 const qualityFixtureDisplayTitle = "Energetische Sanierung der Grundschule Mainz";
 const qualityFixtureSummary = "Die Grundschule erhält eine neue Heizungsanlage und eine verbesserte Wärmedämmung.";
-const invalidPortalSummary = "##Kurzinfo";
+const accessOnlyDescriptionCandidates = [
+  "Bitte melden Sie sich an, um an diesem Verfahren teilzunehmen.",
+  "Teilnahme nur nach vorheriger Anmeldung im Vergabeportal.",
+  "Bitte reichen Sie Ihr Angebot über das Portal ein. Registrieren Sie sich hierzu und melden Sie sich an.",
+];
+for (const invalid of accessOnlyDescriptionCandidates) {
+  assert.equal(normalizePublicDisplayCandidate(invalid), null, `access-only text must not be public description: ${invalid}`);
+  assert.equal(
+    pickValidatedPublicCandidate(invalid, qualityFixtureSummary),
+    qualityFixtureSummary,
+    "an access-only first candidate must not block valid German tender prose",
+  );
+}
+const invalidPortalSummary = accessOnlyDescriptionCandidates[0];
 const qualityFixtureMetadata = { description: invalidPortalSummary, location: "##Leistungsort", client: "Stadt Mainz" };
 const qualityFixtureStructured = {
   title: qualityFixtureDisplayTitle,
-  summary: qualityFixtureSummary,
+  summary: `## Bekanntmachung\n${qualityFixtureSummary}`,
   description: "Eine neue Heizungsanlage und verbesserte Wärmedämmung werden eingebaut.",
   hard_facts: { buyer: "Stadt Mainz", location: "##Leistungsort", city: "55116 Mainz" },
   decision_relevant: { scope: ["Energetische Sanierung der Grundschule"] },
@@ -409,7 +422,7 @@ assert.equal(
 // non-null description, across list, modal, detail, index, and search surfaces.
 const structuredSummaryTitle = "Sanierung der Grundschule Mainz";
 const structuredSummaryText = "Die Grundschule erhält eine neue Heizungsanlage und eine verbesserte Wärmedämmung.";
-const invalidDescriptionMetadata = { description: summarySeparatorArtifact, client: "Stadt Mainz" };
+const invalidDescriptionMetadata = { description: accessOnlyDescriptionCandidates[2], client: "Stadt Mainz" };
 const structuredSummary = { summary: structuredSummaryText, hard_facts: { buyer: "Stadt Mainz" } };
 const structuredSummaryNormalized = normalizeStructured(structuredSummary, structuredSummaryTitle);
 const structuredSummaryList = projectPublicTenderRecord({
@@ -460,7 +473,7 @@ assert.equal(structuredSummarySearchHit.description, structuredSummaryText);
 assert.equal(
   readPublicTenderMeta(invalidDescriptionMetadata, { title: structuredSummaryTitle }).description,
   "",
-  "fixture ensures the metadata description has already been cleaned away",
+  "access-only metadata description is rejected instead of blocking structured prose",
 );
 
 // A source-verbatim portal/PDF artifact must not win extraction simply because
