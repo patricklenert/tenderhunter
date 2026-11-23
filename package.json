@@ -42,6 +42,7 @@
     "test:public-fallback": "tsx scripts/test-public-fallback.ts",
     "test:seo-indexability": "tsx scripts/test-seo-indexability.ts",
     "test:seo-http": "tsx scripts/test-seo-http.ts",
+    "test:compose-database": "tsx scripts/test-compose-database.ts",
     "test:public-proxy": "tsx scripts/test-public-proxy.ts",
     "test:sitemap-taxonomy": "tsx scripts/test-sitemap-taxonomy.ts",
     "test:sitemap-proxy": "tsx scripts/test-sitemap-proxy.ts",
