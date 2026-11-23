@@ -139,6 +139,17 @@ export const normalizeUsDate = (value: unknown): Date | null => {
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
+export const formatUsDateTime = (date: Date): string =>
+  new Intl.DateTimeFormat("de-DE", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "UTC",
+    timeZoneName: "short",
+  }).format(date);
+
 export const isUsItOpportunity = (item: Pick<UsExtractedTender, "title" | "description" | "naicsCodes" | "pscCodes">): boolean => {
   if (item.naicsCodes.some((code) => US_IT_NAICS_CODES.includes(code as (typeof US_IT_NAICS_CODES)[number]))) return true;
   if (item.pscCodes.some((code) => US_IT_PSC_CODES.includes(code.toUpperCase() as (typeof US_IT_PSC_CODES)[number]))) return true;

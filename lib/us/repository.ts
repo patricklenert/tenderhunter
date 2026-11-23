@@ -1,7 +1,7 @@
 import { and, desc, eq, gt, ilike, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { usDocuments, usTenders, type UsTender } from "@/lib/schema";
-import { parseStringArray } from "@/lib/us/types";
+import { formatUsDateTime, parseStringArray } from "@/lib/us/types";
 
 const toMetadata = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -39,7 +39,7 @@ export const serializeUsTender = (tender: UsTender, includeDescription = false) 
     category: tender.category,
     currency: tender.currency,
     deadlineISO: tender.deadlineAt?.toISOString() ?? null,
-    deadline: tender.deadlineAt ? new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }).format(tender.deadlineAt) : null,
+    deadline: tender.deadlineAt ? formatUsDateTime(tender.deadlineAt) : null,
     postedAt: typeof metadata.posted_at === "string" ? metadata.posted_at : null,
     contacts: Array.isArray(metadata.contacts) ? metadata.contacts : [],
     attachments: Array.isArray(metadata.attachments) ? metadata.attachments : [],

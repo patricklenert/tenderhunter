@@ -33,15 +33,17 @@ async function main() {
       const heading = page.getByRole("heading", { level: 1 });
       await heading.waitFor();
       assert.equal(await heading.count(), 1, `${width}px: render one page heading`);
-      assert.equal(await heading.textContent(), "Make every pursuit brief specific to your company.", `${width}px: describe the profile without assuming a legal entity type`);
+      assert.equal(await heading.textContent(), "Passungsprüfungen auf Ihr Unternehmen abstimmen.", `${width}px: render the localized profile heading`);
 
       await page.keyboard.press("Tab");
       const focusOutlineWidth = await page.evaluate(() => Number.parseFloat(getComputedStyle(document.activeElement!).outlineWidth));
       assert.ok(focusOutlineWidth >= 2, `${width}px: keyboard focus must be visible`);
 
-      await page.getByLabel("Company name").fill("Test Company");
+      await page.getByLabel("Firmenname").fill("Test Company");
+      assert.equal(await page.getByLabel("NAICS-Codes").count(), 1, `${width}px: localize the classification-code field`);
+      assert.equal(await page.getByText("Sozioökonomische Förderkategorien").count(), 1, `${width}px: localize the eligibility group`);
 
-      const submitButton = page.getByRole("button", { name: "Save U.S. profile" });
+      const submitButton = page.getByRole("button", { name: "US-Profil speichern" });
       await page.waitForFunction(() => !document.querySelector<HTMLButtonElement>("button[type=submit]")?.disabled);
       await page.waitForFunction((expectedColor) => {
         const button = document.querySelector("button[type=submit]");
@@ -74,7 +76,7 @@ async function main() {
 }
 
 main().then(() => {
-  console.log("U.S. profile passed hydration, flat action, action-token, overflow, and /us redirect checks at 390, 768, 1024, and 1440px.");
+  console.log("US-Profil: deutsche Bedienoberfläche, Hydration, flache Primäraktion, Aktionstoken, Overflow und /us-Weiterleitung bei 390, 768, 1024 und 1440 px geprüft.");
 }).catch((error) => {
   console.error(error);
   process.exitCode = 1;

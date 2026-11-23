@@ -26,7 +26,7 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
         },
         robots: getListingRobots(resolvedSearchParams, 1, true),
       }
-    : { title: "Opportunity not found" };
+    : { title: "US-Ausschreibung nicht gefunden" };
 }
 
 export default async function UsTenderPage({ params }: Props) {
@@ -39,11 +39,11 @@ export default async function UsTenderPage({ params }: Props) {
     <Box sx={{ bgcolor: "background.default", minHeight: "100vh", py: { xs: 3, md: 6 } }}>
       <Container maxWidth="lg">
         <Stack spacing={3}>
-          <Button href="/#us" startIcon={<ArrowLeft size={17} />} sx={{ alignSelf: "flex-start" }}>All U.S. opportunities</Button>
+          <Button href="/#us" startIcon={<ArrowLeft size={17} />} sx={{ alignSelf: "flex-start" }}>Alle US-Ausschreibungen</Button>
           <Box sx={{ bgcolor: "background.paper", border: "1px solid", borderColor: "divider", borderRadius: 2, p: { xs: 2.25, md: 4 } }}>
             <Stack spacing={2}>
               <Stack direction="row" spacing={0.75} sx={{ flexWrap: "wrap", rowGap: 0.75 }}>
-                <Chip label={item.subcontracting ? "Subcontracting opportunity" : "Federal opportunity"} color={item.subcontracting ? "secondary" : "primary"} size="small" />
+                <Chip label={item.subcontracting ? "Nachunternehmerchance" : "Bundesauftrag"} color={item.subcontracting ? "secondary" : "primary"} size="small" />
                 {item.setAside && <Chip label={item.setAside} size="small" variant="outlined" />}
                 {item.naicsCodes.map((code) => <Chip key={code} label={`NAICS ${code}`} size="small" variant="outlined" />)}
               </Stack>
@@ -51,15 +51,15 @@ export default async function UsTenderPage({ params }: Props) {
               <Stack direction={{ xs: "column", md: "row" }} spacing={{ xs: 1, md: 2.5 }} color="text.secondary">
                 {item.buyer && <Typography sx={{ display: "flex", alignItems: "center", gap: 0.6 }}><Building2 size={17} />{item.buyer}</Typography>}
                 {item.location && <Typography sx={{ display: "flex", alignItems: "center", gap: 0.6 }}><MapPin size={17} />{item.location}</Typography>}
-                {item.deadline && <Typography sx={{ display: "flex", alignItems: "center", gap: 0.6, color: "warning.dark", fontWeight: 750 }}><CalendarClock size={17} />Due {item.deadline}</Typography>}
+                {item.deadline && <Typography sx={{ display: "flex", alignItems: "center", gap: 0.6, color: "warning.dark", fontWeight: 750 }}><CalendarClock size={17} />Frist: {item.deadline}</Typography>}
               </Stack>
               <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-                <Button variant="contained" href={item.sourceUrl} target="_blank" endIcon={<ExternalLink size={17} />} sx={{ bgcolor: "primary.dark" }}>Open official listing</Button>
-                {item.solicitationNumber && <Chip label={`Solicitation ${item.solicitationNumber}`} variant="outlined" sx={{ alignSelf: { sm: "center" } }} />}
+                <Button variant="contained" href={item.sourceUrl} target="_blank" rel="noreferrer" endIcon={<ExternalLink size={17} />} sx={{ bgcolor: "primary.dark" }}>Offizielle Ausschreibung öffnen</Button>
+                {item.solicitationNumber && <Chip label={`Vergabenummer ${item.solicitationNumber}`} variant="outlined" sx={{ alignSelf: { sm: "center" } }} />}
               </Stack>
               <Divider />
-              <Typography variant="h6" fontWeight={800}>Requirement summary</Typography>
-              <Typography sx={{ whiteSpace: "pre-wrap", color: "text.secondary", lineHeight: 1.75 }}>{item.description || "The official listing does not expose a public description. Open the source listing to review the solicitation."}</Typography>
+              <Typography variant="h6" fontWeight={800}>Beschreibung aus der Originalausschreibung</Typography>
+              <Typography sx={{ whiteSpace: "pre-wrap", color: "text.secondary", lineHeight: 1.75 }}>{item.description || "Die offizielle Quelle stellt keine öffentliche Beschreibung bereit. Öffnen Sie die Originalausschreibung, um die Anforderungen zu prüfen."}</Typography>
             </Stack>
           </Box>
           <UsPursuitPanel tenderId={tender.id} />

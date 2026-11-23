@@ -1,5 +1,5 @@
 import type { CompanyProfile, UsTender } from "@/lib/schema";
-import { parseStringArray } from "@/lib/us/types";
+import { formatUsDateTime, parseStringArray } from "@/lib/us/types";
 
 const toLowerStrings = (value: unknown): string[] => parseStringArray(value).map((item) => item.toLowerCase());
 
@@ -7,11 +7,11 @@ type UsTenderForPursuit = Pick<UsTender, "title" | "description" | "naicsCodesJs
 type CompanyProfileForPursuit = Pick<CompanyProfile, "naicsCodesJson" | "capabilitiesJson" | "socioEconomicJson" | "uei" | "cageCode">;
 
 const REQUIRED_STATUS: Array<{ pattern: RegExp; status: string; label: string }> = [
-  { pattern: /8\(a\)/i, status: "8a", label: "8(a) Business Development" },
+  { pattern: /8\(a\)/i, status: "8a", label: "8(a)-Förderprogramm" },
   { pattern: /hubzone/i, status: "hubzone", label: "HUBZone" },
-  { pattern: /service-disabled|sdvosb/i, status: "sdvosb", label: "Service-Disabled Veteran-Owned Small Business" },
-  { pattern: /women-owned|wosb/i, status: "wosb", label: "Women-Owned Small Business" },
-  { pattern: /small business/i, status: "small_business", label: "Small Business" },
+  { pattern: /service-disabled|sdvosb/i, status: "sdvosb", label: "Unternehmen im Besitz dienstunfähiger Veteraninnen und Veteranen (SDVOSB)" },
+  { pattern: /women-owned|wosb/i, status: "wosb", label: "Frauenunternehmen (WOSB)" },
+  { pattern: /small business/i, status: "small_business", label: "Kleinunternehmen (Small Business)" },
 ];
 
 export interface UsTenderFit {
@@ -46,10 +46,10 @@ export function scoreUsTender(tender: UsTenderForPursuit, company: CompanyProfil
     (!required || eligibleForSetAside ? 5 : 0),
   );
   const reasons = [
-    ...(naicsMatch ? ["Your NAICS code matches this opportunity."] : ["No exact NAICS match is configured for your company."]),
-    ...(capabilityMatch ? ["Your stated capabilities appear in the requirement."] : []),
-    ...(required && !eligibleForSetAside ? [`This is restricted to ${required.label}; pursue it through an eligible prime unless you qualify.`] : []),
-    ...(!registrationReady ? ["Your company is not yet SAM registration-ready (UEI missing). Teaming outreach can start now; direct bidding cannot."] : []),
+    ...(naicsMatch ? ["Ihr NAICS-Code passt zu dieser Ausschreibung."] : ["Für Ihr Unternehmen ist kein genau passender NAICS-Code hinterlegt."]),
+    ...(capabilityMatch ? ["Ihre angegebenen Leistungen kommen in den Anforderungen vor."] : []),
+    ...(required && !eligibleForSetAside ? [`Diese Ausschreibung ist auf ${required.label} beschränkt. Wenn Sie die Voraussetzungen nicht erfüllen, prüfen Sie eine Zusammenarbeit als Unterauftragnehmer mit einem berechtigten Hauptauftragnehmer.`] : []),
+    ...(!registrationReady ? ["In Ihrem Profil ist noch keine UEI hinterlegt. Für ein direktes Angebot an eine US-Bundesbehörde benötigen Sie eine Registrierung bei SAM.gov; Gespräche mit Hauptauftragnehmern können Sie bereits vorher beginnen."] : []),
   ];
   return { score, naicsMatch, capabilityMatch, eligibleForSetAside, requiredSetAside: required?.label ?? null, registrationReady, reasons };
 }
@@ -72,41 +72,41 @@ export const buildUsPursuitChecklist = (tender: UsTenderForPursuit, company: Com
   return [
     {
       id: "uei",
-      label: "Get a Unique Entity ID (UEI) and complete SAM.gov registration",
+      label: "Unique Entity ID (UEI) beantragen und SAM.gov-Registrierung abschließen",
       status: hasUei ? "complete" : "action_required",
-      detail: hasUei ? "UEI is saved in your Tenderhunter profile." : "Required before submitting a direct federal offer. Registration is free at SAM.gov.",
+      detail: hasUei ? "Die UEI ist in Ihrem Tenderhunter-Profil hinterlegt." : "Für ein direktes Angebot an eine US-Bundesbehörde benötigen Sie die UEI und eine Registrierung bei SAM.gov. Die Registrierung ist kostenlos.",
     },
     {
       id: "cage",
-      label: "Confirm your CAGE code",
+      label: "CAGE-Code bestätigen",
       status: hasCage ? "complete" : "action_required",
-      detail: hasCage ? "CAGE code is saved in your Tenderhunter profile." : "SAM registration generally triggers CAGE assignment for U.S. entities.",
+      detail: hasCage ? "Der CAGE-Code ist in Ihrem Tenderhunter-Profil hinterlegt." : "Bei US-Unternehmen wird der CAGE-Code in der Regel im Zuge der SAM-Registrierung zugeteilt.",
     },
     {
       id: "set-aside",
-      label: required ? `Confirm ${required.label} eligibility` : "Review set-aside eligibility",
+      label: required ? `Berechtigung für ${required.label} prüfen` : "Förderberechtigung prüfen",
       status: required ? (setAsideMet ? "complete" : "action_required") : "not_applicable",
       detail: required
-        ? (setAsideMet ? "Your recorded socio-economic status matches this restriction." : "Do not submit directly until this status is verified; contact primes for subcontracting instead.")
-        : "This opportunity does not state a restrictive set-aside in the source data.",
+        ? (setAsideMet ? "Der in Ihrem Profil hinterlegte Förderstatus erfüllt diese Voraussetzung." : "Geben Sie kein direktes Angebot ab, bevor Sie Ihre Berechtigung geprüft haben. Wenden Sie sich stattdessen an berechtigte Hauptauftragnehmer.")
+        : "Die Quelldaten nennen keine einschränkende Förderkategorie.",
     },
     {
       id: "capability-statement",
-      label: "Prepare a one-page capability statement",
+      label: "Einseitiges Leistungsprofil vorbereiten",
       status: hasCapabilities ? "complete" : "action_required",
-      detail: hasCapabilities ? "Use your saved capabilities and NAICS codes to tailor it to this requirement." : "Add capabilities and NAICS codes to your profile before outreach.",
+      detail: hasCapabilities ? "Stimmen Sie Ihr Leistungsprofil mit den hinterlegten Kompetenzen und NAICS-Codes auf diese Ausschreibung ab." : "Ergänzen Sie Ihre Leistungen und NAICS-Codes im Profil, bevor Sie Kontakt aufnehmen.",
     },
     {
       id: "review-solicitation",
-      label: "Review the solicitation and attachments",
+      label: "Originalausschreibung und Anlagen prüfen",
       status: "action_required",
-      detail: tender.deadlineAt ? `Confirm all instructions before the response deadline: ${tender.deadlineAt.toISOString()}.` : "The source does not publish a response deadline; confirm it with the contracting point of contact.",
+      detail: tender.deadlineAt ? `Prüfen Sie alle Vorgaben vor der Angebotsfrist am ${formatUsDateTime(tender.deadlineAt)}.` : "Die Quelle nennt keine Angebotsfrist. Klären Sie diese mit der zuständigen Vergabestelle.",
     },
     {
       id: "teaming",
-      label: "Contact relevant prime contractors for teaming",
+      label: "Passende Hauptauftragnehmer für eine Zusammenarbeit ansprechen",
       status: "action_required",
-      detail: "Use the comparable recent awards below to identify primes already active in this NAICS and agency space.",
+      detail: "Nutzen Sie die folgenden vergleichbaren Zuschläge, um Hauptauftragnehmer zu finden, die in diesem NAICS-Bereich oder für diese Behörde bereits Aufträge erhalten haben.",
     },
   ];
 };

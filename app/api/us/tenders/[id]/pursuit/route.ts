@@ -36,6 +36,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     primeContractors: primes,
     teamingResources: getUsTeamingResources(tender.buyer),
     directBidReady: Boolean(fit?.registrationReady && fit.eligibleForSetAside !== false),
-    teamingGuidance: "Contact each relevant prime with a tailored capability statement, the solicitation number, matching NAICS codes, and a concise description of the work package you can perform.",
+    teamingGuidance: "Sprechen Sie passende Hauptauftragnehmer mit einem individuell zugeschnittenen Leistungsprofil, der Vergabenummer, passenden NAICS-Codes und einer kurzen Beschreibung Ihres möglichen Leistungsumfangs an.",
   });
 }
