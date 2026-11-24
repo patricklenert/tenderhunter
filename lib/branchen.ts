@@ -13,6 +13,7 @@ export interface BrancheEntry {
   schwellenwert: string;
   eignungskriterien: string[];
   besonderheiten: string[];
+  relatedGlossaryTerms?: string[];
   saison?: string;
   faq: Array<{ question: string; answer: string }>;
   relatedCategories: string[];
@@ -78,6 +79,16 @@ export const BRANCHEN: BrancheEntry[] = [
           "Tiefbauausschreibungen werden überregional im TED (EU-Schwellenwert) und in dtvp / evergabe veröffentlicht. Regionale Vergaben finden sich auf den Vergabeportalen der Bundesländer und Kommunen. Tenderhunter aggregiert alle Quellen und filtert nach CPV-Codes für Tiefbau.",
       },
     ],
+    relatedGlossaryTerms: [
+      "vob-a",
+      "vob-a-eu",
+      "vob-b",
+      "vob-c",
+      "schwellenwerte",
+      "auftragswert",
+      "leistungsverzeichnis",
+      "praequalifikation-pq-vob",
+    ],
     relatedCategories: ["Tiefbau", "Bauarbeiten"],
   },
   {
@@ -133,6 +144,17 @@ export const BRANCHEN: BrancheEntry[] = [
           "Es gibt keine einheitliche Frist allein wegen der Bauart oder einer Schlüsselfertigvergabe. Bei wirksam vereinbarter VOB/B richtet sich die Verjährung von Mängelansprüchen nach § 13 VOB/B und der Art der Leistung. Für Mängelansprüche an Bauwerken sieht § 634a Absatz 1 Nummer 2 BGB grundsätzlich fünf Jahre vor; der Fristbeginn richtet sich nach § 634a Absatz 2 BGB.",
       },
     ],
+    relatedGlossaryTerms: [
+      "vob-a",
+      "vob-a-eu",
+      "vob-b",
+      "vob-c",
+      "schwellenwerte",
+      "auftragswert",
+      "leistungsbeschreibung",
+      "leistungsverzeichnis",
+      "praequalifikation-pq-vob",
+    ],
     relatedCategories: ["Bauarbeiten"],
   },
   {
@@ -183,6 +205,15 @@ export const BRANCHEN: BrancheEntry[] = [
         answer:
           "Die VOB/C enthält gewerkespezifische Allgemeine Technische Vertragsbedingungen (ATV). Welche ATV und welche Ausgabe gelten, ergibt sich aus den vereinbarten Vergabe- und Vertragsunterlagen; die VOB/C wird nicht allein dadurch Vertragsbestandteil, dass es sich um eine Bauvergabe handelt.",
       },
+    ],
+    relatedGlossaryTerms: [
+      "vob-a",
+      "vob-a-eu",
+      "vob-c",
+      "schwellenwerte",
+      "auftragswert",
+      "leistungsbeschreibung",
+      "leistungsverzeichnis",
     ],
     relatedCategories: ["TGA"],
   },
@@ -308,7 +339,7 @@ export const BRANCHEN: BrancheEntry[] = [
       "Öffentliche Ausschreibungen für Grünflächenpflege und Garten- und Landschaftsbau: Parkpflege, Gehölzschnitt, Rasenpflege, Pflanzarbeiten. CPV-Codes und Besonderheiten.",
     intro: [
       "Garten- und Landschaftsbau (GaLaBau) sowie Grünflächenpflege sind saisonal geprägte Bereiche der öffentlichen Vergabe. Kommunen unterhalten Parks, Spielplätze, Straßenbegleitgrün und Sportplätze — die Pflege wird meist als Rahmenvertrag vergeben.",
-      "Der GaLaBau umfasst auch Neuanlagen: Pflanzungen, Pflasterarbeiten im Außenbereich, Teichanlagen, Spielplatzbau. Hier verschwimmt die Grenze zum Tiefbau.",
+      "Der GaLaBau umfasst auch Neuanlagen: Pflanzungen, Pflasterarbeiten im Außenbereich, Teichanlagen und Spielplatzbau. Pflegeleistungen werden häufig als Dienstleistungen ausgeschrieben; andere Vorhaben können Bauaufträge sein. Maßgeblich ist die Einordnung des konkreten Auftrags, nicht allein die Branchenbezeichnung oder ein einzelner CPV-Code.",
       "Saisonales Problem: Die Hauptlast liegt zwischen März und Oktober. Rahmenverträge sichern den Unternehmen ganzjährige Beschäftigung.",
     ],
     cpvCodes: [
@@ -320,7 +351,7 @@ export const BRANCHEN: BrancheEntry[] = [
       { code: "90720000", label: "Landschaftspflege" },
     ],
     typischeVerfahren: ["Offenes Verfahren", "Nicht offenes Verfahren bei kleinräumigen Vergaben"],
-    schwellenwert: "140.000 € (bestimmte zentrale Behörden) / 216.000 € (sonstige bestimmte Auftraggeber) — Dienstleistung, 2026/2027",
+    schwellenwert: "2026/2027: Bei Liefer- und Dienstleistungen im Anwendungsbereich der Richtlinie 2014/24/EU gelten 140.000 € für bestimmte oberste und obere Bundesbehörden sowie vergleichbare Bundeseinrichtungen und grundsätzlich 216.000 € für andere öffentliche Auftraggeber. Für Bauaufträge klassischer Auftraggeber gilt ein Schwellenwert von 5.404.000 €. Welche Einordnung zutrifft, hängt vom konkreten Auftragsgegenstand und Auftraggeber ab.",
     eignungskriterien: [
       "Meisterbetrieb GaLaBau oder gleichwertig (Höhere Fachschule)",
       "Gewerbeanmeldung Garten- und Landschaftsbau",
@@ -346,6 +377,15 @@ export const BRANCHEN: BrancheEntry[] = [
         answer:
           "Ja, wer Pflanzenschutzmittel im öffentlichen Raum anwendet, benötigt den Sachkundenachweis nach § 12 Pflanzenschutzgesetz. Die Sachkunde wird durch einen Lehrgang und Prüfung erworben und ist Voraussetzung für die Vergabe von Pflegeverträgen mit Pflanzenschutz.",
       },
+    ],
+    relatedGlossaryTerms: [
+      "vob-a",
+      "vob-a-eu",
+      "vob-c",
+      "schwellenwerte",
+      "auftragswert",
+      "leistungsbeschreibung",
+      "leistungsverzeichnis",
     ],
     relatedCategories: ["Gruenflaechenpflege", "Gartenarbeiten"],
   },

@@ -5,6 +5,7 @@ import { Box, Container, Typography, Stack, Paper, Chip, Divider } from "@mui/ma
 import { ArrowRight, Factory, FileText, Scale, AlertTriangle, Wrench } from "lucide-react";
 import { SiteBreadcrumbs } from "@/components/seo/SiteBreadcrumbs";
 import { BRANCHE_MAP, ALL_BRANCHE_SLUGS, BRANCHEN } from "@/lib/branchen";
+import { GLOSSARY_MAP } from "@/lib/glossary";
 import { CATEGORY_LABELS, CATEGORY_SLUGS } from "@/lib/categories";
 import { SiteFooter } from "@/components/seo/SiteFooter";
 import { decodeRouteParam } from "@/lib/route-params";
@@ -147,6 +148,25 @@ export default async function BrancheEntryPage({ params }: { params: Promise<{ s
               )}
             </Stack>
           </Paper>
+
+          {entry.relatedGlossaryTerms && entry.relatedGlossaryTerms.length > 0 && (
+            <Box sx={{ mb: 4 }}>
+              <Typography variant="h6" component="h2" fontWeight={700} sx={{ mb: 2 }}>
+                Passende Begriffe im Vergabelexikon
+              </Typography>
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                {entry.relatedGlossaryTerms.map((termSlug) => {
+                  const term = GLOSSARY_MAP[termSlug];
+                  if (!term) return null;
+                  return (
+                    <Link key={termSlug} href={`/lexikon/${termSlug}`} style={{ textDecoration: "none" }}>
+                      <Chip clickable label={term.term} variant="outlined" sx={{ fontWeight: 500 }} />
+                    </Link>
+                  );
+                })}
+              </Stack>
+            </Box>
+          )}
 
           {/* CPV-Codes */}
           <Box sx={{ mb: 4 }}>

@@ -94,6 +94,32 @@ for (const article of Object.values(ARTICLES)) {
   }
 }
 
+for (const branche of BRANCHEN) {
+  checkLinks(branche.slug, branche.relatedGlossaryTerms, glossarySlugs, "relatedGlossaryTerms");
+}
+
+const galaBau = BRANCHEN.find((branche) => branche.slug === "gruenflaechenpflege-galabau");
+const galaBauThreshold = galaBau?.schwellenwert ?? "";
+for (const phrase of [
+  "140.000 €",
+  "216.000 €",
+  "5.404.000 €",
+  "konkreten Auftragsgegenstand",
+  "Auftraggeber",
+]) {
+  if (!galaBauThreshold.includes(phrase)) {
+    errors.push(`gruenflaechenpflege-galabau.schwellenwert -> missing scoped detail: ${phrase}`);
+  }
+}
+for (const slug of ["vob-a", "vob-a-eu", "vob-c", "schwellenwerte", "auftragswert"]) {
+  if (!galaBau?.relatedGlossaryTerms?.includes(slug)) {
+    errors.push(`gruenflaechenpflege-galabau.relatedGlossaryTerms -> missing ${slug}`);
+  }
+}
+if (!readFileSync("app/branchen/[slug]/page.tsx", "utf8").includes("Passende Begriffe im Vergabelexikon")) {
+  errors.push("industry pages -> missing rendered glossary cross-links");
+}
+
 const procurementEditorialContent = JSON.stringify({ BRANCHEN, BUNDESLAND_CONTENT, CATEGORY_CONTENT });
 for (const staleClaim of [
   "PQ-VOL V",
