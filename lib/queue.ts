@@ -56,6 +56,15 @@ export const queueJobsConflict = (left: QueueGroupJob, right: QueueGroupJob): bo
     const nonPublicJob = leftIsPublic ? right : left;
     return nonPublicJob.groupKey === "public-scrape";
   }
+
+  // US scrapes replace attachment metadata that document workers annotate.
+  const leftIsUsScrape = left.type === JOB_SCRAPE_US;
+  const rightIsUsScrape = right.type === JOB_SCRAPE_US;
+  if (leftIsUsScrape || rightIsUsScrape) {
+    const otherJob = leftIsUsScrape ? right : left;
+    return otherJob.type === JOB_SCRAPE_US || otherJob.type === JOB_FETCH_US_DOCUMENTS;
+  }
+
   return left.groupKey !== null && left.groupKey === right.groupKey;
 };
 
@@ -88,6 +97,14 @@ const queueGroupConflictSql = (running: QueueGroupSqlFields, candidate: QueueGro
     ${running.type} <> ${JOB_SCRAPE_PUBLIC}
     AND ${candidate.type} = ${JOB_SCRAPE_PUBLIC}
     AND ${running.groupKey} = 'public-scrape'
+  )
+  OR (
+    ${running.type} = ${JOB_SCRAPE_US}
+    AND ${candidate.type} IN (${JOB_SCRAPE_US}, ${JOB_FETCH_US_DOCUMENTS})
+  )
+  OR (
+    ${running.type} = ${JOB_FETCH_US_DOCUMENTS}
+    AND ${candidate.type} = ${JOB_SCRAPE_US}
   )
   OR (
     ${running.type} <> ${JOB_SCRAPE_PUBLIC}
@@ -438,12 +455,14 @@ export async function claimNextJob(workerId: string, options: ClaimJobOptions = 
 
     let job: Job | undefined;
     for (const candidate of rows) {
-      // Keep the public advisory lock shared across source continuations. It
-      // serializes only the short claim transaction and stays compatible with
-      // older workers while the database recheck allows distinct sources to run.
+      // Share short-lived advisory locks across public cursors and US jobs that
+      // write the same attachment metadata; the database recheck still allows
+      // independent sources and distinct US tenders to run concurrently.
       const effectiveGroup = candidate.type === JOB_SCRAPE_PUBLIC || candidate.groupKey === "public-scrape"
         ? "public-scrape"
-        : candidate.groupKey;
+        : candidate.type === JOB_SCRAPE_US || candidate.type === JOB_FETCH_US_DOCUMENTS
+          ? "us-tender-ingest"
+          : candidate.groupKey;
       if (effectiveGroup) {
         // The advisory lock and second check close races between claims.
         await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${effectiveGroup}, 0))`);

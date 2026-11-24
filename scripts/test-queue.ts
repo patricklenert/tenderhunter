@@ -53,6 +53,16 @@ assert.equal(queueJobsConflict(
   dtvpContinuation,
   { type: "cache_detail", payload: {}, groupKey: "public-scrape" },
 ), true, "the legacy public group remains exclusive across job types");
+const usScrape = { type: "scrape_us_tenders", payload: {}, groupKey: null };
+const usDocumentFetch = { type: "fetch_us_documents", payload: { us_tender_id: 1 }, groupKey: "us-tender:1" };
+assert.equal(queueJobsConflict(usScrape, usDocumentFetch), true, "US scrapes must not race document metadata updates");
+assert.equal(queueJobsConflict(usDocumentFetch, usScrape), true, "US document jobs must not race attachment refreshes");
+assert.equal(queueJobsConflict(usScrape, { ...usScrape }), true, "US scrape jobs must not replace attachment metadata concurrently");
+assert.equal(
+  queueJobsConflict(usDocumentFetch, { ...usDocumentFetch, payload: { us_tender_id: 2 }, groupKey: "us-tender:2" }),
+  false,
+  "document jobs for separate US tenders remain concurrent",
+);
 const priorityNow = Date.parse("2026-08-31T15:00:00.000Z");
 assert.equal(getEffectiveQueuePriority(140, new Date(priorityNow - 48 * 60 * 60 * 1_000), priorityNow), 150);
 assert.equal(getEffectiveQueuePriority(100, new Date(priorityNow - 48 * 60 * 60 * 1_000), priorityNow), 150);

@@ -18,7 +18,7 @@ const main = async (): Promise<void> => {
   }
   process.env.DATABASE_URL = databaseUrl;
 
-  const [{ db }, { claimNextJob, enqueueJob, markFailed, reapStaleJobs }] = await Promise.all([
+  const [{ db }, { claimNextJob, enqueueJob, markDone: markQueueJobDone, markFailed, reapStaleJobs }] = await Promise.all([
     import("../lib/db"),
     import("../lib/queue"),
   ]);
@@ -76,6 +76,55 @@ const main = async (): Promise<void> => {
       .where(eq(publicScrapeRuns.id, publicRun[0].id));
     assert.equal(closedRun[0]?.status, "failed", "retryable public scrape failure must close its run row");
     assert.ok(closedRun[0]?.finishedAt, "failed public scrape run must have finishedAt");
+    await db.update(jobs).set({ status: "failed", finishedAt: new Date(), updatedAt: new Date() }).where(eq(jobs.id, publicJob));
+
+    const usScrapeFirst = await enqueueJob("scrape_us_tenders", {}, {
+      jobKey: `${key}:us-scrape-first`,
+      priority: 250,
+      dedupeCompleted: false,
+    });
+    const usFetchAfterScrape = await enqueueJob("fetch_us_documents", { us_tender_id: 1 }, {
+      jobKey: `${key}:us-fetch-after-scrape`,
+      groupKey: `${key}:us-tender:1`,
+      priority: 240,
+      dedupeCompleted: false,
+    });
+    createdIds.push(usScrapeFirst, usFetchAfterScrape);
+    const claimedUsScrape = await claimNextJob(`${key}:us-scrape-worker`, { lane: "all" });
+    assert.equal(claimedUsScrape?.id, usScrapeFirst, "US scrape should be claimed ahead of its document job");
+    assert.equal(
+      await claimNextJob(`${key}:us-fetch-blocked-worker`, { lane: "all" }),
+      null,
+      "US document processing must wait while the scrape can replace attachment metadata",
+    );
+    await markQueueJobDone(usScrapeFirst, claimedUsScrape!.lockedBy!);
+    const claimedUsFetch = await claimNextJob(`${key}:us-fetch-worker`, { lane: "all" });
+    assert.equal(claimedUsFetch?.id, usFetchAfterScrape, "US document job should run after the scrape completes");
+    await markQueueJobDone(usFetchAfterScrape, claimedUsFetch!.lockedBy!);
+
+    const usFetchFirst = await enqueueJob("fetch_us_documents", { us_tender_id: 2 }, {
+      jobKey: `${key}:us-fetch-first`,
+      groupKey: `${key}:us-tender:2`,
+      priority: 250,
+      dedupeCompleted: false,
+    });
+    const usScrapeAfterFetch = await enqueueJob("scrape_us_tenders", {}, {
+      jobKey: `${key}:us-scrape-after-fetch`,
+      priority: 240,
+      dedupeCompleted: false,
+    });
+    createdIds.push(usFetchFirst, usScrapeAfterFetch);
+    const claimedUsFetchFirst = await claimNextJob(`${key}:us-fetch-first-worker`, { lane: "all" });
+    assert.equal(claimedUsFetchFirst?.id, usFetchFirst, "US document job should be claimable before a later scrape");
+    assert.equal(
+      await claimNextJob(`${key}:us-scrape-blocked-worker`, { lane: "all" }),
+      null,
+      "a US scrape must wait while a document job writes attachment metadata",
+    );
+    await markQueueJobDone(usFetchFirst, claimedUsFetchFirst!.lockedBy!);
+    const claimedUsScrapeAfterFetch = await claimNextJob(`${key}:us-scrape-after-fetch-worker`, { lane: "all" });
+    assert.equal(claimedUsScrapeAfterFetch?.id, usScrapeAfterFetch, "US scrape should run after document processing completes");
+    await markQueueJobDone(usScrapeAfterFetch, claimedUsScrapeAfterFetch!.lockedBy!);
 
     const orphanJob = await enqueueJob("cache_detail", { tender_id: 2 }, {
       jobKey: `${key}:orphan`,
