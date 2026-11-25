@@ -15,3 +15,21 @@ export const hasSufficientNestedCachedDetail = (value: unknown): boolean => {
       && normalizePublicTextList(decisionRelevant.scope).length > 0,
   );
 };
+
+export const mergeCacheDetailDescription = (
+  existingDescription: string,
+  existingSummary: unknown,
+  incomingDescription: string,
+): { description: string; summary: unknown; updated: boolean } => {
+  const incomingWins = incomingDescription.length > 20
+    && incomingDescription.length < 5_000
+    && incomingDescription.length > existingDescription.length;
+  if (incomingWins) {
+    return {
+      description: incomingDescription,
+      summary: incomingDescription.slice(0, 3_000),
+      updated: true,
+    };
+  }
+  return { description: existingDescription, summary: existingSummary, updated: false };
+};

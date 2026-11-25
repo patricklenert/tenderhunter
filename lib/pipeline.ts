@@ -39,7 +39,7 @@ import { ensureExtension, fetchAndStore, objectAbsolutePath, suggestedFilename }
 import { fetchAndStoreWithParallelFallback, fetchEvergabeDocumentsViaParallel } from "@/lib/parallel-extract";
 import { ColdStorageError, ensureLocalStored } from "@/lib/object-store-cold";
 import { buildStructuredDescriptionMarkdown, extractStructuredData, normalizeStructured, type StructuredData } from "@/lib/structurer";
-import { hasSufficientNestedCachedDetail } from "@/lib/cache-detail-quality";
+import { hasSufficientNestedCachedDetail, mergeCacheDetailDescription } from "@/lib/cache-detail-quality";
 import { assessTenderQuality, withCanonicalTenderDeadline } from "@/lib/tender-quality";
 import { resolveSourceItem } from "@/lib/tender-sources";
 import { classifyTenderRelevance } from "@/lib/tender-relevance";
@@ -536,6 +536,8 @@ export const mergeMetadata = (
     ? existing as Record<string, unknown>
     : {};
   const merged: Record<string, unknown> = { ...existingRecord };
+  const incomingSummary = pickPublicDescription(incoming.summary);
+  const incomingDescription = pickPublicDescription(incoming.description);
   for (const key of ["description", "summary"]) {
     if (!Object.prototype.hasOwnProperty.call(existingRecord, key)
       && !Object.prototype.hasOwnProperty.call(incoming, key)) continue;
@@ -548,6 +550,12 @@ export const mergeMetadata = (
     } else if (existingDescription) {
       merged[key] = existingDescription;
     } else delete merged[key];
+  }
+  // summary and description are aliases for the same public prose. When a
+  // fresh description wins, do not let a retained summary from an older
+  // scrape mask it merely because the new scrape omitted summary.
+  if (!incomingSummary && incomingDescription && merged.description === incomingDescription) {
+    merged.summary = incomingDescription;
   }
   for (const [key, value] of Object.entries(incoming)) {
     if (key === "description" || key === "summary" || key === "descriptionMarkdown" || key === "description_markdown") continue;
@@ -4067,22 +4075,19 @@ const runCacheDetail = async (payload: Record<string, JsonValue>): Promise<Recor
     }
     mergedBlob.decision_relevant = decisionRelevant;
 
-    // Prefer the richer description (don't overwrite good existing data with thin LLM output)
+    // Prefer the richer description (don't overwrite good existing data with thin LLM output).
+    // When the description wins, keep its public summary alias in sync so a
+    // stale, otherwise-valid summary cannot mask the new snapshot.
     const existingDesc = pickPublicDescription(mergedBlob.description);
     const newDesc = pickPublicDescription(result.description);
+    const descriptionMerge = mergeCacheDetailDescription(existingDesc, mergedBlob.summary, newDesc);
     console.log(`[cache-detail] Merge: existingDesc=${existingDesc.length}, newDesc=${newDesc.length}`);
-    if (newDesc.length > 20 && newDesc.length > existingDesc.length && newDesc.length < 5000) {
-      mergedBlob.description = newDesc;
+    if (descriptionMerge.updated) {
+      mergedBlob.description = descriptionMerge.description;
+      mergedBlob.summary = descriptionMerge.summary;
       console.log(`[cache-detail] Description updated to ${newDesc.length} chars`);
-    } else if (existingDesc) {
-      mergedBlob.description = existingDesc;
-    }
-
-    // Update summary only if cache_detail has substantially better content
-    // Don't replace a good summary with raw text (which can be 10K+ chars from PDFs)
-    const existingSummary = typeof mergedBlob.summary === "string" ? mergedBlob.summary : "";
-    if (newDesc.length > 100 && newDesc.length < 5000 && newDesc.length > existingSummary.length + 50) {
-      mergedBlob.summary = newDesc.slice(0, 3000);
+    } else if (descriptionMerge.description) {
+      mergedBlob.description = descriptionMerge.description;
     }
 
     const newDescriptionMarkdown = typeof result.descriptionMarkdown === "string"

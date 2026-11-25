@@ -17,7 +17,8 @@ import {
 import { buildTenderIndexDocument, getStaleIds, projectTenderSearchHit } from "@/lib/meilisearch";
 import { getCanonicalTenderSlug } from "@/lib/tender-canonical";
 import { projectHomeTenderTitle } from "@/components/seo/HomeTenderList";
-import { hasSufficientNestedCachedDetail } from "@/lib/cache-detail-quality";
+import { hasSufficientNestedCachedDetail, mergeCacheDetailDescription } from "@/lib/cache-detail-quality";
+import { mergeMetadata } from "@/lib/pipeline";
 
 const sourceUrl = "https://vergabe.vmstart.de/NetServer/PublicationControllerServlet?function=Detail";
 const title = "Heinrich-Völker-Bad - Bestandsbadehalle - Raumlufttechnische Anlagen 79-2026";
@@ -942,6 +943,64 @@ const main = async (): Promise<void> => {
       },
     );
   }
+
+  const latestDescription = "Die Lieferung von Schulungsmaterial für kommunale Bildungsstandorte umfasst Versand und Einrichtung.";
+  const mergedCurrentMetadata = mergeMetadata({
+    summary: "Die Stadt Mainz beschafft Schulungsmaterial für kommunale Schulen.",
+    description: "Die Lieferung von Schulungsmaterial für Schulen umfasst den Versand.",
+  }, { description: latestDescription }, currentSearchTender.title);
+  assert.equal(mergedCurrentMetadata?.summary, latestDescription);
+  const mergedCurrentIndex = buildTenderIndexDocument({
+    id: 51,
+    title: currentSearchTender.title,
+    source: "dtvp",
+    sourceKey: "dtvp",
+    url: sourceUrl,
+    deadlineAt: null,
+    firstSeenAt: null,
+    category: "Bauarbeiten",
+    metadataJson: mergedCurrentMetadata,
+    structuredJson: { summary: "## Bekanntmachung" },
+    rawText: "",
+    contractValueMax: null,
+    slug: null,
+    readinessStatus: "pending",
+  });
+  assert.equal(mergedCurrentIndex.description, latestDescription);
+  const mergedCurrentSearchHit = projectTenderSearchHit({
+    ...mergedCurrentIndex,
+    description: "Noch ältere Beschreibung aus dem Suchindex.",
+  }, {
+    ...currentSearchTender,
+    metadataJson: mergedCurrentMetadata,
+    structuredJson: { summary: "## Bekanntmachung" },
+  });
+  assert.equal(
+    mergedCurrentSearchHit.description,
+    latestDescription,
+    "search must reproject the current merged DB description instead of exposing the stale metadata summary or index hit",
+  );
+  const staleCachedSummary = "Die Stadt Mainz beschafft Schulungsmaterial für kommunale Schulen.";
+  const refreshedCacheDescription = mergeCacheDetailDescription(
+    "Die Lieferung von Schulungsmaterial für Schulen umfasst den Versand.",
+    staleCachedSummary,
+    latestDescription,
+  );
+  assert.deepEqual(refreshedCacheDescription, {
+    description: latestDescription,
+    summary: latestDescription,
+    updated: true,
+  }, "a winning cache-detail description must refresh the public summary even when the old summary is longer");
+  const retainedCacheDescription = mergeCacheDetailDescription(
+    "Die Lieferung von Schulungsmaterial für Schulen umfasst den Versand.",
+    staleCachedSummary,
+    "Kurze Notiz.",
+  );
+  assert.deepEqual(retainedCacheDescription, {
+    description: "Die Lieferung von Schulungsmaterial für Schulen umfasst den Versand.",
+    summary: staleCachedSummary,
+    updated: false,
+  }, "a non-winning thin cache-detail candidate must preserve the existing description and summary");
 
   const tokenizedScopeText = "Die Lieferung von Büromaterial umfasst den Versand an mehrere Standorte.";
   const tokenizedSearchStructured = {

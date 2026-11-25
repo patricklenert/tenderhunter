@@ -366,7 +366,7 @@ assert.deepEqual(
   "remerging a richer description and its markdown must be idempotent",
 );
 const existingDisplaySummary = "Bisherige Zusammenfassung: Erneuerung der Fahrbahn und Entwässerung im Stadtgebiet Mainz.";
-const summaryWinsMerge = mergeMetadata(
+const refreshedSummaryMerge = mergeMetadata(
   {
     summary: existingDisplaySummary,
     description: "Kurzer vorhandener Beschreibungstext.",
@@ -374,13 +374,32 @@ const summaryWinsMerge = mergeMetadata(
   },
   richerDescriptionInput,
 );
-assert.equal(summaryWinsMerge?.summary, existingDisplaySummary);
-assert.equal(summaryWinsMerge?.description, richerDescription);
+assert.equal(refreshedSummaryMerge?.summary, richerDescription);
+assert.equal(refreshedSummaryMerge?.description, richerDescription);
 assert.equal(
-  summaryWinsMerge?.descriptionMarkdown,
-  canonicalMarkdown,
-  "markdown must follow the summary-first public projection when an incoming description wins only its per-key merge",
+  refreshedSummaryMerge?.descriptionMarkdown,
+  incomingDescriptionMarkdown,
+  "a fresh description that wins the merge must replace an omitted stale summary and its markdown",
 );
+assert.deepEqual(
+  mergeMetadata(refreshedSummaryMerge, richerDescriptionInput),
+  refreshedSummaryMerge,
+  "refreshing an omitted summary from the winning description must be idempotent",
+);
+const retainedRichSummaryMerge = mergeMetadata(
+  {
+    summary: existingDisplaySummary,
+    description: richerDescription,
+    descriptionMarkdown: canonicalMarkdown,
+  },
+  { description: "Straßenbauarbeiten in Mainz." },
+);
+assert.equal(
+  retainedRichSummaryMerge?.summary,
+  existingDisplaySummary,
+  "a thinner incoming description must not replace the retained richer display fallback",
+);
+assert.equal(retainedRichSummaryMerge?.description, richerDescription);
 const unchangedPublicDescription = "Die Stadt Mainz erneuert die Beleuchtung einer Schule.";
 const refreshedDescriptionMarkdown = "- **Auftraggeber:** Landeshauptstadt Mainz";
 const unchangedDescriptionMerge = mergeMetadata(
