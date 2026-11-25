@@ -30,6 +30,7 @@ async function main() {
     assert.equal(fieldState.horizontalOverflow, false, `${width}px: homepage must not overflow horizontally`);
 
     if (width === 390) {
+      await page.waitForTimeout(1_500);
       await page.keyboard.press("Tab");
       const skipLinkState = await page.evaluate(() => {
         const active = document.activeElement;
@@ -48,11 +49,15 @@ async function main() {
 
       await page.keyboard.press("Enter");
       await page.waitForFunction(() => window.location.hash === "#website-analysis-title");
-      assert.equal(
-        await page.evaluate(() => document.activeElement?.id),
-        "website-analysis-title",
-        "skip link must move focus to the analysis heading",
-      );
+      const destinationFocus = await page.evaluate(() => {
+        const heading = document.getElementById("website-analysis-title");
+        return {
+          focused: document.activeElement === heading,
+          focusRing: heading ? getComputedStyle(heading).outlineStyle !== "none" : false,
+        };
+      });
+      assert.equal(destinationFocus.focused, true, "skip link must move focus to the analysis heading");
+      assert.equal(destinationFocus.focusRing, true, "focused analysis heading must show the brand focus ring");
     }
   }
 
@@ -95,7 +100,7 @@ async function main() {
   for (const [label, hash] of [
     ["Analyse", "analyse"],
     ["Ausschreibungen", "ausschreibungen"],
-    ["U.S. Opportunities", "us"],
+    ["US-Aufträge", "us"],
     ["MCP", "mcp"],
   ] as const) {
     await page.goto(`${baseUrl}#${hash}`, { waitUntil: "domcontentloaded" });
