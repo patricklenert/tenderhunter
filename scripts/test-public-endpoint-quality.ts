@@ -45,6 +45,8 @@ assert.equal(normalizePublicDisplayCandidate(summarySeparatorArtifact), null);
 const rejectedDescriptionArtifacts = [
   "## Kurzinfo",
   "SERVICE.BUND.DE - Aktuelle Ausschreibungen Haupt-Navigations-Menü Meta-Navigation Andere Ausschreibungen im Bereich",
+  "Bekanntmachung:",
+  "Beschreibung:",
   "Anmelden erforderlich, um Zugriff zu erhalten",
   "Bitte melden Sie sich an, um die vollständigen Vergabeunterlagen einzusehen.",
   "Zugelassene Angebotsabgabe elektronisch in Textform mit fortgeschrittener/m Signatur/Siegel. mit qualifizierter/m Signatur/Siegel.",
@@ -71,6 +73,19 @@ assert.equal(
 const serviceBundOfferSubmissionTemplateFragment = "Zugelassene Angebotsabgabe elektronisch in Textform mit fortgeschrittener/m Signatur/Siegel. mit qualifizierter/m Signatur/Siegel. schriftlich; Maßnahmen zum Schutz vertraulicher Informationen: Abgabe Verschwiegenheitserklärung";
 const liveTemplateMarkdown = `- **Anforderungen:** ${serviceBundOfferSubmissionTemplateFragment}`;
 const cleanTenderMarkdown = "- **Leistungsumfang:** Lieferung von Schulungsmaterial an Schulen.\n- **Anforderungen:** Mindestens drei vergleichbare Referenzen sind mit dem Angebot vorzulegen.";
+assert.equal(
+  isCanonicalPublicDescriptionMarkdown("- **Zusammenfassung:** Bekanntmachung:"),
+  false,
+  "a raw canonical-looking Markdown bullet must not turn a scraped field heading into public content",
+);
+assert.equal(
+  pickCanonicalPublicDescriptionMarkdown(
+    "- **Zusammenfassung:** Bekanntmachung:",
+    cleanTenderMarkdown,
+  ),
+  cleanTenderMarkdown,
+  "an invalid raw Markdown candidate must fall through to the next canonical fallback",
+);
 const liveDetailMarkdownProjection = projectPublicDisplayFields({
   descriptionMarkdown: [liveTemplateMarkdown, cleanTenderMarkdown],
 });
@@ -97,6 +112,16 @@ assert.equal(
 assert.equal(
   pickValidatedPublicLocationForTender("Erneuerung Energiezentrale in Bautzen", "Stadt Bautzen", "Erneuerung Energiezentrale in Bautzen"),
   "",
+);
+assert.equal(
+  pickValidatedPublicLocationForTender("Erneuerung der Heizungsanlage", "Stadt Mainz", "##"),
+  "",
+  "a separator-only location must be rejected",
+);
+assert.equal(
+  pickValidatedPublicLocationForTender("Erneuerung der Heizungsanlage", "Stadt Mainz", "##", "55116 Mainz"),
+  "55116 Mainz",
+  "an invalid location must fall through to the next valid candidate",
 );
 assert.equal(pickValidatedPublicLocationForTender("Sanierung in Mainz", "Stadt Mainz", "00023 Anzahl Lose"), "");
 
@@ -249,11 +274,19 @@ for (const invalid of accessOnlyDescriptionCandidates) {
   );
 }
 const invalidPortalSummary = accessOnlyDescriptionCandidates[0];
-const qualityFixtureMetadata = { description: invalidPortalSummary, location: "##Leistungsort", client: "Stadt Mainz" };
+const qualityFixtureNavigationSummary = "SERVICE.BUND.DE - Haupt-Navigations-Menü Meta-Navigation Andere Ausschreibungen im Bereich";
+const qualityFixtureRawHeadingMarkdown = "- **Zusammenfassung:** Bekanntmachung:";
+const qualityFixtureMetadata = {
+  description: qualityFixtureNavigationSummary,
+  descriptionMarkdown: qualityFixtureRawHeadingMarkdown,
+  location: "##Leistungsort",
+  client: "Stadt Mainz",
+};
 const qualityFixtureStructured = {
   title: qualityFixtureDisplayTitle,
   summary: `## Bekanntmachung\n${qualityFixtureSummary}`,
   description: "Eine neue Heizungsanlage und verbesserte Wärmedämmung werden eingebaut.",
+  descriptionMarkdown: qualityFixtureRawHeadingMarkdown,
   hard_facts: { buyer: "Stadt Mainz", location: "##Leistungsort", city: "55116 Mainz" },
   decision_relevant: { scope: ["Energetische Sanierung der Grundschule"] },
 };
@@ -289,6 +322,10 @@ const qualityFixtureModal = projectPublicTenderRecord({
     client: "##Auftraggeber",
     location: "##Leistungsort",
     summary: ["##Kurzinfo", "##Bekanntmachung", qualityFixtureSummary],
+    descriptionMarkdown: [
+      qualityFixtureRawHeadingMarkdown,
+      qualityFixtureNormalized.descriptionMarkdown,
+    ],
   },
   metadata: {
     title: qualityFixtureTitle,
@@ -341,6 +378,10 @@ assert.deepEqual(publicFields(qualityFixtureModal), qualityFixtureExpected);
 assert.deepEqual(publicFields(qualityFixtureIndex), qualityFixtureExpected);
 assert.deepEqual(publicFields(qualityFixtureSearchHit), qualityFixtureExpected);
 assert.equal(qualityFixtureModal.title, qualityFixtureDetail.title, "modal title prefers the validated detail title");
+assert.equal(qualityFixtureList.descriptionMarkdown, qualityFixtureNormalized.descriptionMarkdown);
+assert.equal(qualityFixtureDetail.descriptionMarkdown, qualityFixtureList.descriptionMarkdown);
+assert.equal(qualityFixtureModal.descriptionMarkdown, qualityFixtureList.descriptionMarkdown);
+assert.doesNotMatch(qualityFixtureList.descriptionMarkdown ?? "", /Bekanntmachung:|SERVICE\.BUND\.DE|Haupt-Navigations-Menü/);
 
 // Cached LLM access flags are not authoritative: use the same source-backed
 // evidence as the list and SSR, or the modal can gain a generic access note.
