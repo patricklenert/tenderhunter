@@ -54,7 +54,7 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "Den vollständigen Text des GWB finden Sie auf gesetze-im-internet.de unter der offiziellen Veröffentlichung des Bundesministeriums der Justiz. Für die Einordnung sind insbesondere die Vorschriften des vierten Teils und die jeweils aktuelle Fassung maßgeblich.",
       },
     ],
-    relatedTerms: ["vgv-vergabeverordnung", "uvgo", "vob-a", "vob-a-eu", "schwellenwerte", "nachpruefungsverfahren", "informations-und-wartepflicht", "rahmenvereinbarung"],
+    relatedTerms: ["vgv-vergabeverordnung", "uvgo", "vob-a", "vob-a-eu", "schwellenwerte", "nachpruefungsverfahren", "aufhebung-vergabeverfahren", "informations-und-wartepflicht", "rahmenvereinbarung"],
     relatedArticles: ["vergaberecht-leitfaden", "schwellenwerte-vergabe", "vob-vergabe"],
     sources: [
       { title: "§ 97 GWB – Grundsätze der Vergabe", url: "https://www.gesetze-im-internet.de/gwb/__97.html" },
@@ -93,7 +93,7 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "Für Sektorenauftraggeber und Konzessionen gelten regelmäßig besondere Regelwerke. Bei Bauaufträgen gilt nicht pauschal ein vollständiger Ausschluss der VgV: § 2 VgV ordnet die Anwendung bestimmter VgV-Teile an und verweist im Übrigen auf VOB/A Abschnitt 2.",
       },
     ],
-    relatedTerms: ["uvgo", "vob-a", "vob-a-eu", "gwb-vergaberecht", "sektvo", "konzvgv", "rahmenvereinbarung", "auftragsbekanntmachung"],
+    relatedTerms: ["uvgo", "vob-a", "vob-a-eu", "gwb-vergaberecht", "sektvo", "konzvgv", "rahmenvereinbarung", "auftragsbekanntmachung", "aufhebung-vergabeverfahren"],
     relatedCategories: ["Planungsleistungen", "IT-Dienstleistungen", "Lieferung"],
     relatedArticles: ["vergaberecht-leitfaden", "vob-vergabe"],
     sources: [
@@ -171,7 +171,7 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "§ 2 VgV verweist im Übrigen auf VOB/A Abschnitt 2 in der Fassung der Bekanntmachung von 2019, zuletzt geändert durch die Bekanntmachung vom 22. Juli 2026. Die Abschnitte 1, 2 und 3 haben unterschiedliche Geltungsbereiche. Für ein konkretes Verfahren sind die einschlägige Vorschrift und die dort in Bezug genommene Fassung maßgeblich; das Veröffentlichungsdatum allein legt keinen einheitlichen Starttermin für alle Auftraggeber fest.",
       },
     ],
-    relatedTerms: ["vob-b", "vob-c", "vob-a-eu", "nebenangebot", "schwellenwerte", "auftragswert", "leistungsbeschreibung", "leistungsverzeichnis", "losvergabe", "vgv-vergabeverordnung", "gwb-vergaberecht", "eignungsleihe", "nachforderung-unterlagen", "praequalifikation-pq-vob", "auftragsbekanntmachung"],
+    relatedTerms: ["vob-b", "vob-c", "vob-a-eu", "nebenangebot", "schwellenwerte", "auftragswert", "leistungsbeschreibung", "leistungsverzeichnis", "losvergabe", "vgv-vergabeverordnung", "gwb-vergaberecht", "eignungsleihe", "nachforderung-unterlagen", "praequalifikation-pq-vob", "auftragsbekanntmachung", "aufhebung-vergabeverfahren"],
     relatedCategories: ["Bauarbeiten", "Tiefbau", "TGA", "Gartenarbeiten"],
     relatedArticles: ["vob-vergabe", "schwellenwerte-vergabe", "vergaberecht-leitfaden"],
     sources: [
@@ -251,7 +251,7 @@ export const GLOSSARY: GlossaryEntry[] = [
       { question: "Ist VOB/A EU dasselbe wie VgV?", answer: "Nein. VOB/A EU ist Abschnitt 2 der VOB/A. Bei Bauaufträgen gelten daneben die in § 2 VgV genannten VgV-Vorschriften sowie der vierte Teil des GWB." },
       { question: "Welcher EU-Schwellenwert gilt für Bauaufträge?", answer: "Für Bauaufträge klassischer öffentlicher Auftraggeber im Anwendungsbereich der Richtlinie 2014/24/EU liegt der Schwellenwert 2026 und 2027 bei 5.404.000 Euro netto. Das ist kein pauschaler Wert für jede Bauvergabe: Auftraggeber, Auftragsart, die Berechnung des geschätzten Auftragswerts und mögliche Sonderregeln müssen geprüft werden." },
     ],
-    relatedTerms: ["vob-a", "vob-b", "vob-c", "nebenangebot", "schwellenwerte", "auftragswert", "losvergabe", "vgv-vergabeverordnung", "gwb-vergaberecht", "offenes-verfahren", "beschraenktes-verfahren", "nachforderung-unterlagen", "praequalifikation-pq-vob"],
+    relatedTerms: ["vob-a", "vob-b", "vob-c", "nebenangebot", "schwellenwerte", "auftragswert", "losvergabe", "vgv-vergabeverordnung", "gwb-vergaberecht", "offenes-verfahren", "beschraenktes-verfahren", "nachforderung-unterlagen", "praequalifikation-pq-vob", "aufhebung-vergabeverfahren"],
     relatedCategories: ["Bauarbeiten", "Tiefbau", "TGA", "Gartenarbeiten"],
     relatedArticles: ["vob-vergabe", "schwellenwerte-vergabe"],
     sources: [
@@ -657,8 +657,50 @@ export const GLOSSARY: GlossaryEntry[] = [
         answer: "Öffentliche Ausschreibungen werden auf verschiedenen Vergabeportalen wie DTVP, TED, evergabe.de und Bauportal Deutschland veröffentlicht. Tenderhunter aggregiert alle diese Quellen und macht sie zentral auffindbar.",
       },
     ],
-    relatedTerms: ["leistungsbeschreibung", "leistungsverzeichnis", "losvergabe", "offenes-verfahren"],
+    relatedTerms: ["leistungsbeschreibung", "leistungsverzeichnis", "losvergabe", "offenes-verfahren", "aufhebung-vergabeverfahren"],
     relatedCategories: ["Bauarbeiten", "Gebaeudereinigung", "IT-Dienstleistungen"],
+  },
+  {
+    slug: "aufhebung-vergabeverfahren",
+    term: "Aufhebung des Vergabeverfahrens",
+    category: "Vergabeprozess",
+    shortDefinition: "Bei einer Aufhebung beendet der Auftraggeber ein Vergabeverfahren ganz oder teilweise, ohne den vorgesehenen Zuschlag zu erteilen. Gründe und Mitteilung richten sich nach dem anwendbaren Vergaberecht.",
+    definition: [
+      "Die Aufhebung eines Vergabeverfahrens – häufig auch „Aufhebung der Ausschreibung“ genannt – beendet das laufende Verfahren ganz oder teilweise, soweit das einschlägige Regelwerk und die Vergabestruktur dies zulassen. Sie ist von der Zurückweisung oder dem Ausschluss eines einzelnen Angebots und von der Kündigung eines bereits geschlossenen Bauvertrags zu unterscheiden.",
+      "Für Vergabeverfahren nach der VgV nennt § 63 als Gründe unter anderem, dass kein den Bedingungen entsprechendes Angebot eingegangen ist, sich die Grundlage des Verfahrens wesentlich geändert hat, kein wirtschaftliches Ergebnis erzielt wurde oder andere schwerwiegende Gründe bestehen. Die Vorschrift erlaubt eine vollständige oder teilweise Aufhebung und verlangt, Bewerber und Bieter unverzüglich über die Gründe zu informieren.",
+      "Für Bauaufträge enthalten die Abschnitte der VOB/A eigene Aufhebungsregeln. § 17 VOB/A (Abschnitt 1) nennt kein bedingungsgemäßes Angebot, eine grundlegende Änderung der Vergabeunterlagen oder andere schwerwiegende Gründe. § 17 EU VOB/A (Abschnitt 2, Ausgabe 2026) führt zusätzlich ein fehlendes wirtschaftliches Ergebnis als Grund auf. Abschnitt 3 für verteidigungs- und sicherheitsspezifische Vergaben hat eine eigene Regelung. Welche Vorschrift gilt, hängt vom Auftrag und vom anwendbaren Abschnitt ab; bei EU-Bauvergaben ist außerdem die Zuordnung nach § 2 VgV zu beachten.",
+      "Eine Aufhebung ist keine beliebig austauschbare Alternative zum Zuschlag. Auch wenn öffentliche Auftraggeber grundsätzlich nicht in jedem Fall zum Zuschlag verpflichtet sind, müssen sie das einschlägige Vergaberecht und seine Verfahrensgrundsätze beachten. Bei einer möglichen Nachprüfung gelten die Voraussetzungen und Fristen des jeweiligen Rechtsschutzwegs; Teil 4 GWB und § 160 GWB greifen nicht pauschal bei jeder Vergabe.",
+    ],
+    keyPoints: [
+      "Beendet ein laufendes Verfahren ganz oder teilweise; kein Zuschlag im aufgehobenen Umfang",
+      "Die Aufhebungsgründe unterscheiden sich: Abschnitt 2 der VOB/A nennt 2026 ausdrücklich auch ein fehlendes wirtschaftliches Ergebnis",
+      "Bewerber und Bieter sind nach den einschlägigen Vorschriften unverzüglich über die Gründe zu informieren",
+      "Nicht mit dem Ausschluss eines einzelnen Angebots oder der Kündigung eines Bauvertrags verwechseln",
+      "Rechtsschutz und Fristen hängen vom Anwendungsbereich und den konkreten Umständen ab",
+    ],
+    faq: [
+      {
+        question: "Wann darf eine Ausschreibung aufgehoben werden?",
+        answer: "Das hängt vom anwendbaren Vergaberecht ab. § 63 VgV nennt unter anderem kein bedingungsgemäßes Angebot, eine wesentliche Änderung der Verfahrensgrundlage, ein fehlendes wirtschaftliches Ergebnis und andere schwerwiegende Gründe. Für Bauvergaben enthält § 17 VOB/A (Abschnitt 1) eigene Gründe; § 17 EU VOB/A (Abschnitt 2, Ausgabe 2026) nennt zusätzlich ein fehlendes wirtschaftliches Ergebnis.",
+      },
+      {
+        question: "Ist die Aufhebung dasselbe wie der Ausschluss eines Angebots?",
+        answer: "Nein. Bei einer Aufhebung wird das Vergabeverfahren ganz oder teilweise beendet. Beim Ausschluss wird dagegen ein einzelnes Angebot nicht weiter berücksichtigt; das Verfahren kann mit den übrigen Angeboten fortgesetzt werden.",
+      },
+      {
+        question: "Können Bieter gegen die Aufhebung vorgehen?",
+        answer: "Eine Nachprüfung kommt nur unter den Voraussetzungen des jeweils anwendbaren Rechtsschutzwegs in Betracht. Im Anwendungsbereich von Teil 4 GWB sind insbesondere Antragsbefugnis, Rügeobliegenheiten und Fristen nach den GWB-Vorschriften zu prüfen; bei Unterschwellenvergaben gelten je nach Auftraggeber weitere Regelungen.",
+      },
+    ],
+    relatedTerms: ["ausschreibung", "vob-a", "vob-a-eu", "vgv-vergabeverordnung", "gwb-vergaberecht", "nachpruefungsverfahren", "ruege", "zuschlag"],
+    relatedArticles: ["vob-vergabe", "vergaberecht-leitfaden", "nachpruefungsverfahren-vergabe"],
+    sources: [
+      { title: "§ 63 VgV – Aufhebung von Vergabeverfahren", url: "https://www.gesetze-im-internet.de/vgv_2016/__63.html" },
+      { title: "VOB/A 2019 – § 17 Aufhebung der Ausschreibung", url: "https://www.verwaltungsvorschriften-im-internet.de/bsvwvbund_31012019_BWI781063060120180001604634.htm" },
+      { title: "Bundesanzeiger: VOB/A Abschnitte 2 und 3, Ausgabe 2026", url: "https://www.bundesanzeiger.de/pub/publication/73xO0rpP1jfX5HRt0Ja/content/73xO0rpP1jfX5HRt0Ja/BAnz%20AT%2024.08.2026%20B6.pdf?inline" },
+      { title: "§ 160 GWB – Einleitung, Antrag", url: "https://www.gesetze-im-internet.de/gwb/__160.html" },
+    ],
+    lastReviewed: "2026-11-26",
   },
   {
     slug: "ausschreibungsreife",

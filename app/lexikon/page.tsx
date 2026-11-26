@@ -61,6 +61,7 @@ const PROCESS_CLUSTER = [
   { slug: "bieterfragen", label: "Bieterfragen" },
   { slug: "nachforderung-unterlagen", label: "Nachforderung von Unterlagen" },
   { slug: "angebot", label: "Angebot" },
+  { slug: "aufhebung-vergabeverfahren", label: "Aufhebung des Vergabeverfahrens" },
 ];
 
 const RIGHTS_CLUSTER = [
@@ -134,7 +135,7 @@ export default function LexikonHubPage() {
               Vergabeprozess und E-Vergabe
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2, maxWidth: "75ch", lineHeight: 1.7 }}>
-              Von den Vergabeunterlagen über den Teilnahmewettbewerb bis zur elektronischen Angebotsabgabe: Diese Begriffe ordnen die wichtigsten Schritte für Auftraggeber und Bieter ein.
+              Von den Vergabeunterlagen und der Angebotsabgabe bis zur Entscheidung über Zuschlag oder Aufhebung: Diese Begriffe ordnen wichtige Schritte und mögliche Verfahrensausgänge für Auftraggeber und Bieter ein.
             </Typography>
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
               {PROCESS_CLUSTER.map((item) => (

@@ -110,15 +110,16 @@ Unterhalb des jeweils einschlägigen Werts gelten die nationalen Regeln des Auft
     description:
       "VOB/A, VOB/B und VOB/C verständlich erklärt: Vergabeverfahren, Bauvertragsbedingungen, technische ATV, Schwellenwerte und wichtige Hinweise für Bieter.",
     datePublished: "2025-01-15",
-    dateModified: "2026-11-22",
-    lastReviewed: "2026-11-22",
+    dateModified: "2026-11-26",
+    lastReviewed: "2026-11-26",
     relatedCategories: ["Bauarbeiten", "Tiefbau", "TGA", "Gartenarbeiten"],
     relatedArticles: ["vergabeverfahren-uebersicht", "schwellenwerte-vergabe", "ausschreibung-muster", "bietergemeinschaft-gruenden"],
-    relatedGlossaryTerms: ["vob-a", "vob-b", "vob-c", "vob-a-eu", "nebenangebot", "schwellenwerte", "auftragswert", "losvergabe", "leistungsbeschreibung", "leistungsverzeichnis", "vgv-vergabeverordnung", "gwb-vergaberecht", "eignungsleihe", "praequalifikation-pq-vob", "nachforderung-unterlagen", "auftragsbekanntmachung", "vorinformation", "informations-und-wartepflicht"],
+    relatedGlossaryTerms: ["vob-a", "vob-b", "vob-c", "vob-a-eu", "nebenangebot", "schwellenwerte", "auftragswert", "losvergabe", "leistungsbeschreibung", "leistungsverzeichnis", "vgv-vergabeverordnung", "gwb-vergaberecht", "eignungsleihe", "praequalifikation-pq-vob", "nachforderung-unterlagen", "auftragsbekanntmachung", "vorinformation", "informations-und-wartepflicht", "aufhebung-vergabeverfahren"],
     sources: [
       { title: "Bundesanzeiger: Bekanntmachung der Vergabe- und Vertragsordnung für Bauleistungen Teil A – Abschnitt 2 und Abschnitt 3 (VOB/A) – Ausgabe 2026 – (BAnz AT 24.08.2026 B6)", url: "https://www.bundesanzeiger.de/pub/publication/73xO0rpP1jfX5HRt0Ja/content/73xO0rpP1jfX5HRt0Ja/BAnz%20AT%2024.08.2026%20B6.pdf?inline" },
       { title: "VOB/A, Bekanntmachung vom 31. Januar 2019 (BAnz AT 19.02.2019 B2)", url: "https://www.verwaltungsvorschriften-im-internet.de/bsvwvbund_31012019_BWI781063060120180001604634.htm" },
       { title: "§ 2 VgV – Bauaufträge", url: "https://www.gesetze-im-internet.de/vgv_2016/__2.html" },
+      { title: "§ 63 VgV – Aufhebung von Vergabeverfahren", url: "https://www.gesetze-im-internet.de/vgv_2016/__63.html" },
       { title: "DIN 18299:2023-09 – Allgemeine Regelungen für Bauarbeiten jeder Art", url: "https://www.dinmedia.de/de/standard/din-18299/369847346" },
       { title: "§ 97a GWB – Losgrundsatz", url: "https://www.gesetze-im-internet.de/gwb/__97a.html" },
       { title: "§ 134 GWB – Informations- und Wartepflicht", url: "https://www.gesetze-im-internet.de/gwb/__134.html" },
@@ -188,6 +189,12 @@ Die Anforderungen hängen vom Abschnitt ab: Bei VOB/A Abschnitt 2 muss die Bekan
 
 ### Ortstermine
 Bei komplexen Bauvorhaben werden häufig Ortstermine angeboten. Die Teilnahme ist empfehlenswert, da sie Aufschluss über die tatsächlichen Gegebenheiten gibt.
+
+## Aufhebung der Ausschreibung
+
+Auch eine Bauausschreibung kann vor dem Zuschlag ganz oder teilweise aufgehoben werden. Für den nationalen Bereich nennt § 17 VOB/A insbesondere ein fehlendes bedingungsgemäßes Angebot, eine grundlegende Änderung der Vergabeunterlagen oder andere schwerwiegende Gründe. § 17 EU VOB/A für Abschnitt 2 führt in der Ausgabe 2026 zusätzlich ein fehlendes wirtschaftliches Ergebnis als Aufhebungsgrund auf. Abschnitt 3 für verteidigungs- und sicherheitsspezifische Vergaben hat eine eigene Regelung. Welche Fassung und welcher Abschnitt gelten, hängt vom konkreten Auftrag und vom anwendbaren Vergaberecht ab. Die VgV enthält in § 63 ebenfalls eine Aufhebungsregel, ist bei Bauaufträgen aber nur nach Maßgabe des § 2 VgV heranzuziehen.
+
+Eine Aufhebung ist nicht mit dem Ausschluss eines einzelnen Angebots oder der Kündigung eines bereits geschlossenen Bauvertrags gleichzusetzen. Bewerber und Bieter sind nach den jeweils geltenden Vorschriften über die Gründe zu informieren. Eine mögliche Nachprüfung und ihre Fristen hängen vom Anwendungsbereich ab; Teil 4 GWB gilt nicht pauschal für jede Bauvergabe. Weiterführende Begriffe und Quellen finden Sie im Vergabelexikon am Ende dieses Ratgebers.
 
 ## Rechte der Bieter
 
